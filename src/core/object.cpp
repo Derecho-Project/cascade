@@ -100,14 +100,14 @@ bool Object::is_valid() const {
 }
 
 // constructor 0 : copy constructor
-Object::Object(const uint64_t& _key, const Blob& _blob) : ver(INVALID_VERSION,0),
+Object::Object(const uint64_t& _key, const Blob& _blob) : ver(persistent::INVALID_VERSION,0),
                                              key(_key),
                                              blob(_blob) {}
 // constructor 0.5 : copy constructor
 Object::Object(const std::tuple<persistent::version_t,uint64_t> _ver, const uint64_t& _key, const Blob& _blob) : ver(_ver), key(_key), blob(_blob) {}
 
 // constructor 1 : copy consotructor
-Object::Object(const uint64_t _key, const char* const _b, const std::size_t _s) : ver(INVALID_VERSION,0),
+Object::Object(const uint64_t _key, const char* const _b, const std::size_t _s) : ver(persistent::INVALID_VERSION,0),
                                                                           key(_key),
                                                                           blob(_b, _s) {}
 // constructor 1.5 : copy constructor
@@ -122,7 +122,7 @@ Object::Object(const Object& other) : ver(other.ver),
                               key(other.key),
                               blob(other.blob) {}
 // constructor 4 : default invalid constructor
-Object::Object() : ver(INVALID_VERSION,0), key(INVALID_OBJECT_KEY) {}
+Object::Object() : ver(persistent::INVALID_VERSION,0), key(INVALID_OBJECT_KEY) {}
 
 } // namespace cascade
 } // namespace derecho
