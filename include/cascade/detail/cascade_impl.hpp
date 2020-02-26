@@ -22,7 +22,7 @@ std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::pu
     derecho::Replicated<VolatileCascadeStore>& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put)>(value);
     auto& replies = results.get();
-    std::tuple<persistent::version_t,uint64_t> ret(INVALID_VERSION,0);
+    std::tuple<persistent::version_t,uint64_t> ret(persistent::INVALID_VERSION,0);
     // TODO: verfiy consistency ?
     for (auto& reply_pair : replies) {
         ret = reply_pair.second.get();
@@ -37,7 +37,7 @@ std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::re
     derecho::Replicated<VolatileCascadeStore>& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_remove)>(key);
     auto& replies = results.get();
-    std::tuple<persistent::version_t,uint64_t> ret(INVALID_VERSION,0);
+    std::tuple<persistent::version_t,uint64_t> ret(persistent::INVALID_VERSION,0);
     // TODO: verify consistency ?
     for (auto& reply_pair : replies) {
         ret = reply_pair.second.get();
@@ -49,7 +49,7 @@ std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::re
 template<typename KT, typename VT, KT* IK, VT* IV>
 const VT VolatileCascadeStore<KT,VT,IK,IV>::get(const KT& key, const persistent::version_t& ver) {
     debug_enter_func_with_args("key={},ver=0x{:x}",key,ver);
-    if (ver != INVALID_VERSION) {
+    if (ver != persistent::INVALID_VERSION) {
         debug_leave_func_with_value("Cannot support versioned get, ver=0x{:x}", ver);
         return *IV;
     }
@@ -348,7 +348,7 @@ std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST
     derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put)>(value);
     auto& replies = results.get();
-    std::tuple<persistent::version_t,uint64_t> ret(INVALID_VERSION,0);
+    std::tuple<persistent::version_t,uint64_t> ret(persistent::INVALID_VERSION,0);
     // TODO: verfiy consistency ?
     for (auto& reply_pair : replies) {
         ret = reply_pair.second.get();
@@ -363,7 +363,7 @@ std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST
     derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_remove)>(key);
     auto& replies = results.get();
-    std::tuple<persistent::version_t,uint64_t> ret(INVALID_VERSION,0);
+    std::tuple<persistent::version_t,uint64_t> ret(persistent::INVALID_VERSION,0);
     // TODO: verify consistency ?
     for (auto& reply_pair : replies) {
         ret = reply_pair.second.get();
@@ -375,7 +375,7 @@ std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 const VT PersistentCascadeStore<KT,VT,IK,IV,ST>::get(const KT& key, const persistent::version_t& ver) {
     debug_enter_func_with_args("key={},ver=0x{:x}",key,ver);
-    if (ver != INVALID_VERSION) {
+    if (ver != persistent::INVALID_VERSION) {
         debug_leave_func_with_value("Cannot support versioned get, ver=0x{:x}", ver);
         return *IV;
     }

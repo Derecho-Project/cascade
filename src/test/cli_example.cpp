@@ -87,7 +87,7 @@ static void client_get(derecho::ExternalGroup<VCS,PCS>& group,
     }
 
     uint64_t key = std::stoll(tokens[1]);
-    uint64_t ver = INVALID_VERSION;
+    uint64_t ver = persistent::INVALID_VERSION;
     uint64_t ts  = 0;
 
     if (tokens.size() == 4) {
