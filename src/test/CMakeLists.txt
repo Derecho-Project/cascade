@@ -10,6 +10,13 @@ target_include_directories(cli_example PRIVATE
 )
 target_link_libraries(cli_example cascade)
 
+add_executable(perf perf.cpp)
+target_include_directories(perf PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+)
+target_link_libraries(perf cascade)
+
 add_custom_command(TARGET cli_example POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/cli_example_cfg
     ${CMAKE_CURRENT_BINARY_DIR}/cli_example_cfg
