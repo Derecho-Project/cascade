@@ -79,14 +79,16 @@ int main(int argc, char** argv) {
         /** 1 - create external client group*/
         derecho::ExternalGroup<VCS,PCS> group;
         std::cout << "Finished constructing ExternalGroup." << std::endl;
-        uint64_t msg_size = derecho::getConfUInt64(CONF_SUBGROUP_DEFAULT_MAX_PAYLOAD_SIZE) - 128;
-
-        char* bbuf = (char*)malloc(msg_size);
-        bzero(bbuf, msg_size);
-
         
+        uint64_t msg_size = derecho::getConfUInt64(CONF_SUBGROUP_DEFAULT_MAX_PAYLOAD_SIZE);
 
         if (is_persistent) {
+            if (derecho::hasCustomizedConfKey("SUBGROUP/PCS/max_payload_size")) {
+                msg_size = derecho::getConfUInt64("SUBGROUP/PCS/max_payload_size") - 128;
+            }
+            char* bbuf = (char*)malloc(msg_size);
+            bzero(bbuf, msg_size);
+
             ExternalClientCaller<PCS,std::remove_reference<decltype(group)>::type>& pcs_ec = group.get_subgroup_caller<PCS>();
 
             clock_gettime(CLOCK_REALTIME, &t_start);
@@ -100,7 +102,14 @@ int main(int argc, char** argv) {
             clock_gettime(CLOCK_REALTIME, &t_end);
             std::cout << "put finished with timestamp=" << std::get<0>(reply)
                     << ",version=" << std::get<1>(reply) << std::endl;
+            free(bbuf);
         } else {
+            if (derecho::hasCustomizedConfKey("SUBGROUP/VCS/max_payload_size")) {
+                msg_size = derecho::getConfUInt64("SUBGROUP/VCS/max_payload_size") - 128;
+            }
+            char* bbuf = (char*)malloc(msg_size);
+            bzero(bbuf, msg_size);
+
             ExternalClientCaller<VCS,std::remove_reference<decltype(group)>::type>& vcs_ec = group.get_subgroup_caller<VCS>();
 
             clock_gettime(CLOCK_REALTIME, &t_start);
@@ -114,8 +123,8 @@ int main(int argc, char** argv) {
             clock_gettime(CLOCK_REALTIME, &t_end);
             std::cout << "put finished with timestamp=" << std::get<0>(reply)
                     << ",version=" << std::get<1>(reply) << std::endl;
+            free(bbuf);
         }
-        free(bbuf);
 
         int64_t nsec = ((int64_t)t_end.tv_sec - t_start.tv_sec) * 1000000000 + t_end.tv_nsec - t_start.tv_nsec;
         double msec = (double)nsec / 1000000;
