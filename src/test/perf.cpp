@@ -10,12 +10,78 @@
 #include <pthread.h>
 #include <list>
 #include <tuple>
+#include <unistd.h> 
+#include <sys/socket.h> 
+#include <stdlib.h> 
+#include <netinet/in.h> 
 
 using namespace derecho::cascade;
 using derecho::ExternalClientCaller;
 
 using VCS = VolatileCascadeStore<uint64_t,Object,&Object::IK,&Object::IV>;
 using PCS = PersistentCascadeStore<uint64_t,Object,&Object::IK,&Object::IV,ST_FILE>;
+
+#define SHUTDOWN_SERVER_PORT (2300)
+
+/* telnet server for server remote shutdown */
+void wait_for_shutdown(int port) {
+    int server_fd, new_socket; 
+    struct sockaddr_in address; 
+    int opt = 1; 
+    int addrlen = sizeof(address); 
+    char buffer[1024] = {0}; 
+    const char *response = "shutdown"; 
+       
+    // Creating socket file descriptor 
+    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) 
+    { 
+        perror("socket failed"); 
+        exit(EXIT_FAILURE); 
+    } 
+       
+    // Forcefully attaching socket to the port 8080 
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, 
+                                                  &opt, sizeof(opt))) 
+    { 
+        perror("setsockopt"); 
+        exit(EXIT_FAILURE); 
+    } 
+    address.sin_family = AF_INET; 
+    address.sin_addr.s_addr = INADDR_ANY; 
+    address.sin_port = htons( port );
+       
+    if (bind(server_fd, (struct sockaddr *)&address,  
+                                 sizeof(address))<0) 
+    { 
+        perror("bind failed"); 
+        exit(EXIT_FAILURE); 
+    } 
+    if (listen(server_fd, 3) < 0) 
+    { 
+        perror("listen"); 
+        exit(EXIT_FAILURE); 
+    }
+
+    while(true) {
+        new_socket = accept(server_fd, (struct sockaddr *)&address,  
+                            (socklen_t*)&addrlen);
+        if (new_socket < -1) {
+            dbg_default_warn("failed to receive shutdown with error code:{}.",errno);
+        }
+
+        int valread = read (new_socket, buffer, 1024);
+        if(valread > 0 && strncmp("shutdown",buffer,strlen("shutdown")) == 0) {
+            send(new_socket , response , strlen(response) , 0 ); 
+            shutdown(new_socket, SHUT_RDWR);
+            close(new_socket);
+            break;
+        }
+        shutdown(new_socket, SHUT_RDWR);
+        close(new_socket);
+    }
+
+    close(server_fd);
+}
 
 int do_server() {
     dbg_default_info("Starting cascade server.");
@@ -57,9 +123,15 @@ int do_server() {
     derecho::Group<VCS,PCS> group(callback_set,si,nullptr/*deserialization manager*/,
                                   std::vector<derecho::view_upcall_t>{},
                                   vcs_factory,pcs_factory);
-    while (true) {};
-    // group.barrier_sync();
-    // group.leave();
+
+    /** 3 - telnet server for shutdown */
+    int sport = SHUTDOWN_SERVER_PORT;
+    if (derecho::hasCustomizedConfKey("CASCADE_PERF/shutdown_port")){
+        sport = derecho::getConfUInt16("CASCADE_PERF/shutdown_port");
+    }
+    wait_for_shutdown(sport);
+    group.barrier_sync();
+    group.leave();
     return 0;
 }
 
