@@ -20,4 +20,6 @@ target_link_libraries(perf cascade)
 add_custom_command(TARGET cli_example POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/cli_example_cfg
     ${CMAKE_CURRENT_BINARY_DIR}/cli_example_cfg
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/perf_shutdown.py
+    ${CMAKE_CURRENT_BINARY_DIR}/perf_shutdown.py
 )

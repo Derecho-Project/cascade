@@ -62,7 +62,26 @@ void wait_for_shutdown(int port) {
         exit(EXIT_FAILURE); 
     }
 
+    std::cout << "Press ENTER or send \"shutdown\" to TCP port " << port << " to gracefully shutdown." << std::endl;
+
     while(true) {
+
+        fd_set read_set;
+        FD_ZERO(&read_set);
+        FD_SET(STDIN_FILENO,&read_set);
+        FD_SET(server_fd,&read_set);
+
+        int nfds = ((server_fd > STDIN_FILENO)? server_fd:STDIN_FILENO) + 1;
+        if (select(nfds,&read_set,nullptr,nullptr,nullptr) < 0) {
+            dbg_default_warn("failed to wait from remote or local shutdown command.");
+            continue;
+        }
+
+        if (FD_ISSET(STDIN_FILENO,&read_set)) {
+            dbg_default_trace("shutdown server from console.");
+            break;
+        }
+
         new_socket = accept(server_fd, (struct sockaddr *)&address,  
                             (socklen_t*)&addrlen);
         if (new_socket < -1) {
