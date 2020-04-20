@@ -5,6 +5,11 @@
 #include <derecho/utils/logger.hpp>
 #include <cascade/cascade.hpp>
 #include <cascade/object.hpp>
+#include <semaphore.h>
+#include <strings.h>
+#include <pthread.h>
+#include <list>
+#include <tuple>
 
 using namespace derecho::cascade;
 using derecho::ExternalClientCaller;
@@ -58,14 +63,166 @@ int do_server() {
     return 0;
 }
 
-int do_client(char** args) {
+struct client_states {
+    // 1. transmittion depth for throttling the sender
+    //    0 for unlimited.
+    const uint64_t tx_depth;
+    // 2. message traffic
+    const uint64_t num_messages;
+    const uint64_t message_size;
+    // 3. tx semaphore
+    std::atomic<uint64_t> idle_tx_slot_cnt;
+    std::condition_variable idle_tx_slot_cv;
+    std::mutex idle_tx_slot_mutex;
+    // 4. future queue semaphore
+    std::list<derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>>> future_queue;
+    std::condition_variable future_queue_cv;
+    std::mutex future_queue_mutex;
+    // 5. timestamps log for statistics
+    uint64_t *send_tss,*recv_tss;
+    // 7. Thread
+    std::thread poll_thread;
+    // constructor:
+    client_states(uint64_t _tx_depth, uint64_t _num_messages, uint64_t _message_size):
+        tx_depth(_tx_depth),
+        num_messages(_num_messages),
+        message_size(_message_size) {
+        idle_tx_slot_cnt = _tx_depth;
+        // allocated timestamp space and zero them out
+        this->send_tss = new uint64_t[_num_messages];
+        this->recv_tss = new uint64_t[_num_messages];
+        bzero(this->send_tss, sizeof(uint64_t)*_num_messages);
+        bzero(this->recv_tss, sizeof(uint64_t)*_num_messages);
+        // start polling thread
+        this->poll_thread = std::thread(&client_states::poll_results, this);
+    }
 
-    struct timespec t_start, t_end;
+    // destructor:
+    virtual ~client_states() {
+        // deallocated timestamp space
+        delete this->send_tss;
+        delete this->recv_tss;
+    }
+
+    // thread
+    // polling thread
+    void poll_results() {
+        pthread_setname_np(pthread_self(),"poll_results");
+        dbg_default_trace("poll results thread started.");
+        size_t future_counter = 0;
+        while(future_counter != this->num_messages) {
+            std::list<derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>>> my_future_queue;
+            // wait for a future
+            std::unique_lock<std::mutex> lck(this->future_queue_mutex);
+            this->future_queue_cv.wait(lck, [this](){return !this->future_queue.empty();});
+            // get all futures
+            this->future_queue.swap(my_future_queue);
+            // release lock
+            lck.unlock();
+
+            // wait for all futures
+            for (auto& f : my_future_queue) {
+                derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>>::ReplyMap& replies = f.get();
+                for (auto& reply_pair : replies) {
+                    auto r = reply_pair.second.get();
+                    dbg_default_trace("polled <{},{}> from <>.",std::get<0>(r),std::get<1>(r),reply_pair.first);
+                }
+                // log time
+                this->recv_tss[future_counter++] = get_time_us();
+                // post tx slot semaphore
+                if (this->tx_depth > 0) {
+                    this->idle_tx_slot_cnt.fetch_add(1);
+                    this->idle_tx_slot_cv.notify_all();
+                }
+            }
+
+            // shutdown polling thread.
+            if (future_counter == this->num_messages) {
+                break;
+            }
+        }
+        dbg_default_trace("poll results thread shutdown.");
+    }
+
+    // wait for polling thread
+    void wait_poll_all() {
+        if (this->poll_thread.joinable()) {
+            this->poll_thread.join();
+        }
+    }
+
+    // do_send
+    void do_send (uint64_t msg_cnt,const std::function<derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>>()>& func) {
+        // wait for tx slot semaphore
+        if (this->tx_depth > 0) {
+            std::unique_lock<std::mutex> idle_tx_slot_lck(this->idle_tx_slot_mutex);
+            this->idle_tx_slot_cv.wait(idle_tx_slot_lck,[this](){return this->idle_tx_slot_cnt > 0;});
+            this->idle_tx_slot_cnt.fetch_sub(1);
+            idle_tx_slot_lck.unlock();
+        }
+        // send
+        this->send_tss[msg_cnt] = get_time_us();
+        auto f = func();
+        // append to future queue
+        std::unique_lock<std::mutex> future_queue_lck(this->future_queue_mutex);
+        this->future_queue.emplace_back(std::move(f));
+        future_queue_lck.unlock();
+        this->future_queue_cv.notify_all();
+    }
+
+    // timing unit.
+    uint64_t get_time_us() {
+        struct timespec ts;
+        clock_gettime(CLOCK_REALTIME,&ts);
+        return ts.tv_sec*1000000+ts.tv_nsec/1000;
+    }
+
+    // print statistics
+    void print_statistics() {
+        /** print per-message latency
+        for (size_t i=0; i<num_messages;i++) {
+            std::cout << this->send_tss[i] << "," << this->recv_tss[i] << "\t" << (this->recv_tss[i]-this->send_tss[i]) << std::endl;
+        }
+        */
+        
+        uint64_t total_bytes = this->num_messages * this->message_size;
+        uint64_t timespan_us = this->recv_tss[this->num_messages-1] - this->send_tss[0];
+        double thp_MiBps,thp_ops,avg_latency_us,std_latency_us;
+        {
+            thp_MiBps = static_cast<double>(total_bytes)*1000000/1048576/timespan_us;
+            thp_ops = static_cast<double>(this->num_messages)*1000000/timespan_us;
+        }
+        // calculate latency statistics
+        {
+            double sum = 0.0;
+            for(size_t i=0;i<num_messages;i++) {
+                sum += static_cast<double>(this->recv_tss[i]-this->send_tss[i]);
+            }
+            avg_latency_us = sum/this->num_messages;
+            double ssum = 0.0;
+            for(size_t i=0;i<num_messages;i++) {
+                ssum += ((this->recv_tss[i]-this->send_tss[i]-avg_latency_us) 
+                        *(this->recv_tss[i]-this->send_tss[i]-avg_latency_us));
+            }
+            std_latency_us = sqrt(ssum/(this->num_messages + 1));
+        }
+
+        std::cout << "Message Size (KiB): " << static_cast<double>(this->message_size)/1024 << std::endl;
+        std::cout << "Throughput (MiB/s): " << thp_MiBps << std::endl;
+        std::cout << "Throughput (Ops/s): " << thp_ops << std::endl;
+        std::cout << "Average-Latency (us): " << avg_latency_us << std::endl;
+        std::cout << "Latency-std (us): " << std_latency_us << std::endl;
+    }
+};
+    
+int do_client(int argc,char** args) {
+
     const char* test_type = args[0];
-    const uint num_messagess = std::stoi(args[1]);
-    const uint is_persistent = std::stoi(args[2]);
+    const uint64_t num_messages = std::stoi(args[1]);
+    const int is_persistent = std::stoi(args[2]);
+    const uint64_t tx_depth = (argc > 4)?std::stoi(args[3]):0;
 
-    if (strcmp(test_type,"write_throughput") != 0) {
+    if (strcmp(test_type,"put") != 0) {
         std::cout << "TODO:" << test_type << " not supported yet." << std::endl;
         return 0;
     }
@@ -74,66 +231,60 @@ int do_client(char** args) {
     derecho::ExternalGroup<VCS,PCS> group;
     
     uint64_t msg_size = derecho::getConfUInt64(CONF_SUBGROUP_DEFAULT_MAX_PAYLOAD_SIZE);
+    uint32_t my_node_id = derecho::getConfUInt32(CONF_DERECHO_LOCAL_ID);
 
+    /** 2 - test both latency and bandwidth */
     if (is_persistent) {
         if (derecho::hasCustomizedConfKey("SUBGROUP/PCS/max_payload_size")) {
             msg_size = derecho::getConfUInt64("SUBGROUP/PCS/max_payload_size") - 128;
         }
+        struct client_states cs(tx_depth,num_messages,msg_size);
         char* bbuf = (char*)malloc(msg_size);
         bzero(bbuf, msg_size);
 
         ExternalClientCaller<PCS,std::remove_reference<decltype(group)>::type>& pcs_ec = group.get_subgroup_caller<PCS>();
+        auto members = group.template get_shard_members<PCS>(0,0);
+        node_id_t server_id = members[my_node_id % members.size()];
 
-        clock_gettime(CLOCK_REALTIME, &t_start);
-        for(uint i = 0; i < num_messagess-1; i++) {
+        for(uint i = 0; i < num_messages; i++) {
             Object o(i,Blob(bbuf, msg_size));
-            pcs_ec.p2p_send<RPC_NAME(put)>(0,o);
+            cs.do_send(i,[&o,&pcs_ec,&server_id](){return std::move(pcs_ec.p2p_send<RPC_NAME(put)>(server_id,o));});
         }
-        Object o(num_messagess-1,Blob(bbuf, msg_size));
-        auto result = pcs_ec.p2p_send<RPC_NAME(put)>(0,o);
-        auto reply = result.get().get(0);
-        clock_gettime(CLOCK_REALTIME, &t_end);
-        std::cout << "put finished with timestamp=" << std::get<0>(reply)
-                << ",version=" << std::get<1>(reply) << std::endl;
         free(bbuf);
+
+        cs.wait_poll_all();
+        cs.print_statistics();
     } else {
         if (derecho::hasCustomizedConfKey("SUBGROUP/VCS/max_payload_size")) {
             msg_size = derecho::getConfUInt64("SUBGROUP/VCS/max_payload_size") - 128;
         }
+        struct client_states cs(tx_depth,num_messages,msg_size);
         char* bbuf = (char*)malloc(msg_size);
         bzero(bbuf, msg_size);
 
         ExternalClientCaller<VCS,std::remove_reference<decltype(group)>::type>& vcs_ec = group.get_subgroup_caller<VCS>();
+        auto members = group.template get_shard_members<VCS>(0,0);
+        node_id_t server_id = members[my_node_id % members.size()];
 
-        clock_gettime(CLOCK_REALTIME, &t_start);
-        for(uint i = 0; i < num_messagess-1; i++) {
+        for(uint i = 0; i < num_messages; i++) {
             Object o(i,Blob(bbuf, msg_size));
-            vcs_ec.p2p_send<RPC_NAME(put)>(0,o);
+            cs.do_send(i,[&o,&vcs_ec,&server_id](){return std::move(vcs_ec.p2p_send<RPC_NAME(put)>(server_id,o));});
         }
-        Object o(num_messagess-1,Blob(bbuf, msg_size));
-        auto result = vcs_ec.p2p_send<RPC_NAME(put)>(0,o);
-        auto reply = result.get().get(0);
-        clock_gettime(CLOCK_REALTIME, &t_end);
-        std::cout << "put finished with version=" << std::get<0>(reply)
-                << ",timestamp=" << std::get<1>(reply) << std::endl;
         free(bbuf);
+
+        cs.wait_poll_all();
+        cs.print_statistics();
     }
 
-    int64_t nsec = ((int64_t)t_end.tv_sec - t_start.tv_sec) * 1000000000 + t_end.tv_nsec - t_start.tv_nsec;
-    double msec = (double)nsec / 1000000;
-    double thp_gbps = ((double)num_messagess * msg_size * 8) / nsec;
-    double thp_ops = ((double)num_messagess * 1000000000) / nsec;
-    std::cout << "timespan:" << msec << " millisecond." << std::endl;
-    std::cout << "throughput:" << thp_gbps << "Gbit/s." << std::endl;
-    std::cout << "throughput:" << thp_ops << "ops." << std::endl;
 
     return 0;
 }
 
 void print_help(std::ostream& os,const char* bin) {
     os << "USAGE:" << bin << " [derecho-config-list --] <client|server> args..." << std::endl;
-    os << "    client args: <test_type> <num_messages> <is_persistent>" << std::endl;
-    os << "        test_type := [write|read]_[throughput|latency]" << std::endl;
+    os << "    client args: <test_type> <num_messages> <is_persistent> [tx_depth]" << std::endl;
+    os << "        test_type := [put|get]" << std::endl;
+    os << "        tx_depth  is the maximum number of pending requests allowed. Default is unlimited." << std::endl;
     os << "    server args: N/A" << std::endl;
 }
 
@@ -165,13 +316,13 @@ int main(int argc, char** argv) {
     if (strcmp(argv[first_arg_idx],"server") == 0) {
         return do_server();
     } else if (strcmp(argv[first_arg_idx],"client") == 0) {
-        if ((argc - first_arg_idx) != 4 ) {
+        if ((argc - first_arg_idx) < 4 ) {
             std::cerr << "Invalid client args." << std::endl;
             print_help(std::cerr,argv[0]);
             return -1;
         }
-        // passing <test_type> <num_messages> <is_persistent>
-        return do_client(&argv[first_arg_idx+1]);
+        // passing <test_type> <num_messages> <is_persistent> [tx_deptn]
+        return do_client(argc-(first_arg_idx+1),&argv[first_arg_idx+1]);
     } else {
         std::cerr << "Error: unknown arg: " << argv[first_arg_idx] << std::endl;
         print_help(std::cerr,argv[0]);
