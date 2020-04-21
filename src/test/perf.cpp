@@ -22,6 +22,12 @@ using VCS = VolatileCascadeStore<uint64_t,Object,&Object::IK,&Object::IV>;
 using PCS = PersistentCascadeStore<uint64_t,Object,&Object::IK,&Object::IV,ST_FILE>;
 
 #define SHUTDOWN_SERVER_PORT (2300)
+// timing unit.
+inline uint64_t get_time_us() {
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME,&ts);
+    return ts.tv_sec*1000000+ts.tv_nsec/1000;
+}
 
 /* telnet server for server remote shutdown */
 void wait_for_shutdown(int port) {
@@ -261,12 +267,6 @@ struct client_states {
         this->future_queue_cv.notify_all();
     }
 
-    // timing unit.
-    uint64_t get_time_us() {
-        struct timespec ts;
-        clock_gettime(CLOCK_REALTIME,&ts);
-        return ts.tv_sec*1000000+ts.tv_nsec/1000;
-    }
 
     // print statistics
     void print_statistics() {
@@ -305,9 +305,19 @@ struct client_states {
         std::cout << "Latency-std (us): " << std_latency_us << std::endl;
     }
 };
+
+inline uint64_t randomize_key(uint64_t& in) {
+    static uint64_t random_seed = get_time_us();
+    uint64_t x = (in^random_seed);
+    x ^= x << 13;
+    x ^= x >> 7;
+    x ^= x << 17;
+    return x;
+}
     
 int do_client(int argc,char** args) {
 
+    const uint64_t max_distinct_objects = 4096;
     const char* test_type = args[0];
     const uint64_t num_messages = std::stoi(args[1]);
     const int is_persistent = std::stoi(args[2]);
@@ -337,8 +347,8 @@ int do_client(int argc,char** args) {
         auto members = group.template get_shard_members<PCS>(0,0);
         node_id_t server_id = members[my_node_id % members.size()];
 
-        for(uint i = 0; i < num_messages; i++) {
-            Object o(i,Blob(bbuf, msg_size));
+        for(uint64_t i = 0; i < num_messages; i++) {
+            Object o(randomize_key(i)%max_distinct_objects,Blob(bbuf, msg_size));
             cs.do_send(i,[&o,&pcs_ec,&server_id](){return std::move(pcs_ec.p2p_send<RPC_NAME(put)>(server_id,o));});
         }
         free(bbuf);
@@ -357,8 +367,8 @@ int do_client(int argc,char** args) {
         auto members = group.template get_shard_members<VCS>(0,0);
         node_id_t server_id = members[my_node_id % members.size()];
 
-        for(uint i = 0; i < num_messages; i++) {
-            Object o(i,Blob(bbuf, msg_size));
+        for(uint64_t i = 0; i < num_messages; i++) {
+            Object o(randomize_key(i)%max_distinct_objects,Blob(bbuf, msg_size));
             cs.do_send(i,[&o,&vcs_ec,&server_id](){return std::move(vcs_ec.p2p_send<RPC_NAME(put)>(server_id,o));});
         }
         free(bbuf);
