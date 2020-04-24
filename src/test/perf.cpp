@@ -164,7 +164,7 @@ int do_server() {
 struct client_states {
     // 1. transmittion depth for throttling the sender
     //    0 for unlimited.
-    const uint64_t max_opending_ops;
+    const uint64_t max_pending_ops;
     // 2. message traffic
     const uint64_t num_messages;
     const uint64_t message_size;
@@ -181,11 +181,11 @@ struct client_states {
     // 7. Thread
     std::thread poll_thread;
     // constructor:
-    client_states(uint64_t _max_opending_ops, uint64_t _num_messages, uint64_t _message_size):
-        max_opending_ops(_max_opending_ops),
+    client_states(uint64_t _max_pending_ops, uint64_t _num_messages, uint64_t _message_size):
+        max_pending_ops(_max_pending_ops),
         num_messages(_num_messages),
         message_size(_message_size) {
-        idle_tx_slot_cnt = _max_opending_ops;
+        idle_tx_slot_cnt = _max_pending_ops;
         // allocated timestamp space and zero them out
         this->send_tss = new uint64_t[_num_messages];
         this->recv_tss = new uint64_t[_num_messages];
@@ -228,7 +228,7 @@ struct client_states {
                 // log time
                 this->recv_tss[future_counter++] = get_time_us();
                 // post tx slot semaphore
-                if (this->max_opending_ops > 0) {
+                if (this->max_pending_ops > 0) {
                     this->idle_tx_slot_cnt.fetch_add(1);
                     this->idle_tx_slot_cv.notify_all();
                 }
@@ -252,7 +252,7 @@ struct client_states {
     // do_send
     void do_send (uint64_t msg_cnt,const std::function<derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>>()>& func) {
         // wait for tx slot semaphore
-        if (this->max_opending_ops > 0) {
+        if (this->max_pending_ops > 0) {
             std::unique_lock<std::mutex> idle_tx_slot_lck(this->idle_tx_slot_mutex);
             this->idle_tx_slot_cv.wait(idle_tx_slot_lck,[this](){return this->idle_tx_slot_cnt > 0;});
             this->idle_tx_slot_cnt.fetch_sub(1);
@@ -322,7 +322,7 @@ int do_client(int argc,char** args) {
     const char* test_type = args[0];
     const uint64_t num_messages = std::stoi(args[1]);
     const int is_persistent = std::stoi(args[2]);
-    const uint64_t max_opending_ops = (argc > 4)?std::stoi(args[3]):0;
+    const uint64_t max_pending_ops = (argc >= 4)?std::stoi(args[3]):0;
 
     if (strcmp(test_type,"put") != 0) {
         std::cout << "TODO:" << test_type << " not supported yet." << std::endl;
@@ -340,7 +340,7 @@ int do_client(int argc,char** args) {
         if (derecho::hasCustomizedConfKey("SUBGROUP/PCS/max_payload_size")) {
             msg_size = derecho::getConfUInt64("SUBGROUP/PCS/max_payload_size") - 128;
         }
-        struct client_states cs(max_opending_ops,num_messages,msg_size);
+        struct client_states cs(max_pending_ops,num_messages,msg_size);
         char* bbuf = (char*)malloc(msg_size);
         bzero(bbuf, msg_size);
 
@@ -360,7 +360,7 @@ int do_client(int argc,char** args) {
         if (derecho::hasCustomizedConfKey("SUBGROUP/VCS/max_payload_size")) {
             msg_size = derecho::getConfUInt64("SUBGROUP/VCS/max_payload_size") - 128;
         }
-        struct client_states cs(max_opending_ops,num_messages,msg_size);
+        struct client_states cs(max_pending_ops,num_messages,msg_size);
         char* bbuf = (char*)malloc(msg_size);
         bzero(bbuf, msg_size);
 
@@ -384,9 +384,9 @@ int do_client(int argc,char** args) {
 
 void print_help(std::ostream& os,const char* bin) {
     os << "USAGE:" << bin << " [derecho-config-list --] <client|server> args..." << std::endl;
-    os << "    client args: <test_type> <num_messages> <is_persistent> [max_opending_ops]" << std::endl;
+    os << "    client args: <test_type> <num_messages> <is_persistent> [max_pending_ops]" << std::endl;
     os << "        test_type := [put|get]" << std::endl;
-    os << "        max_opending_ops is the maximum number of pending operations allowed. Default is unlimited." << std::endl;
+    os << "        max_pending_ops is the maximum number of pending operations allowed. Default is unlimited." << std::endl;
     os << "    server args: N/A" << std::endl;
 }
 
