@@ -246,7 +246,8 @@ void do_server() {
             });
     };
     /** 2 - create group */
-    derecho::Group<VCS,PCS> group(callback_set,si,nullptr/*deserialization manager*/,
+    IndifferentCascadeWatcherContext<uint64_t,Object,&Object::IK,&Object::IV> icwc;
+    derecho::Group<VCS,PCS> group(callback_set,si,&icwc/*deserialization manager*/,
                                   std::vector<derecho::view_upcall_t>{},
                                   vcs_factory,pcs_factory);
     std::cout << "Cascade Server finished constructing Derecho group." << std::endl;
