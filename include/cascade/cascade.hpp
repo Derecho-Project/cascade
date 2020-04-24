@@ -51,10 +51,6 @@ namespace cascade {
         const CascadeWatcher<KT,VT,IK,IV> watcher = [](subgroup_id_t,const uint32_t,const KT&,const VT&){};
 
     public:
-
-        // do nothing because I'm indeferent.
-        void operator () (subgroup_id_t, const uint32_t, const KT&, const VT&) {}
-
         // override ICascadeWatcherContext::get_cascade_watcher()
         const CascadeWatcher<KT,VT,IK,IV>& get_cascade_watcher() override {
             return this->watcher;

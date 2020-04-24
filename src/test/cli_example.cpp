@@ -209,6 +209,22 @@ void do_client() {
     }
 }
 
+  
+class PerfCascadeWatcherContext : public ICascadeWatcherContext<uint64_t,Object,&Object::IK,&Object::IV> {
+    const CascadeWatcher<uint64_t,Object,&Object::IK,&Object::IV> watcher =
+        [](derecho::subgroup_id_t sid,
+           const uint32_t shard_num,
+           const uint64_t& key,
+           const Object& value){
+            dbg_default_info("Watcher is called with\n\tsubgroup id = {},\n\tshard number = {},\n\tkey = {},\n\tvalue = [hidden].", sid, shard_num, key);
+           };
+public:
+    const CascadeWatcher<uint64_t,Object,&Object::IK,&Object::IV>& get_cascade_watcher() override {
+        return this->watcher;
+    }
+};
+
+
 void do_server() {
     dbg_default_info("Starting cascade server.");
 
@@ -226,28 +242,15 @@ void do_server() {
              derecho::one_subgroup_policy(derecho::flexible_even_shards("PCS"))}
         })
     };
-    auto vcs_factory = [](persistent::PersistentRegistry* pr, derecho::subgroup_id_t) {
-        return std::make_unique<VCS>(
-            [](derecho::subgroup_id_t sid,
-               const uint32_t shard_num,
-               const uint64_t& key,
-               const Object& value){
-                dbg_default_info("Volatile watcher is called with\n\tsubgroup id = {},\n\tshard number = {},\n\tkey = {},\n\tvalue = [hidden].", sid, shard_num, key);
-            });
+	PerfCascadeWatcherContext pcwc;
+    auto vcs_factory = [&pcwc](persistent::PersistentRegistry* pr, derecho::subgroup_id_t) {
+        return std::make_unique<VCS>(pcwc.get_cascade_watcher());
     };
-    auto pcs_factory = [](persistent::PersistentRegistry* pr, derecho::subgroup_id_t) {
-        return std::make_unique<PCS>(
-            pr,
-            [](derecho::subgroup_id_t sid,
-               const uint32_t shard_num,
-               const uint64_t& key,
-               const Object& value){
-                dbg_default_info("Persistent watcher is called with\n\tsubgroup id = {},\n\tshard number = {},\n\tkey = {},\n\tvalue = [hidden].", sid, shard_num, key);
-            });
+    auto pcs_factory = [&pcwc](persistent::PersistentRegistry* pr, derecho::subgroup_id_t) {
+        return std::make_unique<PCS>(pr,pcwc.get_cascade_watcher());
     };
     /** 2 - create group */
-    IndifferentCascadeWatcherContext<uint64_t,Object,&Object::IK,&Object::IV> icwc;
-    derecho::Group<VCS,PCS> group(callback_set,si,&icwc/*deserialization manager*/,
+    derecho::Group<VCS,PCS> group(callback_set,si,&pcwc/*deserialization manager*/,
                                   std::vector<derecho::view_upcall_t>{},
                                   vcs_factory,pcs_factory);
     std::cout << "Cascade Server finished constructing Derecho group." << std::endl;
