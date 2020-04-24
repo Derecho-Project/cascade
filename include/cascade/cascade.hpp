@@ -27,6 +27,41 @@ namespace cascade {
     using CascadeWatcher = std::function<void(subgroup_id_t,const uint32_t,const KT&, const VT&)>;
 
     /**
+     * Watcher Context interface
+     * Applications using CascadeStore templates MUST provide an ICascadeWatcherContext object
+     * to be notified with the updates (put/remove). Users can just use an object of
+     * IndifferentCascadeWatcherContext to ignore those updates.
+     */
+    template<typename KT, typename VT, KT* IK, VT* IV>
+    class ICascadeWatcherContext : public derecho::IDeserializationContext {
+    public:
+        /**
+         * Return a reference to a CascadeWatcher, which is owned by this.
+         * Derived classes MUST guarantee the referenced watcher is valid throughout Cascade
+         * subgroup's lifetime.
+         */
+        virtual const CascadeWatcher<KT,VT,IK,IV>& get_cascade_watcher() = 0;
+    };
+
+    /**
+     * Use indifferent watcher context to ignore the updates (put/remove).
+     */
+    template<typename KT, typename VT, KT* IK, VT* IV>
+    class IndifferentCascadeWatcherContext : public ICascadeWatcherContext<KT,VT,IK,IV> {
+        const CascadeWatcher<KT,VT,IK,IV> watcher = [](subgroup_id_t,const uint32_t,const KT&,const VT&){};
+
+    public:
+
+        // do nothing because I'm indeferent.
+        void operator () (subgroup_id_t, const uint32_t, const KT&, const VT&) {}
+
+        // override ICascadeWatcherContext::get_cascade_watcher()
+        const CascadeWatcher<KT,VT,IK,IV>& get_cascade_watcher() override {
+            return this->watcher;
+        }
+    };
+
+    /**
      * The cascade store interface.
      * @tparam KT The type of the key
      * @tparam VT The type of the value must
