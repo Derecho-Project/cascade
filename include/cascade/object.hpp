@@ -67,46 +67,46 @@ public:
         mutils::context_ptr<Blob> = mutils::context_ptr<Blob>{});
 };
 
-#define INVALID_OBJECT_KEY (0xffffffffffffffffLLU)
+#define INVALID_UINT64_OBJECT_KEY (0xffffffffffffffffLLU)
 
-class Object : public mutils::ByteRepresentable {
+class ObjectWithUInt64Key : public mutils::ByteRepresentable {
 public:
     mutable std::tuple<persistent::version_t,uint64_t> ver;  // object version
     uint64_t key;                            // object_id
     Blob blob;                          // the object
 
-    bool operator==(const Object& other);
+    bool operator==(const ObjectWithUInt64Key& other);
 
     bool is_valid() const;
 
     // constructor 0 : copy constructor
-    Object(const uint64_t& _key, const Blob& _blob);
+    ObjectWithUInt64Key(const uint64_t& _key, const Blob& _blob);
 
     // constructor 0.5 : copy constructor
-    Object(const std::tuple<persistent::version_t,uint64_t> _ver, const uint64_t& _key, const Blob& _blob);
+    ObjectWithUInt64Key(const std::tuple<persistent::version_t,uint64_t> _ver, const uint64_t& _key, const Blob& _blob);
 
     // constructor 1 : copy consotructor
-    Object(const uint64_t _key, const char* const _b, const std::size_t _s);
+    ObjectWithUInt64Key(const uint64_t _key, const char* const _b, const std::size_t _s);
 
     // constructor 1.5 : copy constructor
-    Object(const std::tuple<persistent::version_t,uint64_t> _ver, const uint64_t _key, const char* const _b, const std::size_t _s);
+    ObjectWithUInt64Key(const std::tuple<persistent::version_t,uint64_t> _ver, const uint64_t _key, const char* const _b, const std::size_t _s);
 
     // TODO: we need a move version for the deserializer.
 
     // constructor 2 : move constructor
-    Object(Object&& other);
+    ObjectWithUInt64Key(ObjectWithUInt64Key&& other);
 
     // constructor 3 : copy constructor
-    Object(const Object& other);
+    ObjectWithUInt64Key(const ObjectWithUInt64Key& other);
 
     // constructor 4 : default invalid constructor
-    Object();
+    ObjectWithUInt64Key();
 
-    DEFAULT_SERIALIZATION_SUPPORT(Object, ver, key, blob);
+    DEFAULT_SERIALIZATION_SUPPORT(ObjectWithUInt64Key, ver, key, blob);
 
     // IK and IV for volatile cascade store
     static uint64_t IK;
-    static Object IV;
+    static ObjectWithUInt64Key IV;
 };
 
 inline std::ostream& operator<<(std::ostream& out, const Blob& b) {
@@ -124,8 +124,55 @@ inline std::ostream& operator<<(std::ostream& out, const Blob& b) {
     return out;
 }
 
-inline std::ostream& operator<<(std::ostream& out, const Object& o) {
-    out << "Object{ver: 0x" << std::hex << std::get<0>(o.ver) << std::dec 
+inline std::ostream& operator<<(std::ostream& out, const ObjectWithUInt64Key& o) {
+    out << "ObjectWithUInt64Key{ver: 0x" << std::hex << std::get<0>(o.ver) << std::dec 
+        << ", ts: " << std::get<1>(o.ver) << ", id:"
+        << o.key << ", data:" << o.blob << "}";
+    return out;
+}
+
+class ObjectWithStringKey : public mutils::ByteRepresentable {
+public:
+    mutable std::tuple<persistent::version_t,uint64_t> ver;  // object version
+    std::string key;                            // object_id
+    Blob blob;                          // the object
+
+    bool operator==(const ObjectWithStringKey& other);
+
+    bool is_valid() const;
+
+    // constructor 0 : copy constructor
+    ObjectWithStringKey(const std::string& _key, const Blob& _blob);
+
+    // constructor 0.5 : copy constructor
+    ObjectWithStringKey(const std::tuple<persistent::version_t,uint64_t> _ver, const std::string& _key, const Blob& _blob);
+
+    // constructor 1 : copy consotructor
+    ObjectWithStringKey(const std::string& _key, const char* const _b, const std::size_t _s);
+
+    // constructor 1.5 : copy constructor
+    ObjectWithStringKey(const std::tuple<persistent::version_t,uint64_t> _ver, const std::string& _key, const char* const _b, const std::size_t _s);
+
+    // TODO: we need a move version for the deserializer.
+
+    // constructor 2 : move constructor
+    ObjectWithStringKey(ObjectWithStringKey&& other);
+
+    // constructor 3 : copy constructor
+    ObjectWithStringKey(const ObjectWithStringKey& other);
+
+    // constructor 4 : default invalid constructor
+    ObjectWithStringKey();
+
+    DEFAULT_SERIALIZATION_SUPPORT(ObjectWithStringKey, ver, key, blob);
+
+    // IK and IV for volatile cascade store
+    static std::string IK;
+    static ObjectWithStringKey IV;
+};
+
+inline std::ostream& operator<<(std::ostream& out, const ObjectWithStringKey& o) {
+    out << "ObjectWithStringKey{ver: 0x" << std::hex << std::get<0>(o.ver) << std::dec 
         << ", ts: " << std::get<1>(o.ver) << ", id:"
         << o.key << ", data:" << o.blob << "}";
     return out;

@@ -18,8 +18,8 @@
 using namespace derecho::cascade;
 using derecho::ExternalClientCaller;
 
-using VCS = VolatileCascadeStore<uint64_t,Object,&Object::IK,&Object::IV>;
-using PCS = PersistentCascadeStore<uint64_t,Object,&Object::IK,&Object::IV,ST_FILE>;
+using VCS = VolatileCascadeStore<uint64_t,ObjectWithUInt64Key,&ObjectWithUInt64Key::IK,&ObjectWithUInt64Key::IV>;
+using PCS = PersistentCascadeStore<uint64_t,ObjectWithUInt64Key,&ObjectWithUInt64Key::IK,&ObjectWithUInt64Key::IV,ST_FILE>;
 
 #define SHUTDOWN_SERVER_PORT (2300)
 // timing unit.
@@ -108,16 +108,16 @@ void wait_for_shutdown(int port) {
     close(server_fd);
 }
 
-class PerfCascadeWatcherContext : public ICascadeWatcherContext<uint64_t,Object,&Object::IK,&Object::IV> {
-    const CascadeWatcher<uint64_t,Object,&Object::IK,&Object::IV> watcher = 
+class PerfCascadeWatcherContext : public ICascadeWatcherContext<uint64_t,ObjectWithUInt64Key,&ObjectWithUInt64Key::IK,&ObjectWithUInt64Key::IV> {
+    const CascadeWatcher<uint64_t,ObjectWithUInt64Key,&ObjectWithUInt64Key::IK,&ObjectWithUInt64Key::IV> watcher = 
         [](derecho::subgroup_id_t sid,
            const uint32_t shard_num,
            const uint64_t& key,
-           const Object& value){
+           const ObjectWithUInt64Key& value){
             dbg_default_info("Watcher is called with\n\tsubgroup id = {},\n\tshard number = {},\n\tkey = {},\n\tvalue = [hidden].", sid, shard_num, key);
            };
 public:
-    const CascadeWatcher<uint64_t,Object,&Object::IK,&Object::IV>& get_cascade_watcher() override {
+    const CascadeWatcher<uint64_t,ObjectWithUInt64Key,&ObjectWithUInt64Key::IK,&ObjectWithUInt64Key::IV>& get_cascade_watcher() override {
         return this->watcher;
     }
 };
@@ -350,7 +350,7 @@ int do_client(int argc,char** args) {
         node_id_t server_id = members[my_node_id % members.size()];
 
         for(uint64_t i = 0; i < num_messages; i++) {
-            Object o(randomize_key(i)%max_distinct_objects,Blob(bbuf, msg_size));
+            ObjectWithUInt64Key o(randomize_key(i)%max_distinct_objects,Blob(bbuf, msg_size));
             cs.do_send(i,[&o,&pcs_ec,&server_id](){return std::move(pcs_ec.p2p_send<RPC_NAME(put)>(server_id,o));});
         }
         free(bbuf);
@@ -370,7 +370,7 @@ int do_client(int argc,char** args) {
         node_id_t server_id = members[my_node_id % members.size()];
 
         for(uint64_t i = 0; i < num_messages; i++) {
-            Object o(randomize_key(i)%max_distinct_objects,Blob(bbuf, msg_size));
+            ObjectWithUInt64Key o(randomize_key(i)%max_distinct_objects,Blob(bbuf, msg_size));
             cs.do_send(i,[&o,&vcs_ec,&server_id](){return std::move(vcs_ec.p2p_send<RPC_NAME(put)>(server_id,o));});
         }
         free(bbuf);

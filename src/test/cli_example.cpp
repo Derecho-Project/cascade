@@ -14,8 +14,8 @@ static void print_help(const char* cmd_str) {
     return;
 }
 
-using VCS = VolatileCascadeStore<uint64_t,Object,&Object::IK,&Object::IV>;
-using PCS = PersistentCascadeStore<uint64_t,Object,&Object::IK,&Object::IV,ST_FILE>;
+using VCS = VolatileCascadeStore<uint64_t,ObjectWithUInt64Key,&ObjectWithUInt64Key::IK,&ObjectWithUInt64Key::IV>;
+using PCS = PersistentCascadeStore<uint64_t,ObjectWithUInt64Key,&ObjectWithUInt64Key::IK,&ObjectWithUInt64Key::IV,ST_FILE>;
 
 static std::vector<std::string> tokenize(std::string& line) {
     std::vector<std::string> tokens;
@@ -59,7 +59,7 @@ static void client_put(derecho::ExternalGroup<VCS,PCS>& group,
 
     uint64_t key = std::stoll(tokens[1]);
     
-    Object o(key,Blob(tokens[2].c_str(),tokens[2].size()));
+    ObjectWithUInt64Key o(key,Blob(tokens[2].c_str(),tokens[2].size()));
 
     if (is_persistent) {
         ExternalClientCaller<PCS,std::remove_reference<decltype(group)>::type>& pcs_ec = group.get_subgroup_caller<PCS>();
@@ -101,7 +101,7 @@ static void client_get(derecho::ExternalGroup<VCS,PCS>& group,
         }
     }
 
-    std::optional<derecho::rpc::QueryResults<const Object>> opt;
+    std::optional<derecho::rpc::QueryResults<const ObjectWithUInt64Key>> opt;
     if (is_persistent) {
         ExternalClientCaller<PCS,std::remove_reference<decltype(group)>::type>& pcs_ec = group.get_subgroup_caller<PCS>();
         if (ts != 0) {
@@ -210,16 +210,16 @@ void do_client() {
 }
 
   
-class PerfCascadeWatcherContext : public ICascadeWatcherContext<uint64_t,Object,&Object::IK,&Object::IV> {
-    const CascadeWatcher<uint64_t,Object,&Object::IK,&Object::IV> watcher =
+class PerfCascadeWatcherContext : public ICascadeWatcherContext<uint64_t,ObjectWithUInt64Key,&ObjectWithUInt64Key::IK,&ObjectWithUInt64Key::IV> {
+    const CascadeWatcher<uint64_t,ObjectWithUInt64Key,&ObjectWithUInt64Key::IK,&ObjectWithUInt64Key::IV> watcher =
         [](derecho::subgroup_id_t sid,
            const uint32_t shard_num,
            const uint64_t& key,
-           const Object& value){
+           const ObjectWithUInt64Key& value){
             dbg_default_info("Watcher is called with\n\tsubgroup id = {},\n\tshard number = {},\n\tkey = {},\n\tvalue = [hidden].", sid, shard_num, key);
            };
 public:
-    const CascadeWatcher<uint64_t,Object,&Object::IK,&Object::IV>& get_cascade_watcher() override {
+    const CascadeWatcher<uint64_t,ObjectWithUInt64Key,&ObjectWithUInt64Key::IK,&ObjectWithUInt64Key::IV>& get_cascade_watcher() override {
         return this->watcher;
     }
 };
