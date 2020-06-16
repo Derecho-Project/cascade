@@ -81,11 +81,11 @@ std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::or
     this->kv_map.erase(value.key);
     value.ver = version;
     this->kv_map.emplace(value.key, value); // copy constructor
-    if (cascade_watcher) {
-        cascade_watcher(
+    if (cascade_watcher_ptr) {
+        (*cascade_watcher_ptr)(
             group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_subgroup_id(),
             group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_shard_num(),
-            value.key, value);
+            value.key, value, nullptr/*cascade_context*/);
     }
 
     debug_leave_func_with_value("version=0x{:x},timestamp={}",std::get<0>(version), std::get<1>(version));
@@ -99,11 +99,11 @@ std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::or
 
     std::tuple<persistent::version_t,uint64_t> version = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_next_version();
     if(this->kv_map.erase(key)) {
-        if (cascade_watcher) {
-            cascade_watcher(
+        if (cascade_watcher_ptr) {
+            (*cascade_watcher_ptr)(
                 group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_subgroup_id(),
                 group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_shard_num(),
-                key, *IV);
+                key, *IV, nullptr/*cascade_context*/);
         }
     }
 
@@ -137,26 +137,26 @@ std::unique_ptr<VolatileCascadeStore<KT,VT,IK,IV>> VolatileCascadeStore<KT,VT,IK
 
 template<typename KT, typename VT, KT* IK, VT* IV>
 VolatileCascadeStore<KT,VT,IK,IV>::VolatileCascadeStore(
-    const CascadeWatcher<KT,VT,IK,IV>& cw):
-    cascade_watcher(cw) {
+    const std::shared_ptr<CascadeWatcher<KT,VT,IK,IV>>& cw):
+    cascade_watcher_ptr(cw) {
     debug_enter_func();
     debug_leave_func();
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
 VolatileCascadeStore<KT,VT,IK,IV>::VolatileCascadeStore(
-    const std::map<KT,VT>& _kvm, const CascadeWatcher<KT,VT,IK,IV>& cw):
+    const std::map<KT,VT>& _kvm, const std::shared_ptr<CascadeWatcher<KT,VT,IK,IV>>& cw):
     kv_map(_kvm),
-    cascade_watcher(cw) {
+    cascade_watcher_ptr(cw) {
     debug_enter_func_with_args("copy to kv_map, size={}",kv_map.size());
     debug_leave_func();
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
 VolatileCascadeStore<KT,VT,IK,IV>::VolatileCascadeStore(
-    std::map<KT,VT>&& _kvm, const CascadeWatcher<KT,VT,IK,IV>& cw):
+    std::map<KT,VT>&& _kvm, const std::shared_ptr<CascadeWatcher<KT,VT,IK,IV>>& cw):
     kv_map(std::move(_kvm)),
-    cascade_watcher(cw) {
+    cascade_watcher_ptr(cw) {
     debug_enter_func_with_args("move to kv_map, size={}",kv_map.size());
     debug_leave_func();
 }
@@ -413,11 +413,11 @@ std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST
     std::tuple<persistent::version_t,uint64_t> version = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_next_version();
     this->persistent_core->ordered_put(value);
     value.ver = version;
-    if (cascade_watcher) {
-        cascade_watcher(
+    if (cascade_watcher_ptr) {
+        (*cascade_watcher_ptr)(
             group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_subgroup_id(),
             group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_shard_num(),
-            value.key, value);
+            value.key, value, nullptr/*cascade context*/);
     }
 
     debug_leave_func_with_value("version=0x{:x},timestamp={}",std::get<0>(version), std::get<1>(version));
@@ -431,11 +431,11 @@ std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST
 
     std::tuple<persistent::version_t,uint64_t> version = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_next_version();
     if(this->persistent_core->ordered_remove(key)) {
-        if (cascade_watcher) {
-            cascade_watcher(
+        if (cascade_watcher_ptr) {
+            (*cascade_watcher_ptr)(
                 group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_subgroup_id(),
                 group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_shard_num(),
-                key, *IV);
+                key, *IV, nullptr/*cascade context*/);
         }
     }
 
@@ -464,23 +464,23 @@ std::unique_ptr<PersistentCascadeStore<KT,VT,IK,IV,ST>> PersistentCascadeStore<K
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 PersistentCascadeStore<KT,VT,IK,IV,ST>::PersistentCascadeStore(
                                                persistent::PersistentRegistry *pr,
-                                               const CascadeWatcher<KT,VT,IK,IV>& cw):
+                                               const std::shared_ptr<CascadeWatcher<KT,VT,IK,IV>>& cw):
                                                persistent_core(
                                                    [](){
                                                        return std::make_unique<DeltaCascadeStoreCore<KT,VT,IK,IV>>();
                                                    },
                                                    nullptr,
                                                    pr),
-                                               cascade_watcher(cw) {}
+                                               cascade_watcher_ptr(cw) {}
 
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 PersistentCascadeStore<KT,VT,IK,IV,ST>::PersistentCascadeStore(
                                                persistent::Persistent<DeltaCascadeStoreCore<KT,VT,IK,IV>,ST>&&
                                                _persistent_core,
-                                               const CascadeWatcher<KT,VT,IK,IV>& cw):
+                                               const std::shared_ptr<CascadeWatcher<KT,VT,IK,IV>>& cw):
                                                persistent_core(std::move(_persistent_core)),
-                                               cascade_watcher(cw) {}
+                                               cascade_watcher_ptr(cw) {}
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 PersistentCascadeStore<KT,VT,IK,IV,ST>::~PersistentCascadeStore() {}

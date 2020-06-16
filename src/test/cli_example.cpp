@@ -211,16 +211,20 @@ void do_client() {
 
   
 class PerfCascadeWatcherContext : public ICascadeWatcherContext<uint64_t,ObjectWithUInt64Key,&ObjectWithUInt64Key::IK,&ObjectWithUInt64Key::IV> {
-    const CascadeWatcher<uint64_t,ObjectWithUInt64Key,&ObjectWithUInt64Key::IK,&ObjectWithUInt64Key::IV> watcher =
-        [](derecho::subgroup_id_t sid,
-           const uint32_t shard_num,
-           const uint64_t& key,
-           const ObjectWithUInt64Key& value){
-            dbg_default_info("Watcher is called with\n\tsubgroup id = {},\n\tshard number = {},\n\tkey = {},\n\tvalue = [hidden].", sid, shard_num, key);
-           };
+    std::shared_ptr<CascadeWatcher<uint64_t,ObjectWithUInt64Key,&ObjectWithUInt64Key::IK,&ObjectWithUInt64Key::IV>> watcher_ptr;
 public:
-    const CascadeWatcher<uint64_t,ObjectWithUInt64Key,&ObjectWithUInt64Key::IK,&ObjectWithUInt64Key::IV>& get_cascade_watcher() override {
-        return this->watcher;
+    PerfCascadeWatcherContext() {
+        watcher_ptr = std::make_shared<CascadeWatcher<uint64_t,ObjectWithUInt64Key,&ObjectWithUInt64Key::IK,&ObjectWithUInt64Key::IV>> (
+            [](derecho::subgroup_id_t sid,
+               const uint32_t shard_num,
+               const uint64_t& key,
+               const ObjectWithUInt64Key& value,
+               void* cascade_context){
+                dbg_default_info("Watcher is called with\n\tsubgroup id = {},\n\tshard number = {},\n\tkey = {},\n\tvalue = [hidden].", sid, shard_num, key);
+               });
+    }
+    std::shared_ptr<CascadeWatcher<uint64_t,ObjectWithUInt64Key,&ObjectWithUInt64Key::IK,&ObjectWithUInt64Key::IV>> get_cascade_watcher() override {
+        return this->watcher_ptr;
     }
 };
 
