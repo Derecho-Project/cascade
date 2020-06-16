@@ -147,7 +147,7 @@ int do_server() {
         return std::make_unique<PCS>(pr,pcwc.get_cascade_watcher());
     };
     /** 2 - create group */
-    derecho::Group<VCS,PCS> group(callback_set,si,&pcwc/*deserialization manager*/,
+    derecho::Group<VCS,PCS> group(callback_set,si,{&pcwc}/*deserialization manager*/,
                                   std::vector<derecho::view_upcall_t>{},
                                   vcs_factory,pcs_factory);
 
