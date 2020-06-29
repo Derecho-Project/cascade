@@ -34,6 +34,9 @@ find_package(OpenSSL REQUIRED)
 # derecho
 find_package(derecho REQUIRED)
 
+# json
+find_package(nlohmann_json 3.2.0 REQUIRED)
+
 add_subdirectory(src/core)
 add_subdirectory(src/utils)
 add_subdirectory(src/service)

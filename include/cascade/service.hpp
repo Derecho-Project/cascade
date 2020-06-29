@@ -1,5 +1,10 @@
 #pragma once
+#include <memory>
+#include <mutex>
+#include <nlohmann/json.hpp>
 #include "cascade.hpp"
+
+using json = nlohmann::json; 
 
 /**
  * The cascade service 
@@ -12,25 +17,48 @@ namespace cascade {
      */
     template <typename... CascadeTypes>
     class Service {
-    protected:
+    private:
         /**
          * Constructor
+         * The constructor will load the configuration, start the service thread.
+         * @param layout TODO: explain layout
          */
-        Service();
+        Service(const json& layout);
         /**
-         * start the service
+         * The workhorse
          */
-        virtual void start();
+        void run();
+        /**
+         * Stop the service
+         */
+        void stop();
+        /**
+         * Test if the service is running or stopped.
+         */ 
+        bool is_running();
+        /**
+         * control synchronization members
+         */
+        std::mutex service_control_mutex;
+        std::condition_variable service_control_cv;
+        bool _is_running;
+        std::thread service_thread;
+
         /**
          * Singleton pointer
          */
-        static std::unique<Service<CascadeTypes...>> service_ptr;
+        static std::unique_ptr<Service<CascadeTypes...>> service_ptr;
 
     public:
         /**
-         * start the service
+         * Start the singleton service
+         * Please make sure only one thread call start. We do not defense such an incorrect usage.
          */
         static void start();
+        /**
+         * Check if service is started or not.
+         */
+        static bool is_started();
         /**
          * shutdown the service
          */
@@ -54,3 +82,5 @@ namespace cascade {
 
 }// namespace cascade
 }// namespace derecho
+
+#include "detail/service_impl.hpp"
