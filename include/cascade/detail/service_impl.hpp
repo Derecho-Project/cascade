@@ -1,12 +1,59 @@
+#include <vector>
+#include <map>
+#include <typeindex>
+#include <variant>
+#include <derecho/core/derecho.hpp>
+
 namespace derecho{
 namespace cascade{
 
+using derecho::SubgroupAllocationPolicy;
+using derecho::CrossProductPolicy;
+using derecho::ShardAllocationPolicy;
+
+/**
+ * parse_json_subgroup_policy()
+ *
+ * Generate a single-type subgroup allocation policy from json string
+ * @param json_config subgroup configuration represented in json format.
+ * @return SubgroupAllocationPolicy
+ */
+SubgroupAllocationPolicy parse_json_subgroup_policy(const json&);
+
+template <typename CascadeType>
+void populate_policy_by_subgroup_type_map(
+        std::map<std::type_index,std::variant<SubgroupAllocationPolicy, CrossProductPolicy>> &dsa_map,
+        const json& layout, int type_idx) {
+    dsa_map.emplace(std::type_index(typeid(CascadeType)),parse_json_subgroup_policy(layout[type_idx]));
+}
+
+template <typename FirstCascadeType, typename SecondCascadeType, typename... RestCascadeTypes>
+void populate_policy_by_subgroup_type_map(
+        std::map<std::type_index,std::variant<SubgroupAllocationPolicy, CrossProductPolicy>> &dsa_map,
+        const json& layout, int type_idx) {
+    dsa_map.emplace(std::type_index(typeid(FirstCascadeType)),parse_json_subgroup_policy(layout[type_idx]));
+    populate_policy_by_subgroup_type_map<SecondCascadeType, RestCascadeTypes...>(dsa_map,layout,type_idx+1);
+}
+
+/**
+ * Generate a derecho::SubgroupInfo object from layout
+ *
+ * @param layout - user provided layout in json format
+ * @return derecho::SbugroupInfo object for Group constructor.
+ */
+template <typename... CascadeTypes>
+derecho::SubgroupInfo generate_subgroup_info(const json& layout) {
+    std::map<std::type_index,std::variant<SubgroupAllocationPolicy, CrossProductPolicy>> dsa_map;
+    populate_policy_by_subgroup_type_map<CascadeTypes...>(dsa_map,layout,0);
+    return derecho::SubgroupInfo(derecho::DefaultSubgroupAllocator(dsa_map));
+}
 
 template <typename... CascadeTypes>
 Service<CascadeTypes...>::Service(const json& layout) {
-    // TODO:
     // STEP 1 - load configuration
+    derecho::SubgroupInfo si = generate_subgroup_info<CascadeTypes...>(layout);
     // STEP 2 - create derecho group
+    // TODO:
     // STEP 3 - create service thread
 }
 
