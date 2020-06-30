@@ -17,7 +17,7 @@ namespace cascade {
      */
     template <typename... CascadeTypes>
     class Service {
-    private:
+    public:
         /**
          * Constructor
          * The constructor will load the configuration, start the service thread.
@@ -31,11 +31,16 @@ namespace cascade {
         /**
          * Stop the service
          */
-        void stop();
+        void stop(bool is_joining);
+        /**
+         * Join the service thread
+         */
+        void join();
         /**
          * Test if the service is running or stopped.
          */ 
         bool is_running();
+    private:
         /**
          * control synchronization members
          */
@@ -53,8 +58,9 @@ namespace cascade {
         /**
          * Start the singleton service
          * Please make sure only one thread call start. We do not defense such an incorrect usage.
+         * @param layout TODO: explain layout
          */
-        static void start();
+        static void start(const json& layout);
         /**
          * Check if service is started or not.
          */
@@ -62,7 +68,11 @@ namespace cascade {
         /**
          * shutdown the service
          */
-        static void shutdown();
+        static void shutdown(bool is_joining=true);
+        /**
+         * wait on the service util it stop
+         */
+        static void wait();
     };
 
     /**

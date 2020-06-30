@@ -17,12 +17,19 @@ void Service<CascadeTypes...>::run() {
 }
 
 template <typename... CascadeTypes>
-void Service<CascadeTypes...>::stop() {
+void Service<CascadeTypes...>::stop(bool is_joining) {
     std::unique_lock<std::mutex> lck(this->service_control_mutex);
     this->_is_running = false;
     lck.unlock();
     this->service_control_cv.notify_one();
     // wait until stopped.
+    if (is_joining && this->service_thread.joinable()) {
+        this->service_thread.join();
+    }
+}
+
+template <typename... CascadeTypes>
+void Service<CascadeTypes...>::join() {
     if (this->service_thread.joinable()) {
         this->service_thread.join();
     }
@@ -35,21 +42,28 @@ bool Service<CascadeTypes...>::is_running() {
 }
 
 template <typename... CascadeTypes>
-std::unique_ptr<Service<CascadeTypes...>> service_ptr;
+std::unique_ptr<Service<CascadeTypes...>> Service<CascadeTypes...>::service_ptr;
 
 template <typename... CascadeTypes>
-void Service<CascadeTypes...>::start() {
+void Service<CascadeTypes...>::start(const json& layout) {
     if (service_ptr) {
-        service_ptr = std::make_unique<Service<CascadeTypes...>>();
+        service_ptr = std::make_unique<Service<CascadeTypes...>>(layout);
     }
 }
 
 template <typename... CascadeTypes>
-void Service<CascadeTypes...>::shutdown() {
+void Service<CascadeTypes...>::shutdown(bool is_joining) {
     if (service_ptr) {
         if (service_ptr->is_running()) {
-            service_ptr->stop();
+            service_ptr->stop(is_joining);
         }
+    }
+}
+
+template <typename... CascadeTypes>
+void Service<CascadeTypes...>::wait() {
+    if (service_ptr) {
+        service_ptr->join();
     }
 }
 
