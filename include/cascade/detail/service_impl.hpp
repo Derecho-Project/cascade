@@ -49,18 +49,28 @@ derecho::SubgroupInfo generate_subgroup_info(const json& layout) {
 }
 
 template <typename... CascadeTypes>
-Service<CascadeTypes...>::Service(const json& layout) {
+Service<CascadeTypes...>::Service(const json& layout, const std::vector<DeserializationContext*>& dsms, derecho::Factory<CascadeTypes>... factories) {
     // STEP 1 - load configuration
     derecho::SubgroupInfo si = generate_subgroup_info<CascadeTypes...>(layout);
     // STEP 2 - create derecho group
-    // TODO:
+    group = std::make_unique<derecho::Group<CascadeTypes...>>(
+                CallbackSet{},
+                si,
+                dsms,
+                std::vector<derecho::view_upcall_t>{},
+                factories...);
     // STEP 3 - create service thread
+    this->_is_running = true;
+    service_thread = std::thread(&Service<CascadeTypes...>::run, this);
 }
 
 template <typename... CascadeTypes>
 void Service<CascadeTypes...>::run() {
-    // TODO:
-    std::lock_guard<std::mutex> lck(this->service_control_mutex);
+    std::unique_lock<std::mutex> lck(this->service_control_mutex);
+    this->service_control_cv.wait(lck, [this](){return !this->_is_running;});
+    // stop gracefully
+    group->barrier_sync();
+    group->leave();
 }
 
 template <typename... CascadeTypes>
@@ -92,9 +102,9 @@ template <typename... CascadeTypes>
 std::unique_ptr<Service<CascadeTypes...>> Service<CascadeTypes...>::service_ptr;
 
 template <typename... CascadeTypes>
-void Service<CascadeTypes...>::start(const json& layout) {
+void Service<CascadeTypes...>::start(const json& layout, const std::vector<DeserializationContext*>& dsms, derecho::Factory<CascadeTypes>... factories) {
     if (service_ptr) {
-        service_ptr = std::make_unique<Service<CascadeTypes...>>(layout);
+        service_ptr = std::make_unique<Service<CascadeTypes...>>(layout, dsms, factories...);
     }
 }
 
