@@ -52,6 +52,7 @@ template <typename... CascadeTypes>
 Service<CascadeTypes...>::Service(const json& layout, const std::vector<DeserializationContext*>& dsms, derecho::Factory<CascadeTypes>... factories) {
     // STEP 1 - load configuration
     derecho::SubgroupInfo si = generate_subgroup_info<CascadeTypes...>(layout);
+    dbg_default_trace("subgroups info created from layout.");
     // STEP 2 - create derecho group
     group = std::make_unique<derecho::Group<CascadeTypes...>>(
                 CallbackSet{},
@@ -59,9 +60,11 @@ Service<CascadeTypes...>::Service(const json& layout, const std::vector<Deserial
                 dsms,
                 std::vector<derecho::view_upcall_t>{},
                 factories...);
+    dbg_default_trace("joined group.");
     // STEP 3 - create service thread
     this->_is_running = true;
     service_thread = std::thread(&Service<CascadeTypes...>::run, this);
+    dbg_default_trace("created daemon thread.");
 }
 
 template <typename... CascadeTypes>
@@ -103,9 +106,9 @@ std::unique_ptr<Service<CascadeTypes...>> Service<CascadeTypes...>::service_ptr;
 
 template <typename... CascadeTypes>
 void Service<CascadeTypes...>::start(const json& layout, const std::vector<DeserializationContext*>& dsms, derecho::Factory<CascadeTypes>... factories) {
-    if (service_ptr) {
+    if (!service_ptr) {
         service_ptr = std::make_unique<Service<CascadeTypes...>>(layout, dsms, factories...);
-    }
+    } 
 }
 
 template <typename... CascadeTypes>

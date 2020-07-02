@@ -37,6 +37,19 @@ public:
     }   
 };
 
+#ifndef NDEBUG
+inline void dump_layout(const json& layout) {
+    int tid = 0;
+    for (const auto& pertype:layout) {
+        int sidx = 0;
+        for (const auto& persubgroup:pertype ) {
+            dbg_default_trace("subgroup={}.{},layout={}.",tid,sidx,persubgroup.dump());
+            sidx ++;
+        }
+        tid ++;
+    }
+}
+#endif//NDEBUG
 
 int main(int argc, char** argv) {
     // set proc name
@@ -50,7 +63,10 @@ int main(int argc, char** argv) {
     layout.push_back(json::parse(derecho::getConfString(CONF_VCS_STRINGKEY_LAYOUT)));
     layout.push_back(json::parse(derecho::getConfString(CONF_PCS_UINT64KEY_LAYOUT)));
     layout.push_back(json::parse(derecho::getConfString(CONF_PCS_STRINGKEY_LAYOUT)));
-    dbg_default_trace("loaded layout conf: {}.", layout.get<std::string>());
+#ifndef NDEBUG
+    dbg_default_trace("load layout:");
+    dump_layout(layout);
+#endif//NDEBUG
     // create service
     CascadeWatcherContext<uint64_t,ObjectWithUInt64Key,&ObjectWithUInt64Key::IK,&ObjectWithUInt64Key::IV> icwc; // for int key
     CascadeWatcherContext<std::string,ObjectWithStringKey,&ObjectWithStringKey::IK,&ObjectWithStringKey::IV> scwc; // for string key
@@ -67,6 +83,7 @@ int main(int argc, char** argv) {
     auto pcss_factory = [&scwc](persistent::PersistentRegistry* pr, derecho::subgroup_id_t) {
         return std::make_unique<PCSS>(pr,scwc.get_cascade_watcher());
     };
+    dbg_default_trace("starting service...");
     Service<VCSU,VCSS,PCSU,PCSS>::start(layout,{&icwc,&scwc},vcsu_factory,vcss_factory,pcsu_factory,pcss_factory);
     dbg_default_trace("started service, waiting till it ends.");
     std::cout << "Press Enter to Shutdown." << std::endl;

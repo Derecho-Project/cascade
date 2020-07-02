@@ -15,3 +15,8 @@ target_include_directories(service PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
 target_link_libraries(service cascade)
+
+add_custom_command(TARGET service POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/service_cfg
+    ${CMAKE_CURRENT_BINARY_DIR}/service_cfg
+)
