@@ -22,8 +22,10 @@ public:
      * Constructor
      * The constructor will load the configuration, start the service thread.
      * @param layout TODO: explain layout
+     * @param dsms TODO: explain it here
+     * @param factories: explain it here
      */
-    Service(const json& layout);
+    Service(const json& layout, const std::vector<DeserializationContext*>& dsms, derecho::Factory<CascadeTypes>... factories);
     /**
      * The workhorse
      */
@@ -48,6 +50,10 @@ private:
     std::condition_variable service_control_cv;
     bool _is_running;
     std::thread service_thread;
+    /**
+     * The group
+     */
+    std::unique_ptr<derecho::Group<CascadeTypes...>> group;
 
     /**
      * Singleton pointer
@@ -59,8 +65,9 @@ public:
      * Start the singleton service
      * Please make sure only one thread call start. We do not defense such an incorrect usage.
      * @param layout TODO: explain layout
+     * @param factories - the factories to create objects.
      */
-    static void start(const json& layout);
+    static void start(const json& layout, const std::vector<DeserializationContext*>& dsms, derecho::Factory<CascadeTypes>... factories);
     /**
      * Check if service is started or not.
      */
