@@ -44,7 +44,9 @@ add_subdirectory(src/test)
 
 # make libcascade.so
 add_library(cascade SHARED
-    $<TARGET_OBJECTS:core>)
+    $<TARGET_OBJECTS:core>
+    $<TARGET_OBJECTS:service>
+)
 # not ready yet:
 #    $<TARGET_OBJECTS:utils>)
 
