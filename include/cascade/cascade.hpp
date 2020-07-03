@@ -24,39 +24,51 @@ namespace cascade {
      * @param void* cascade_context     - the cascade context
      * @return void
      */
-    template<typename KT, typename VT, KT* IK, VT* IV>
-    using CascadeWatcher = std::function<void(subgroup_id_t,const uint32_t,const KT&, const VT&, void*)>;
-
-    /**
-     * Watcher Context interface
-     * Applications using CascadeStore templates MUST provide an ICascadeWatcherContext object
-     * to be notified with the updates (put/remove). Users can just use an object of
-     * IndifferentCascadeWatcherContext to ignore those updates.
-     */
-    template<typename KT, typename VT, KT* IK, VT* IV>
-    class ICascadeWatcherContext : public derecho::DeserializationContext {
+    template<typename KT, typename VT, KT* IK, VT* IV> // TODO: use shared_ptr or not???
+    class CascadeWatcher: public derecho::DeserializationContext {
     public:
         /**
-         * Return a shared pointer to a CascadeWatcher, which is owned by ICascadeWatcherContext.
-         * Derived classes MUST guarantee the referenced watcher is valid throughout Cascade
-         * subgroup's lifetime.
+         * The critical data path behaviour is defined here. The default behaviour is do nothing.
+         *
+         * @param subgroup_id TODO: should we use subgroup idx in the same type? which seems more useful.
+         * @param shard_id
+         * @param key
+         * @param value
+         * @param cascade_ctxt - The cascade context to be used later
          */
-        virtual std::shared_ptr<CascadeWatcher<KT,VT,IK,IV>> get_cascade_watcher() = 0;
+        virtual void operator () (const subgroup_id_t subgroup_id, const uint32_t shard_id, const KT& key, const VT& value, void* cascade_ctxt) {}
     };
 
-    /**
-     * Use indifferent watcher context to ignore the updates (put/remove).
-     */
-    template<typename KT, typename VT, KT* IK, VT* IV>
-    class IndifferentCascadeWatcherContext : public ICascadeWatcherContext<KT,VT,IK,IV> {
-        std::shared_ptr<CascadeWatcher<KT,VT,IK,IV>> watcher_ptr;
+//    /**
+//     * Watcher Context interface
+//     * Applications using CascadeStore templates MUST provide an ICascadeWatcherContext object
+//     * to be notified with the updates (put/remove). Users can just use an object of
+//     * IndifferentCascadeWatcherContext to ignore those updates.
+//     */
+//    template<typename KT, typename VT, KT* IK, VT* IV>
+//    class ICascadeWatcherContext : public derecho::DeserializationContext {
+//    public:
+//        /**
+//         * Return a shared pointer to a CascadeWatcher, which is owned by ICascadeWatcherContext.
+//         * Derived classes MUST guarantee the referenced watcher is valid throughout Cascade
+//         * subgroup's lifetime.
+//         */
+//        virtual std::shared_ptr<CascadeWatcher<KT,VT,IK,IV>> get_cascade_watcher() = 0;
+//    };
 
-    public:
-        // override ICascadeWatcherContext::get_cascade_watcher()
-        std::shared_ptr<CascadeWatcher<KT,VT,IK,IV>> get_cascade_watcher() override {
-            return this->watcher_ptr;
-        }
-    };
+//    /**
+//     * Use indifferent watcher context to ignore the updates (put/remove).
+//     */
+//    template<typename KT, typename VT, KT* IK, VT* IV>
+//    class IndifferentCascadeWatcherContext : public ICascadeWatcherContext<KT,VT,IK,IV> {
+//        std::shared_ptr<CascadeWatcher<KT,VT,IK,IV>> watcher_ptr;
+//
+//    public:
+//        // override ICascadeWatcherContext::get_cascade_watcher()
+//        std::shared_ptr<CascadeWatcher<KT,VT,IK,IV>> get_cascade_watcher() override {
+//            return this->watcher_ptr;
+//        }
+//    };
 
     /**
      * The cascade store interface.
@@ -133,7 +145,7 @@ namespace cascade {
         /* volatile cascade store in memory */
         std::map<KT,VT> kv_map;
         /* watcher */
-        std::shared_ptr<CascadeWatcher<KT,VT,IK,IV>> cascade_watcher_ptr;
+        CascadeWatcher<KT,VT,IK,IV>* cascade_watcher_ptr;
         
         REGISTER_RPC_FUNCTIONS(VolatileCascadeStore,
                                put,
@@ -162,9 +174,9 @@ namespace cascade {
         void ensure_registered(mutils::DeserializationManager&) {}
 
         /* constructors */
-        VolatileCascadeStore(const std::shared_ptr<CascadeWatcher<KT,VT,IK,IV>>& cw);
-        VolatileCascadeStore(const std::map<KT,VT>& _kvm, const std::shared_ptr<CascadeWatcher<KT,VT,IK,IV>>& cw); // copy kv_map
-        VolatileCascadeStore(std::map<KT,VT>&& _kvm, const std::shared_ptr<CascadeWatcher<KT,VT,IK,IV>>& cw); // move kv_map
+        VolatileCascadeStore(CascadeWatcher<KT,VT,IK,IV>* cw=nullptr);
+        VolatileCascadeStore(const std::map<KT,VT>& _kvm, CascadeWatcher<KT,VT,IK,IV>* cw=nullptr); // copy kv_map
+        VolatileCascadeStore(std::map<KT,VT>&& _kvm, CascadeWatcher<KT,VT,IK,IV>* cw=nullptr); // move kv_map
     };
 
     /**
@@ -292,10 +304,9 @@ namespace cascade {
         void ensure_registered(mutils::DeserializationManager&) {}
 
         // constructors
-        PersistentCascadeStore(persistent::PersistentRegistry *pr,
-                               const std::shared_ptr<CascadeWatcher<KT,VT,IK,IV>>& cw);
+        PersistentCascadeStore(persistent::PersistentRegistry *pr, CascadeWatcher<KT,VT,IK,IV>* cw=nullptr);
         PersistentCascadeStore(persistent::Persistent<DeltaCascadeStoreCore<KT,VT,IK,IV>,ST>&& _persistent_core,
-                               const std::shared_ptr<CascadeWatcher<KT,VT,IK,IV>>& cw); // move persistent_core
+                               CascadeWatcher<KT,VT,IK,IV>* cw=nullptr); // move persistent_core
 
         // destructor
         virtual ~PersistentCascadeStore();

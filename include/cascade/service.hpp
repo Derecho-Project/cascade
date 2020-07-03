@@ -7,7 +7,16 @@
 using json = nlohmann::json; 
 
 /**
- * The cascade service 
+ * The cascade service templates
+ * 
+ * Type neutral templates components go here. Since the server binary and client library has to be type aware (because
+ * they are pre-compiled), we separate the api and implementation of them in type-awared header files as follows:
+ * - service_types.hpp contains the predefined types for derecho Subgroups, which are specialized from
+ *   derecho::cascade::VolatileCascadeStore/PersistentCascadeStore templates.
+ * - service_client_api.hpp contains the client API definition.
+ * - service_server_api.hpp contains the server API definition. Huh, Server API??? YES! because the application need to
+ *   specify their 'onData()' behaviours by implementing the APIs in service_server_api.hpp as a shared library. The
+ *   server will load them on restart.
  */
 namespace derecho {
 namespace cascade {
@@ -96,7 +105,6 @@ class ServiceContext {
  */
 template <typename KT, typename VT, KT* IK, VT *IV>
 std::shared_ptr<CascadeWatcher<KT,VT,IK,IV>> create_critical_data_path_callback();
-
 
 /**
  * defining key strings used in the [CASCADE] section of configuration file.
