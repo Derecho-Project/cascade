@@ -33,7 +33,7 @@ namespace cascade {
      * IndifferentCascadeWatcherContext to ignore those updates.
      */
     template<typename KT, typename VT, KT* IK, VT* IV>
-    class ICascadeWatcherContext : public derecho::IDeserializationContext {
+    class ICascadeWatcherContext : public derecho::DeserializationContext {
     public:
         /**
          * Return a reference to a CascadeWatcher, which is owned by this.
