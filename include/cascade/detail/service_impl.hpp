@@ -127,5 +127,166 @@ void Service<CascadeTypes...>::wait() {
     }
 }
 
+template <typename... CascadeTypes>
+std::vector<node_id_t> ServiceClient<CascadeTypes...>::get_members() {
+    return external_group.get_members();
+}
+
+template <typename... CascadeTypes>
+std::vector<node_id_t> ServiceClient<CascadeTypes...>::get_shard_members(derecho::subgroup_id_t subgroup_id, uint32_t shard_index) {
+    return external_group.get_shard_members(subgroup_id,index);
+}
+
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+std::vector<node_id_t> ServiceClient<CascadeTypes...>::get_shard_members(uint32_t subgroup_index, uint32_t shard_index) {
+    return external_group.get_shard_members(subgroup_index,index);
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+void ServiceClient<CascadeTypes...>::set_member_selection_policy(uint32_t subgroup_index,uint32_t shard_index,
+        ShardMemberSelectionPolicy policy, node_id_t user_specified_node_id) {
+    // write lock policies
+    std::unique_lock wlck(this->member_selection_policies_mutex);
+    // update map
+    this->member_selection_policies.emplace(
+            std::make_tuple(std::type_index(typeid(SubgroupType)),subgroup_index,shard_index),
+            std::make_tuple(policy,user_specified_node_id));
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+std::tuple<ShardMemberSelectionPolicy,node_id_t> ServiceClient<CascadeTypes...>::get_member_selection_policy(
+        uint32_t subgroup_index, uint32_t shard_index) {
+    // read lock policies
+    std::shared_lock rlck(this->member_selection_policies_mutex);
+    auto key = std::make_tuple(std::type_index(typeid(SubgroupType)),subgroup_index,shard_index);
+    // read map
+    if (member_selection_policies.find(key) != member_selection_policies.end()) {
+        return member_selection_policies.at(key);
+    } else {
+        return std::make_tuple(DEFAULT_SHARD_MEMBER_SELECTION_POLICY,INVALID_NODE_ID);
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+void ServiceClient<CascadeTypes...>::refresh_member_cache_entry(uint32_t subgroup_index,
+                                                          uint32_t shard_index) {
+    auto key = std::make_tuple(std::type_index(typeid(SubgroupType)),subgroup_index,shard_index);
+    auto members = get_shard_members<SubgroupType>(subgroup_index,shard_index);
+    std::shared_lock rlck(member_cache_mutex);
+    if (member_cache.find(key) == member_cache.end()) {
+        rlck.unlock();
+        std::unique_lock wlck(member_cache_mutex);
+        member_cache[key] = members;
+    } else {
+        member_cache[key].swap(members);
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+node_id_t ServiceClient<CascadeTypes...>::pick_member_by_policy(uint32_t subgroup_index,
+                                                                uint32_t shard_index,
+                                                                bool retry) {
+    ShardMemberSelectionPolicy policy;
+    node_id_t last_specified_node_id_or_index;
+
+    std::tie(policy,last_specified_node_id_or_index) = get_member_selection_policy<SubgroupType>(subgroup_index,shard_index);
+
+    if (policy == ShardMemberSelectionPolicy::UserSpecified) {
+        return last_specified_node_id_or_index;
+    }
+
+    auto key = std::make_tuple(std::type_index(typeid(SubgroupType)),subgroup_index,shard_index);
+
+    if (member_cache.find(key) == member_cache.end() || retry) {
+        refresh_member_cache_entry<SubgroupType>(subgroup_index,shard_index);
+    }
+
+    std::shared_lock rlck(member_cache_mutex);
+
+    node_id_t node_id = last_specified_node_id_or_index;
+
+    switch(policy) {
+    case ShardMemberSelectionPolicy::FirstMember:
+        node_id = member_cache.at(key).front();
+        break;
+    case ShardMemberSelectionPolicy::LastMember:
+        node_id = member_cache.at(key).back();
+        break;
+    case ShardMemberSelectionPolicy::Random:
+        node_id = member_cache.at(key)[get_time()%member_cache.at(key).size()]; // use time as random source.
+        break;
+    case ShardMemberSelectionPolicy::FixedRandom:
+        if (node_id == INVALID_NODE_ID || retry) {
+            node_id = member_cache.at(key)[get_time()%member_cache.at(key).size()]; // use time as random source.
+        }
+        break;
+    case ShardMemberSelectionPolicy::RoundRobin:
+        {
+            std::shared_lock rlck(member_selection_policies_mutex);
+            node_id = static_cast<uint32_t>(node_id+1)%member_cache.at(key).size();
+            auto new_policy = std::make_tuple(ShardMemberSelectionPolicy::RoundRobin,node_id);
+            member_selection_policies[key].swap(new_policy);
+        }
+        node_id = member_cache.at(key)[node_id];
+        break;
+    default:
+        throw new derecho::derecho_exception("Unknown member selection policy:" + std::to_string(static_cast<unsigned int>(policy)) );
+    }
+
+    return node_id;
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::put(
+        const typename SubgroupType::ValType& value,
+        uint32_t subgroup_index,
+        uint32_t shard_index) {
+    auto& caller = external_group.template get_subgroup_caller<SubgroupType>(subgroup_index);
+    node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
+    return caller.p2p_send<RPC_NAME(put)>(node_id,value);
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::remove(
+        const typename SubgroupType::KeyType& key,
+        uint32_t subgroup_index,
+        uint32_t shard_index) {
+    auto& caller = external_group.template get_subgroup_caller<SubgroupType>(subgroup_index);
+    node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
+    return caller.p2p_send<RPC_NAME(remove)>(node_id,key);
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+derecho::rpc::QueryResults<typename SubgroupType::VT> ServiceClient<CascadeTypes...>::get(
+        const typename SubgroupType::KeyType& key,
+        const persistent::version_t& version,
+        uint32_t subgroup_index,
+        uint32_t shard_index) {
+    auto& caller = external_group.template get_subgroup_caller<SubgroupType>(subgroup_index);
+    node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
+    return caller.p2p_send<RPC_NAME(get)>(node_id,key,version);
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+derecho::rpc::QueryResults<typename SubgroupType::VT> ServiceClient<CascadeTypes...>::get_by_time(
+        const typename SubgroupType::KeyType& key,
+        const uint64_t& ts_us,
+        uint32_t subgroup_index,
+        uint32_t shard_index) {
+    auto& caller = external_group.template get_subgroup_caller<SubgroupType>();
+    node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
+    return caller.p2p_send<RPC_NAME(get)>(node_id,key,ts_us);
+}
+
 }
 }

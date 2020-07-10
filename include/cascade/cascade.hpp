@@ -83,6 +83,14 @@ namespace cascade {
      */
     template <typename KT, typename VT, KT* IK, VT* IV>
     class ICascadeStore {
+    public:
+        /**
+         * Types
+         */
+        using KeyType = KT;
+        using ValType = VT;
+        KT* InvKeyPtr = IK;
+        VT* InvValPtr = IV;
         /**
          * put a value (with key)
          * @param value
@@ -109,6 +117,8 @@ namespace cascade {
          * @return a value
          */
         virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) = 0;
+
+    protected:
         /**
          * ordered_put
          * @param value
