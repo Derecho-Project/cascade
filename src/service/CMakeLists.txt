@@ -16,8 +16,8 @@ target_include_directories(server PRIVATE
 target_link_libraries(server cascade)
 
 add_custom_command(TARGET server POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/server_cfg
-    ${CMAKE_CURRENT_BINARY_DIR}/server_cfg
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/cfg
+    ${CMAKE_CURRENT_BINARY_DIR}/cfg
 )
 
 add_executable(client client.cpp)
