@@ -26,7 +26,7 @@ static std::vector<std::string> tokenize(std::string& line) {
         tokens.push_back(std::string(token));
         token = std::strtok(NULL, " ");
     }
-    return std::move(tokens);
+    return tokens; // RVO
 }
 
 static void client_help() {
