@@ -151,9 +151,8 @@ void ServiceClient<CascadeTypes...>::set_member_selection_policy(uint32_t subgro
     // write lock policies
     std::unique_lock wlck(this->member_selection_policies_mutex);
     // update map
-    this->member_selection_policies.emplace(
-            std::make_tuple(std::type_index(typeid(SubgroupType)),subgroup_index,shard_index),
-            std::make_tuple(policy,user_specified_node_id));
+    this->member_selection_policies[std::make_tuple(std::type_index(typeid(SubgroupType)),subgroup_index,shard_index)] =
+            std::make_tuple(policy,user_specified_node_id);
 }
 
 template <typename... CascadeTypes>

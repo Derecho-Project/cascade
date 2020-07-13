@@ -135,6 +135,7 @@ enum ShardMemberSelectionPolicy {
     FixedRandom,    // use a random member and stick to that for the following operations.
     RoundRobin,     // use a member in round-robin order.
     UserSpecified,  // user specify which member to contact.
+    InvalidPolicy = -1
 };
 #define DEFAULT_SHARD_MEMBER_SELECTION_POLICY (ShardMemberSelectionPolicy::FirstMember)
 
@@ -267,7 +268,7 @@ public:
      * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
      */
     template <typename SubgroupType>
-    derecho::rpc::QueryResults<typename SubgroupType::VT> get(const typename SubgroupType::KeyType& key, const persistent::version_t& version,
+    derecho::rpc::QueryResults<typename SubgroupType::VT> get(const typename SubgroupType::KeyType& key, const persistent::version_t& version = persistent::INVALID_VERSION,
             uint32_t subgroup_index=0, uint32_t shard_index=0);
 
     /**
