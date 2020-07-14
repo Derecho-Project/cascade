@@ -124,6 +124,75 @@ static void print_red(std::string msg) {
         print_red("unknown subgroup type:" + cmd_tokens[1]); \
     }
 
+#define check_put_and_remove_result(result) \
+    for (auto& reply_future:result.get()) {\
+        auto reply = reply_future.second.get();\
+        std::cout << "node(" << reply_future.first << ") replied with version:" << std::get<0>(reply)\
+                  << ",ts_us:" << std::get<1>(reply) << std::endl;\
+    }
+
+template <typename SubgroupType>
+void put(ServiceClientAPI& capi, std::string& key, std::string& value, uint32_t subgroup_index, uint32_t shard_index) {
+    typename SubgroupType::ValType obj;
+    if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
+        obj.key = static_cast<uint64_t>(std::stol(key));
+    } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
+        obj.key = key;
+    } else {
+        print_red(std::string("Unhandled KeyType:") + typeid(typename SubgroupType::KeyType).name());
+        return;
+    }
+    obj.blob = Blob(value.c_str(),value.length());
+    derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> result = capi.template put<SubgroupType>(obj, subgroup_index, shard_index);
+    check_put_and_remove_result(result);
+}
+
+template <typename SubgroupType>
+void remove(ServiceClientAPI& capi, std::string& key, uint32_t subgroup_index, uint32_t shard_index) {
+    if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
+        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> result = std::move(capi.template remove<SubgroupType>(static_cast<uint64_t>(std::stol(key)), subgroup_index, shard_index));
+        check_put_and_remove_result(result);
+    } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
+        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> result = std::move(capi.template remove<SubgroupType>(key, subgroup_index, shard_index));
+        check_put_and_remove_result(result);
+    } else {
+        print_red(std::string("Unhandled KeyType:") + typeid(typename SubgroupType::KeyType).name());
+        return;
+    }
+}
+
+#define check_get_result(result) \
+    for (auto& reply_future:result.get()) {\
+        auto reply = reply_future.second.get();\
+        std::cout << "node(" << reply_future.first << ") replied with value:" << reply << std::endl;\
+    }
+
+template <typename SubgroupType>
+void get(ServiceClientAPI& capi, std::string& key, persistent::version_t ver, uint32_t subgroup_index,uint32_t shard_index) {
+    if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
+        derecho::rpc::QueryResults<const typename SubgroupType::ValType> result = capi.template get<SubgroupType>(
+                static_cast<uint64_t>(std::stol(key)),ver,subgroup_index,shard_index);
+        check_get_result(result);
+    } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
+        derecho::rpc::QueryResults<const typename SubgroupType::ValType> result = capi.template get<SubgroupType>(
+                key,ver,subgroup_index,shard_index);
+        check_get_result(result);
+    }
+}
+
+template <typename SubgroupType>
+void get_by_time(ServiceClientAPI& capi, std::string& key, uint64_t ts_us, uint32_t subgroup_index,uint32_t shard_index) {
+    if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
+        derecho::rpc::QueryResults<const typename SubgroupType::ValType> result = capi.template get_by_time<SubgroupType>(
+                static_cast<uint64_t>(std::stol(key)),ts_us,subgroup_index,shard_index);
+        check_get_result(result);
+    } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
+        derecho::rpc::QueryResults<const typename SubgroupType::ValType> result = capi.template get<SubgroupType>(
+                key,ts_us,subgroup_index,shard_index);
+        check_get_result(result);
+    }
+}
+
 /* TEST2: put/get/remove tests */
 void interactive_test(ServiceClientAPI& capi) {
     const char* help_info = "\
@@ -144,16 +213,19 @@ policy:=FirstMember|LastMember|Random|FixedRandom|RoundRobin|UserSpecified\n\
 ";
     derecho::subgroup_id_t subgroup_id;
     uint32_t subgroup_index,shard_index;
+    persistent::version_t version;
 
     // loop
     while (true) {
         subgroup_id = 0;
         subgroup_index = 0;
         shard_index = 0;
+        version = persistent::INVALID_VERSION;
         char* malloced_cmd = readline("cmd> ");
         std::string cmdline(malloced_cmd);
         free(malloced_cmd);
         if (cmdline == "")continue;
+        add_history(cmdline.c_str());
 
         auto cmd_tokens = tokenize(cmdline);
         if (cmd_tokens[0] == "help") {
@@ -212,8 +284,52 @@ policy:=FirstMember|LastMember|Random|FixedRandom|RoundRobin|UserSpecified\n\
                 user_specified_node_id = static_cast<node_id_t>(std::stoi(cmd_tokens[5]));
             }
             on_subgroup_type(cmd_tokens[1],set_member_selection_policy,capi,subgroup_index,shard_index,policy,user_specified_node_id);
+        } else if (cmd_tokens[0] == "put") {
+            if (cmd_tokens.size() < 4) {
+                print_red("Invalid format:" + cmdline);
+                continue;
+            }
+            if (cmd_tokens.size() >= 5)
+                subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
+            if (cmd_tokens.size() >= 6)
+                shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[5]));
+            on_subgroup_type(cmd_tokens[1],put,capi,cmd_tokens[2]/*key*/,cmd_tokens[3]/*value*/,subgroup_index,shard_index);
+        } else if (cmd_tokens[0] == "remove") {
+            if (cmd_tokens.size() < 3) {
+                print_red("Invalid format:" + cmdline);
+                continue;
+            }
+            if (cmd_tokens.size() >= 4)
+                subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
+            if (cmd_tokens.size() >= 5)
+                shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
+            on_subgroup_type(cmd_tokens[1],remove,capi,cmd_tokens[2]/*key*/,subgroup_index,shard_index);
+        } else if (cmd_tokens[0] == "get") {
+            if (cmd_tokens.size() < 3) {
+                print_red("Invalid format:" + cmdline);
+                continue;
+            }
+            if (cmd_tokens.size() >= 4)
+                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[3]));
+            if (cmd_tokens.size() >= 5)
+                subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
+            if (cmd_tokens.size() >= 6)
+                shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[5]));
+            on_subgroup_type(cmd_tokens[1],get,capi,cmd_tokens[2],version,subgroup_index,shard_index);
+        } else if (cmd_tokens[0] == "get_by_time") {
+            if (cmd_tokens.size() < 4) {
+                print_red("Invalid format:" + cmdline);
+                continue;
+            }
+            uint64_t ts_us = static_cast<uint64_t>(std::stol(cmd_tokens[3]));
+            if (cmd_tokens.size() >= 5)
+                subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
+            if (cmd_tokens.size() >= 6)
+                shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[5]));
+            on_subgroup_type(cmd_tokens[1],get_by_time,capi,cmd_tokens[2],ts_us,subgroup_index,shard_index);
+        } else {
+            print_red("command:" + cmd_tokens[0] + " is not implemented or unknown.");
         }
-        add_history(cmdline.c_str());
     }
     std::cout << "Client exits." << std::endl;
 }
