@@ -268,7 +268,7 @@ public:
      * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
      */
     template <typename SubgroupType>
-    derecho::rpc::QueryResults<typename SubgroupType::VT> get(const typename SubgroupType::KeyType& key, const persistent::version_t& version = persistent::INVALID_VERSION,
+    derecho::rpc::QueryResults<const typename SubgroupType::ValType> get(const typename SubgroupType::KeyType& key, const persistent::version_t& version = persistent::INVALID_VERSION,
             uint32_t subgroup_index=0, uint32_t shard_index=0);
 
     /**
@@ -283,7 +283,7 @@ public:
      * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
      */
     template <typename SubgroupType>
-    derecho::rpc::QueryResults<typename SubgroupType::VT> get_by_time(const typename SubgroupType::KeyType& key, const uint64_t& ts_us,
+    derecho::rpc::QueryResults<const typename SubgroupType::ValType> get_by_time(const typename SubgroupType::KeyType& key, const uint64_t& ts_us,
             uint32_t subgroup_index=0, uint32_t shard_index=0);
 };
 

@@ -376,8 +376,7 @@ template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 const VT PersistentCascadeStore<KT,VT,IK,IV,ST>::get(const KT& key, const persistent::version_t& ver) {
     debug_enter_func_with_args("key={},ver=0x{:x}",key,ver);
     if (ver != persistent::INVALID_VERSION) {
-        debug_leave_func_with_value("Cannot support versioned get, ver=0x{:x}", ver);
-        return *IV;
+        return persistent_core.get(ver)->kv_map.at(key);
     }
     derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_get)>(key);
