@@ -1,22 +1,21 @@
 #include <cascade/cascade.hpp>
 #include <cascade/service.hpp>
+#include <cascade/service_types.hpp>
 #include <cascade/object.hpp>
 #include <sys/prctl.h>
 #include <derecho/conf/conf.hpp>
 #include <derecho/utils/logger.hpp>
+#include <dlfcn.h>
 
 #define PROC_NAME "cascade_server"
 
+#define CONF_ONDATA_LIBRARY       "CASCADE/ondata_library"
 #define CONF_VCS_UINT64KEY_LAYOUT "CASCADE/VOLATILECASCADESTORE/UINT64/layout"
 #define CONF_VCS_STRINGKEY_LAYOUT "CASCADE/VOLATILECASCADESTORE/STRING/layout"
 #define CONF_PCS_UINT64KEY_LAYOUT "CASCADE/PERSISTENTCASCADESTORE/UINT64/layout"
 #define CONF_PCS_STRINGKEY_LAYOUT "CASCADE/PERSISTENTCASCADESTORE/STRING/layout"
 
 using namespace derecho::cascade;
-using VCSU = VolatileCascadeStore<uint64_t,ObjectWithUInt64Key,&ObjectWithUInt64Key::IK,&ObjectWithUInt64Key::IV>;
-using VCSS = VolatileCascadeStore<std::string,ObjectWithStringKey,&ObjectWithStringKey::IK,&ObjectWithStringKey::IV>;
-using PCSU = PersistentCascadeStore<uint64_t,ObjectWithUInt64Key,&ObjectWithUInt64Key::IK,&ObjectWithUInt64Key::IV,ST_FILE>;
-using PCSS = PersistentCascadeStore<std::string,ObjectWithStringKey,&ObjectWithStringKey::IK,&ObjectWithStringKey::IV,ST_FILE>;
 
 #ifndef NDEBUG
 inline void dump_layout(const json& layout) {
@@ -48,24 +47,80 @@ int main(int argc, char** argv) {
     dbg_default_trace("load layout:");
     dump_layout(layout);
 #endif//NDEBUG
-    // create service
-    CascadeWatcher<uint64_t,ObjectWithUInt64Key,&ObjectWithUInt64Key::IK,&ObjectWithUInt64Key::IV> icw; // for int key
-    CascadeWatcher<std::string,ObjectWithStringKey,&ObjectWithStringKey::IK,&ObjectWithStringKey::IV> scw; // for string key
+    // load on_data_library
+    std::string ondata_library = derecho::getConfString(CONF_ONDATA_LIBRARY);
+    std::shared_ptr<UCW> ucw_ptr;
+    std::shared_ptr<SCW> scw_ptr;
+    void (*on_cascade_initialization)() = nullptr;
+    void (*on_cascade_exit)() = nullptr;
+    std::shared_ptr<UCW> (*get_ucw)() = nullptr;
+    std::shared_ptr<SCW> (*get_scw)() = nullptr;
+    void* dl_handle = nullptr;
 
-    auto vcsu_factory = [&icw](persistent::PersistentRegistry* pr, derecho::subgroup_id_t) {
-        return std::make_unique<VCSU>(&icw);
+    if (ondata_library.size()>0) {
+        dl_handle = dlopen(ondata_library.c_str(),RTLD_LAZY);
+        if (!dl_handle) {
+            dbg_default_error("Failed to load shared ondata_library:{}. error={}", ondata_library, dlerror());
+            return -1;
+        }
+        // TODO: find an dynamic/automatic way to get the mangled symbols.
+        // 1 - on_cascade_initialization
+        *reinterpret_cast<void **>(&on_cascade_initialization) = dlsym(dl_handle, "_ZN7derecho7cascade25on_cascade_initializationEv");
+        if (on_cascade_initialization == nullptr) {
+            dbg_default_error("Failed to load on_cascade_initialization(). error={}", dlerror());
+            dlclose(dl_handle);
+            return -1;
+        }
+        // 2 - on_cascade_exit
+        *reinterpret_cast<void **>(&on_cascade_exit) = dlsym(dl_handle, "_ZN7derecho7cascade15on_cascade_exitEv");
+        if (on_cascade_exit == nullptr) {
+            dbg_default_error("Failed to load on_cascade_exit(). error={}", dlerror());
+            dlclose(dl_handle);
+            return -1;
+        }
+        // 3 - get_ucw
+        *reinterpret_cast<void **>(&get_ucw) = dlsym(dl_handle, "_ZN7derecho7cascade19get_cascade_watcherINS0_14CascadeWatcherImNS0_19ObjectWithUInt64KeyEXadL_ZNS3_2IKEEEXadL_ZNS3_2IVEEEEEEESt10shared_ptrIT_Ev");
+        if (get_ucw == nullptr) {
+            dbg_default_error("Failed to load get_ucw(). error={}", dlerror());
+            dlclose(dl_handle);
+            return -1;
+        }
+        // 4 - get_scw
+        *reinterpret_cast<void **>(&get_scw) = dlsym(dl_handle, "_ZN7derecho7cascade19get_cascade_watcherINS0_14CascadeWatcherINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEENS0_19ObjectWithStringKeyEXadL_ZNS9_2IKB5cxx11EEEXadL_ZNS9_2IVEEEEEEESt10shared_ptrIT_Ev");
+        if (get_scw == nullptr) {
+            dbg_default_error("Failed to load get_scw(). error={}", dlerror());
+            dlclose(dl_handle);
+            return -1;
+        }
+    }
+
+    // initialize
+    if (on_cascade_initialization) {
+        on_cascade_initialization();
+    }
+
+    // create service
+    if (get_ucw) {
+        ucw_ptr = std::move(get_ucw());
+    }
+    if (get_scw) {
+        scw_ptr = std::move(get_scw());
+    }
+
+    auto vcsu_factory = [&ucw_ptr](persistent::PersistentRegistry* pr, derecho::subgroup_id_t) {
+        return std::make_unique<VCSU>(ucw_ptr.get());
     };
-    auto vcss_factory = [&scw](persistent::PersistentRegistry* pr, derecho::subgroup_id_t) {
-        return std::make_unique<VCSS>(&scw);
+    auto vcss_factory = [&scw_ptr](persistent::PersistentRegistry* pr, derecho::subgroup_id_t) {
+        return std::make_unique<VCSS>(scw_ptr.get());
     };
-    auto pcsu_factory = [&icw](persistent::PersistentRegistry* pr, derecho::subgroup_id_t) {
-        return std::make_unique<PCSU>(pr,&icw);
+    auto pcsu_factory = [&ucw_ptr](persistent::PersistentRegistry* pr, derecho::subgroup_id_t) {
+        return std::make_unique<PCSU>(pr,ucw_ptr.get());
     };
-    auto pcss_factory = [&scw](persistent::PersistentRegistry* pr, derecho::subgroup_id_t) {
-        return std::make_unique<PCSS>(pr,&scw);
+    auto pcss_factory = [&scw_ptr](persistent::PersistentRegistry* pr, derecho::subgroup_id_t) {
+        return std::make_unique<PCSS>(pr,scw_ptr.get());
     };
     dbg_default_trace("starting service...");
-    Service<VCSU,VCSS,PCSU,PCSS>::start(layout,{&icw,&scw},vcsu_factory,vcss_factory,pcsu_factory,pcss_factory);
+    Service<VCSU,VCSS,PCSU,PCSS>::start(layout,{ucw_ptr.get(),scw_ptr.get()},vcsu_factory,vcss_factory,pcsu_factory,pcss_factory);
     dbg_default_trace("started service, waiting till it ends.");
     std::cout << "Press Enter to Shutdown." << std::endl;
     std::cin.get();
@@ -75,5 +130,13 @@ int main(int argc, char** argv) {
     // you can do something here to parallel the destructing process.
     Service<VCSU,VCSS,PCSU,PCSS>::wait();
     dbg_default_trace("Finish shutdown.");
+
+    // exit
+    if (on_cascade_exit) {
+        on_cascade_exit();
+    }
+    if (dl_handle) {
+        dlclose(dl_handle);
+    }
     return 0;
 }

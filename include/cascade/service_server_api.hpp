@@ -6,6 +6,17 @@
 namespace derecho {
 namespace cascade {
 
+
+/**
+ * "on_cascade_initialization" will be called before cascade server joining derecho group.
+ */
+void on_cascade_initialization();
+
+/**
+ * "on_cascade_exit" will be called after cascade server leave derecho group.
+ */
+void on_cascade_exit();
+
 /**
  * The actions on data path
  *
@@ -35,5 +46,5 @@ std::shared_ptr<UCW> get_cascade_watcher<UCW>();
 template <>
 std::shared_ptr<SCW> get_cascade_watcher<SCW>();
 
-} // namepsace cascade
+} // namespace cascade
 } // namespace derecho
