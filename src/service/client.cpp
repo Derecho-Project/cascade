@@ -24,7 +24,7 @@ void print_shard_member(ServiceClientAPI& capi, uint32_t subgroup_index, uint32_
 void print_shard_member(ServiceClientAPI& capi, derecho::subgroup_id_t subgroup_id, uint32_t shard_index) {
     std::cout << "subgroup_id=" << subgroup_id << ","
               << "shard_index=" << shard_index << " member list = [";
-    auto members = capi.template get_shard_members(subgroup_id,shard_index);
+    auto members = capi.get_shard_members(subgroup_id,shard_index);
     for (auto nid : members) {
         std::cout << nid << ",";
     }
