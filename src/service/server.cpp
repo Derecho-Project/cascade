@@ -48,7 +48,11 @@ int main(int argc, char** argv) {
     dump_layout(layout);
 #endif//NDEBUG
     // load on_data_library
-    std::string ondata_library = derecho::getConfString(CONF_ONDATA_LIBRARY);
+    std::string ondata_library = "";
+    if (derecho::hasCustomizedConfKey(CONF_ONDATA_LIBRARY)) {
+        ondata_library = derecho::getConfString(CONF_ONDATA_LIBRARY);
+    }
+
     std::shared_ptr<UCW> ucw_ptr;
     std::shared_ptr<SCW> scw_ptr;
     void (*on_cascade_initialization)() = nullptr;
