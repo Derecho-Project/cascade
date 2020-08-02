@@ -65,14 +65,14 @@ static void client_put(derecho::ExternalGroup<VCS,PCS>& group,
         ExternalClientCaller<PCS,std::remove_reference<decltype(group)>::type>& pcs_ec = group.get_subgroup_caller<PCS>();
         auto result = pcs_ec.p2p_send<RPC_NAME(put)>(member,o);
         auto reply = result.get().get(member);
-        std::cout << "put finished with timestamp=" << std::get<0>(reply)
-                  << ",version=" << std::get<1>(reply) << std::endl;
+        std::cout << "put finished with timestamp=" << std::get<1>(reply)
+                  << ",version=" << std::get<0>(reply) << std::endl;
     } else {
         ExternalClientCaller<VCS,std::remove_reference<decltype(group)>::type>& vcs_ec = group.get_subgroup_caller<VCS>();
         auto result = vcs_ec.p2p_send<RPC_NAME(put)>(member,o);
         auto reply = result.get().get(member);
-        std::cout << "put finished with timestamp=" << std::get<0>(reply)
-                  << ",version=" << std::get<1>(reply) << std::endl;
+        std::cout << "put finished with timestamp=" << std::get<1>(reply)
+                  << ",version=" << std::get<0>(reply) << std::endl;
     }
     return;
 }
@@ -91,9 +91,9 @@ static void client_get(derecho::ExternalGroup<VCS,PCS>& group,
     uint64_t ts  = 0;
 
     if (tokens.size() == 4) {
-        if (tokens[2].compare("-t")) {
+        if (tokens[2].compare("-t") == 0) {
             ts = static_cast<uint64_t>(std::stoll(tokens[3]));
-        } else if (tokens[2].compare("-v")) {
+        } else if (tokens[2].compare("-v") == 0) {
             ver = static_cast<uint64_t>(std::stoll(tokens[3]));
         } else {
             std::cout << "Unknown option " << tokens[2] << std::endl;
@@ -136,14 +136,14 @@ static void client_remove(derecho::ExternalGroup<VCS,PCS>& group,
         ExternalClientCaller<PCS,std::remove_reference<decltype(group)>::type>& pcs_ec = group.get_subgroup_caller<PCS>();
         auto result = pcs_ec.p2p_send<RPC_NAME(remove)>(member,key);
         auto reply = result.get().get(member);
-        std::cout << "put finished with timestamp=" << std::get<0>(reply)
-                  << ",version=" << std::get<1>(reply) << std::endl;
+        std::cout << "put finished with timestamp=" << std::get<1>(reply)
+                  << ",version=" << std::get<0>(reply) << std::endl;
     } else {
         ExternalClientCaller<VCS,std::remove_reference<decltype(group)>::type>& vcs_ec = group.get_subgroup_caller<VCS>();
         auto result = vcs_ec.p2p_send<RPC_NAME(remove)>(member,key);
         auto reply = result.get().get(member);
-        std::cout << "put finished with timestamp=" << std::get<0>(reply)
-                  << ",version=" << std::get<1>(reply) << std::endl;
+        std::cout << "put finished with timestamp=" << std::get<1>(reply)
+                  << ",version=" << std::get<0>(reply) << std::endl;
     }
     return;
 }
