@@ -410,8 +410,8 @@ std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST
     debug_enter_func_with_args("key={}",value.key);
 
     std::tuple<persistent::version_t,uint64_t> version = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_next_version();
-    this->persistent_core->ordered_put(value);
     value.ver = version;
+    this->persistent_core->ordered_put(value);
     if (cascade_watcher_ptr) {
         (*cascade_watcher_ptr)(
             group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_subgroup_id(),
