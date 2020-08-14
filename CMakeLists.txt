@@ -41,6 +41,7 @@ add_subdirectory(src/core)
 add_subdirectory(src/utils)
 add_subdirectory(src/service)
 add_subdirectory(src/test)
+add_subdirectory(langs/java)
 
 # make libcascade.so
 add_library(cascade SHARED
