@@ -285,6 +285,35 @@ public:
     template <typename SubgroupType>
     derecho::rpc::QueryResults<const typename SubgroupType::ValType> get_by_time(const typename SubgroupType::KeyType& key, const uint64_t& ts_us,
             uint32_t subgroup_index=0, uint32_t shard_index=0);
+
+    /**
+     * "list_keys" retrieve the list of keys in a shard
+     *
+     * @param version           if version is INVALID_VERSION, this "get" will fire a ordered send to get the latest
+     *                          state of the key. Otherwise, it will try to read the key's state at version.
+     * @subugroup_index         the subgroup index of CascadeType
+     * @shard_index             the shard index.
+     *
+     * @return a future to the retrieved object.
+     * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
+     */
+    template <typename SubgroupType>
+    derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> list_keys(const persistent::version_t& version = persistent::INVALID_VERSION,
+            uint32_t subgroup_index=0, uint32_t shard_index=0);
+
+    /**
+     * "list_keys_by_time" retrieve the list of keys in a shard
+     *
+     * @param ts_us             Wall clock time in microseconds.
+     * @subugroup_index         the subgroup index of CascadeType
+     * @shard_index             the shard index.
+     *
+     * @return a future to the retrieved object.
+     * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
+     */
+    template <typename SubgroupType>
+    derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> list_keys_by_time(const uint64_t& ts_us,
+            uint32_t subgroup_index=0, uint32_t shard_index=0);
 };
 
 }// namespace cascade
