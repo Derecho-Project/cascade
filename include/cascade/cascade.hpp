@@ -117,6 +117,18 @@ namespace cascade {
          * @return a value
          */
         virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) = 0;
+        /**
+         * list keys by version
+         * @param ver - Version, if version  == INVALID_VERSION, get the latest list of keys.
+         * @return a list of keys.
+         */
+        virtual std::vector<KT> list_keys(const persistent::version_t& ver) = 0;
+        /**
+         * list keys by timestamp
+         * @param ts_us - timestamp in microsecond
+         * @return a list of keys.
+         */
+        virtual std::vector<KT> list_keys_by_time(const uint64_t& ts_us) = 0;
 
     protected:
         /**
@@ -137,6 +149,11 @@ namespace cascade {
          * @return a value
          */
         virtual const VT ordered_get(const KT& key) = 0;
+        /**
+         * ordered_list_keys
+         * @return a list of keys.
+         */
+        virtual std::vector<KT> ordered_list_keys() = 0;
     };
 
     /**
@@ -162,17 +179,22 @@ namespace cascade {
                                remove,
                                get,
                                get_by_time,
+                               list_keys,
+                               list_keys_by_time,
                                ordered_put,
                                ordered_remove,
-                               ordered_get);
+                               ordered_get,
+                               ordered_list_keys);
         virtual std::tuple<persistent::version_t,uint64_t> put(const VT& value) override;
         virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) override;
         virtual const VT get(const KT& key, const persistent::version_t& ver) override;
         virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) override;
+        virtual std::vector<KT> list_keys(const persistent::version_t& ver) override;
+        virtual std::vector<KT> list_keys_by_time(const uint64_t& ts_us) override;
         virtual std::tuple<persistent::version_t,uint64_t> ordered_put(const VT& value) override;
         virtual std::tuple<persistent::version_t,uint64_t> ordered_remove(const KT& key) override;
         virtual const VT ordered_get(const KT& key) override;
-
+        virtual std::vector<KT> ordered_list_keys() override;
 
         // serialization support
         DEFAULT_SERIALIZE(kv_map);
@@ -258,6 +280,10 @@ namespace cascade {
          * ordered get, no need to generate a delta.
          */
         virtual const VT ordered_get(const KT& key);
+        /**
+         * ordered list_keys, no need to generate a delta.
+         */
+        virtual std::vector<KT> ordered_list_keys();
 
         // serialization supports
         DEFAULT_SERIALIZATION_SUPPORT(DeltaCascadeStoreCore, kv_map);
@@ -293,16 +319,22 @@ namespace cascade {
                                remove,
                                get,
                                get_by_time,
+                               list_keys,
+                               list_keys_by_time,
                                ordered_put,
                                ordered_remove,
-                               ordered_get);
+                               ordered_get,
+                               ordered_list_keys);
         virtual std::tuple<persistent::version_t,uint64_t> put(const VT& value) override;
         virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) override;
         virtual const VT get(const KT& key, const persistent::version_t& ver) override;
         virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) override;
+        virtual std::vector<KT> list_keys(const persistent::version_t& ver) override;
+        virtual std::vector<KT> list_keys_by_time(const uint64_t& ts_us) override;
         virtual std::tuple<persistent::version_t,uint64_t> ordered_put(const VT& value) override;
         virtual std::tuple<persistent::version_t,uint64_t> ordered_remove(const KT& key) override;
         virtual const VT ordered_get(const KT& key) override;
+        virtual std::vector<KT> ordered_list_keys() override;
 
         // serialization support
         DEFAULT_SERIALIZE(persistent_core);

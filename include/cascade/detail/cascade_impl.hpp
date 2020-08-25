@@ -66,11 +66,49 @@ const VT VolatileCascadeStore<KT,VT,IK,IV>::get(const KT& key, const persistent:
 
 template<typename KT, typename VT, KT* IK, VT* IV>
 const VT VolatileCascadeStore<KT,VT,IK,IV>::get_by_time(const KT& key, const uint64_t& ts_us) {
-    // VolatileCascadeStore does not support that.
+    // VolatileCascadeStore does not support this.
     debug_enter_func();
     debug_leave_func();
 
     return *IV;
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
+std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::list_keys(const persistent::version_t& ver) {
+    debug_enter_func_with_args("ver=0x{:x}",ver);
+    if (ver != persistent::INVALID_VERSION) {
+        debug_leave_func_with_value("Cannot support versioned list_keys, ver=0x{:x}", ver);
+        return {};
+    }
+    derecho::Replicated<VolatileCascadeStore>& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
+    auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_list_keys)>();
+    auto& replies = results.get();
+    std::vector<KT> ret;
+    // TODO: verfity consistency ?
+    for (auto& reply_pair : replies) {
+        ret = reply_pair.second.get();
+    }
+    debug_leave_func();
+    return ret;
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
+std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::list_keys_by_time(const uint64_t& ts_us) {
+    // VolatileCascadeStore does not support this.
+    debug_enter_func_with_args("ts_us=0x{:x}", ts_us);
+    debug_leave_func();
+    return {};
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
+std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::ordered_list_keys() {
+    std::vector<KT> key_list;
+    debug_enter_func();
+    for(auto kv: this->kv_map) {
+        key_list.push_back(kv.first);
+    }
+    debug_leave_func();
+    return key_list;
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
@@ -321,6 +359,15 @@ const VT DeltaCascadeStoreCore<KT,VT,IK,IV>::ordered_get(const KT& key) {
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
+std::vector<KT> DeltaCascadeStoreCore<KT,VT,IK,IV>::ordered_list_keys() {
+    std::vector<KT> key_list;
+    for (auto& kv: kv_map) {
+        key_list.push_back(kv.first);
+    }
+    return key_list;
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV>
 DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaCascadeStoreCore() {
     initialize_delta();
 }
@@ -406,6 +453,47 @@ const VT PersistentCascadeStore<KT,VT,IK,IV,ST>::get_by_time(const KT& key, cons
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::list_keys(const persistent::version_t& ver) {
+    debug_enter_func_with_args("ver=0x{:x}.",ver);
+    if (ver != persistent::INVALID_VERSION) {
+        std::vector<KT> key_list;
+        auto kv_map = persistent_core.get(ver)->kv_map;
+        for (auto& kv:kv_map) {
+            key_list.push_back(kv.first);
+        }
+        debug_leave_func();
+        return key_list;
+    }
+    derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
+    auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_list_keys)>();
+    auto& replies = results.get();
+    // TODO: verify consistency ?
+    debug_leave_func();
+    return replies.begin()->second.get();
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::list_keys_by_time(const uint64_t& ts_us) {
+    debug_enter_func_with_args("ts_us={}",ts_us);
+    const HLC hlc(ts_us,0ull);
+    try {
+        auto kv_map = persistent_core.get(hlc)->kv_map;
+        std::vector<KT> key_list;
+        for(auto& kv:kv_map) {
+            key_list.push_back(kv.first);
+        }
+        debug_leave_func();
+        return key_list;
+    } catch (const int64_t& ex) {
+        dbg_default_warn("temporal query throws exception:0x{:x]. ts={}", ex, ts_us);
+    } catch (...) {
+        dbg_default_warn("temporal query throws unknown exception. ts={}",  ts_us);
+    }
+    debug_leave_func();
+    return {};
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST>::ordered_put(const VT& value) {
     debug_enter_func_with_args("key={}",value.key);
 
@@ -451,6 +539,16 @@ const VT PersistentCascadeStore<KT,VT,IK,IV,ST>::ordered_get(const KT& key) {
 
     return this->persistent_core->ordered_get(key);
 }
+
+template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::ordered_list_keys() {
+    debug_enter_func();
+
+    debug_leave_func();
+
+    return this->persistent_core->ordered_list_keys();
+}
+
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 std::unique_ptr<PersistentCascadeStore<KT,VT,IK,IV,ST>> PersistentCascadeStore<KT,VT,IK,IV,ST>::from_bytes(mutils::DeserializationManager* dsm, char const* buf) {

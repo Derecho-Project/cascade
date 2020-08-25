@@ -37,6 +37,10 @@ static void client_help() {
         "    - Get the latest version of an object if no '-t' or '-v' is specified.\n"
         "    - '-t' specifies the timestamp in microseconds.\n"
         "    - '-v' specifies the version.\n"
+        "(v/p)list [-t timestamp_in_us | -v version_number]\n"
+        "    - List the keys\n"
+        "    - '-t' specifies the timestamp in microseconds.\n"
+        "    - '-v' specifies the version.\n"
         "(v/p)remove <object_id>\n"
         "    - Remove an object specified by the key.\n"
         "help\n"
@@ -121,6 +125,49 @@ static void client_get(derecho::ExternalGroup<VCS,PCS>& group,
     std::cout << "get finished with object:" << reply << std::endl;
 }
 
+// list
+static void client_list(derecho::ExternalGroup<VCS,PCS>& group,
+                        node_id_t member,
+                        const std::vector<std::string>& tokens,
+                        bool is_persistent) {
+    uint64_t ver = persistent::INVALID_VERSION;
+    uint64_t ts = 0ull;
+
+    if (tokens.size() == 3) {
+        if (tokens[2].compare("-t") == 0) {
+            ts = static_cast<uint64_t>(std::stoll(tokens[2]));
+        } else if (tokens[2].compare("-v") == 0) {
+            ver = static_cast<uint64_t>(std::stoll(tokens[2]));
+        } else {
+            std::cout << "Unknown option " << tokens[1] << std::endl;
+            return;
+        }
+    }
+
+    std::optional<derecho::rpc::QueryResults<std::vector<uint64_t>>> opt;
+    if (is_persistent) {
+        ExternalClientCaller<PCS,std::remove_reference<decltype(group)>::type>& pcs_ec = group.get_subgroup_caller<PCS>();
+        if (ts != 0) {
+            opt.emplace(pcs_ec.p2p_send<RPC_NAME(list_keys_by_time)>(member,ts));
+        } else {
+            opt.emplace(pcs_ec.p2p_send<RPC_NAME(list_keys)>(member,ver));
+        }
+    } else {
+        ExternalClientCaller<VCS,std::remove_reference<decltype(group)>::type>& vcs_ec = group.get_subgroup_caller<VCS>();
+        if (ts != 0) {
+            opt.emplace(vcs_ec.p2p_send<RPC_NAME(list_keys_by_time)>(member,ts));
+        } else {
+            opt.emplace(vcs_ec.p2p_send<RPC_NAME(list_keys)>(member,ver));
+        }
+    }
+
+    auto reply = opt.value().get().get(member);
+    std::cout << "Keys:" << std::endl;
+    for (auto k: reply) {
+        std::cout << "    " <<  k << std::endl;
+    }
+}
+
 // remove
 static void client_remove(derecho::ExternalGroup<VCS,PCS>& group,
                           node_id_t member,
@@ -195,6 +242,10 @@ void do_client() {
             client_get(group,vcs_members[0],cmd_tokens,false);
         } else if (cmd_tokens[0].compare("pget") == 0) {
             client_get(group,pcs_members[0],cmd_tokens,true);
+        } else if (cmd_tokens[0].compare("vlist") == 0) {
+            client_list(group,vcs_members[0],cmd_tokens,false);
+        } else if (cmd_tokens[0].compare("plist") == 0) {
+            client_list(group,pcs_members[0],cmd_tokens,true);
         } else if (cmd_tokens[0].compare("vremove") == 0) {
             client_remove(group,vcs_members[0],cmd_tokens,false);
         } else if (cmd_tokens[0].compare("premove") == 0) {
