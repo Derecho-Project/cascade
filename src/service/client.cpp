@@ -181,7 +181,7 @@ void get(ServiceClientAPI& capi, std::string& key, persistent::version_t ver, ui
 }
 
 template <typename SubgroupType>
-void get_by_time(ServiceClientAPI& capi, std::string& key, uint64_t ts_us, uint32_t subgroup_index,uint32_t shard_index) {
+void get_by_time(ServiceClientAPI& capi, std::string& key, uint64_t ts_us, uint32_t subgroup_index, uint32_t shard_index) {
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
         derecho::rpc::QueryResults<const typename SubgroupType::ValType> result = capi.template get_by_time<SubgroupType>(
                 static_cast<uint64_t>(std::stol(key)),ts_us,subgroup_index,shard_index);
@@ -193,24 +193,47 @@ void get_by_time(ServiceClientAPI& capi, std::string& key, uint64_t ts_us, uint3
     }
 }
 
+#define check_list_keys_result(result) \
+    for (auto& reply_future:result.get()) {\
+        auto reply = reply_future.second.get();\
+        std::cout << "Keys:" << std::endl;\
+        for (auto& key:reply) {\
+            std::cout << "    " << key << std::endl;\
+        }\
+    }
+
+template <typename SubgroupType>
+void list_keys(ServiceClientAPI& capi, persistent::version_t ver, uint32_t subgroup_index, uint32_t shard_index) {
+    derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> result = capi.template list_keys<SubgroupType>(ver,subgroup_index,shard_index);
+    check_list_keys_result(result);
+}
+
+template <typename SubgroupType>
+void list_keys_by_time(ServiceClientAPI& capi, uint64_t ts_us, uint32_t subgroup_index, uint32_t shard_index) {
+    derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> result = capi.template list_keys_by_time<SubgroupType>(ts_us,subgroup_index,shard_index);
+    check_list_keys_result(result);
+}
+
 /* TEST2: put/get/remove tests */
 void interactive_test(ServiceClientAPI& capi) {
-    const char* help_info = "\
-list_all_members\n\tlist all members in top level derecho group.\n\
-list_type_members <type> [subgroup_index] [shard_index]\n\tlist members in shard by subgroup type.\n\
-list_subgroup_members [subgroup_id] [shard_index]\n\tlist members in shard by subgroup id.\n\
-set_member_selection_policy <type> <subgroup_index> <shard_index> <policy> [user_specified_node_id]\n\tset member selection policy\n\
-get_member_selection_policy <type> [subgroup_index] [shard_index]\n\tget member selection policy\n\
-put <type> <key> <value> [subgroup_index] [shard_index]\n\tput an object\n\
-remove <type> <key> [subgroup_index] [shard_index]\n\tremove an object\n\
-get <type> <key> [version] [subgroup_index] [shard_index]\n\tget an object(by version)\n\
-get_by_time <type> <key> <ts_us> [subgroup_index] [shard_index]\n\tget an object by timestamp\n\
-quit|exit\n\texit the client.\n\
-help\n\tprint this message.\n\
-\n\
-type:=VCSU|VCSS|PCSU|PCSS\n\
-policy:=FirstMember|LastMember|Random|FixedRandom|RoundRobin|UserSpecified\n\
-";
+    const char* help_info =
+    "list_all_members\n\tlist all members in top level derecho group.\n"
+    "list_type_members <type> [subgroup_index] [shard_index]\n\tlist members in shard by subgroup type.\n"
+    "list_subgroup_members [subgroup_id] [shard_index]\n\tlist members in shard by subgroup id.\n"
+    "set_member_selection_policy <type> <subgroup_index> <shard_index> <policy> [user_specified_node_id]\n\tset member selection policy\n"
+    "get_member_selection_policy <type> [subgroup_index] [shard_index]\n\tget member selection policy\n"
+    "put <type> <key> <value> [subgroup_index] [shard_index]\n\tput an object\n"
+    "remove <type> <key> [subgroup_index] [shard_index]\n\tremove an object\n"
+    "get <type> <key> [version] [subgroup_index] [shard_index]\n\tget an object(by version)\n"
+    "get_by_time <type> <key> <ts_us> [subgroup_index] [shard_index]\n\tget an object by timestamp\n"
+    "list_keys <type> [version] [subgroup_index] [shard_index]\n\tlist keys in shard (by version)\n"
+    "list_keys_by_time <type> <ts_us> [subgroup_index] [shard_index]\n\tlist keys in shard by time\n"
+    "quit|exit\n\texit the client.\n"
+    "help\n\tprint this message.\n"
+    "\n"
+    "type:=VCSU|VCSS|PCSU|PCSS\n"
+    "policy:=FirstMember|LastMember|Random|FixedRandom|RoundRobin|UserSpecified\n"
+    ;
     derecho::subgroup_id_t subgroup_id;
     uint32_t subgroup_index,shard_index;
     persistent::version_t version;
@@ -327,6 +350,34 @@ policy:=FirstMember|LastMember|Random|FixedRandom|RoundRobin|UserSpecified\n\
             if (cmd_tokens.size() >= 6)
                 shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[5]));
             on_subgroup_type(cmd_tokens[1],get_by_time,capi,cmd_tokens[2],ts_us,subgroup_index,shard_index);
+        } else if (cmd_tokens[0] == "list_keys") {
+            if (cmd_tokens.size() < 2) {
+                print_red("Invalid format:" + cmdline);
+                continue;
+            }
+            if (cmd_tokens.size() >= 3) {
+                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[2]));
+            }
+            if (cmd_tokens.size() >= 4) {
+                subgroup_index = static_cast<uint32_t>(std::stol(cmd_tokens[3]));
+            }
+            if (cmd_tokens.size() >= 5) {
+                shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
+            }
+            on_subgroup_type(cmd_tokens[1],list_keys,capi,version,subgroup_index,shard_index);
+        } else if (cmd_tokens[0] == "list_keys_by_time") {
+            if (cmd_tokens.size() < 3) {
+                print_red("Invalid format:" + cmdline);
+                continue;
+            }
+            uint64_t ts_us = static_cast<uint64_t>(std::stol(cmd_tokens[3]));
+            if (cmd_tokens.size() >= 4) {
+                subgroup_index = static_cast<uint32_t>(std::stol(cmd_tokens[3]));
+            }
+            if (cmd_tokens.size() >= 5) {
+                shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
+            }
+            on_subgroup_type(cmd_tokens[1],list_keys_by_time,capi,ts_us,subgroup_index,shard_index);
         } else {
             print_red("command:" + cmd_tokens[0] + " is not implemented or unknown.");
         }
