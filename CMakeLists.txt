@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10.1)
+cmake_minimum_required(VERSION 3.10.0)
 set(CMAKE_DISABLE_SOURCE_CHANGES ON)
 set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 project(cascade CXX)
@@ -36,6 +36,18 @@ find_package(derecho REQUIRED)
 
 # json
 find_package(nlohmann_json 3.2.0 REQUIRED)
+
+set(CMAKE_REQUIRED_DEFINITIONS -DFUSE_USE_VERSION=30)
+include(CheckIncludeFiles)
+# fuse
+CHECK_INCLUDE_FILES("fuse3/fuse.h;fuse3/fuse_lowlevel.h" HAS_FUSE)
+
+if (${HAS_FUSE})
+    message("Fuse header found. Enable filesystem API")
+else ()
+    message("Fuse header not found. Disable filesystem API")
+endif ()
+CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/config.h)
 
 add_subdirectory(src/core)
 add_subdirectory(src/utils)
