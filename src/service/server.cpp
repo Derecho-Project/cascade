@@ -38,6 +38,7 @@ int main(int argc, char** argv) {
     }
     dbg_default_trace("set proc name to {}", PROC_NAME);
     // load configuration
+    // TODO: move the configurations into a single json config.
     auto layout = json::array({});
     layout.push_back(json::parse(derecho::getConfString(CONF_VCS_UINT64KEY_LAYOUT)));
     layout.push_back(json::parse(derecho::getConfString(CONF_VCS_STRINGKEY_LAYOUT)));
