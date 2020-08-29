@@ -32,3 +32,12 @@ target_include_directories(ondata_example PRIVATE
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
+
+if (${HAS_FUSE})
+    add_executable(fuse_client fuse_client.cpp)
+    target_include_directories(fuse_client PRIVATE
+        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    )
+    target_link_libraries(fuse_client cascade readline fuse3)
+endif()

@@ -42,11 +42,6 @@ include(CheckIncludeFiles)
 # fuse
 CHECK_INCLUDE_FILES("fuse3/fuse.h;fuse3/fuse_lowlevel.h" HAS_FUSE)
 
-if (${HAS_FUSE})
-    message("Fuse header found. Enable filesystem API")
-else ()
-    message("Fuse header not found. Disable filesystem API")
-endif ()
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/config.h)
 
 add_subdirectory(src/core)
