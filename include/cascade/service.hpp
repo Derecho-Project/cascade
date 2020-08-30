@@ -25,6 +25,8 @@ using json = nlohmann::json;
 namespace derecho {
 namespace cascade {
 
+#define JSON_CONF_TYPE_ALIAS    "type_alias"
+#define JSON_CONF_LAYOUT        "layout"
 /**
  * The service will start a cascade service node to serve the client.
  */

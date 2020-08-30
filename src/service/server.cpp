@@ -9,11 +9,8 @@
 
 #define PROC_NAME "cascade_server"
 
-#define CONF_ONDATA_LIBRARY       "CASCADE/ondata_library"
-#define CONF_VCS_UINT64KEY_LAYOUT "CASCADE/VOLATILECASCADESTORE/UINT64/layout"
-#define CONF_VCS_STRINGKEY_LAYOUT "CASCADE/VOLATILECASCADESTORE/STRING/layout"
-#define CONF_PCS_UINT64KEY_LAYOUT "CASCADE/PERSISTENTCASCADESTORE/UINT64/layout"
-#define CONF_PCS_STRINGKEY_LAYOUT "CASCADE/PERSISTENTCASCADESTORE/STRING/layout"
+#define CONF_ONDATA_LIBRARY     "CASCADE/ondata_library"
+#define CONF_GROUP_LAYOUT       "CASCADE/group_layout"
 
 using namespace derecho::cascade;
 
@@ -38,15 +35,10 @@ int main(int argc, char** argv) {
     }
     dbg_default_trace("set proc name to {}", PROC_NAME);
     // load configuration
-    // TODO: move the configurations into a single json config.
-    auto layout = json::array({});
-    layout.push_back(json::parse(derecho::getConfString(CONF_VCS_UINT64KEY_LAYOUT)));
-    layout.push_back(json::parse(derecho::getConfString(CONF_VCS_STRINGKEY_LAYOUT)));
-    layout.push_back(json::parse(derecho::getConfString(CONF_PCS_UINT64KEY_LAYOUT)));
-    layout.push_back(json::parse(derecho::getConfString(CONF_PCS_STRINGKEY_LAYOUT)));
+    auto group_layout = json::parse(derecho::getConfString(CONF_GROUP_LAYOUT));
 #ifndef NDEBUG
     dbg_default_trace("load layout:");
-    dump_layout(layout);
+    dump_layout(group_layout);
 #endif//NDEBUG
     // load on_data_library
     std::string ondata_library = "";
@@ -125,7 +117,7 @@ int main(int argc, char** argv) {
         return std::make_unique<PCSS>(pr,scw_ptr.get());
     };
     dbg_default_trace("starting service...");
-    Service<VCSU,VCSS,PCSU,PCSS>::start(layout,{ucw_ptr.get(),scw_ptr.get()},vcsu_factory,vcss_factory,pcsu_factory,pcss_factory);
+    Service<VCSU,VCSS,PCSU,PCSS>::start(group_layout,{ucw_ptr.get(),scw_ptr.get()},vcsu_factory,vcss_factory,pcsu_factory,pcss_factory);
     dbg_default_trace("started service, waiting till it ends.");
     std::cout << "Press Enter to Shutdown." << std::endl;
     std::cin.get();
