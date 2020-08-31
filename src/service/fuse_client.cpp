@@ -7,7 +7,10 @@
 #include <string.h>
 #include "fuse_client_context.hpp"
 #include <cascade/service_types.hpp>
+#include <derecho/conf/conf.hpp>
 #include <derecho/utils/logger.hpp>
+
+#define FUSE_CLIENT_DEV_ID  (0xCA7CADE)
 
 /**
  * fuse_client mount the cascade service to file system. This allows users to access cascade data with normal POSIX
@@ -24,6 +27,7 @@
  * "key" is the key value.
  */
 
+using namespace derecho::cascade;
 using FuseClientContextType = FuseClientContext<VCSU,VCSS,PCSU,PCSS>;
 
 #define FCC(p) static_cast<FuseClientContextType*>(p)
@@ -31,7 +35,7 @@ using FuseClientContextType = FuseClientContext<VCSU,VCSS,PCSU,PCSS>;
 
 static void fs_init(void* userdata, struct fuse_conn_info *conn) {
     dbg_default_trace("entering {}.",__func__);
-    FCC(userdata)->initialize();
+    FCC(userdata)->initialize(json::parse(derecho::getConfString(CONF_GROUP_LAYOUT)));
     dbg_default_trace("leaving {}.",__func__);
 }
 
@@ -44,22 +48,20 @@ static void fs_lookup(fuse_req_t req, fuse_ino_t parent, const char* name) {
     dbg_default_trace("entering {}.",__func__);
     struct fuse_entry_param e;
 
-    if (parent != FUSE_ROOT_ID) {
-        // TODO: 
+    // TODO: make this more efficient by implement a dedicated call in FCC.
+    auto name_to_ino = FCC_REQ(req)->get_dir_entries(parent);
+    if (name_to_ino.find(name) == name_to_ino.end()) {
         fuse_reply_err(req, ENOENT);
     } else {
-        auto name_to_ino = FCC_REQ(req)->get_root_dir();
-        if (name_to_ino.find(name) == name_to_ino.end()) {
-            fuse_reply_err(req, ENOENT);
-        }
         e.ino = name_to_ino.at(name);
         e.attr_timeout = 10000.0;
         e.entry_timeout = 10000.0;
         e.attr.st_ino = e.ino;
         e.attr.st_mode = S_IFDIR | 0755;
-        e.attr.st_nlink = 2;
+        e.attr.st_nlink = 1;
         fuse_reply_entry(req, &e);
     }
+
     dbg_default_trace("leaving {}.",__func__);
 }
 
@@ -70,12 +72,7 @@ static void fs_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi
 
     std::memset(&stbuf, 0, sizeof(stbuf));
     stbuf.st_ino = ino;
-    stbuf.st_mode = S_IFDIR | 0755;
-    if (ino == FUSE_ROOT_ID) {
-        stbuf.st_nlink = 2;
-    } else {
-        stbuf.st_nlink = 0;
-    }
+    FCC_REQ(req)->fill_stbuf_by_ino(stbuf);
 
     fuse_reply_attr(req, &stbuf, 10000.0);
     //TODO:
@@ -95,6 +92,8 @@ static void dirbuf_add(fuse_req_t req, struct dirbuf *b, const char *name, fuse_
     b->p = (char*)realloc(b->p,b->size);
     std::memset(&stbuf,0,sizeof(stbuf));
     stbuf.st_ino = ino;
+    FCC_REQ(req)->fill_stbuf_by_ino(stbuf);
+    dbg_default_debug("ADDING direntry <{}>: stbuf.size = {} stbuf.ctime = {}, entry size = {}.", name, stbuf.st_size, stbuf.st_ctime, b->size-oldsize);
     fuse_add_direntry(req, b->p+oldsize, b->size-oldsize, name, &stbuf, b->size);
 }
 
@@ -102,23 +101,17 @@ static void dirbuf_add(fuse_req_t req, struct dirbuf *b, const char *name, fuse_
 
 static void fs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info* fi) {
     dbg_default_trace("entering {}.",__func__);
-    if(ino == FUSE_ROOT_ID) {
-        // ROOT FOLDER
-        struct dirbuf b;
-        std::memset(&b, 0, sizeof(b));
-        dirbuf_add(req, &b, ".", 1);
-        dirbuf_add(req, &b, "..", 1);
-        for(auto kv:FCC_REQ(req)->get_root_dir()) {
-            dirbuf_add(req, &b, kv.first.c_str(), kv.second);
-        }
-        if (off < b.size) {
-            fuse_reply_buf(req, b.p + off, min(b.size - off, size));
-        } else {
-            fuse_reply_buf(req, NULL, 0);
-        }
+    struct dirbuf b;
+    std::memset(&b, 0, sizeof(b));
+    dirbuf_add(req, &b, ".", 1);
+    dirbuf_add(req, &b, "..", 1);
+    for(auto kv:FCC_REQ(req)->get_dir_entries(ino)) {
+        dirbuf_add(req, &b, kv.first.c_str(), kv.second);
+    }
+    if (static_cast<size_t>(off) < b.size) {
+        fuse_reply_buf(req, b.p + off, min(b.size - off, size));
     } else {
-        // TODO: use FCC to fill it.
-        fuse_reply_err(req,ENOTDIR);
+        fuse_reply_buf(req, NULL, 0);
     }
     dbg_default_trace("leaving {}.",__func__);
 }

@@ -9,9 +9,6 @@
 
 #define PROC_NAME "cascade_server"
 
-#define CONF_ONDATA_LIBRARY     "CASCADE/ondata_library"
-#define CONF_GROUP_LAYOUT       "CASCADE/group_layout"
-
 using namespace derecho::cascade;
 
 #ifndef NDEBUG
