@@ -29,6 +29,24 @@ typedef enum {
     KEY,
 } INodeType;
 
+class FileBytes {
+public:
+    size_t size;
+    char* bytes;
+    FileBytes():size(0),bytes(nullptr){}
+    FileBytes(size_t s):size(s) {
+        bytes = nullptr;
+        if (s > 0) {
+            bytes = (char*)malloc(s);
+        }
+    }
+    virtual ~FileBytes() {
+        if (bytes){
+            free(bytes);
+        }
+    }
+};
+
 class FuseClientINode {
 public:
     INodeType type;
@@ -47,6 +65,11 @@ public:
             ret_map.emplace(child->display_name,reinterpret_cast<fuse_ino_t>(child.get()));
         }
         return ret_map;
+    }
+
+    virtual int read_file(FileBytes* fb) {
+        (void) fb;
+        return 0;
     }
 };
 
@@ -125,9 +148,11 @@ public:
             std::unique_lock wlck(this->children_mutex);
             for (auto& key: reply) {
                 // new_children.emplace_back(key,reinterpret_cast<fuse_ino_t>(this),capi_ptr);
+                dbg_default_debug("get_dir_entries() found key:{}.",key);
                 if (key_to_ino.find(key) == key_to_ino.end()) {
+                    dbg_default_info("Creating KeyINode");
                     this->children.emplace_back(std::make_unique<KeyINode<CascadeType, ServiceClientType>>(key,reinterpret_cast<fuse_ino_t>(this),capi_ptr));
-                    key_to_ino[key] = reinterpret_cast<fuse_ino_t>(&this->children.back());
+                    key_to_ino[key] = reinterpret_cast<fuse_ino_t>(this->children.back().get());
                 }
             }
         }
@@ -154,9 +179,22 @@ public:
             this->display_name = key.to_string();
         }
         this->parent = pino;
+        dbg_default_info("KeyINode created with Key={}.", key);
     }
 
-    // TODO: data operations.
+    virtual int read_file(FileBytes* file_bytes) override {
+        ShardINode<CascadeType,ServiceClientType> *pino_shard = reinterpret_cast<ShardINode<CascadeType,ServiceClientType>*>(this->parent);
+        SubgroupINode<CascadeType,ServiceClientType> *pino_subgroup = reinterpret_cast<SubgroupINode<CascadeType,ServiceClientType>*>(pino_shard->parent);
+        auto result = capi_ptr->template get<CascadeType>(
+                key,INVALID_VERSION,pino_subgroup->subgroup_index,pino_shard->shard_index);
+        for (auto& reply_future:result.get()) {
+            auto reply = reply_future.second.get();
+            file_bytes->size = mutils::bytes_size(reply);
+            file_bytes->bytes = static_cast<char*>(malloc(file_bytes->size));
+            mutils::to_bytes(reply,file_bytes->bytes);
+        }
+        return 0;
+    }
 };
 
 /**
@@ -279,6 +317,37 @@ public:
             }
         }
         return timeout_sec;
+    }
+
+    /**
+     * open a file.
+     * @param ino       inode
+     * @param fi        file structure shared among processes opening this file.
+     * @return          error code. 0 for success.
+     */
+    int open_file(fuse_ino_t ino, struct fuse_file_info *fi) {
+        FuseClientINode* pfci = reinterpret_cast<FuseClientINode*>(ino);
+        if (pfci->type != INodeType::KEY) {
+            return EISDIR;
+        }
+        FileBytes* fb = new FileBytes();
+        pfci->read_file(fb);
+        fi->fh = reinterpret_cast<uint64_t>(fb);
+        return 0;
+    }
+
+    /**
+     * close a file.
+     * @param ino       inode
+     * @param fi        file structure shared among processes opening this file.
+     * @return          error code. 0 for success.
+     */
+    int close_file(fuse_ino_t ino, struct fuse_file_info *fi) {
+        void* pfb = reinterpret_cast<void*>(fi->fh);
+        if (pfb!=nullptr) {
+            delete static_cast<FileBytes*>(pfb);
+        }
+        return 0;
     }
 };
 

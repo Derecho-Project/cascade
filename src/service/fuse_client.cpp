@@ -118,19 +118,38 @@ static void fs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, s
 
 static void fs_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
     dbg_default_trace("entering {}.",__func__);
-    // TODO:
+    int err;
+    if ((fi->flags & O_ACCMODE) != O_RDONLY) {
+        fuse_reply_err(req, EACCES);
+    } else if ((err = FCC_REQ(req)->open_file(ino, fi)) != 0) {
+        fuse_reply_err(req, err);
+    } else {
+        dbg_default_debug("fi({:x})->fh={:x}",reinterpret_cast<uint64_t>(fi),fi->fh);
+        fuse_reply_open(req, fi);
+    }
     dbg_default_trace("leaving {}.",__func__);
 }
 
 static void fs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info* fi) {
-    dbg_default_trace("entering {}.",__func__);
-    // TODO:
-    dbg_default_trace("leaving {}.",__func__);
+    dbg_default_trace("entering {}.", __func__);
+
+    FileBytes* pfb = reinterpret_cast<FileBytes*>(fi->fh);
+
+    dbg_default_trace("fs_read() with off:{}, size:{}, file_bytes:{}", off, size, pfb->size);
+    
+    if (static_cast<size_t>(off) < pfb->size) {
+        fuse_reply_buf(req, pfb->bytes+off, min(pfb->size - off, size));
+    } else {
+        fuse_reply_buf(req, nullptr, 0);
+    }
+
+    dbg_default_trace("leaving {}.", __func__);
 }
 
 static void fs_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
     dbg_default_trace("entering {}.",__func__);
-    // TODO:
+    FCC_REQ(req)->close_file(ino, fi);
+    fuse_reply_err(req,0);
     dbg_default_trace("leaving {}.",__func__);
 }
 
@@ -139,7 +158,9 @@ static const struct fuse_lowlevel_ops fs_ops = {
     .destroy    = fs_destroy,
     .lookup     = fs_lookup,
     .getattr    = fs_getattr,
+    .open       = fs_open,
     .read       = fs_read,
+    .release    = fs_release,
     .readdir    = fs_readdir,
 };
 
