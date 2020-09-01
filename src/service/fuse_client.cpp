@@ -53,12 +53,12 @@ static void fs_lookup(fuse_req_t req, fuse_ino_t parent, const char* name) {
     if (name_to_ino.find(name) == name_to_ino.end()) {
         fuse_reply_err(req, ENOENT);
     } else {
+        // TODO: change timeout settings.
         e.ino = name_to_ino.at(name);
         e.attr_timeout = 10000.0;
         e.entry_timeout = 10000.0;
         e.attr.st_ino = e.ino;
-        e.attr.st_mode = S_IFDIR | 0755;
-        e.attr.st_nlink = 1;
+        FCC_REQ(req)->fill_stbuf_by_ino(e.attr);
         fuse_reply_entry(req, &e);
     }
 
