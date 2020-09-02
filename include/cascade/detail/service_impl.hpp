@@ -289,6 +289,30 @@ derecho::rpc::QueryResults<const typename SubgroupType::ValType> ServiceClient<C
 
 template <typename... CascadeTypes>
 template <typename SubgroupType>
+derecho::rpc::QueryResults<uint64_t> ServiceClient<CascadeTypes...>::get_size(
+        const typename SubgroupType::KeyType& key,
+        const persistent::version_t& version,
+        uint32_t subgroup_index,
+        uint32_t shard_index) {
+    auto& caller = external_group.template get_subgroup_caller<SubgroupType>(subgroup_index);
+    node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
+    return caller.template p2p_send<RPC_NAME(get_size)>(node_id,key,version);
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+derecho::rpc::QueryResults<uint64_t> ServiceClient<CascadeTypes...>::get_size_by_time(
+        const typename SubgroupType::KeyType& key,
+        const uint64_t& ts_us,
+        uint32_t subgroup_index,
+        uint32_t shard_index) {
+    auto& caller = external_group.template get_subgroup_caller<SubgroupType>();
+    node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
+    return caller.template p2p_send<RPC_NAME(get_size_by_time)>(node_id,key,ts_us);
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
 derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> ServiceClient<CascadeTypes...>::list_keys(
         const persistent::version_t& version,
         uint32_t subgroup_index,

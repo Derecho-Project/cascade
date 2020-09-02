@@ -193,6 +193,33 @@ void get_by_time(ServiceClientAPI& capi, std::string& key, uint64_t ts_us, uint3
     }
 }
 
+template <typename SubgroupType>
+void get_size(ServiceClientAPI& capi, std::string& key, persistent::version_t ver, uint32_t subgroup_index,uint32_t shard_index) {
+    if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
+        derecho::rpc::QueryResults<uint64_t> result = capi.template get_size<SubgroupType>(
+                static_cast<uint64_t>(std::stol(key)),ver,subgroup_index,shard_index);
+        check_get_result(result);
+    } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
+        derecho::rpc::QueryResults<uint64_t> result = capi.template get_size<SubgroupType>(
+                key,ver,subgroup_index,shard_index);
+        check_get_result(result);
+    }
+}
+
+template <typename SubgroupType>
+void get_size_by_time(ServiceClientAPI& capi, std::string& key, uint64_t ts_us, uint32_t subgroup_index, uint32_t shard_index) {
+    if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
+        derecho::rpc::QueryResults<uint64_t> result = capi.template get_size_by_time<SubgroupType>(
+                static_cast<uint64_t>(std::stol(key)),ts_us,subgroup_index,shard_index);
+        check_get_result(result);
+    } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
+        derecho::rpc::QueryResults<uint64_t> result = capi.template get_size_by_time<SubgroupType>(
+                key,ts_us,subgroup_index,shard_index);
+        check_get_result(result);
+    }
+}
+
+
 #define check_list_keys_result(result) \
     for (auto& reply_future:result.get()) {\
         auto reply = reply_future.second.get();\
@@ -226,6 +253,8 @@ void interactive_test(ServiceClientAPI& capi) {
     "remove <type> <key> [subgroup_index] [shard_index]\n\tremove an object\n"
     "get <type> <key> [version] [subgroup_index] [shard_index]\n\tget an object(by version)\n"
     "get_by_time <type> <key> <ts_us> [subgroup_index] [shard_index]\n\tget an object by timestamp\n"
+    "get_size <type> <key> [version] [subgroup_index] [shard_index]\n\tget the size of an object(by version)\n"
+    "get_size_by_time <type> <key> <ts_us> [subgroup_index] [shard_index]\n\tget the size of an object by timestamp\n"
     "list_keys <type> [version] [subgroup_index] [shard_index]\n\tlist keys in shard (by version)\n"
     "list_keys_by_time <type> <ts_us> [subgroup_index] [shard_index]\n\tlist keys in shard by time\n"
     "quit|exit\n\texit the client.\n"
@@ -350,6 +379,29 @@ void interactive_test(ServiceClientAPI& capi) {
             if (cmd_tokens.size() >= 6)
                 shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[5]));
             on_subgroup_type(cmd_tokens[1],get_by_time,capi,cmd_tokens[2],ts_us,subgroup_index,shard_index);
+        } else if (cmd_tokens[0] == "get_size") {
+            if (cmd_tokens.size() < 3) {
+                print_red("Invalid format:" + cmdline);
+                continue;
+            }
+            if (cmd_tokens.size() >= 4)
+                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[3]));
+            if (cmd_tokens.size() >= 5)
+                subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
+            if (cmd_tokens.size() >= 6)
+                shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[5]));
+            on_subgroup_type(cmd_tokens[1],get_size,capi,cmd_tokens[2],version,subgroup_index,shard_index);
+        } else if (cmd_tokens[0] == "get_size_by_time") {
+            if (cmd_tokens.size() < 4) {
+                print_red("Invalid format:" + cmdline);
+                continue;
+            }
+            uint64_t ts_us = static_cast<uint64_t>(std::stol(cmd_tokens[3]));
+            if (cmd_tokens.size() >= 5)
+                subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
+            if (cmd_tokens.size() >= 6)
+                shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[5]));
+            on_subgroup_type(cmd_tokens[1],get_size_by_time,capi,cmd_tokens[2],ts_us,subgroup_index,shard_index);
         } else if (cmd_tokens[0] == "list_keys") {
             if (cmd_tokens.size() < 2) {
                 print_red("Invalid format:" + cmdline);
