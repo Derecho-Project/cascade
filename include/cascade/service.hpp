@@ -291,6 +291,37 @@ public:
             uint32_t subgroup_index=0, uint32_t shard_index=0);
 
     /**
+     * "get_size" retrieve size of the object of a given key
+     *
+     * @param key               the object key
+     * @param version           if version is INVALID_VERSION, this "get" will fire a ordered send to get the latest
+     *                          state of the key. Otherwise, it will try to read the key's state at version.
+     * @subugroup_index         the subgroup index of CascadeType
+     * @shard_index             the shard index.
+     *
+     * @return a future to the retrieved size.
+     * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
+     */
+    template <typename SubgroupType>
+    derecho::rpc::QueryResults<uint64_t> get_size(const typename SubgroupType::KeyType& key, const persistent::version_t& version = persistent::INVALID_VERSION,
+            uint32_t subgroup_index=0, uint32_t shard_index=0);
+
+    /**
+     * "get_size_by_time" retrieve size of the object of a given key
+     *
+     * @param key               the object key
+     * @param ts_us             Wall clock time in microseconds. 
+     * @subugroup_index         the subgroup index of CascadeType
+     * @shard_index             the shard index.
+     *
+     * @return a future to the retrieved size.
+     * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
+     */
+    template <typename SubgroupType>
+    derecho::rpc::QueryResults<uint64_t> get_size_by_time(const typename SubgroupType::KeyType& key, const uint64_t& ts_us,
+            uint32_t subgroup_index=0, uint32_t shard_index=0);
+
+    /**
      * "list_keys" retrieve the list of keys in a shard
      *
      * @param version           if version is INVALID_VERSION, this "get" will fire a ordered send to get the latest

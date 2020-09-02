@@ -101,6 +101,33 @@ std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::list_keys_by_time(const uint6
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
+uint64_t VolatileCascadeStore<KT,VT,IK,IV>::get_size(const KT& key, const persistent::version_t& ver) {
+    debug_enter_func_with_args("key={},ver=0x{:x}",key,ver);
+    if (ver != persistent::INVALID_VERSION) {
+        debug_leave_func_with_value("Cannot support versioned get, ver=0x{:x}", ver);
+        return 0;
+    }
+    derecho::Replicated<VolatileCascadeStore>& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
+    auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_get_size)>(key);
+    auto& replies = results.get();
+    // TODO: verify consistency ?
+    // for (auto& reply_pair : replies) {
+    //     ret = reply_pair.second.get();
+    // }
+    debug_leave_func();
+    return replies.begin()->second.get();
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
+uint64_t VolatileCascadeStore<KT,VT,IK,IV>::get_size_by_time(const KT& key, const uint64_t& ts_us) {
+    // VolatileCascadeStore does not support this.
+    debug_enter_func();
+
+    debug_leave_func();
+    return 0;
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
 std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::ordered_list_keys() {
     std::vector<KT> key_list;
     debug_enter_func();
@@ -160,6 +187,18 @@ const VT VolatileCascadeStore<KT,VT,IK,IV>::ordered_get(const KT& key) {
     } else {
         debug_leave_func();
         return *IV;
+    }
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
+uint64_t VolatileCascadeStore<KT,VT,IK,IV>::ordered_get_size(const KT& key) {
+    debug_enter_func_with_args("key={}",key);
+
+    if (this->kv_map.find(key) != this->kv_map.end()) {
+        return mutils::bytes_size(this->kv_map.at(key));
+    } else {
+        debug_leave_func();
+        return 0;
     }
 }
 
@@ -368,6 +407,15 @@ std::vector<KT> DeltaCascadeStoreCore<KT,VT,IK,IV>::ordered_list_keys() {
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
+uint64_t DeltaCascadeStoreCore<KT,VT,IK,IV>::ordered_get_size(const KT& key) {
+    if (kv_map.find(key) != kv_map.end()) {
+        return mutils::bytes_size(kv_map.at(key));
+    } else {
+        return 0;
+    }
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV>
 DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaCascadeStoreCore() {
     initialize_delta();
 }
@@ -450,6 +498,39 @@ const VT PersistentCascadeStore<KT,VT,IK,IV,ST>::get_by_time(const KT& key, cons
     }
     debug_leave_func();
     return *IV;
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+uint64_t PersistentCascadeStore<KT,VT,IK,IV,ST>::get_size(const KT& key, const persistent::version_t& ver) {
+    debug_enter_func_with_args("key={},ver=0x{:x}",key,ver);
+    if (ver != persistent::INVALID_VERSION) {
+        return mutils::bytes_size(persistent_core.get(ver)->kv_map.at(key));
+    }
+    derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
+    auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_get_size)>(key);
+    auto& replies = results.get();
+    // TODO: verify consistency ?
+    // for (auto& reply_pair : replies) {
+    //     ret = reply_pair.second.get();
+    // }
+    debug_leave_func();
+    return replies.begin()->second.get();
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+uint64_t PersistentCascadeStore<KT,VT,IK,IV,ST>::get_size_by_time(const KT& key, const uint64_t& ts_us) {
+    debug_enter_func_with_args("key={},ts_us={}",key,ts_us);
+    const HLC hlc(ts_us,0ull);
+    try {
+        debug_leave_func();
+        return mutils::bytes_size(persistent_core.get(hlc)->kv_map.at(key));
+    } catch (const int64_t &ex) {
+        dbg_default_warn("temporal query throws exception:0x{:x}. key={}, ts={}", ex, key, ts_us);
+    } catch (...) {
+        dbg_default_warn("temporal query throws unknown exception. key={}, ts={}", key, ts_us);
+    }
+    debug_leave_func();
+    return 0;
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
@@ -538,6 +619,15 @@ const VT PersistentCascadeStore<KT,VT,IK,IV,ST>::ordered_get(const KT& key) {
     debug_leave_func();
 
     return this->persistent_core->ordered_get(key);
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+uint64_t PersistentCascadeStore<KT,VT,IK,IV,ST>::ordered_get_size(const KT& key) {
+    debug_enter_func_with_args("key={}",key);
+
+    debug_leave_func();
+
+    return this->persistent_core->ordered_get_size(key);
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
