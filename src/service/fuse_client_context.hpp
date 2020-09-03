@@ -67,7 +67,11 @@ public:
         return ret_map;
     }
 
-    virtual int read_file(FileBytes* fb) {
+    virtual uint64_t get_file_size() {
+        return sizeof(*this);
+    }
+
+    virtual uint64_t read_file(FileBytes* fb) {
         (void) fb;
         return 0;
     }
@@ -108,6 +112,7 @@ public:
             sidx ++;
         }
     }
+
 };
 
 template <typename CascadeType, typename ServiceClientType>
@@ -138,36 +143,34 @@ public:
 
     // TODO: rethinking about the consistency
     virtual std::map<std::string,fuse_ino_t> get_dir_entries() override {
+        dbg_default_trace("[{}]entering {}.",gettid(),__func__);
         std::map<std::string,fuse_ino_t> ret_map;
         /** we always retrieve the key list for a shard inode because the data is highly dynamic */
         uint32_t subgroup_index = reinterpret_cast<SubgroupINode<CascadeType, ServiceClientType>*>(this->parent)->subgroup_index;
         auto result =  capi_ptr->template list_keys<CascadeType>(persistent::INVALID_VERSION, subgroup_index, this->shard_index);
-        std::vector<KeyINode<CascadeType,ServiceClientType>> new_children;
         for (auto& reply_future:result.get()) {
             auto reply = reply_future.second.get();
             std::unique_lock wlck(this->children_mutex);
             for (auto& key: reply) {
-                // new_children.emplace_back(key,reinterpret_cast<fuse_ino_t>(this),capi_ptr);
-                dbg_default_debug("get_dir_entries() found key:{}.",key);
                 if (key_to_ino.find(key) == key_to_ino.end()) {
-                    dbg_default_info("Creating KeyINode");
                     this->children.emplace_back(std::make_unique<KeyINode<CascadeType, ServiceClientType>>(key,reinterpret_cast<fuse_ino_t>(this),capi_ptr));
                     key_to_ino[key] = reinterpret_cast<fuse_ino_t>(this->children.back().get());
                 }
             }
         }
-
+        dbg_default_trace("[{}]leaving {}.",gettid(),__func__);
         return FuseClientINode::get_dir_entries();
     }
 };
 
 template <typename CascadeType, typename ServiceClientType>
 class KeyINode : public FuseClientINode {
-    typename CascadeType::KeyType& key;
-    std::unique_ptr<ServiceClientType>& capi_ptr;
 public:
+    typename CascadeType::KeyType key;
+    std::unique_ptr<ServiceClientType>& capi_ptr;
     KeyINode(typename CascadeType::KeyType& k, fuse_ino_t pino, std::unique_ptr<ServiceClientType>& _capi_ptr) : 
         key(k), capi_ptr(_capi_ptr) {
+        dbg_default_trace("[{}]entering {}.", gettid(), __func__);
         this->type = INodeType::KEY;
         if constexpr (std::is_same<std::remove_cv_t<typename CascadeType::KeyType>, char*>::value ||
                       std::is_same<std::remove_cv_t<typename CascadeType::KeyType>, std::string>::value) {
@@ -179,10 +182,11 @@ public:
             this->display_name = key.to_string();
         }
         this->parent = pino;
-        dbg_default_info("KeyINode created with Key={}.", key);
+        dbg_default_trace("[{}]leaving {}.", gettid(), __func__);
     }
 
-    virtual int read_file(FileBytes* file_bytes) override {
+    virtual uint64_t read_file(FileBytes* file_bytes) override {
+        dbg_default_trace("[{}]entering {}.", gettid(), __func__);
         ShardINode<CascadeType,ServiceClientType> *pino_shard = reinterpret_cast<ShardINode<CascadeType,ServiceClientType>*>(this->parent);
         SubgroupINode<CascadeType,ServiceClientType> *pino_subgroup = reinterpret_cast<SubgroupINode<CascadeType,ServiceClientType>*>(pino_shard->parent);
         auto result = capi_ptr->template get<CascadeType>(
@@ -193,7 +197,28 @@ public:
             file_bytes->bytes = static_cast<char*>(malloc(file_bytes->size));
             mutils::to_bytes(reply,file_bytes->bytes);
         }
+        dbg_default_trace("[{}]leaving {}.", gettid(), __func__);
         return 0;
+    }
+
+    virtual uint64_t get_file_size() override {
+        dbg_default_trace("[{}]entering {}.", gettid(), __func__);
+        ShardINode<CascadeType,ServiceClientType> *pino_shard = reinterpret_cast<ShardINode<CascadeType,ServiceClientType>*>(this->parent);
+        SubgroupINode<CascadeType,ServiceClientType> *pino_subgroup = reinterpret_cast<SubgroupINode<CascadeType,ServiceClientType>*>(pino_shard->parent);
+        auto result = capi_ptr->template get_size<CascadeType>(
+                key,INVALID_VERSION,pino_subgroup->subgroup_index,pino_shard->shard_index);
+        uint64_t fsize = 0;
+        for (auto& reply_future:result.get()) {
+            fsize = reply_future.second.get();
+            break;
+        }
+        dbg_default_trace("[{}]leaving {}.", gettid(), __func__);
+        return fsize;
+    }
+
+    virtual ~KeyINode() {
+        dbg_default_info("[{}] entering {}.", gettid(), __func__);
+        dbg_default_info("[{}] leaving {}.", gettid(), __func__);
     }
 };
 
@@ -238,15 +263,17 @@ private:
 public:
     /** initialize */
     void initialize(const json& group_layout) {
+        dbg_default_debug("[{}]entering {} .", gettid(), __func__);
         this->capi_ptr = std::make_unique<ServiceClient<CascadeTypes...>>();
         populate_inodes(group_layout);
         clock_gettime(CLOCK_REALTIME,&this->init_timestamp);
         this->is_initialized.store(true);
+        dbg_default_debug("[{}]leaving {}.", gettid(), __func__);
     }
 
     /** read directory entries by ino */
     std::map<std::string,fuse_ino_t> get_dir_entries(fuse_ino_t ino) {
-        dbg_default_debug("get_dir_entries({:x}).",ino);
+        dbg_default_debug("[{}]entering {} with ino ={:x}.", gettid(), __func__, ino);
         std::map<std::string, fuse_ino_t> ret_map;
         if (ino == FUSE_ROOT_ID) {
             this->inodes.for_each(
@@ -258,6 +285,7 @@ public:
             FuseClientINode* pfci = reinterpret_cast<FuseClientINode*>(ino);
             ret_map = pfci->get_dir_entries(); // RVO
         }
+        dbg_default_debug("[{}]leaving {}.", gettid(), __func__);
         return ret_map;
     }
 
@@ -267,6 +295,7 @@ public:
      *
      */
     double fill_stbuf_by_ino(struct stat& stbuf) {
+        dbg_default_debug("[{}]entering {}.",gettid(),__func__);
         double timeout_sec = 1.0; //TO_FOREVER;
         // 1 - common attributes
         stbuf.st_dev = FUSE_CLIENT_DEV_ID;
@@ -290,32 +319,33 @@ public:
                 break;
             case INodeType::CASCADE_TYPE:
                 stbuf.st_mode = S_IFDIR | 0755;
-                stbuf.st_size = sizeof(*pfci);
-                stbuf.st_blocks = (sizeof(*pfci)+FUSE_CLIENT_BLK_SIZE-1)/FUSE_CLIENT_BLK_SIZE;
+                stbuf.st_size = pfci->get_file_size();
+                stbuf.st_blocks = (stbuf.st_size+FUSE_CLIENT_BLK_SIZE-1)/FUSE_CLIENT_BLK_SIZE;
                 stbuf.st_blksize = FUSE_CLIENT_BLK_SIZE;
                 break;
             case INodeType::SUBGROUP:
                 stbuf.st_mode = S_IFDIR | 0755;
-                stbuf.st_size = sizeof(*pfci);
-                stbuf.st_blocks = (sizeof(*pfci)+FUSE_CLIENT_BLK_SIZE-1)/FUSE_CLIENT_BLK_SIZE;
+                stbuf.st_size = pfci->get_file_size();
+                stbuf.st_blocks = (stbuf.st_size+FUSE_CLIENT_BLK_SIZE-1)/FUSE_CLIENT_BLK_SIZE;
                 stbuf.st_blksize = FUSE_CLIENT_BLK_SIZE;
                 break;
             case INodeType::SHARD:
                 stbuf.st_mode = S_IFDIR | 0755;
-                stbuf.st_size = sizeof(*pfci);
-                stbuf.st_blocks = (sizeof(*pfci)+FUSE_CLIENT_BLK_SIZE-1)/FUSE_CLIENT_BLK_SIZE;
+                stbuf.st_size = pfci->get_file_size();
+                stbuf.st_blocks = (stbuf.st_size+FUSE_CLIENT_BLK_SIZE-1)/FUSE_CLIENT_BLK_SIZE;
                 stbuf.st_blksize = FUSE_CLIENT_BLK_SIZE;
                 break;
             case INodeType::KEY:
                 stbuf.st_mode = S_IFREG| 0444;
-                stbuf.st_size = FUSE_CLIENT_BLK_SIZE;
-                stbuf.st_blocks = 1;
+                stbuf.st_size = pfci->get_file_size();
+                stbuf.st_blocks = (stbuf.st_size + FUSE_CLIENT_BLK_SIZE - 1)/FUSE_CLIENT_BLK_SIZE;
                 stbuf.st_blksize = FUSE_CLIENT_BLK_SIZE;
                 break;
             default:
                 ;
             }
         }
+        dbg_default_debug("[{}]leaving {}.",gettid(),__func__);
         return timeout_sec;
     }
 
@@ -326,6 +356,7 @@ public:
      * @return          error code. 0 for success.
      */
     int open_file(fuse_ino_t ino, struct fuse_file_info *fi) {
+        dbg_default_debug("[{}]entering {} with ino={:x}.", gettid(), __func__, ino);
         FuseClientINode* pfci = reinterpret_cast<FuseClientINode*>(ino);
         if (pfci->type != INodeType::KEY) {
             return EISDIR;
@@ -333,6 +364,7 @@ public:
         FileBytes* fb = new FileBytes();
         pfci->read_file(fb);
         fi->fh = reinterpret_cast<uint64_t>(fb);
+        dbg_default_debug("[{}]leaving {}.",gettid(),__func__);
         return 0;
     }
 
@@ -343,11 +375,13 @@ public:
      * @return          error code. 0 for success.
      */
     int close_file(fuse_ino_t ino, struct fuse_file_info *fi) {
+        dbg_default_debug("[{}]entering {} with ino={:x}.", gettid(), __func__, ino);
         void* pfb = reinterpret_cast<void*>(fi->fh);
         if (pfb!=nullptr) {
             delete static_cast<FileBytes*>(pfb);
         }
         return 0;
+        dbg_default_debug("[{}]leaving {}.",gettid(),__func__);
     }
 };
 
