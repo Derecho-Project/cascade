@@ -19,6 +19,8 @@ using json = nlohmann::json;
 #define FUSE_CLIENT_DEV_ID      (0xCA7CADE)
 #define FUSE_CLIENT_BLK_SIZE    (4096)
 
+#define META_FILE_NAME          ".cascade"
+
 #define TO_FOREVER              (std::numeric_limits<double>::max())
 
 typedef enum {
@@ -27,6 +29,7 @@ typedef enum {
     SUBGROUP,
     SHARD,
     KEY,
+    META,
 } INodeType;
 
 class FileBytes {
@@ -86,6 +89,12 @@ class ShardINode;
 template <typename CascadeType, typename ServiceClientType>
 class KeyINode;
 
+template <typename ServiceClientType>
+class RootMetaINode;
+
+template <typename CascadeType, typename ServiceClientType>
+class ShardMetaINode;
+
 template <typename CascadeType, typename ServiceClientType>
 class CascadeTypeINode : public FuseClientINode {
 public:
@@ -112,7 +121,70 @@ public:
             sidx ++;
         }
     }
+};
 
+template <typename ServiceClientType>
+class RootMetaINode : public FuseClientINode {
+    const time_t update_interval;
+    std::unique_ptr<ServiceClientType>& capi_ptr;
+    time_t last_update_sec;
+    std::string contents;
+    std::shared_mutex mutex;
+    /**
+     * update the metadata. need write lock.
+     */
+    void update_contents () {
+        auto members = capi_ptr->get_members();
+        contents = "number of nodes in cascade service: " + std::to_string(members.size()) + ".\n node IDs: ";
+        for (auto& nid : members) {
+            contents += std::to_string(nid) + ",";
+        }
+        contents += "\n";
+    }
+public:
+    RootMetaINode (std::unique_ptr<ServiceClientType>& _capi_ptr) :
+        update_interval (2), // membership refreshed in 2 seconds.
+        capi_ptr (_capi_ptr), 
+        last_update_sec(0) {
+        this->type = INodeType::META;
+        this->display_name = META_FILE_NAME;
+    }
+
+    virtual uint64_t get_file_size() override {
+        struct timespec now;
+        std::shared_lock rlck(mutex);
+        clock_gettime(CLOCK_REALTIME, &now);
+        if (now.tv_sec > (last_update_sec + update_interval)){
+            rlck.unlock();
+            std::unique_lock wlck(mutex);
+            clock_gettime(CLOCK_REALTIME, &now);
+            if (now.tv_sec > (last_update_sec + update_interval)){
+                update_contents();
+            }
+            return contents.size();
+        } 
+        return contents.size();
+    }
+
+    virtual uint64_t read_file(FileBytes* file_bytes) override {
+        struct timespec now;
+        std::shared_lock rlck(mutex);
+        clock_gettime(CLOCK_REALTIME, &now);
+        if (now.tv_sec > (last_update_sec + update_interval)){
+            rlck.unlock();
+            std::unique_lock wlck(mutex);
+            clock_gettime(CLOCK_REALTIME, &now);
+            if (now.tv_sec > (last_update_sec + update_interval)){
+                update_contents();
+            }
+            file_bytes->size = contents.size();
+            file_bytes->bytes = strdup(contents.c_str());
+        } else {
+            file_bytes->size = contents.size();
+            file_bytes->bytes = strdup(contents.c_str());
+        }
+        return 0;
+    }
 };
 
 template <typename CascadeType, typename ServiceClientType>
@@ -139,6 +211,8 @@ public:
         this->type = INodeType::SHARD;
         this->display_name = "shard-" + std::to_string(shidx);
         this->parent = pino;
+        SubgroupINode<CascadeType,ServiceClientType>* p_subgroup_inode = reinterpret_cast<SubgroupINode<CascadeType,ServiceClientType>*>(pino);
+        this->children.emplace_back(std::make_unique<ShardMetaINode<CascadeType, ServiceClientType>>(shidx,p_subgroup_inode->subgroup_index,capi_ptr));
     }
 
     // TODO: rethinking about the consistency
@@ -160,6 +234,75 @@ public:
         }
         dbg_default_trace("[{}]leaving {}.",gettid(),__func__);
         return FuseClientINode::get_dir_entries();
+    }
+};
+
+template <typename CascadeType, typename ServiceClientType>
+class ShardMetaINode : public FuseClientINode {
+private:
+    const uint32_t shard_index;
+    const uint32_t subgroup_index;
+    const time_t update_interval;
+    std::unique_ptr<ServiceClientType>& capi_ptr;
+    time_t last_update_sec;
+    std::string contents;
+    std::shared_mutex mutex;
+    /**
+     * update the metadata. need write lock.
+     */
+    void update_contents () {
+        auto members = capi_ptr->template get_shard_members<CascadeType>(subgroup_index,shard_index);
+        contents = "number of nodes shard: " + std::to_string(members.size()) + ".\n node IDs: ";
+        for (auto& nid : members) {
+            contents += std::to_string(nid) + ",";
+        }
+        contents += "\n";
+    }
+public:
+    ShardMetaINode (const uint32_t _shard_index, const uint32_t _subgroup_index, std::unique_ptr<ServiceClientType>& _capi_ptr) :
+        shard_index(_shard_index),
+        subgroup_index(_subgroup_index),
+        update_interval (2), // membership refreshed in 2 seconds.
+        capi_ptr (_capi_ptr), 
+        last_update_sec(0) {
+        this->type = INodeType::META;
+        this->display_name = META_FILE_NAME;
+    }
+
+    virtual uint64_t get_file_size() override {
+        struct timespec now;
+        std::shared_lock rlck(mutex);
+        clock_gettime(CLOCK_REALTIME, &now);
+        if (now.tv_sec > (last_update_sec + update_interval)){
+            rlck.unlock();
+            std::unique_lock wlck(mutex);
+            clock_gettime(CLOCK_REALTIME, &now);
+            if (now.tv_sec > (last_update_sec + update_interval)){
+                update_contents();
+            }
+            return contents.size();
+        } 
+        return contents.size();
+    }
+
+    virtual uint64_t read_file(FileBytes* file_bytes) override {
+        struct timespec now;
+        std::shared_lock rlck(mutex);
+        clock_gettime(CLOCK_REALTIME, &now);
+        if (now.tv_sec > (last_update_sec + update_interval)){
+            rlck.unlock();
+            std::unique_lock wlck(mutex);
+            clock_gettime(CLOCK_REALTIME, &now);
+            if (now.tv_sec > (last_update_sec + update_interval)){
+                update_contents();
+            }
+            file_bytes->size = contents.size();
+            file_bytes->bytes = strdup(contents.c_str());
+        } else {
+            file_bytes->size = contents.size();
+            file_bytes->bytes = strdup(contents.c_str());
+        }
+        return 0;
     }
 };
 
@@ -241,6 +384,9 @@ private:
     /** The inodes are stored in \a inodes. */
     mutils::KindMap<_CascadeTypeINode,CascadeTypes...> inodes;
 
+    /** Metadata */
+    RootMetaINode<ServiceClient<CascadeTypes...>> metadata_inode;
+
     /** fill inodes */
     void populate_inodes(const json& group_layout) {
         if (!group_layout.is_array()) {
@@ -261,10 +407,12 @@ private:
     }
 
 public:
+    FuseClientContext() :
+        capi_ptr(std::make_unique<ServiceClient<CascadeTypes...>>()),
+        metadata_inode(capi_ptr){}
     /** initialize */
     void initialize(const json& group_layout) {
         dbg_default_debug("[{}]entering {} .", gettid(), __func__);
-        this->capi_ptr = std::make_unique<ServiceClient<CascadeTypes...>>();
         populate_inodes(group_layout);
         clock_gettime(CLOCK_REALTIME,&this->init_timestamp);
         this->is_initialized.store(true);
@@ -281,6 +429,7 @@ public:
                     // CAUTION: only works up to 64bit virtual address CPU architectures.
                     ret_map.emplace(v.display_name,reinterpret_cast<fuse_ino_t>(&v));
                 });
+            ret_map.emplace(metadata_inode.display_name,reinterpret_cast<fuse_ino_t>(&this->metadata_inode));
         } else {
             FuseClientINode* pfci = reinterpret_cast<FuseClientINode*>(ino);
             ret_map = pfci->get_dir_entries(); // RVO
@@ -336,6 +485,7 @@ public:
                 stbuf.st_blksize = FUSE_CLIENT_BLK_SIZE;
                 break;
             case INodeType::KEY:
+            case INodeType::META:
                 stbuf.st_mode = S_IFREG| 0444;
                 stbuf.st_size = pfci->get_file_size();
                 stbuf.st_blocks = (stbuf.st_size + FUSE_CLIENT_BLK_SIZE - 1)/FUSE_CLIENT_BLK_SIZE;
@@ -358,7 +508,8 @@ public:
     int open_file(fuse_ino_t ino, struct fuse_file_info *fi) {
         dbg_default_debug("[{}]entering {} with ino={:x}.", gettid(), __func__, ino);
         FuseClientINode* pfci = reinterpret_cast<FuseClientINode*>(ino);
-        if (pfci->type != INodeType::KEY) {
+        if (pfci->type != INodeType::KEY && 
+            pfci->type != INodeType::META) {
             return EISDIR;
         }
         FileBytes* fb = new FileBytes();
