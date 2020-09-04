@@ -135,7 +135,7 @@ class RootMetaINode : public FuseClientINode {
      */
     void update_contents () {
         auto members = capi_ptr->get_members();
-        contents = "number of nodes in cascade service: " + std::to_string(members.size()) + ".\n node IDs: ";
+        contents = "number of nodes in cascade service: " + std::to_string(members.size()) + ".\nnode IDs: ";
         for (auto& nid : members) {
             contents += std::to_string(nid) + ",";
         }
@@ -252,11 +252,40 @@ private:
      */
     void update_contents () {
         auto members = capi_ptr->template get_shard_members<CascadeType>(subgroup_index,shard_index);
-        contents = "number of nodes shard: " + std::to_string(members.size()) + ".\n node IDs: ";
+        contents = "number of nodes shard: " + std::to_string(members.size()) + ".\nnode IDs: ";
         for (auto& nid : members) {
             contents += std::to_string(nid) + ",";
         }
         contents += "\n";
+        auto policy = capi_ptr->template get_member_selection_policy<CascadeType>(subgroup_index,shard_index);
+        contents += "member selection policy:";
+        switch(std::get<0>(policy)) {
+        case FirstMember:
+            contents += "FirstMember\n";
+            break;
+        case LastMember:
+            contents += "LastMember\n";
+            break;
+        case Random:
+            contents += "Random\n";
+            break;
+        case FixedRandom:
+            contents += "FixedRandom(";
+            contents += std::to_string(std::get<1>(policy));
+            contents += ")\n";
+            break;
+        case RoundRobin:
+            contents += "RoundRobin\n";
+            break;
+        case UserSpecified:
+            contents += "UserSpecified(";
+            contents += std::to_string(std::get<1>(policy));
+            contents += ")\n";
+            break;
+        default:
+            contents += "Unknown\n";
+            break;
+        }
     }
 public:
     ShardMetaINode (const uint32_t _shard_index, const uint32_t _subgroup_index, std::unique_ptr<ServiceClientType>& _capi_ptr) :
