@@ -234,7 +234,16 @@ public:
     /**
      * "put" writes an object to a given subgroup/shard.
      *
-     * @param value             the object to write
+     * @param object            the object to write.
+     *                          User provided SubgroupType::ObjectType must have the following two members:
+     *                          - SubgroupType::ObjectType::key of SubgroupType::KeyType, which must be set to a
+     *                            valid key.
+     *                          - SubgroupType::ObjectType::ver of std::tuple<persistent::version_t, uint64_t>.
+     *                            Similar to the return object, this member is a two tuple with the first member
+     *                            for a version and the second for a timestamp. A caller of put can specify either
+     *                            of the version and timestamp meaning what is the latest version/timestamp the caller
+     *                            has seen. Cascade will reject the write if the corresponding key has been updated
+     *                            already. TODO: should we make it an optional feature?
      * @subugroup_index         the subgroup index of CascadeType
      * @shard_index             the shard index.
      *
@@ -242,7 +251,7 @@ public:
      * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
      */
     template <typename SubgroupType>
-    derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> put(const typename SubgroupType::ValType& value, 
+    derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> put(const typename SubgroupType::ObjectType& object,
             uint32_t subgroup_index=0, uint32_t shard_index=0);
 
     /**
@@ -263,7 +272,7 @@ public:
      * "get" retrieve the object of a given key
      *
      * @param key               the object key
-     * @param version           if version is INVALID_VERSION, this "get" will fire a ordered send to get the latest
+     * @param version           if version is CURRENT_VERSION, this "get" will fire a ordered send to get the latest
      *                          state of the key. Otherwise, it will try to read the key's state at version.
      * @subugroup_index         the subgroup index of CascadeType
      * @shard_index             the shard index.
@@ -272,7 +281,7 @@ public:
      * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
      */
     template <typename SubgroupType>
-    derecho::rpc::QueryResults<const typename SubgroupType::ValType> get(const typename SubgroupType::KeyType& key, const persistent::version_t& version = persistent::INVALID_VERSION,
+    derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> get(const typename SubgroupType::KeyType& key, const persistent::version_t& version = CURRENT_VERSION,
             uint32_t subgroup_index=0, uint32_t shard_index=0);
 
     /**
@@ -287,14 +296,14 @@ public:
      * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
      */
     template <typename SubgroupType>
-    derecho::rpc::QueryResults<const typename SubgroupType::ValType> get_by_time(const typename SubgroupType::KeyType& key, const uint64_t& ts_us,
+    derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> get_by_time(const typename SubgroupType::KeyType& key, const uint64_t& ts_us,
             uint32_t subgroup_index=0, uint32_t shard_index=0);
 
     /**
      * "get_size" retrieve size of the object of a given key
      *
      * @param key               the object key
-     * @param version           if version is INVALID_VERSION, this "get" will fire a ordered send to get the latest
+     * @param version           if version is CURRENT_VERSION, this "get" will fire a ordered send to get the latest
      *                          state of the key. Otherwise, it will try to read the key's state at version.
      * @subugroup_index         the subgroup index of CascadeType
      * @shard_index             the shard index.
@@ -303,7 +312,7 @@ public:
      * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
      */
     template <typename SubgroupType>
-    derecho::rpc::QueryResults<uint64_t> get_size(const typename SubgroupType::KeyType& key, const persistent::version_t& version = persistent::INVALID_VERSION,
+    derecho::rpc::QueryResults<uint64_t> get_size(const typename SubgroupType::KeyType& key, const persistent::version_t& version = CURRENT_VERSION,
             uint32_t subgroup_index=0, uint32_t shard_index=0);
 
     /**
@@ -324,7 +333,7 @@ public:
     /**
      * "list_keys" retrieve the list of keys in a shard
      *
-     * @param version           if version is INVALID_VERSION, this "get" will fire a ordered send to get the latest
+     * @param version           if version is CURRENT_VERSION, this "get" will fire a ordered send to get the latest
      *                          state of the key. Otherwise, it will try to read the key's state at version.
      * @subugroup_index         the subgroup index of CascadeType
      * @shard_index             the shard index.
@@ -333,7 +342,7 @@ public:
      * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
      */
     template <typename SubgroupType>
-    derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> list_keys(const persistent::version_t& version = persistent::INVALID_VERSION,
+    derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> list_keys(const persistent::version_t& version = CURRENT_VERSION,
             uint32_t subgroup_index=0, uint32_t shard_index=0);
 
     /**

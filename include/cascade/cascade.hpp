@@ -14,6 +14,8 @@
 
 namespace derecho {
 namespace cascade {
+
+#define CURRENT_VERSION     (persistent::INVALID_VERSION)
     /**
      * Watcher Type
      * CascadeWatcher takes four arguments
@@ -88,7 +90,7 @@ namespace cascade {
          * Types
          */
         using KeyType = KT;
-        using ValType = VT;
+        using ObjectType = VT;
         KT* InvKeyPtr = IK;
         VT* InvValPtr = IV;
         /**
@@ -106,7 +108,7 @@ namespace cascade {
         /**
          * get value by version
          * @param key
-         * @param ver - Version, if version == INVALID_VERSION, get the latest value.
+         * @param ver - Version, if version == CURRENT_VERSION, get the latest value.
          * @return a value
          */
         virtual const VT get(const KT& key, const persistent::version_t& ver) = 0;
@@ -119,7 +121,7 @@ namespace cascade {
         virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) = 0;
         /**
          * list keys by version
-         * @param ver - Version, if version  == INVALID_VERSION, get the latest list of keys.
+         * @param ver - Version, if version  == CURRENT_VERSION, get the latest list of keys.
          * @return a list of keys.
          */
         virtual std::vector<KT> list_keys(const persistent::version_t& ver) = 0;
@@ -132,7 +134,7 @@ namespace cascade {
         /**
          * get size by version
          * @param key
-         * @param ver - Version, if version == INVALID_VERSION, get the latest value.
+         * @param ver - Version, if version == CURRENT_VERSION, get the latest value.
          * @return the size of serialized value.
          */
         virtual uint64_t get_size(const KT& key, const persistent::version_t& ver) = 0;
