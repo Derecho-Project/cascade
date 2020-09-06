@@ -6,8 +6,18 @@ Cascade is a C++17 cloud application framework powered by optimized RDMA data pa
 - Users can specify the Key and Value types of the K/V API.
 - Users can configure the application layout using the group, subgroup, and shard concepts deriving from [Derecho](http://github.com/Derecho-Project/derecho).
 - Cascade derives the same fault-tolerance model from [Derecho](http://github.com/Derecho-Project/derecho).
-- Cascade's K/V API supports high-level language like Java and Python (Currently in the [Java](https://github.com/Derecho-Project/cascade/tree/java) and [Python](https://github.com/Derecho-Project/cascade/tree/python) branch).
-- Cascade supports a File system API based on the K/V API through [libfuse](https://github.com/libfuse/libfuse).
+
+# Using Cascade
+- Cascade can be used both as a service, and as a software library
+-- Used as a service, the developer would work in a client/server model
+-- The use of Cascade as a library is primarily for our own purposes, in creating the Cascade service.  However, this approach could be useful for creating other services that need to layer some other form of functionality over a K/V infrastructure.
+- Cascade's most direct and efficient APIs aim at applications coded in C++, which is the language used the Cascade implementation.  
+-- Within C++, we have found it useful to combine Cascade with a language-integrated query library such as LINQ (we can support both cpplinq and boolinq).  
+-- Doing so permits the developer to treat collections of objects or object histories as sets of K/V tuples, describing "transformations" on the data much as we would in a database setting, and leaving the runtime to make scheduling and object placement decisions on our behalf.  
+-- LINQ is closely related to models widely used in ML, such as the Spark concept of an RDD, or the Tensor Flow model for tensors and sets of tensors, and indeed our hope is to integrate many such packages with Cascade through this LINQ style of coding.  
+-- We do not plan to require use of LINQ, but we do think it lends itself to concise, elegant code.
+- Cascade also supports a variety of remoting options.  Through them, Cascade's K/V API can be accessed from other popular high-level languages, notably Java and Python (Currently in the [Java](https://github.com/Derecho-Project/cascade/tree/java) and [Python](https://github.com/Derecho-Project/cascade/tree/python) branch).
+- Cascade also offers a File system API that maps to its K/V API through [libfuse](https://github.com/libfuse/libfuse).  
 
 # Installation
 
