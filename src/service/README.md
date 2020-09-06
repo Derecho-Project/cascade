@@ -1,17 +1,17 @@
 # The Cascade Service
 
-The Cascade Service is a configurable K/V store with fast RDMA data paths. Cascade service is the easier one of the two approaches using Cascade because the application access the service through two simple APIs: [`service_client_api.hpp`](https://github.com/Derecho-Project/cascade/blob/master/include/cascade/service_client_api.hpp) and [`service_server_api`](https://github.com/Derecho-Project/cascade/blob/master/include/cascade/service_server_api.hpp) instead of using the more complicated native Derecho API. However, to learn how to use Cascade service, we still need to remind the group, subgroup, shard, and node concepts deriving from Derecho. Curoious users can read our [paper](http://www.cs.cornell.edu/ken/derecho-tocs.pdf) for details on Derecho.
+The Cascade Service is a configurable K/V store with fast RDMA data paths. Cascade service is the easier one of the two approaches using Cascade because the application access the service through two simple APIs: [`service_client_api.hpp`](https://github.com/Derecho-Project/cascade/blob/master/include/cascade/service_client_api.hpp) and [`service_server_api`](https://github.com/Derecho-Project/cascade/blob/master/include/cascade/service_server_api.hpp) instead of using the more complicated native Derecho API. However, to learn how to use Cascade service, we still need to remind the group, subgroup, shard, and node concepts deriving from Derecho. Curious users can read our [paper](http://www.cs.cornell.edu/ken/derecho-tocs.pdf) for details on Derecho.
 
-The cascade service is composed of a set of distributed process talking to each other through RDMA data paths. We call each of the process a `node`. Each `node` is identified by an integer ID. All nodes in the cascade service forms a top-level `group`. The nodes doing the same job specified by a C++ Type are grouped into a `Subgroup`. Please note that we allow the C++ Subgroup Type to be reused for multiple subgroups if the logic in different subgroups are the same. One subgroup may do a huge work like managing a database table with billions of lines. In such a case, the nodes in a subgroup can be partitioned into `shards`, each of which takes care of a managble part of the table. In side the shard, the nodes are replicas.
+The cascade service is composed of a set of distributed processes talking to each other through RDMA data paths. We call each of the processes a `node`. Each `node` is identified by an integer ID. All nodes in the cascade service form a top-level `group`. The nodes doing the same job specified by a C++ Type are grouped into a `Subgroup`. Please note that we allow the C++ Subgroup Type to be reused for multiple subgroups if the logic in different subgroups is the same. One subgroup may do a huge work like managing a database table with billions of lines. In such a case, the nodes in a subgroup can be partitioned into `shards`, each of which takes care of a manageable part of the table. Inside a shard, the nodes are replicas.
 
-The cascade service comes with four pre-defined subgroup types: `VCSU`, `VCSS`, `PCSU`, and `PCSS`, where V for Volatile, P for Persistent, S for 'Store', and the last character is for the key type of the object ('U' for uint64_t and 'S' for std::string). Please refer to [`service_types.hpp`](https://github.com/Derecho-Project/cascade/blob/master/include/cascade/service_types.hpp) for details of those types. All four subgroup types expose a K/V API (see [ICascadeStore](https://github.com/Derecho-Project/cascade/blob/master/include/cascade/cascade.hpp)). The persistent types support versioned and timestamped query with a persistent log.
+The cascade service comes with four pre-defined subgroup types: `VCSU`, `VCSS`, `PCSU`, and `PCSS`, where V for Volatile, P for Persistent, S for 'Store', and the last character is for the key type of the object ('U' for uint64_t and 'S' for std::string). Please refer to [`service_types.hpp`](https://github.com/Derecho-Project/cascade/blob/master/include/cascade/service_types.hpp) for details of those types. All four subgroup types expose a K/V API (see [ICascadeStore](https://github.com/Derecho-Project/cascade/blob/master/include/cascade/cascade.hpp)). The persistent types support versioned and timestamped queries.
 
-Once the cascade service configured and started, the application can store and retrieve the data using the client api defined in [`service_client_api.hpp`](https://github.com/Derecho-Project/cascade/blob/master/include/cascade/service_client_api.hpp). Core to the client API is an `external client` talking to the Cascade services with an efficient RDMA data path. Please check [`client.cpp`](https://github.com/Derecho-Project/cascade/blob/master/src/service/client.cpp) for example how to use the client API.
+Once the cascade service is configured and started, the application can store and retrieve the data using the client API defined in [`service_client_api.hpp`](https://github.com/Derecho-Project/cascade/blob/master/include/cascade/service_client_api.hpp). Core to the client API is an `external client` talking to the Cascade services with an efficient RDMA data path. Please check [`client.cpp`](https://github.com/Derecho-Project/cascade/blob/master/src/service/client.cpp) for how to use the client API.
 
-Cascade service also allows application to insert logic on the data path. In order for that, the application needs to implement the cascade server API in [`service_server_api.hpp`](https://github.com/Derecho-Project/cascade/blob/master/include/cascade/service_server_api.hpp). We provide an example implementation in [`ondata_library_example.cpp`](https://github.com/Derecho-Project/cascade/blob/master/src/service/ondata_library_example.cpp).
+Cascade service also allows the application to insert logic on the data path. In order for that, the application needs to implement the cascade server API in [`service_server_api.hpp`](https://github.com/Derecho-Project/cascade/blob/master/include/cascade/service_server_api.hpp). We provide an example implementation in [`ondata_library_example.cpp`](https://github.com/Derecho-Project/cascade/blob/master/src/service/ondata_library_example.cpp).
 
 # Configuring Cascade Service
-Cascade derives Derecho's configuration file. Besides the derecho configurations, Cascade added a section called `[CASCADE]` in the same file to configure the Cascade service. There are only two options: `ondata_library` and `group_layout` in this section. `ondata_library` specifies the dynamic library containing the server APIs implementation. `group_layout` specifies the group, subgroup, and shard layout of the cascade service. Please read the comments below for how to describe the layout. 
+Cascade derives Derecho's configuration file. Besides the derecho configurations, Cascade added a section called `[CASCADE]` in the same file to configure the Cascade service. There are only two options in this section: `ondata_library` and `group_layout`. `ondata_library` specifies the dynamic library containing the server APIs implementation. `group_layout` specifies the group, subgroup, and shard layout of the cascade service. Please read the comments below for how to describe a layout. 
 
 ```
 [CASCADE]
@@ -77,7 +77,7 @@ group_layout =
 ```
 
 # To Run the Cascade Service Example
-Once cascade is built, you will find five folders named `n0` to `n4` in `<build_dir>/src/service/cfg/`. Each of them contains a configuration file to run a demo service node on localhost with the localhost IP and RDMA API layer over TCP/IP. In the folder, start the node by calling:
+Once cascade is built, you will find five folders named `n0` to `n4` in `<build_dir>/src/service/cfg/`. Each of them contains a configuration file to run a demo service node with localhost IP and RDMA API layer over TCP/IP. In the folder, start the node by calling:
 ```
 # ../../server
 ```
@@ -132,18 +132,18 @@ node(0) replied with value:ObjectWithUInt64Key{ver: 0x1200000000, ts: 1599366091
 ```
 
 # The File System API
-We also provided a file system API to Cascade. The API is implemented as a libfuse driver talking to the service through an `external client`. Once mounted, the file system present the data in the following structure:
+We also provided a file system API to Cascade. The API is implemented as a libfuse driver talking to the service through an `external client`. Once mounted, the file system presents the data in the following structure:
 ```
 <mount_point>/<subgroupType>/subgroup_index/shard_index/Key
 ```
-You can also check the ".cascade" file to check Cascade service properties like membership. Currently, the fuse file system is ReadOnly. We are working on adding time/version index and write supports to it. 
+You can also check the ".cascade" file to get Cascade service properties like membership. Currently, the fuse file system is ReadOnly. We are working on adding time/version index and write supports to it. 
 
 To start the file system API, run `fuse_client` in n4:
 ```
 # mkdir fcc
 # ../../fuse_client -s -f fcc 
 ```
-Then, the file system api will mount on fcc folder.
+Then, the file system api will mount on `fcc` folder.
 ```
 # ls fcc
 PCSS  PCSU  VCSS  VCSU
@@ -153,3 +153,4 @@ node IDs: 0,1,3,2,
 # cat fcc/VCSU/subgroup-0/shard-0/key100
 hdABCDEFG#
 ```
+Please note that the file contents are deserialized byte array of the corresponding object.
