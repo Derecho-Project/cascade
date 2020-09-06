@@ -23,3 +23,9 @@ add_custom_command(TARGET cli_example POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/perf_shutdown.py
     ${CMAKE_CURRENT_BINARY_DIR}/perf_shutdown.py
 )
+
+add_executable(linq_test linq_test.cpp)
+target_include_directories(linq_test PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+)
