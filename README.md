@@ -42,4 +42,4 @@ Cascade is a C++17 cloud application framework powered by optimized RDMA data pa
 There are two ways to use Cascade in an application. You can use Cascade as a standalone service with pre-defined K/V types and configurable layout. Or, you can use the Cascade storage templates (defined in Cascade ) as building blocks to build the application using the Derecho group framework. Please refer to [Cascade service's README](https://github.com/Derecho-Project/cascade/tree/master/src/service) for using Cascade as a service and [cli_example README](https://github.com/Derecho-Project/cascade/tree/master/src/test) for using Cascade components to build your own binary with customized key type and value type.
 
 # New Features to Come
-1) A [LINQ](https://docs.microsoft.com/en-us/dotnet/csharp/programming-guide/concepts/linq/) API over the K/V API (Under construction).
+1) [LINQ](https://docs.microsoft.com/en-us/dotnet/csharp/programming-guide/concepts/linq/) API (Under construction).
