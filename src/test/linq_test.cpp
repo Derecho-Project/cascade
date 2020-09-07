@@ -7,30 +7,29 @@
 using namespace boolinq;
 using namespace derecho::cascade;
 
-
 /**
  * CascadeLinq
  */
 template <typename CascadeType>
-using CascadeShardLinqStorageType = std::pair<typename std::vector<typename CascadeType::KeyType>::iterator,typename std::vector<typename CascadeType::KeyType>::iterator>;
+using TestCascadeShardLinqStorageType = std::pair<typename std::vector<typename CascadeType::KeyType>::iterator,typename std::vector<typename CascadeType::KeyType>::iterator>;
 
 template <typename CascadeType, typename ServiceClientType>
-using CascadeShardLinqType = boolinq::Linq<CascadeShardLinqStorageType<CascadeType>, typename CascadeType::ObjectType>;
+using TestCascadeShardLinqType = boolinq::Linq<TestCascadeShardLinqStorageType<CascadeType>, typename CascadeType::ObjectType>;
 
 /**
  * LINQ Creators
  */
 template <typename CascadeType, typename ServiceClientType>
-CascadeShardLinqType<CascadeType,ServiceClientType> from_cascade_shard(ServiceClientType& capi,
+TestCascadeShardLinqType<CascadeType,ServiceClientType> from_cascade_shard(ServiceClientType& capi,
         std::vector<typename CascadeType::KeyType>& storage, uint32_t subgroup_index, uint32_t shard_index) {
     auto result = capi.template list_keys<CascadeType>(CURRENT_VERSION,subgroup_index,shard_index);
     for(auto& reply_future:result.get()) {
         storage = reply_future.second.get();
     }
 
-    return CascadeShardLinqType<CascadeType,ServiceClientType> (
+    return TestCascadeShardLinqType<CascadeType,ServiceClientType> (
             std::make_pair(storage.begin(),storage.end()),
-            [&capi,subgroup_index,shard_index] (CascadeShardLinqStorageType<CascadeType>& _storage) {
+            [&capi,subgroup_index,shard_index] (TestCascadeShardLinqStorageType<CascadeType>& _storage) {
                 if (_storage.first == _storage.second) {
                     throw boolinq::LinqEndException();
                 }
