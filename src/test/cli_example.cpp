@@ -91,7 +91,7 @@ static void client_get(derecho::ExternalGroup<VCS,PCS>& group,
     }
 
     uint64_t key = std::stoll(tokens[1]);
-    uint64_t ver = persistent::INVALID_VERSION;
+    uint64_t ver = CURRENT_VERSION;
     uint64_t ts  = 0;
 
     if (tokens.size() == 4) {
@@ -130,7 +130,7 @@ static void client_list(derecho::ExternalGroup<VCS,PCS>& group,
                         node_id_t member,
                         const std::vector<std::string>& tokens,
                         bool is_persistent) {
-    uint64_t ver = persistent::INVALID_VERSION;
+    uint64_t ver = CURRENT_VERSION;
     uint64_t ts = 0ull;
 
     if (tokens.size() == 3) {
