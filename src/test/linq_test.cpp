@@ -15,7 +15,7 @@ template <typename CascadeType>
 using CascadeShardLinqStorageType = std::pair<typename std::vector<typename CascadeType::KeyType>::iterator,typename std::vector<typename CascadeType::KeyType>::iterator>;
 
 template <typename CascadeType, typename ServiceClientType>
-using CascadeShardLinqType = boolinq::Linq<CascadeShardLinqStorageType<CascadeType>, typename CascadeType::ValType>;
+using CascadeShardLinqType = boolinq::Linq<CascadeShardLinqStorageType<CascadeType>, typename CascadeType::ObjectType>;
 
 /**
  * LINQ Creators
@@ -23,7 +23,7 @@ using CascadeShardLinqType = boolinq::Linq<CascadeShardLinqStorageType<CascadeTy
 template <typename CascadeType, typename ServiceClientType>
 CascadeShardLinqType<CascadeType,ServiceClientType> from_cascade_shard(ServiceClientType& capi,
         std::vector<typename CascadeType::KeyType>& storage, uint32_t subgroup_index, uint32_t shard_index) {
-    auto result = capi.template list_keys<CascadeType>(INVALID_VERSION,subgroup_index,shard_index);
+    auto result = capi.template list_keys<CascadeType>(CURRENT_VERSION,subgroup_index,shard_index);
     for(auto& reply_future:result.get()) {
         storage = reply_future.second.get();
     }
@@ -36,7 +36,7 @@ CascadeShardLinqType<CascadeType,ServiceClientType> from_cascade_shard(ServiceCl
                 }
                 
                 /* get object */
-                auto result = capi.template get<CascadeType>(*_storage.first,INVALID_VERSION,subgroup_index,shard_index);
+                auto result = capi.template get<CascadeType>(*_storage.first,CURRENT_VERSION,subgroup_index,shard_index);
 
                 _storage.first++;
 
@@ -64,7 +64,7 @@ int main(int argc, char** argv) {
     ServiceClientAPI capi;
     std::vector<uint64_t> storage;
 
-    for (auto& x: from_cascade_shard<VCSU,ServiceClientAPI>(capi,storage,0,0).where([](VCSU::ValType o){return o.blob.size >= 3;}).toStdVector()) {
+    for (auto& x: from_cascade_shard<VCSU,ServiceClientAPI>(capi,storage,0,0).where([](VCSU::ObjectType o){return o.blob.size >= 3;}).toStdVector()) {
         std::cout << x << std::endl;
     }
 
