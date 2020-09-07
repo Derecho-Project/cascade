@@ -133,7 +133,7 @@ static void print_red(std::string msg) {
 
 template <typename SubgroupType>
 void put(ServiceClientAPI& capi, std::string& key, std::string& value, uint32_t subgroup_index, uint32_t shard_index) {
-    typename SubgroupType::ValType obj;
+    typename SubgroupType::ObjectType obj;
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
         obj.key = static_cast<uint64_t>(std::stol(key));
     } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
@@ -170,11 +170,11 @@ void remove(ServiceClientAPI& capi, std::string& key, uint32_t subgroup_index, u
 template <typename SubgroupType>
 void get(ServiceClientAPI& capi, std::string& key, persistent::version_t ver, uint32_t subgroup_index,uint32_t shard_index) {
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
-        derecho::rpc::QueryResults<const typename SubgroupType::ValType> result = capi.template get<SubgroupType>(
+        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get<SubgroupType>(
                 static_cast<uint64_t>(std::stol(key)),ver,subgroup_index,shard_index);
         check_get_result(result);
     } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
-        derecho::rpc::QueryResults<const typename SubgroupType::ValType> result = capi.template get<SubgroupType>(
+        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get<SubgroupType>(
                 key,ver,subgroup_index,shard_index);
         check_get_result(result);
     }
@@ -183,11 +183,11 @@ void get(ServiceClientAPI& capi, std::string& key, persistent::version_t ver, ui
 template <typename SubgroupType>
 void get_by_time(ServiceClientAPI& capi, std::string& key, uint64_t ts_us, uint32_t subgroup_index, uint32_t shard_index) {
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
-        derecho::rpc::QueryResults<const typename SubgroupType::ValType> result = capi.template get_by_time<SubgroupType>(
+        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get_by_time<SubgroupType>(
                 static_cast<uint64_t>(std::stol(key)),ts_us,subgroup_index,shard_index);
         check_get_result(result);
     } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
-        derecho::rpc::QueryResults<const typename SubgroupType::ValType> result = capi.template get<SubgroupType>(
+        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get<SubgroupType>(
                 key,ts_us,subgroup_index,shard_index);
         check_get_result(result);
     }
@@ -272,7 +272,7 @@ void interactive_test(ServiceClientAPI& capi) {
         subgroup_id = 0;
         subgroup_index = 0;
         shard_index = 0;
-        version = persistent::INVALID_VERSION;
+        version = CURRENT_VERSION;
         char* malloced_cmd = readline("cmd> ");
         std::string cmdline(malloced_cmd);
         free(malloced_cmd);
