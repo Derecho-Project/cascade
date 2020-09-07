@@ -33,44 +33,62 @@ private:
     uint32_t subgroup_index;
     uint32_t shard_index;
     persistent::version_t version;
-    std::vector<typename CascadeType::KeyType> key_list;
 
 public:
     CascadeShardLinq() : boolinq::Linq<CascadeShardLinqStorageType<CascadeType>,typename CascadeType::ObjectType>() {}
     CascadeShardLinq(ServiceClientType& capi,
                      uint32_t sgidx,
                      uint32_t shidx,
-                     persistent::version_t version = CURRENT_VERSION) :
-        boolinq::Linq<CascadeShardLinqStorageType<CascadeType>,typename CascadeType::ObjectType>(),
+                     persistent::version_t ver,
+                     std::vector<typename CascadeType::KeyType>& key_list,
+                     std::function<typename CascadeType::ObjectType(CascadeShardLinqStorageType<CascadeType>&)> nextFunc) :
+        boolinq::Linq<CascadeShardLinqStorageType<CascadeType>,typename CascadeType::ObjectType>(std::make_pair(key_list.begin(),key_list.end()), nextFunc),
         client_api(capi),
         subgroup_index(sgidx),
-        shard_index(shidx) {
+        shard_index(shidx),
+        version(ver) {}
+};
+
+/**
+ * Creat a Linq iterating the objects in a shard.
+ * @param key_list  This is an output argument to keep the generated key_list. Please keep it alive throughout the life
+ *                  time of the Link object.
+ * @param capi      The cascade client.
+ * @param subgroup_index
+ * @param shard_index
+ * @param version
+ * @return the Linq object
+ */
+template <typename CascadeType, typename ServiceClientType>
+CascadeShardLinq<CascadeType,ServiceClientType> from_shard(
+        std::vector<typename CascadeType::KeyType>& key_list,
+        ServiceClientType& capi, uint32_t subgroup_index, 
+        uint32_t shard_index, persistent::version_t version) {
         /* load keys. */
-        auto result = client_api.template list_keys<CascadeType>(CURRENT_VERSION, subgroup_index, shard_index);
+        auto result = capi.template list_keys<CascadeType>(version, subgroup_index, shard_index);
         for(auto& reply_future:result.get()) {
             key_list = reply_future.second.get();
         }
         /* set up storage and nextFunc*/
-        this->storage = std::make_pair(key_list.begin(), key_list.end());
-        this->nextFunc = [this](CascadeShardLinqStorageType<CascadeType>& _storage) {
-            if (_storage.first == _storage.second) {
+        return CascadeShardLinq<CascadeType,ServiceClientType>(capi,subgroup_index,shard_index,version,key_list,
+            [&capi,subgroup_index,shard_index,version](CascadeShardLinqStorageType<CascadeType>& _storage) {
+                if (_storage.first == _storage.second) {
+                    throw boolinq::LinqEndException();
+                }
+    
+                /* get object */
+                auto result = capi.template get<CascadeType>(*_storage.first,version,subgroup_index,shard_index);
+    
+                _storage.first++;
+    
+                for (auto& reply_future:result.get()) {
+                    auto object = reply_future.second.get();
+                    return object;
+                }
+    
                 throw boolinq::LinqEndException();
-            }
-
-            /* get object */
-            auto result = this->capi.template get<CascadeType>(*_storage.first,this->version,this->subgroup_index,this->shard_index);
-
-            _storage.first++;
-
-            for (auto& reply_future:result.get()) {
-                auto object = reply_future.second.get();
-                return object;
-            }
-
-            throw boolinq::LinqEndException();
-        };
-    }
-};
+            });
+}
 
 #endif // HAS_BOOLINQ
 
