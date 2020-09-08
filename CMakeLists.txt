@@ -45,7 +45,7 @@ CHECK_INCLUDE_FILES("fuse3/fuse.h;fuse3/fuse_lowlevel.h" HAS_FUSE)
 # boolinq
 CHECK_INCLUDE_FILES("boolinq/boolinq.h" HAS_BOOLINQ)
 
-CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/config.h)
+CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/cascade/config.h)
 
 add_subdirectory(src/core)
 add_subdirectory(src/utils)
@@ -77,6 +77,9 @@ install(TARGETS cascade EXPORT cascade
 install(DIRECTORY
         include/cascade
         DESTINATION include)
+install(FILES
+        ${CMAKE_CURRENT_BINARY_DIR}/include/cascade/config.h
+        DESTINATION include/cascade)
 
 include(CMakePackageConfigHelpers)
 write_basic_package_version_file(

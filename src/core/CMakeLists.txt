@@ -5,6 +5,7 @@ set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 # cascade object
 add_library(core OBJECT object.cpp)
 target_include_directories(core PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_DIR}>
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
