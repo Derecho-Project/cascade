@@ -1,5 +1,4 @@
 #pragma once
-
 #include <map>
 #include <memory>
 #include <string>
@@ -11,6 +10,8 @@
 #include <derecho/core/derecho.hpp>
 #include <derecho/mutils-serialization/SerializationSupport.hpp>
 #include <derecho/persistent/Persistent.hpp>
+
+#include <cascade/config.h>
 
 namespace derecho {
 namespace cascade {
