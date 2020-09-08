@@ -1,4 +1,3 @@
-#include <config.h>
 #include <cascade/service_client_api.hpp>
 #include <iostream>
 #include <string>

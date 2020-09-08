@@ -1,5 +1,4 @@
 #pragma once
-#include "config.h"
 #include "service_types.hpp"
 #include "service.hpp"
 
