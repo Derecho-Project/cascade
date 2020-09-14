@@ -92,7 +92,6 @@ std::unique_ptr<Blob> Blob::from_bytes(mutils::DeserializationManager*, const ch
     return std::make_unique<Blob>(v + sizeof(std::size_t), ((std::size_t*)(v))[0]);
 }
 
-
 bool ObjectWithUInt64Key::operator==(const ObjectWithUInt64Key& other) {
     return (this->key == other.key) && (this->ver == other.ver);
 }
@@ -161,7 +160,7 @@ ObjectWithUInt64Key::ObjectWithUInt64Key() :
     key(INVALID_UINT64_OBJECT_KEY),
     previous_version_by_key(persistent::INVALID_VERSION) {}
 
-void ObjectWithUInt64Key::set_previous_version(persistent::version_t&, persistent::version_t& prev_ver_by_key) {
+void ObjectWithUInt64Key::set_previous_version(persistent::version_t, persistent::version_t prev_ver_by_key) const {
     this->previous_version_by_key = prev_ver_by_key;
 }
 
@@ -231,7 +230,7 @@ ObjectWithStringKey::ObjectWithStringKey() :
     key(),
     previous_version_by_key(persistent::INVALID_VERSION) {}
 
-void ObjectWithStringKey::set_previous_version(persistent::version_t&, persistent::version_t& prev_ver_by_key) {
+void ObjectWithStringKey::set_previous_version(persistent::version_t, persistent::version_t prev_ver_by_key) const {
     this->previous_version_by_key = prev_ver_by_key;
 }
 

@@ -581,6 +581,10 @@ std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST
 
     std::tuple<persistent::version_t,uint64_t> version = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_next_version();
     value.ver = version;
+    if constexpr (std::is_base_of<IKeepPreviousVersion,VT>::value) {
+        auto prev = this->persistent_core->ordered_get(value.key);
+        value.set_previous_version(persistent_core.getLatestVersion(),std::get<0>(prev.ver));
+    }
     this->persistent_core->ordered_put(value);
     if (cascade_watcher_ptr) {
         (*cascade_watcher_ptr)(

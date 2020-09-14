@@ -76,7 +76,7 @@ class ObjectWithUInt64Key : public mutils::ByteRepresentable,
 public:
     mutable std::tuple<persistent::version_t,uint64_t> ver; // object version
     uint64_t                                           key; // object_id
-    persistent::version_t                              previous_version_by_key; // previous version by key, INVALID_VERSION for the first value of the key.
+    mutable persistent::version_t                      previous_version_by_key; // previous version by key, INVALID_VERSION for the first value of the key.
     Blob                                               blob; // the object
 
     bool operator==(const ObjectWithUInt64Key& other);
@@ -118,7 +118,7 @@ public:
     // constructor 4 : default invalid constructor
     ObjectWithUInt64Key();
 
-    virtual void set_previous_version(persistent::version_t&, persistent::version_t& prev_ver_by_key) override;
+    virtual void set_previous_version(persistent::version_t, persistent::version_t prev_ver_by_key) const override;
 
     DEFAULT_SERIALIZATION_SUPPORT(ObjectWithUInt64Key, ver, key, previous_version_by_key, blob);
 
@@ -144,8 +144,10 @@ inline std::ostream& operator<<(std::ostream& out, const Blob& b) {
 
 inline std::ostream& operator<<(std::ostream& out, const ObjectWithUInt64Key& o) {
     out << "ObjectWithUInt64Key{ver: 0x" << std::hex << std::get<0>(o.ver) << std::dec 
-        << ", ts: " << std::get<1>(o.ver) << ", id:"
-        << o.key << ", data:" << o.blob << "}";
+        << ", ts: " << std::get<1>(o.ver) 
+        << ", prev_ver: " << std::hex << o.previous_version_by_key << std::dec
+        << ", id:" << o.key 
+        << ", data:" << o.blob << "}";
     return out;
 }
 
@@ -154,7 +156,7 @@ class ObjectWithStringKey : public mutils::ByteRepresentable,
 public:
     mutable std::tuple<persistent::version_t,uint64_t> ver;                     // object version
     std::string                                        key;                     // object_id
-    persistent::version_t                              previous_version_by_key; // previous version by key, INVALID_VERSION for the first value of the key.
+    mutable persistent::version_t                      previous_version_by_key; // previous version by key, INVALID_VERSION for the first value of the key.
     Blob                                               blob;                    // the object data
 
     bool operator==(const ObjectWithStringKey& other);
@@ -196,7 +198,7 @@ public:
     // constructor 4 : default invalid constructor
     ObjectWithStringKey();
 
-    virtual void set_previous_version(persistent::version_t&, persistent::version_t& perv_ver_by_key) override;
+    virtual void set_previous_version(persistent::version_t, persistent::version_t perv_ver_by_key)const override;
 
     DEFAULT_SERIALIZATION_SUPPORT(ObjectWithStringKey, ver, key, previous_version_by_key, blob);
 
