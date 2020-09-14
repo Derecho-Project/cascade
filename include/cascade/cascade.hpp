@@ -390,6 +390,53 @@ namespace cascade {
         // destructor
         virtual ~PersistentCascadeStore();
     };
+
+    /**
+     * Interfaces for ValueTypes, derive them to enable corresponding features.
+     */
+
+    /**
+     * If the VT template type of PersistentCascadeStore implements IKeepPreviousVersion interface, its
+     * 'set_previous_version' method will be called on 'ordered_put' with the previous version in the shard as well as
+     * the previous version of the same key. If this is the first value of that key, 'set_previous_version' will be
+     * called with "INVALID_VERSION", meaning a genesis value. Therefore, the VT implementer must save the version in
+     * its object and knows how to get them when they get a value from cascade.
+     */
+    class IKeepPreviousVersion {
+    public:
+        /**
+         * set_previous_version() is a callback on PersistentCascadeStore::ordered_put();
+         * @param prev_ver          The previous version
+         * @param prev_ver_by_key   The previous version of the same key in VT object
+         */
+        virtual void set_previous_version(persistent::version_t& prev_ver, persistent::version_t& perv_ver_by_key) = 0;
+    };
+
+    /**
+     * TODO:
+     * If the VT template of PersistentCascadeStore/VolatileCascadeStore implements IVerifyPreviousVersion interface,
+     * its 'verify_previous_version' will be called on 'ordered_put' with the previous version in the shard as well as
+     * the previous version of the same key. If this is the first value of that key, 'verify_previous_version' will be
+     * called with "INVALID_VERSION", meaning a genesis value. The VT implementer must make sure if that satisfy
+     * application semantics.
+     *
+     * For example, a VT object may compare if the given 'prev_ver' and 'prev_ver_key_key' matche the previous versions
+     * it saw (those versions might be VT members). If an application rejects writes from a client without knowing the
+     * latest state of corresponding key, it can return false, meaning verify failed, if 'prev_ver_by_key' is greater
+     * than the previous state cached in VT.
+     *
+     * Question: how to support this for VolatileCascadeStore? cache it???
+     */
+    class IVerifyPreviousVersion {
+    public:
+        /**
+         * verify_previous_version() is a callback on PresistentCascadeStore/VolatileCascadeStore::ordered_put();
+         * @param prev_ver          The previous version
+         * @param prev_ver_by_key   The previous version of the same key in VT object
+         */
+        virtual bool verify_previous_version(persistent::version_t& prev_ver, persistent::version_t& prev_ver_by_key) = 0;
+    };
+
 } // namespace cascade
 } // namespace derecho
 #include "detail/cascade_impl.hpp"

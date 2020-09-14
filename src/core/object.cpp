@@ -102,29 +102,68 @@ bool ObjectWithUInt64Key::is_valid() const {
 }
 
 // constructor 0 : copy constructor
-ObjectWithUInt64Key::ObjectWithUInt64Key(const uint64_t& _key, const Blob& _blob) : ver(persistent::INVALID_VERSION,0),
-                                             key(_key),
-                                             blob(_blob) {}
+ObjectWithUInt64Key::ObjectWithUInt64Key(const uint64_t& _key,
+                                         const persistent::version_t& _previous_version_by_key,
+                                         const Blob& _blob) : 
+    ver(persistent::INVALID_VERSION,0),
+    key(_key),
+    previous_version_by_key(_previous_version_by_key),
+    blob(_blob) {}
+
 // constructor 0.5 : copy constructor
-ObjectWithUInt64Key::ObjectWithUInt64Key(const std::tuple<persistent::version_t,uint64_t> _ver, const uint64_t& _key, const Blob& _blob) : ver(_ver), key(_key), blob(_blob) {}
+ObjectWithUInt64Key::ObjectWithUInt64Key(const std::tuple<persistent::version_t,uint64_t> _ver,
+                                         const uint64_t& _key,
+                                         const persistent::version_t& _previous_version_by_key,
+                                         const Blob& _blob) :
+    ver(_ver),
+    key(_key), 
+    previous_version_by_key(_previous_version_by_key),
+    blob(_blob) {}
 
 // constructor 1 : copy consotructor
-ObjectWithUInt64Key::ObjectWithUInt64Key(const uint64_t _key, const char* const _b, const std::size_t _s) : ver(persistent::INVALID_VERSION,0),
-                                                                          key(_key),
-                                                                          blob(_b, _s) {}
+ObjectWithUInt64Key::ObjectWithUInt64Key(const uint64_t _key,
+                                         const persistent::version_t& _previous_version_by_key,
+                                         const char* const _b,
+                                         const std::size_t _s) :
+    ver(persistent::INVALID_VERSION,0),
+    key(_key),
+    previous_version_by_key(_previous_version_by_key),
+    blob(_b, _s) {}
+
 // constructor 1.5 : copy constructor
-ObjectWithUInt64Key::ObjectWithUInt64Key(const std::tuple<persistent::version_t,uint64_t> _ver, const uint64_t _key, const char* const _b, const std::size_t _s) : ver(_ver), key(_key), blob(_b, _s) {}
+ObjectWithUInt64Key::ObjectWithUInt64Key(const std::tuple<persistent::version_t,uint64_t> _ver,
+                                         const uint64_t _key,
+                                         const persistent::version_t& _previous_version_by_key,
+                                         const char* const _b,
+                                         const std::size_t _s) :
+    ver(_ver),
+    key(_key),
+    previous_version_by_key(_previous_version_by_key),
+    blob(_b, _s) {}
 
 // constructor 2 : move constructor
-ObjectWithUInt64Key::ObjectWithUInt64Key(ObjectWithUInt64Key&& other) : ver(other.ver),
-                         key(other.key),
-                         blob(std::move(other.blob)) {}
+ObjectWithUInt64Key::ObjectWithUInt64Key(ObjectWithUInt64Key&& other) :
+    ver(other.ver),
+    key(other.key),
+    previous_version_by_key(other.previous_version_by_key),
+    blob(std::move(other.blob)) {}
+
 // constructor 3 : copy constructor
-ObjectWithUInt64Key::ObjectWithUInt64Key(const ObjectWithUInt64Key& other) : ver(other.ver),
-                              key(other.key),
-                              blob(other.blob) {}
+ObjectWithUInt64Key::ObjectWithUInt64Key(const ObjectWithUInt64Key& other) :
+    ver(other.ver),
+    key(other.key),
+    previous_version_by_key(other.previous_version_by_key),
+    blob(other.blob) {}
+
 // constructor 4 : default invalid constructor
-ObjectWithUInt64Key::ObjectWithUInt64Key() : ver(persistent::INVALID_VERSION,0), key(INVALID_UINT64_OBJECT_KEY) {}
+ObjectWithUInt64Key::ObjectWithUInt64Key() :
+    ver(persistent::INVALID_VERSION,0),
+    key(INVALID_UINT64_OBJECT_KEY),
+    previous_version_by_key(persistent::INVALID_VERSION) {}
+
+void ObjectWithUInt64Key::set_previous_version(persistent::version_t&, persistent::version_t& prev_ver_by_key) {
+    this->previous_version_by_key = prev_ver_by_key;
+}
 
 bool ObjectWithStringKey::operator==(const ObjectWithStringKey& other) {
     return (this->key == other.key) && (this->ver == other.ver);
@@ -135,29 +174,66 @@ bool ObjectWithStringKey::is_valid() const {
 }
 
 // constructor 0 : copy constructor
-ObjectWithStringKey::ObjectWithStringKey(const std::string& _key, const Blob& _blob) : ver(persistent::INVALID_VERSION,0),
-                                             key(_key),
-                                             blob(_blob) {}
+ObjectWithStringKey::ObjectWithStringKey(const std::string& _key, 
+                                         const persistent::version_t& _previous_version_by_key,
+                                         const Blob& _blob) : 
+    ver(persistent::INVALID_VERSION,0),
+    key(_key),
+    previous_version_by_key(_previous_version_by_key),
+    blob(_blob) {}
 // constructor 0.5 : copy constructor
-ObjectWithStringKey::ObjectWithStringKey(const std::tuple<persistent::version_t,uint64_t> _ver, const std::string& _key, const Blob& _blob) : ver(_ver), key(_key), blob(_blob) {}
+ObjectWithStringKey::ObjectWithStringKey(const std::tuple<persistent::version_t,uint64_t> _ver,
+                                         const std::string& _key,
+                                         const persistent::version_t& _previous_version_by_key,
+                                         const Blob& _blob) :
+    ver(_ver),
+    key(_key), 
+    previous_version_by_key(_previous_version_by_key),
+    blob(_blob) {}
 
 // constructor 1 : copy consotructor
-ObjectWithStringKey::ObjectWithStringKey(const std::string& _key, const char* const _b, const std::size_t _s) : ver(persistent::INVALID_VERSION,0),
-                                                                          key(_key),
-                                                                          blob(_b, _s) {}
+ObjectWithStringKey::ObjectWithStringKey(const std::string& _key,
+                                         const persistent::version_t& _previous_version_by_key,
+                                         const char* const _b, 
+                                         const std::size_t _s) : 
+    ver(persistent::INVALID_VERSION,0),
+    key(_key),
+    previous_version_by_key(_previous_version_by_key),
+    blob(_b, _s) {}
 // constructor 1.5 : copy constructor
-ObjectWithStringKey::ObjectWithStringKey(const std::tuple<persistent::version_t,uint64_t> _ver, const std::string& _key, const char* const _b, const std::size_t _s) : ver(_ver), key(_key), blob(_b, _s) {}
+ObjectWithStringKey::ObjectWithStringKey(const std::tuple<persistent::version_t,uint64_t> _ver,
+                                         const std::string& _key,
+                                         const persistent::version_t& _previous_version_by_key,
+                                         const char* const _b,
+                                         const std::size_t _s) : 
+    ver(_ver),
+    key(_key),
+    previous_version_by_key(_previous_version_by_key),
+    blob(_b, _s) {}
 
 // constructor 2 : move constructor
-ObjectWithStringKey::ObjectWithStringKey(ObjectWithStringKey&& other) : ver(other.ver),
-                         key(other.key),
-                         blob(std::move(other.blob)) {}
+ObjectWithStringKey::ObjectWithStringKey(ObjectWithStringKey&& other) : 
+    ver(other.ver),
+    key(other.key),
+    previous_version_by_key(other.previous_version_by_key),
+    blob(std::move(other.blob)) {}
+
 // constructor 3 : copy constructor
-ObjectWithStringKey::ObjectWithStringKey(const ObjectWithStringKey& other) : ver(other.ver),
-                              key(other.key),
-                              blob(other.blob) {}
+ObjectWithStringKey::ObjectWithStringKey(const ObjectWithStringKey& other) : 
+    ver(other.ver),
+    key(other.key),
+    previous_version_by_key(other.previous_version_by_key),
+    blob(other.blob) {}
+
 // constructor 4 : default invalid constructor
-ObjectWithStringKey::ObjectWithStringKey() : ver(persistent::INVALID_VERSION,0), key() {}
+ObjectWithStringKey::ObjectWithStringKey() : 
+    ver(persistent::INVALID_VERSION,0),
+    key(),
+    previous_version_by_key(persistent::INVALID_VERSION) {}
+
+void ObjectWithStringKey::set_previous_version(persistent::version_t&, persistent::version_t& prev_ver_by_key) {
+    this->previous_version_by_key = prev_ver_by_key;
+}
 
 } // namespace cascade
 } // namespace derecho

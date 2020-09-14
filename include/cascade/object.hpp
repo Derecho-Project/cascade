@@ -15,6 +15,8 @@
 #include <derecho/mutils-serialization/SerializationSupport.hpp>
 #include <derecho/persistent/Persistent.hpp>
 
+#include <cascade/cascade.hpp>
+
 using std::cout;
 using std::endl;
 using namespace persistent;
@@ -69,27 +71,41 @@ public:
 
 #define INVALID_UINT64_OBJECT_KEY (0xffffffffffffffffLLU)
 
-class ObjectWithUInt64Key : public mutils::ByteRepresentable {
+class ObjectWithUInt64Key : public mutils::ByteRepresentable,
+                            public IKeepPreviousVersion {
 public:
-    mutable std::tuple<persistent::version_t,uint64_t> ver;  // object version
-    uint64_t key;                            // object_id
-    Blob blob;                          // the object
+    mutable std::tuple<persistent::version_t,uint64_t> ver; // object version
+    uint64_t                                           key; // object_id
+    persistent::version_t                              previous_version_by_key; // previous version by key, INVALID_VERSION for the first value of the key.
+    Blob                                               blob; // the object
 
     bool operator==(const ObjectWithUInt64Key& other);
 
     bool is_valid() const;
 
     // constructor 0 : copy constructor
-    ObjectWithUInt64Key(const uint64_t& _key, const Blob& _blob);
+    ObjectWithUInt64Key(const uint64_t& _key, 
+                        const persistent::version_t& _previous_version_by_key,
+                        const Blob& _blob);
 
     // constructor 0.5 : copy constructor
-    ObjectWithUInt64Key(const std::tuple<persistent::version_t,uint64_t> _ver, const uint64_t& _key, const Blob& _blob);
+    ObjectWithUInt64Key(const std::tuple<persistent::version_t,uint64_t> _ver,
+                        const uint64_t& _key,
+                        const persistent::version_t& _previous_version_by_key,
+                        const Blob& _blob);
 
     // constructor 1 : copy consotructor
-    ObjectWithUInt64Key(const uint64_t _key, const char* const _b, const std::size_t _s);
+    ObjectWithUInt64Key(const uint64_t _key,
+                        const persistent::version_t& _previous_version_by_key,
+                        const char* const _b,
+                        const std::size_t _s);
 
     // constructor 1.5 : copy constructor
-    ObjectWithUInt64Key(const std::tuple<persistent::version_t,uint64_t> _ver, const uint64_t _key, const char* const _b, const std::size_t _s);
+    ObjectWithUInt64Key(const std::tuple<persistent::version_t,uint64_t> _ver,
+                        const uint64_t _key,
+                        const persistent::version_t& _previous_version_by_key,
+                        const char* const _b,
+                        const std::size_t _s);
 
     // TODO: we need a move version for the deserializer.
 
@@ -102,7 +118,9 @@ public:
     // constructor 4 : default invalid constructor
     ObjectWithUInt64Key();
 
-    DEFAULT_SERIALIZATION_SUPPORT(ObjectWithUInt64Key, ver, key, blob);
+    virtual void set_previous_version(persistent::version_t&, persistent::version_t& prev_ver_by_key) override;
+
+    DEFAULT_SERIALIZATION_SUPPORT(ObjectWithUInt64Key, ver, key, previous_version_by_key, blob);
 
     // IK and IV for volatile cascade store
     static uint64_t IK;
@@ -131,27 +149,41 @@ inline std::ostream& operator<<(std::ostream& out, const ObjectWithUInt64Key& o)
     return out;
 }
 
-class ObjectWithStringKey : public mutils::ByteRepresentable {
+class ObjectWithStringKey : public mutils::ByteRepresentable,
+                            public IKeepPreviousVersion {
 public:
-    mutable std::tuple<persistent::version_t,uint64_t> ver;  // object version
-    std::string key;                            // object_id
-    Blob blob;                          // the object
+    mutable std::tuple<persistent::version_t,uint64_t> ver;                     // object version
+    std::string                                        key;                     // object_id
+    persistent::version_t                              previous_version_by_key; // previous version by key, INVALID_VERSION for the first value of the key.
+    Blob                                               blob;                    // the object data
 
     bool operator==(const ObjectWithStringKey& other);
 
     bool is_valid() const;
 
     // constructor 0 : copy constructor
-    ObjectWithStringKey(const std::string& _key, const Blob& _blob);
+    ObjectWithStringKey(const std::string& _key, 
+                        const persistent::version_t& _previous_version_by_key,
+                        const Blob& _blob);
 
     // constructor 0.5 : copy constructor
-    ObjectWithStringKey(const std::tuple<persistent::version_t,uint64_t> _ver, const std::string& _key, const Blob& _blob);
+    ObjectWithStringKey(const std::tuple<persistent::version_t,uint64_t> _ver,
+                        const std::string& _key,
+                        const persistent::version_t& _previous_version_by_key,
+                        const Blob& _blob);
 
     // constructor 1 : copy consotructor
-    ObjectWithStringKey(const std::string& _key, const char* const _b, const std::size_t _s);
+    ObjectWithStringKey(const std::string& _key,
+                        const persistent::version_t& _previous_version_by_key,
+                        const char* const _b,
+                        const std::size_t _s);
 
     // constructor 1.5 : copy constructor
-    ObjectWithStringKey(const std::tuple<persistent::version_t,uint64_t> _ver, const std::string& _key, const char* const _b, const std::size_t _s);
+    ObjectWithStringKey(const std::tuple<persistent::version_t,uint64_t> _ver,
+                        const std::string& _key,
+                        const persistent::version_t& _previous_version_by_key,
+                        const char* const _b,
+                        const std::size_t _s);
 
     // TODO: we need a move version for the deserializer.
 
@@ -164,7 +196,9 @@ public:
     // constructor 4 : default invalid constructor
     ObjectWithStringKey();
 
-    DEFAULT_SERIALIZATION_SUPPORT(ObjectWithStringKey, ver, key, blob);
+    virtual void set_previous_version(persistent::version_t&, persistent::version_t& perv_ver_by_key) override;
+
+    DEFAULT_SERIALIZATION_SUPPORT(ObjectWithStringKey, ver, key, previous_version_by_key, blob);
 
     // IK and IV for volatile cascade store
     static std::string IK;
@@ -173,8 +207,10 @@ public:
 
 inline std::ostream& operator<<(std::ostream& out, const ObjectWithStringKey& o) {
     out << "ObjectWithStringKey{ver: 0x" << std::hex << std::get<0>(o.ver) << std::dec 
-        << ", ts: " << std::get<1>(o.ver) << ", id:"
-        << o.key << ", data:" << o.blob << "}";
+        << ", ts: " << std::get<1>(o.ver) 
+        << ", prev_ver: " << std::hex << o.previous_version_by_key << std::dec
+        << ", id:" << o.key 
+        << ", data:" << o.blob << "}";
     return out;
 }
 
