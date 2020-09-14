@@ -63,7 +63,8 @@ static void client_put(derecho::ExternalGroup<VCS,PCS>& group,
 
     uint64_t key = std::stoll(tokens[1]);
     
-    ObjectWithUInt64Key o(key,Blob(tokens[2].c_str(),tokens[2].size()));
+    //TODO: the previous_version should be used to enforce version check. INVALID_VERSION disables the feature.
+    ObjectWithUInt64Key o(key,INVALID_VERSION,Blob(tokens[2].c_str(),tokens[2].size()));
 
     if (is_persistent) {
         ExternalClientCaller<PCS,std::remove_reference<decltype(group)>::type>& pcs_ec = group.get_subgroup_caller<PCS>();
