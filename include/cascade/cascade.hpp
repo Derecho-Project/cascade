@@ -396,6 +396,34 @@ namespace cascade {
      */
 
     /**
+     * TODO:
+     * If the VT template type of PersistentCascadeStore/VolatileCascadeStore implements IKeepVersion interface, its
+     * 'set_version' method will be called on 'ordered_put' or 'ordered_remove' with the current version assigned to
+     * this operation. The VT implementer may save this version in its states.
+     */
+    class IKeepVersion {
+        /**
+         * set_version() is a callback on PersistentCascadeStore/VolatileCascadeStore updates.
+         * @param ver   The current version
+         */
+        virtual void set_version(persistent::version_t ver) const = 0;
+    };
+
+    /**
+     * TODO:
+     * If the VT template type of PersistentCascadeStore/VolatileCascadeStore implements IKeepTimestamp interface, its
+     * 'set_timestamp' method will be called on updates with the timestamp in microseconds assigned to this operation.
+     * The VT implementer may save this timestamp in its states.
+     */
+    class IKeepTimestamp {
+        /**
+         * set_timestamp() is a callback on PersistentCascadeStore/VolatileCascadeStore updates.
+         * @param ts_us The timestamp in microseconds
+         */
+        virtual void set_timestamp(uint64_t ts_us) const = 0;
+    };
+
+    /**
      * If the VT template type of PersistentCascadeStore implements IKeepPreviousVersion interface, its
      * 'set_previous_version' method will be called on 'ordered_put' with the previous version in the shard as well as
      * the previous version of the same key. If this is the first value of that key, 'set_previous_version' will be
@@ -409,7 +437,7 @@ namespace cascade {
          * @param prev_ver          The previous version
          * @param prev_ver_by_key   The previous version of the same key in VT object
          */
-        virtual void set_previous_version(persistent::version_t& prev_ver, persistent::version_t& perv_ver_by_key) = 0;
+        virtual void set_previous_version(persistent::version_t prev_ver, persistent::version_t perv_ver_by_key) const = 0;
     };
 
     /**
@@ -434,7 +462,7 @@ namespace cascade {
          * @param prev_ver          The previous version
          * @param prev_ver_by_key   The previous version of the same key in VT object
          */
-        virtual bool verify_previous_version(persistent::version_t& prev_ver, persistent::version_t& prev_ver_by_key) = 0;
+        virtual bool verify_previous_version(persistent::version_t prev_ver, persistent::version_t prev_ver_by_key) const = 0;
     };
 
 } // namespace cascade
