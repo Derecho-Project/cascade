@@ -72,38 +72,41 @@ public:
 #define INVALID_UINT64_OBJECT_KEY (0xffffffffffffffffLLU)
 
 class ObjectWithUInt64Key : public mutils::ByteRepresentable,
+                            public IKeepVersion,
+                            public IKeepTimestamp,
                             public IKeepPreviousVersion {
 public:
-    mutable std::tuple<persistent::version_t,uint64_t> ver; // object version
-    uint64_t                                           key; // object_id
-    mutable persistent::version_t                      previous_version_by_key; // previous version by key, INVALID_VERSION for the first value of the key.
-    Blob                                               blob; // the object
+    mutable persistent::version_t                       version;
+    mutable uint64_t                                    timestamp_us;
+    mutable persistent::version_t                       previous_version_by_key; // previous version by key, INVALID_VERSION for the first value of the key.
+    uint64_t                                            key; // object_id
+    Blob                                                blob; // the object
 
     bool operator==(const ObjectWithUInt64Key& other);
 
     bool is_valid() const;
 
     // constructor 0 : copy constructor
-    ObjectWithUInt64Key(const uint64_t& _key, 
-                        const persistent::version_t& _previous_version_by_key,
+    ObjectWithUInt64Key(const uint64_t _key, 
                         const Blob& _blob);
 
     // constructor 0.5 : copy constructor
-    ObjectWithUInt64Key(const std::tuple<persistent::version_t,uint64_t> _ver,
-                        const uint64_t& _key,
-                        const persistent::version_t& _previous_version_by_key,
+    ObjectWithUInt64Key(const persistent::version_t _version,
+                        const uint64_t _timestamp_us,
+                        const persistent::version_t _previous_version_by_key,
+                        const uint64_t _key,
                         const Blob& _blob);
 
-    // constructor 1 : copy consotructor
+    // constructor 1 : copy constructor
     ObjectWithUInt64Key(const uint64_t _key,
-                        const persistent::version_t& _previous_version_by_key,
                         const char* const _b,
                         const std::size_t _s);
 
     // constructor 1.5 : copy constructor
-    ObjectWithUInt64Key(const std::tuple<persistent::version_t,uint64_t> _ver,
+    ObjectWithUInt64Key(const persistent::version_t _version,
+                        const uint64_t _timestamp_us,
+                        const persistent::version_t _previous_version_by_key,
                         const uint64_t _key,
-                        const persistent::version_t& _previous_version_by_key,
                         const char* const _b,
                         const std::size_t _s);
 
@@ -119,8 +122,12 @@ public:
     ObjectWithUInt64Key();
 
     virtual void set_previous_version(persistent::version_t, persistent::version_t prev_ver_by_key) const override;
+    virtual void set_version(persistent::version_t ver) const override;
+    virtual persistent::version_t get_version() const override;
+    virtual void set_timestamp(uint64_t ts_us) const override;
+    virtual uint64_t get_timestamp() const override;
 
-    DEFAULT_SERIALIZATION_SUPPORT(ObjectWithUInt64Key, ver, key, previous_version_by_key, blob);
+    DEFAULT_SERIALIZATION_SUPPORT(ObjectWithUInt64Key, version, timestamp_us, previous_version_by_key, key, blob);
 
     // IK and IV for volatile cascade store
     static uint64_t IK;
@@ -143,8 +150,8 @@ inline std::ostream& operator<<(std::ostream& out, const Blob& b) {
 }
 
 inline std::ostream& operator<<(std::ostream& out, const ObjectWithUInt64Key& o) {
-    out << "ObjectWithUInt64Key{ver: 0x" << std::hex << std::get<0>(o.ver) << std::dec 
-        << ", ts: " << std::get<1>(o.ver) 
+    out << "ObjectWithUInt64Key{ver: 0x" << std::hex << o.version << std::dec 
+        << ", ts(us): " << o.timestamp_us 
         << ", prev_ver: " << std::hex << o.previous_version_by_key << std::dec
         << ", id:" << o.key 
         << ", data:" << o.blob << "}";
@@ -152,12 +159,15 @@ inline std::ostream& operator<<(std::ostream& out, const ObjectWithUInt64Key& o)
 }
 
 class ObjectWithStringKey : public mutils::ByteRepresentable,
+                            public IKeepVersion,
+                            public IKeepTimestamp,
                             public IKeepPreviousVersion {
 public:
-    mutable std::tuple<persistent::version_t,uint64_t> ver;                     // object version
-    std::string                                        key;                     // object_id
-    mutable persistent::version_t                      previous_version_by_key; // previous version by key, INVALID_VERSION for the first value of the key.
-    Blob                                               blob;                    // the object data
+    mutable persistent::version_t                       version;                // object version
+    mutable uint64_t                                    timestamp_us;           // timestamp in microsecond
+    mutable persistent::version_t                       previous_version_by_key; // previous version by key, INVALID_VERSION for the first value of the key.
+    std::string                                         key;                     // object_id
+    Blob                                                blob;                    // the object data
 
     bool operator==(const ObjectWithStringKey& other);
 
@@ -165,25 +175,25 @@ public:
 
     // constructor 0 : copy constructor
     ObjectWithStringKey(const std::string& _key, 
-                        const persistent::version_t& _previous_version_by_key,
                         const Blob& _blob);
 
     // constructor 0.5 : copy constructor
-    ObjectWithStringKey(const std::tuple<persistent::version_t,uint64_t> _ver,
+    ObjectWithStringKey(const persistent::version_t _version,
+                        const uint64_t _timestamp_us,
+                        const persistent::version_t _previous_version_by_key,
                         const std::string& _key,
-                        const persistent::version_t& _previous_version_by_key,
                         const Blob& _blob);
 
     // constructor 1 : copy consotructor
     ObjectWithStringKey(const std::string& _key,
-                        const persistent::version_t& _previous_version_by_key,
                         const char* const _b,
                         const std::size_t _s);
 
     // constructor 1.5 : copy constructor
-    ObjectWithStringKey(const std::tuple<persistent::version_t,uint64_t> _ver,
+    ObjectWithStringKey(const persistent::version_t _version,
+                        const uint64_t _timestamp_us,
+                        const persistent::version_t _previous_version_by_key,
                         const std::string& _key,
-                        const persistent::version_t& _previous_version_by_key,
                         const char* const _b,
                         const std::size_t _s);
 
@@ -198,9 +208,13 @@ public:
     // constructor 4 : default invalid constructor
     ObjectWithStringKey();
 
-    virtual void set_previous_version(persistent::version_t, persistent::version_t perv_ver_by_key)const override;
+    virtual void set_previous_version(persistent::version_t, persistent::version_t perv_ver_by_key) const override;
+    virtual void set_version(persistent::version_t ver) const override;
+    virtual persistent::version_t get_version() const override;
+    virtual void set_timestamp(uint64_t ts_us) const override;
+    virtual uint64_t get_timestamp() const override;
 
-    DEFAULT_SERIALIZATION_SUPPORT(ObjectWithStringKey, ver, key, previous_version_by_key, blob);
+    DEFAULT_SERIALIZATION_SUPPORT(ObjectWithStringKey, version, timestamp_us, previous_version_by_key, key, blob);
 
     // IK and IV for volatile cascade store
     static std::string IK;
@@ -208,8 +222,8 @@ public:
 };
 
 inline std::ostream& operator<<(std::ostream& out, const ObjectWithStringKey& o) {
-    out << "ObjectWithStringKey{ver: 0x" << std::hex << std::get<0>(o.ver) << std::dec 
-        << ", ts: " << std::get<1>(o.ver) 
+    out << "ObjectWithStringKey{ver: 0x" << std::hex << o.version << std::dec 
+        << ", ts: " << o.timestamp_us
         << ", prev_ver: " << std::hex << o.previous_version_by_key << std::dec
         << ", id:" << o.key 
         << ", data:" << o.blob << "}";
