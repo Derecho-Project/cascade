@@ -407,6 +407,11 @@ namespace cascade {
          * @param ver   The current version
          */
         virtual void set_version(persistent::version_t ver) const = 0;
+        /**
+         * get_version returns the version
+         * @return the VT's version
+         */
+        virtual persistent::version_t get_version() const = 0;
     };
 
     /**
@@ -421,6 +426,10 @@ namespace cascade {
          * @param ts_us The timestamp in microseconds
          */
         virtual void set_timestamp(uint64_t ts_us) const = 0;
+        /**
+         * get_timestamp() returns VT's timestamp
+         */
+        virtual uint64_t get_timestamp() const = 0;
     };
 
     /**
