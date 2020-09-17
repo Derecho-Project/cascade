@@ -18,7 +18,7 @@ namespace cascade {
 
 template<typename KT, typename VT, KT* IK, VT* IV>
 std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::put(const VT& value) {
-    debug_enter_func_with_args("value.key={}",value.key);
+    debug_enter_func_with_args("value.get_key_ref={}",value.get_key_ref());
     derecho::Replicated<VolatileCascadeStore>& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put)>(value);
     auto& replies = results.get();
@@ -140,24 +140,24 @@ std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::ordered_list_keys() {
 
 template<typename KT, typename VT, KT* IK, VT* IV>
 std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::ordered_put(const VT& value) {
-    debug_enter_func_with_args("key={}",value.key);
+    debug_enter_func_with_args("key={}",value.get_key_ref());
 
     std::tuple<persistent::version_t,uint64_t> version_and_timestamp = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_next_version();
 
-    this->kv_map.erase(value.key);
+    this->kv_map.erase(value.get_key_ref());
     if constexpr (std::is_base_of<IKeepVersion,VT>::value) {
         value.set_version(std::get<0>(version_and_timestamp));
     }
     if constexpr (std::is_base_of<IKeepTimestamp,VT>::value) {
         value.set_timestamp(std::get<1>(version_and_timestamp));
     }
-    this->kv_map.emplace(value.key, value); // copy constructor
+    this->kv_map.emplace(value.get_key_ref(), value); // copy constructor
 
     if (cascade_watcher_ptr) {
         (*cascade_watcher_ptr)(
             group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_subgroup_id(),
             group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_shard_num(),
-            value.key, value, nullptr/*cascade_context*/);
+            value.get_key_ref(), value, nullptr/*cascade_context*/);
     }
 
     debug_leave_func_with_value("version=0x{:x},timestamp={}",std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp));
@@ -356,8 +356,8 @@ std::unique_ptr<DeltaCascadeStoreCore<KT,VT,IK,IV>> DeltaCascadeStoreCore<KT,VT,
 template <typename KT, typename VT, KT* IK, VT *IV>
 void DeltaCascadeStoreCore<KT,VT,IK,IV>::apply_ordered_put(const VT& value) {
     // put
-    this->kv_map.erase(value.key);
-    this->kv_map.emplace(value.key,value);
+    this->kv_map.erase(value.get_key_ref());
+    this->kv_map.emplace(value.get_key_ref(),value);
 }
 
 template <typename KT, typename VT, KT* IK, VT *IV>
@@ -446,7 +446,7 @@ DeltaCascadeStoreCore<KT,VT,IK,IV>::~DeltaCascadeStoreCore() {
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST>::put(const VT& value) {
-    debug_enter_func_with_args("value.key={}",value.key);
+    debug_enter_func_with_args("value.get_key_ref()={}",value.get_key_ref());
     derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put)>(value);
     auto& replies = results.get();
@@ -479,7 +479,25 @@ const VT PersistentCascadeStore<KT,VT,IK,IV,ST>::get(const KT& key, const persis
     debug_enter_func_with_args("key={},ver=0x{:x}",key,ver);
     if (ver != CURRENT_VERSION) {
         debug_leave_func();
+        // use delta without constructing the whole state.
+        return persistent_core.template getDelta<typename DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaBytesFormat>(ver,
+            // [](DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaBytesFormat& delta) {
+            [&key](const typename DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaBytesFormat& delta) {
+                // 1) not a put
+                if (delta.op != DeltaCascadeStoreCore<KT,VT,IK,IV>::_OPID::PUT) {
+                    return *IV; //TODO: fall back to the slow track,
+                }
+                std::unique_ptr<VT> value_ptr = mutils::from_bytes<VT>(nullptr,&delta.first_data_byte);
+                // 2) not my key
+                if (value_ptr->key != key) {
+                    return *IV; //TODO: fall back to the slow track,
+                }
+                return *value_ptr;
+            });
+        
+        /* Reconstructing the whole state is extremely slow!!!
         return persistent_core.get(ver)->kv_map.at(key);
+        */
     }
     derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_get)>(key);
@@ -498,7 +516,14 @@ const VT PersistentCascadeStore<KT,VT,IK,IV,ST>::get_by_time(const KT& key, cons
     const HLC hlc(ts_us,0ull);
     try {
         debug_leave_func();
-        return persistent_core.get(hlc)->kv_map.at(key);
+        uint64_t idx = persistent_core.getIndexAtTime({ts_us,0});
+        if (idx == persistent::INVALID_INDEX) {
+            return *IV;
+        } else {
+            // Reconstructing the state is extremely slow!!!
+            // TODO: get the version at time ts_us, and go back from there.
+            return persistent_core.get(hlc)->kv_map.at(key);
+        }
     } catch (const int64_t &ex) {
         dbg_default_warn("temporal query throws exception:0x{:x}. key={}, ts={}", ex, key, ts_us);
     } catch (...) {
@@ -584,7 +609,7 @@ std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::list_keys_by_time(const 
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST>::ordered_put(const VT& value) {
-    debug_enter_func_with_args("key={}",value.key);
+    debug_enter_func_with_args("key={}",value.get_key_ref());
     std::tuple<persistent::version_t,uint64_t> version_and_timestamp = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_next_version();
     if constexpr (std::is_base_of<IKeepVersion,VT>::value) {
         value.set_version(std::get<0>(version_and_timestamp));
@@ -593,7 +618,7 @@ std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST
         value.set_timestamp(std::get<1>(version_and_timestamp));
     }
     if constexpr (std::is_base_of<IKeepPreviousVersion,VT>::value) {
-        auto prev = this->persistent_core->ordered_get(value.key);
+        auto prev = this->persistent_core->ordered_get(value.get_key_ref());
         value.set_previous_version(persistent_core.getLatestVersion(),prev.get_version());
     }
     this->persistent_core->ordered_put(value);
@@ -601,7 +626,7 @@ std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST
         (*cascade_watcher_ptr)(
             group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_subgroup_id(),
             group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_shard_num(),
-            value.key, value, nullptr/*cascade context*/);
+            value.get_key_ref(), value, nullptr/*cascade context*/);
     }
 
     debug_leave_func_with_value("version=0x{:x},timestamp={}",std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp));

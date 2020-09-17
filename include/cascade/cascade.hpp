@@ -246,6 +246,12 @@ namespace cascade {
                                   public persistent::IDeltaSupport<DeltaCascadeStoreCore<KT,VT,IK,IV>> {
         // TODO: use max payload size in subgroup configuration.
 #define DEFAULT_DELTA_BUFFER_CAPACITY (4096)
+        /**
+         * Initialize the delta data structure.
+         */
+        void initialize_delta();
+
+    public:
         enum _OPID {
             PUT,
             REMOVE
@@ -265,13 +271,12 @@ namespace cascade {
             inline void destroy();
         } _Delta;
         _Delta delta;
-        
-        /**
-         * Initialize the delta data structure.
-         */
-        void initialize_delta();
 
-    public:
+        struct DeltaBytesFormat {
+            uint32_t    op;
+            char        first_data_byte;
+        };
+        
         std::map<KT,VT> kv_map;
 
         //////////////////////////////////////////////////////////////////////////
@@ -394,6 +399,22 @@ namespace cascade {
     /**
      * Interfaces for ValueTypes, derive them to enable corresponding features.
      */
+
+    /**
+     * The VT template type of PersistentCascadeStore/VolatileCascadeStore must implement ICascadeObject interface.
+     */
+    template <typename KT>
+    class ICascadeObject {
+    public:
+        /**
+         * get_key_ref()
+         *
+         * Get a const reference to the key.
+         *
+         * @return a const reference to the key
+         */
+        virtual const KT& get_key_ref() const = 0;
+    };
 
     /**
      * TODO:
