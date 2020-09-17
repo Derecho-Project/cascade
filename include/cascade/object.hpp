@@ -72,6 +72,7 @@ public:
 #define INVALID_UINT64_OBJECT_KEY (0xffffffffffffffffLLU)
 
 class ObjectWithUInt64Key : public mutils::ByteRepresentable,
+                            public ICascadeObject<uint64_t>,
                             public IKeepVersion,
                             public IKeepTimestamp,
                             public IKeepPreviousVersion {
@@ -121,6 +122,7 @@ public:
     // constructor 4 : default invalid constructor
     ObjectWithUInt64Key();
 
+    virtual const uint64_t& get_key_ref() const override;
     virtual void set_previous_version(persistent::version_t, persistent::version_t prev_ver_by_key) const override;
     virtual void set_version(persistent::version_t ver) const override;
     virtual persistent::version_t get_version() const override;
@@ -159,6 +161,7 @@ inline std::ostream& operator<<(std::ostream& out, const ObjectWithUInt64Key& o)
 }
 
 class ObjectWithStringKey : public mutils::ByteRepresentable,
+                            public ICascadeObject<std::string>,
                             public IKeepVersion,
                             public IKeepTimestamp,
                             public IKeepPreviousVersion {
@@ -208,6 +211,7 @@ public:
     // constructor 4 : default invalid constructor
     ObjectWithStringKey();
 
+    virtual const std::string& get_key_ref() const override;
     virtual void set_previous_version(persistent::version_t, persistent::version_t perv_ver_by_key) const override;
     virtual void set_version(persistent::version_t ver) const override;
     virtual persistent::version_t get_version() const override;

@@ -167,6 +167,10 @@ ObjectWithUInt64Key::ObjectWithUInt64Key() :
     previous_version_by_key(INVALID_VERSION),
     key(INVALID_UINT64_OBJECT_KEY) {}
 
+const uint64_t& ObjectWithUInt64Key::get_key_ref() const {
+    return this->key;
+}
+
 void ObjectWithUInt64Key::set_previous_version(persistent::version_t, persistent::version_t prev_ver_by_key) const {
     this->previous_version_by_key = prev_ver_by_key;
 }
@@ -259,6 +263,10 @@ ObjectWithStringKey::ObjectWithStringKey() :
     timestamp_us(0),
     previous_version_by_key(INVALID_VERSION),
     key() {}
+
+const std::string& ObjectWithStringKey::get_key_ref() const {
+    return this->key;
+}
 
 void ObjectWithStringKey::set_previous_version(persistent::version_t, persistent::version_t prev_ver_by_key) const {
     this->previous_version_by_key = prev_ver_by_key;
