@@ -112,14 +112,14 @@ static void client_get(derecho::ExternalGroup<VCS,PCS>& group,
         if (ts != 0) {
             opt.emplace(pcs_ec.p2p_send<RPC_NAME(get_by_time)>(member,key,ts));
         } else {
-            opt.emplace(pcs_ec.p2p_send<RPC_NAME(get)>(member,key,ver));
+            opt.emplace(pcs_ec.p2p_send<RPC_NAME(get)>(member,key,ver,false));
         }
     } else {
         ExternalClientCaller<VCS,std::remove_reference<decltype(group)>::type>& vcs_ec = group.get_subgroup_caller<VCS>();
         if (ts != 0) {
             opt.emplace(vcs_ec.p2p_send<RPC_NAME(get_by_time)>(member,key,ts));
         } else {
-            opt.emplace(vcs_ec.p2p_send<RPC_NAME(get)>(member,key,ver));
+            opt.emplace(vcs_ec.p2p_send<RPC_NAME(get)>(member,key,ver,false));
         }
     }
     auto reply = opt.value().get().get(member);

@@ -171,6 +171,10 @@ const uint64_t& ObjectWithUInt64Key::get_key_ref() const {
     return this->key;
 }
 
+bool ObjectWithUInt64Key::is_null() const {
+    return (this->blob.size > 0);
+}
+
 void ObjectWithUInt64Key::set_previous_version(persistent::version_t, persistent::version_t prev_ver_by_key) const {
     this->previous_version_by_key = prev_ver_by_key;
 }
@@ -189,6 +193,11 @@ void ObjectWithUInt64Key::set_timestamp(uint64_t ts_us) const {
 
 uint64_t ObjectWithUInt64Key::get_timestamp() const {
     return this->timestamp_us;
+}
+
+template <>
+ObjectWithUInt64Key create_null_object_cb<uint64_t,ObjectWithUInt64Key,&ObjectWithUInt64Key::IK,&ObjectWithUInt64Key::IV>(const uint64_t& key) {
+    return ObjectWithUInt64Key(key,Blob{});
 }
 
 bool ObjectWithStringKey::operator==(const ObjectWithStringKey& other) {
@@ -268,6 +277,11 @@ const std::string& ObjectWithStringKey::get_key_ref() const {
     return this->key;
 }
 
+bool ObjectWithStringKey::is_null() const {
+    return (this->blob.size > 0);
+}
+
+
 void ObjectWithStringKey::set_previous_version(persistent::version_t, persistent::version_t prev_ver_by_key) const {
     this->previous_version_by_key = prev_ver_by_key;
 }
@@ -286,6 +300,11 @@ void ObjectWithStringKey::set_timestamp(uint64_t ts_us) const {
 
 uint64_t ObjectWithStringKey::get_timestamp() const {
     return this->timestamp_us;
+}
+
+template <>
+ObjectWithStringKey create_null_object_cb<std::string,ObjectWithStringKey,&ObjectWithStringKey::IK,&ObjectWithStringKey::IV>(const std::string& key) {
+    return ObjectWithStringKey(key,Blob{});
 }
 
 } // namespace cascade

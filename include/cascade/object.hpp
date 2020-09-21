@@ -73,7 +73,6 @@ public:
 
 class ObjectWithUInt64Key : public mutils::ByteRepresentable,
                             public ICascadeObject<uint64_t>,
-                            public IKeepVersion,
                             public IKeepTimestamp,
                             public IKeepPreviousVersion {
 public:
@@ -123,6 +122,7 @@ public:
     ObjectWithUInt64Key();
 
     virtual const uint64_t& get_key_ref() const override;
+    virtual bool is_null() const override;
     virtual void set_previous_version(persistent::version_t, persistent::version_t prev_ver_by_key) const override;
     virtual void set_version(persistent::version_t ver) const override;
     virtual persistent::version_t get_version() const override;
@@ -162,7 +162,6 @@ inline std::ostream& operator<<(std::ostream& out, const ObjectWithUInt64Key& o)
 
 class ObjectWithStringKey : public mutils::ByteRepresentable,
                             public ICascadeObject<std::string>,
-                            public IKeepVersion,
                             public IKeepTimestamp,
                             public IKeepPreviousVersion {
 public:
@@ -212,6 +211,7 @@ public:
     ObjectWithStringKey();
 
     virtual const std::string& get_key_ref() const override;
+    virtual bool is_null() const override;
     virtual void set_previous_version(persistent::version_t, persistent::version_t perv_ver_by_key) const override;
     virtual void set_version(persistent::version_t ver) const override;
     virtual persistent::version_t get_version() const override;
@@ -233,6 +233,12 @@ inline std::ostream& operator<<(std::ostream& out, const ObjectWithStringKey& o)
         << ", data:" << o.blob << "}";
     return out;
 }
+/**
+template <typename KT, typename VT, KT* IK, VT* IV>
+std::enable_if_t<std::disjunction<std::is_same<ObjectWithStringKey,VT>,std::is_same<ObjectWithStringKey,VT>>::value, VT> create_null_object_cb(const KT& key) {
+    return VT(key,Blob{});
+}
+**/
 
 } // namespace cascade
 } // namespace derecho
