@@ -172,7 +172,7 @@ const uint64_t& ObjectWithUInt64Key::get_key_ref() const {
 }
 
 bool ObjectWithUInt64Key::is_null() const {
-    return (this->blob.size > 0);
+    return (this->blob.size == 0);
 }
 
 void ObjectWithUInt64Key::set_previous_version(persistent::version_t, persistent::version_t prev_ver_by_key) const {
@@ -278,7 +278,7 @@ const std::string& ObjectWithStringKey::get_key_ref() const {
 }
 
 bool ObjectWithStringKey::is_null() const {
-    return (this->blob.size > 0);
+    return (this->blob.size == 0);
 }
 
 
