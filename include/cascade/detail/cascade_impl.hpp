@@ -47,7 +47,7 @@ std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::re
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
-const VT VolatileCascadeStore<KT,VT,IK,IV>::get(const KT& key, const persistent::version_t& ver) {
+const VT VolatileCascadeStore<KT,VT,IK,IV>::get(const KT& key, const persistent::version_t& ver, bool) {
     debug_enter_func_with_args("key={},ver=0x{:x}",key,ver);
     if (ver != CURRENT_VERSION) {
         debug_leave_func_with_value("Cannot support versioned get, ver=0x{:x}", ver);
@@ -101,7 +101,7 @@ std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::list_keys_by_time(const uint6
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
-uint64_t VolatileCascadeStore<KT,VT,IK,IV>::get_size(const KT& key, const persistent::version_t& ver) {
+uint64_t VolatileCascadeStore<KT,VT,IK,IV>::get_size(const KT& key, const persistent::version_t& ver, bool) {
     debug_enter_func_with_args("key={},ver=0x{:x}",key,ver);
     if (ver != CURRENT_VERSION) {
         debug_leave_func_with_value("Cannot support versioned get, ver=0x{:x}", ver);
@@ -249,28 +249,20 @@ VolatileCascadeStore<KT,VT,IK,IV>::VolatileCascadeStore(
 // 2 - Persistent Cascade Store Implementation
 ///////////////////////////////////////////////////////////////////////////////
 template <typename KT, typename VT, KT* IK, VT* IV>
-void DeltaCascadeStoreCore<KT,VT,IK,IV>::_Delta::set_opid(DeltaCascadeStoreCore<KT,VT,IK,IV>::_OPID opid) {
-    assert(buffer != nullptr);
-    assert(capacity >= sizeof(uint32_t));
-    *(DeltaCascadeStoreCore::_OPID*)buffer = opid;
-}
-
-template <typename KT, typename VT, KT* IK, VT* IV>
 void DeltaCascadeStoreCore<KT,VT,IK,IV>::_Delta::set_data_len(const size_t& dlen) {
-    assert(capacity >= (dlen + sizeof(uint32_t)));
-    this->len = dlen + sizeof(uint32_t);
+    assert(capacity >= dlen);
+    this->len = dlen;
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
 char* DeltaCascadeStoreCore<KT,VT,IK,IV>::_Delta::data_ptr() {
     assert(buffer != nullptr);
-    assert(capacity > sizeof(uint32_t));
-    return buffer + sizeof(uint32_t);
+    return buffer;
 }
 
 template <typename KT, typename VT, KT* IK, VT *IV>
 void DeltaCascadeStoreCore<KT,VT,IK,IV>::_Delta::calibrate(const size_t& dlen) {
-    size_t new_cap = dlen + sizeof(uint32_t);
+    size_t new_cap = dlen;
     if(this->capacity >= new_cap) {
         return;
     }
@@ -329,17 +321,16 @@ void DeltaCascadeStoreCore<KT,VT,IK,IV>::finalizeCurrentDelta(const persistent::
 
 template <typename KT, typename VT, KT* IK, VT *IV>
 void DeltaCascadeStoreCore<KT,VT,IK,IV>::applyDelta(char const* const delta) {
-    const char* data = (delta + sizeof(const uint32_t));
-    switch(*reinterpret_cast<const uint32_t*>(delta)) {
-        case PUT:
-            apply_ordered_put(*mutils::from_bytes<VT>(nullptr,data));
-            break;
-        case REMOVE:
-            apply_ordered_remove(*mutils::from_bytes<KT>(nullptr,data));
-            break;
-        default:
-            std::cerr << __FILE__ << ":" << __LINE__ << ":" << __func__ << " " << std::endl;
-    };
+    apply_ordered_put(*mutils::from_bytes<VT>(nullptr,delta));
+    mutils::deserialize_and_run(nullptr,delta,[this](const VT& value){
+        this->apply_ordered_put(value);
+    });
+}
+
+template <typename KT, typename VT, KT* IK, VT *IV>
+void DeltaCascadeStoreCore<KT,VT,IK,IV>::apply_ordered_put(const VT& value) {
+    this->kv_map.erase(value.get_key_ref());
+    this->kv_map.emplace(value.get_key_ref(),value);
 }
 
 template <typename KT, typename VT, KT* IK, VT *IV>
@@ -354,45 +345,47 @@ std::unique_ptr<DeltaCascadeStoreCore<KT,VT,IK,IV>> DeltaCascadeStoreCore<KT,VT,
 }
 
 template <typename KT, typename VT, KT* IK, VT *IV>
-void DeltaCascadeStoreCore<KT,VT,IK,IV>::apply_ordered_put(const VT& value) {
-    // put
-    this->kv_map.erase(value.get_key_ref());
-    this->kv_map.emplace(value.get_key_ref(),value);
-}
-
-template <typename KT, typename VT, KT* IK, VT *IV>
-bool DeltaCascadeStoreCore<KT,VT,IK,IV>::apply_ordered_remove(const KT& key) {
-    bool ret = false;
-    // remove
-    if (this->kv_map.erase(key)) {
-        ret = true;
+bool DeltaCascadeStoreCore<KT,VT,IK,IV>::ordered_put(const VT& value, persistent::version_t prev_ver) {
+    if constexpr (std::is_base_of<IKeepPreviousVersion,VT>::value) {
+        persistent::version_t prev_ver_by_key = persistent::INVALID_VERSION;
+        if (kv_map.find(value.get_key_ref()) != kv_map.end()) {
+            prev_ver_by_key = kv_map.at(value.get_key_ref()).get_version();
+        }
+        value.set_previous_version(prev_ver,prev_ver_by_key);
     }
-    return ret;
-}
-
-template <typename KT, typename VT, KT* IK, VT *IV>
-bool DeltaCascadeStoreCore<KT,VT,IK,IV>::ordered_put(const VT& value) {
     // create delta.
     assert(this->delta.is_empty());
     this->delta.calibrate(mutils::bytes_size(value));
     mutils::to_bytes(value,this->delta.data_ptr());
     this->delta.set_data_len(mutils::bytes_size(value));
-    this->delta.set_opid(DeltaCascadeStoreCore<KT,VT,IK,IV>::PUT);
-    // apply ordered_put
+    // apply_ordered_put
     apply_ordered_put(value);
     return true;
 }
 
 template <typename KT, typename VT, KT* IK, VT *IV>
-bool DeltaCascadeStoreCore<KT,VT,IK,IV>::ordered_remove(const KT& key) {
+bool DeltaCascadeStoreCore<KT,VT,IK,IV>::ordered_remove(const VT& value, persistent::version_t prev_ver) {
+    auto& key = value.get_key_ref();
+    // test if key exists
+    if  (kv_map.find(key) == kv_map.end()) {
+        // skip it when no such key.
+        return false;
+    } else if (kv_map.at(key).is_null()) {
+        // and skip the keys has been deleted already.
+        return false;
+    }
+
+    if constexpr (std::is_base_of<IKeepPreviousVersion,VT>::value) {
+        value.set_previous_version(prev_ver,kv_map.at(key).get_version());
+    }
     // create delta.
     assert(this->delta.is_empty());
-    this->delta.calibrate(mutils::bytes_size(key));
+    this->delta.calibrate(mutils::bytes_size(value));
     mutils::to_bytes(key,this->delta.data_ptr());
-    this->delta.set_data_len(mutils::bytes_size(key));
-    this->delta.set_opid(DeltaCascadeStoreCore<KT,VT,IK,IV>::REMOVE);
-    // remove
-    return apply_ordered_remove(key);
+    this->delta.set_data_len(mutils::bytes_size(value));
+    // apply_ordered_put
+    apply_ordered_put(value);
+    return true;
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
@@ -475,29 +468,15 @@ std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-const VT PersistentCascadeStore<KT,VT,IK,IV,ST>::get(const KT& key, const persistent::version_t& ver) {
+const VT PersistentCascadeStore<KT,VT,IK,IV,ST>::get(const KT& key, const persistent::version_t& ver, bool exact) {
     debug_enter_func_with_args("key={},ver=0x{:x}",key,ver);
     if (ver != CURRENT_VERSION) {
         debug_leave_func();
-        // use delta without constructing the whole state.
-        return persistent_core.template getDelta<typename DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaBytesFormat>(ver,
-            // [](DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaBytesFormat& delta) {
-            [&key](const typename DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaBytesFormat& delta) {
-                // 1) not a put
-                if (delta.op != DeltaCascadeStoreCore<KT,VT,IK,IV>::_OPID::PUT) {
-                    return *IV; //TODO: fall back to the slow track,
-                }
-                std::unique_ptr<VT> value_ptr = mutils::from_bytes<VT>(nullptr,&delta.first_data_byte);
-                // 2) not my key
-                if (value_ptr->key != key) {
-                    return *IV; //TODO: fall back to the slow track,
-                }
-                return *value_ptr;
-            });
-        
-        /* Reconstructing the whole state is extremely slow!!!
-        return persistent_core.get(ver)->kv_map.at(key);
-        */
+        if (exact) {
+            return *persistent_core.template getDelta<VT>(ver);
+        } else {
+            return persistent_core.get(ver)->kv_map.at(key);
+        }
     }
     derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_get)>(key);
@@ -534,10 +513,14 @@ const VT PersistentCascadeStore<KT,VT,IK,IV,ST>::get_by_time(const KT& key, cons
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-uint64_t PersistentCascadeStore<KT,VT,IK,IV,ST>::get_size(const KT& key, const persistent::version_t& ver) {
+uint64_t PersistentCascadeStore<KT,VT,IK,IV,ST>::get_size(const KT& key, const persistent::version_t& ver, bool exact) {
     debug_enter_func_with_args("key={},ver=0x{:x}",key,ver);
     if (ver != CURRENT_VERSION) {
-        return mutils::bytes_size(persistent_core.get(ver)->kv_map.at(key));
+        if (exact) {
+            return persistent_core.template getDelta<VT>(ver,[](const VT& value){return mutils::bytes_size(value);});
+        } else {
+            return mutils::bytes_size(persistent_core.get(ver)->kv_map.at(key));
+        }
     }
     derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_get_size)>(key);
@@ -617,11 +600,7 @@ std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST
     if constexpr (std::is_base_of<IKeepTimestamp,VT>::value) {
         value.set_timestamp(std::get<1>(version_and_timestamp));
     }
-    if constexpr (std::is_base_of<IKeepPreviousVersion,VT>::value) {
-        auto prev = this->persistent_core->ordered_get(value.get_key_ref());
-        value.set_previous_version(persistent_core.getLatestVersion(),prev.get_version());
-    }
-    this->persistent_core->ordered_put(value);
+    this->persistent_core->ordered_put(value,this->persistent_core.getLatestVersion());
     if (cascade_watcher_ptr) {
         (*cascade_watcher_ptr)(
             group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_subgroup_id(),
@@ -637,20 +616,26 @@ std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST>::ordered_remove(const KT& key) {
     debug_enter_func_with_args("key={}",key);
-
-    std::tuple<persistent::version_t,uint64_t> version = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_next_version();
-    if(this->persistent_core->ordered_remove(key)) {
+    std::tuple<persistent::version_t,uint64_t> version_and_timestamp = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_next_version();
+    auto value = create_null_object_cb<KT,VT,IK,IV>(key);
+    if constexpr (std::is_base_of<IKeepVersion,VT>::value) {
+        value.set_version(std::get<0>(version_and_timestamp));
+    }
+    if constexpr (std::is_base_of<IKeepTimestamp,VT>::value) {
+        value.set_timestamp(std::get<1>(version_and_timestamp));
+    }
+    if(this->persistent_core->ordered_remove(value,this->persistent_core.getLatestVersion())) {
         if (cascade_watcher_ptr) {
             (*cascade_watcher_ptr)(
                 group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_subgroup_id(),
                 group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_shard_num(),
-                key, *IV, nullptr/*cascade context*/);
+                key, value, nullptr/*cascade context*/);
         }
     }
 
-    debug_leave_func_with_value("version=0x{:x},timestamp={}",std::get<0>(version), std::get<1>(version));
-    
-    return version;
+    debug_leave_func_with_value("version=0x{:x},timestamp={}",std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp));
+
+    return version_and_timestamp;
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>

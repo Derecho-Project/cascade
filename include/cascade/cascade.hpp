@@ -42,37 +42,6 @@ namespace cascade {
         virtual void operator () (const subgroup_id_t subgroup_id, const uint32_t shard_id, const KT& key, const VT& value, void* cascade_ctxt) {}
     };
 
-//    /**
-//     * Watcher Context interface
-//     * Applications using CascadeStore templates MUST provide an ICascadeWatcherContext object
-//     * to be notified with the updates (put/remove). Users can just use an object of
-//     * IndifferentCascadeWatcherContext to ignore those updates.
-//     */
-//    template<typename KT, typename VT, KT* IK, VT* IV>
-//    class ICascadeWatcherContext : public derecho::DeserializationContext {
-//    public:
-//        /**
-//         * Return a shared pointer to a CascadeWatcher, which is owned by ICascadeWatcherContext.
-//         * Derived classes MUST guarantee the referenced watcher is valid throughout Cascade
-//         * subgroup's lifetime.
-//         */
-//        virtual std::shared_ptr<CascadeWatcher<KT,VT,IK,IV>> get_cascade_watcher() = 0;
-//    };
-
-//    /**
-//     * Use indifferent watcher context to ignore the updates (put/remove).
-//     */
-//    template<typename KT, typename VT, KT* IK, VT* IV>
-//    class IndifferentCascadeWatcherContext : public ICascadeWatcherContext<KT,VT,IK,IV> {
-//        std::shared_ptr<CascadeWatcher<KT,VT,IK,IV>> watcher_ptr;
-//
-//    public:
-//        // override ICascadeWatcherContext::get_cascade_watcher()
-//        std::shared_ptr<CascadeWatcher<KT,VT,IK,IV>> get_cascade_watcher() override {
-//            return this->watcher_ptr;
-//        }
-//    };
-
     /**
      * The cascade store interface.
      * @tparam KT The type of the key
@@ -95,54 +64,118 @@ namespace cascade {
         KT* InvKeyPtr = IK;
         VT* InvValPtr = IV;
         /**
-         * put a value (with key)
+         * put(const VT&)
+         *
+         * Put a value. VT must implement ICascadeObject interface. The key is given in value and retrieved by
+         * ICascadeObject::get_key_ref()
+         *
          * @param value
+         *
          * @return a tuple including version number (version_t) and a timestamp in microseconds.
          */
         virtual std::tuple<persistent::version_t,uint64_t> put(const VT& value) = 0;
         /**
-         * remove a value with key
+         * remove(const KT&)
+         *
+         * Remove a value by key. The key will still be in the map with an empty value.
+         *
          * @param key
+         *
          * @return a tuple including version number (version_t) and a timestamp in microseconds.
          */
         virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) = 0;
         /**
-         * get value by version
+         * get(const KT&,const persistent::version_t&)
+         *
+         * Get a value by key and version.
+         *
          * @param key
-         * @param ver - Version, if version == CURRENT_VERSION, get the latest value.
+         * @param ver   Version: if version == CURRENT_VERSION, get the latest value.
+         * @param exact The exact match flag: this function try to return the value of that key at the 'ver'. If such a
+         *              value does not exists and exact is true, it will throw an exception. If such a value does not
+         *              exists and exact is false, it will return the latest state of the value for 'key' before 'ver'.
+         *              The former case is very efficient but the latter one is not because of reconstructing the state.
+         *              Please note that the current Persistent<T> in derecho will reconstruct the state at 'ver' from
+         *              the beginning of the log entry if 'ver' != CURRENT_VERSION, which is extremely inefficient.
+         *              TODO: use checkpoint cache to accelerate that process.
+         *
          * @return a value
+         *
+         * @throws std::runtime_error, if requested value is not found.
          */
-        virtual const VT get(const KT& key, const persistent::version_t& ver) = 0;
+        virtual const VT get(const KT& key, const persistent::version_t& ver, bool exact=false) = 0;
         /**
-         * get value by timestamp
+         * get(const KT&, const uint64_t& ts_us)
+         * 
+         * Get a value by key and timestamp.
+         *
+         * Please note that the current Persistent<T> in derecho will reconstruct the state at 'ts_us' from the
+         * beginning of the log entry, which is extremely inefficient. TODO: use checkpoint cache to accelerate that
+         * process.
+         *
          * @param key
          * @param ts_us - timestamp in microsecond
+         *
          * @return a value
          */
         virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) = 0;
         /**
-         * list keys by version
+         * list_keys(const persistent::version_t& ver)
+         *
+         * List keys at version.
+         *
          * @param ver - Version, if version  == CURRENT_VERSION, get the latest list of keys.
+         *              Please note that the current Persistent<T> in derecho will reconstruct the state at 'ver' from
+         *              the beginning of the log entry if 'ver' != CURRENT_VERSION, which is extremely inefficient.
+         *              TODO: use checkpoint cache to accelerate that process.
+         *
          * @return a list of keys.
          */
         virtual std::vector<KT> list_keys(const persistent::version_t& ver) = 0;
         /**
-         * list keys by timestamp
+         * list_keys_by_time(const uint64_t&)
+         *
+         * List keys by timestamp
+         *
+         * Please note that the current Persistent<T> in derecho will reconstruct the state at 'ts_us' from the
+         * beginning of the log entry, which is extremely inefficient. TODO: use checkpoint cache to accelerate that
+         * process.
+         *
          * @param ts_us - timestamp in microsecond
+         *
          * @return a list of keys.
          */
         virtual std::vector<KT> list_keys_by_time(const uint64_t& ts_us) = 0;
         /**
-         * get size by version
+         * get_size(const KT&,const persistent::version_t&,bool)
+         *
+         * Get size by version
+         *
          * @param key
          * @param ver - Version, if version == CURRENT_VERSION, get the latest value.
+         * @param exact The exact match flag: this function try to return the value of that key at the 'ver'. If such a
+         *              value does not exists and exact is true, it will throw an exception. If such a value does not
+         *              exists and exact is false, it will return the latest state of the value for 'key' before 'ver'.
+         *              The former case is very efficient but the latter one is not because of reconstructing the state.
+         *              Please note that the current Persistent<T> in derecho will reconstruct the state at 'ver' from
+         *              the beginning of the log entry if 'ver' != CURRENT_VERSION, which is extremely inefficient.
+         *              TODO: use checkpoint cache to accelerate that process.
+         *
          * @return the size of serialized value.
          */
-        virtual uint64_t get_size(const KT& key, const persistent::version_t& ver) = 0;
+        virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, bool exact=false) = 0;
         /**
-         * get value by timestamp
+         * get_size_by_time(const KT&,const uint64_t&)
+         *
+         * Get size by timestamp
+         *
+         * Please note that the current Persistent<T> in derecho will reconstruct the state at 'ts_us' from the
+         * beginning of the log entry, which is extremely inefficient. TODO: use checkpoint cache to accelerate that
+         * process.
+         *
          * @param key
          * @param ts_us - timestamp in microsecond
+         *
          * @return the size of serialized value.
          */
         virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us) = 0;
@@ -211,11 +244,11 @@ namespace cascade {
                                ordered_get_size);
         virtual std::tuple<persistent::version_t,uint64_t> put(const VT& value) override;
         virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) override;
-        virtual const VT get(const KT& key, const persistent::version_t& ver) override;
+        virtual const VT get(const KT& key, const persistent::version_t& ver, bool exact=false) override;
         virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) override;
         virtual std::vector<KT> list_keys(const persistent::version_t& ver) override;
         virtual std::vector<KT> list_keys_by_time(const uint64_t& ts_us) override;
-        virtual uint64_t get_size(const KT& key, const persistent::version_t& ver) override;
+        virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, bool exact=false) override;
         virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us) override;
         virtual std::tuple<persistent::version_t,uint64_t> ordered_put(const VT& value) override;
         virtual std::tuple<persistent::version_t,uint64_t> ordered_remove(const KT& key) override;
@@ -252,17 +285,12 @@ namespace cascade {
         void initialize_delta();
 
     public:
-        enum _OPID {
-            PUT,
-            REMOVE
-        };
         // delta
         typedef struct {
             size_t capacity;
             size_t len;
             char* buffer;
             // methods
-            inline void set_opid(_OPID opid); 
             inline void set_data_len(const size_t& dlen);
             inline char* data_ptr();
             inline void calibrate(const size_t& dlen);
@@ -293,21 +321,17 @@ namespace cascade {
         virtual void applyDelta(char const* const delta) override;
         static std::unique_ptr<DeltaCascadeStoreCore<KT,VT,IK,IV>> create(mutils::DeserializationManager* dm);
         /**
-         * Do ordered put without generating a delta.
+         * apply put to current state
          */
-        inline void apply_ordered_put(const VT& value);
-        /**
-         * Do ordered remove without generating a delta.
-         */
-        inline bool apply_ordered_remove(const KT& key);
+        void apply_ordered_put(const VT& value);
         /**
          * Ordered put, and generate a delta.
          */
-        virtual bool ordered_put(const VT& value);
+        virtual bool ordered_put(const VT& value, persistent::version_t prever);
         /**
          * Ordered remove, and generate a delta.
          */
-        virtual bool ordered_remove(const KT& key);
+        virtual bool ordered_remove(const VT& value, persistent::version_t prev_ver);
         /**
          * ordered get, no need to generate a delta.
          */
@@ -366,11 +390,11 @@ namespace cascade {
                                ordered_get_size);
         virtual std::tuple<persistent::version_t,uint64_t> put(const VT& value) override;
         virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) override;
-        virtual const VT get(const KT& key, const persistent::version_t& ver) override;
+        virtual const VT get(const KT& key, const persistent::version_t& ver, bool exact=false) override;
         virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) override;
         virtual std::vector<KT> list_keys(const persistent::version_t& ver) override;
         virtual std::vector<KT> list_keys_by_time(const uint64_t& ts_us) override;
-        virtual uint64_t get_size(const KT& key, const persistent::version_t& ver) override;
+        virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, bool exact=false) override;
         virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us) override;
         virtual std::tuple<persistent::version_t,uint64_t> ordered_put(const VT& value) override;
         virtual std::tuple<persistent::version_t,uint64_t> ordered_remove(const KT& key) override;
@@ -401,6 +425,16 @@ namespace cascade {
      */
 
     /**
+     * create_null_object(const KT&)
+     *
+     * Users need to implement this function to create a null object of a given key.
+     *
+     * return a null VT object.
+     */
+    template <typename KT, typename VT, KT* IK, VT* IV>
+    VT create_null_object_cb(const KT& key = *IK);
+
+    /**
      * The VT template type of PersistentCascadeStore/VolatileCascadeStore must implement ICascadeObject interface.
      */
     template <typename KT>
@@ -414,6 +448,14 @@ namespace cascade {
          * @return a const reference to the key
          */
         virtual const KT& get_key_ref() const = 0;
+        /**
+         * is_null()
+         *
+         * Test if this Object is null or not.
+         *
+         * @return true for null object
+         */
+        virtual bool is_null() const = 0;
     };
 
     /**
@@ -460,7 +502,7 @@ namespace cascade {
      * called with "INVALID_VERSION", meaning a genesis value. Therefore, the VT implementer must save the version in
      * its object and knows how to get them when they get a value from cascade.
      */
-    class IKeepPreviousVersion {
+    class IKeepPreviousVersion : public IKeepVersion {
     public:
         /**
          * set_previous_version() is a callback on PersistentCascadeStore::ordered_put();
