@@ -98,3 +98,9 @@ install(EXPORT cascade
     FILE cascadeTargets.cmake
     DESTINATION ${ConfigPackageLocation}
 )
+
+install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/cascade/cascadeConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/cascade/cascadeConfigVersion.cmake"
+    DESTINATION ${ConfigPackageLocation}
+)
