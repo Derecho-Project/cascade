@@ -113,7 +113,7 @@ public class Client {
         byte[] arr = str.getBytes();
         ByteBuffer bbkey = ByteBuffer.allocateDirect(arr.length);
         bbkey.put(arr);
-        System.out.println("Finished constructing byte buffer!");
+        // System.out.println("Finished constructing byte buffer!");
         
         long res = putInternal(type, subgroupIndex, shardID, bbkey, buf);
         return new QueryResults<Bundle>(res, 0, type);
