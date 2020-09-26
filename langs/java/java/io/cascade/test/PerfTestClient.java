@@ -70,7 +70,7 @@ class PollingThread extends Thread {
             }
         }
 
-        System.out.println("Polling thread shuts down!");
+        // System.out.println("Polling thread shuts down!");
 
     }
 }
@@ -180,9 +180,9 @@ public class PerfTestClient {
      */
     void printStatistics() {
 
-        for (int i = 0; i < numMessages; ++i){
-            System.out.println("" + sendTss[i] + ", " + recvTss[i] + ", " + (long)(recvTss[i] - sendTss[i]));
-        }
+        // for (int i = 0; i < numMessages; ++i){
+        //     System.out.println("" + sendTss[i] + ", " + recvTss[i] + ", " + (long)(recvTss[i] - sendTss[i]));
+        // }
         int totalBytes = numMessages * messageSize;
         long timespan = recvTss[numMessages - 1] - sendTss[0];
         double thp_MBps = totalBytes * 1000000.0 / 1048576 / timespan;
@@ -205,11 +205,12 @@ public class PerfTestClient {
         }
         double stdLatency = Math.sqrt(ssum / (1 + numMessages));
 
-        System.out.println("Message size (KiB):" + messageSize / 1024.0);
-        System.out.println("Throughput (MiB/s):" + thp_MBps);
-        System.out.println("Throughput (Ops/s):" + thp_ops);
-        System.out.println("Average-Latency (us):" + avgLatency);
-        System.out.println("Latency-std (us):" + stdLatency);
+        // System.out.println("Message size (KiB):" + messageSize / 1024.0);
+        // System.out.println("Throughput (MiB/s):" + thp_MBps);
+        // System.out.println("Throughput (Ops/s):" + thp_ops);
+        // System.out.println("Average-Latency (us):" + avgLatency);
+        // System.out.println("Latency-std (us):" + stdLatency);
+        System.out.println("" + thp_MBps + " " + avgLatency);
 
     }
 
@@ -234,10 +235,10 @@ public class PerfTestClient {
         }
 
         Client client = new Client();
-        System.out.println("Created client!");
+        // System.out.println("Created client!");
 
         if (isPersistent > 0) {
-            System.out.println("start persistent!");
+            // System.out.println("start persistent!");
 
             PerfTestClient cs = new PerfTestClient(maxPendingOps, numMessages, messageSize);
 
@@ -268,7 +269,7 @@ public class PerfTestClient {
             // print the statistics
             cs.printStatistics();
         } else {
-            System.out.println("start volatile!");
+            // System.out.println("start volatile!");
 
             PerfTestClient cs = new PerfTestClient(maxPendingOps, numMessages, messageSize);
 
@@ -299,7 +300,7 @@ public class PerfTestClient {
             // print the statistics
             cs.printStatistics();
         }
-        System.out.println("Finished performance test!");
+        // System.out.println("Finished performance test!");
     }
 
 }

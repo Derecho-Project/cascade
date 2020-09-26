@@ -416,7 +416,7 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_putInternal(JNIEnv *env, jobject 
     int service_val = get_value(env, service_type);
 
 #ifndef NDEBUG
-    std::cout << "service value:" << service_val << std::endl;
+    // std::cout << "service value:" << service_val << std::endl;
 #endif
 
     // executing the put
@@ -577,7 +577,7 @@ void create_object_from_query(JNIEnv *env, jlong handle, jobject hashmap, std::f
         jobject integer_object = env->NewObject(integer_class, integer_constructor, static_cast<jint>(reply_pair.first));
 
 #ifndef NDEBUG
-        std::cout << "trying to get the promise..." << std::endl;
+        // std::cout << "trying to get the promise..." << std::endl;
 #endif
 
         // translate the value using lambda
