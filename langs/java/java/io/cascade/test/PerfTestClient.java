@@ -183,9 +183,10 @@ public class PerfTestClient {
         // for (int i = 0; i < numMessages; ++i){
         //     System.out.println("" + sendTss[i] + ", " + recvTss[i] + ", " + (long)(recvTss[i] - sendTss[i]));
         // }
-        int totalBytes = numMessages * messageSize;
+        long totalKBytes = numMessages * (messageSize / 1024);
+	//System.out.println("Total KB: " + totalKBytes);
         long timespan = recvTss[numMessages - 1] - sendTss[0];
-        double thp_MBps = totalBytes * 1000000.0 / 1048576 / timespan;
+        double thp_MBps = totalKBytes / 1024.0 * 1000000.0 / timespan;
         double thp_ops = numMessages * 1000000.0 / timespan;
 
         // bandwidth
@@ -205,11 +206,11 @@ public class PerfTestClient {
         }
         double stdLatency = Math.sqrt(ssum / (1 + numMessages));
 
-        // System.out.println("Message size (KiB):" + messageSize / 1024.0);
-        // System.out.println("Throughput (MiB/s):" + thp_MBps);
-        // System.out.println("Throughput (Ops/s):" + thp_ops);
-        // System.out.println("Average-Latency (us):" + avgLatency);
-        // System.out.println("Latency-std (us):" + stdLatency);
+        //System.out.println("Message size (KiB):" + messageSize / 1024.0);
+        //System.out.println("Throughput (MiB/s):" + thp_MBps);
+        //System.out.println("Throughput (Ops/s):" + thp_ops);
+        //System.out.println("Average-Latency (us):" + avgLatency);
+        //System.out.println("Latency-std (us):" + stdLatency);
         System.out.println("" + thp_MBps + " " + avgLatency);
 
     }
