@@ -24,11 +24,6 @@ set(GOOGLE_JAVA_FORMAT_JAR "${CMAKE_CURRENT_SOURCE_DIR}/external/google-java-for
 set(CMAKE_CXX_FLAGS "-std=c++1z -Wall -g -fPIC -D_REENTRANT -D_GNU_SOURCE -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64")
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -ggdb")
 
-add_library(cascade SHARED IMPORTED)
-set_target_properties(cascade PROPERTIES
-	IMPORTED_LOCATION "${CMAKE_INSTALL_PREFIX}/lib/libcascade.so"
-	INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_INSTALL_PREFIX}/include/cascade/"
-)
 
 add_jar(cascadejar
         java/io/cascade/Client.java
