@@ -472,11 +472,19 @@ const VT PersistentCascadeStore<KT,VT,IK,IV,ST>::get(const KT& key, const persis
     debug_enter_func_with_args("key={},ver=0x{:x}",key,ver);
     if (ver != CURRENT_VERSION) {
         debug_leave_func();
-        if (exact) {
-            return *persistent_core.template getDelta<VT>(ver);
-        } else {
-            return persistent_core.get(ver)->kv_map.at(key);
-        }
+        return persistent_core.template getDelta<VT>(ver, [&key,ver,exact,this](const VT& v){
+                if (key == v.get_key_ref()) {
+                    return v;
+                } else {
+                    if (exact) {
+                        // return invalid object for EXACT search.
+                        return *IV;
+                    } else {
+                        // fall back to the slow path.
+                        return persistent_core.get(ver)->kv_map.at(key);
+                    }
+                }
+            });
     }
     derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_get)>(key);

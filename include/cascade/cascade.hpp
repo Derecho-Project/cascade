@@ -436,6 +436,9 @@ namespace cascade {
 
     /**
      * The VT template type of PersistentCascadeStore/VolatileCascadeStore must implement ICascadeObject interface.
+     * We use both the concepts of null and valid object in Cascade. A null object precisely means 'no data'; while a
+     * valid object literarily means an object is 'valid'. Technically, a null object has a valid key while invalid
+     * object does not.
      */
     template <typename KT>
     class ICascadeObject {
@@ -456,6 +459,14 @@ namespace cascade {
          * @return true for null object
          */
         virtual bool is_null() const = 0;
+        /**
+         * is_valid()
+         *
+         * Test if this Object is valid or not.
+         *
+         * @ return true for invalid object
+         */
+        virtual bool is_valid() const = 0;
     };
 
     /**
