@@ -82,9 +82,7 @@ public:
     uint64_t                                            key; // object_id
     Blob                                                blob; // the object
 
-    bool operator==(const ObjectWithUInt64Key& other);
-
-    bool is_valid() const;
+    // bool operator==(const ObjectWithUInt64Key& other);
 
     // constructor 0 : copy constructor
     ObjectWithUInt64Key(const uint64_t _key, 
@@ -123,6 +121,7 @@ public:
 
     virtual const uint64_t& get_key_ref() const override;
     virtual bool is_null() const override;
+    virtual bool is_valid() const override;
     virtual void set_previous_version(persistent::version_t, persistent::version_t prev_ver_by_key) const override;
     virtual void set_version(persistent::version_t ver) const override;
     virtual persistent::version_t get_version() const override;
@@ -171,9 +170,7 @@ public:
     std::string                                         key;                     // object_id
     Blob                                                blob;                    // the object data
 
-    bool operator==(const ObjectWithStringKey& other);
-
-    bool is_valid() const;
+    // bool operator==(const ObjectWithStringKey& other);
 
     // constructor 0 : copy constructor
     ObjectWithStringKey(const std::string& _key, 
@@ -212,6 +209,7 @@ public:
 
     virtual const std::string& get_key_ref() const override;
     virtual bool is_null() const override;
+    virtual bool is_valid() const override;
     virtual void set_previous_version(persistent::version_t, persistent::version_t perv_ver_by_key) const override;
     virtual void set_version(persistent::version_t ver) const override;
     virtual persistent::version_t get_version() const override;

@@ -92,12 +92,14 @@ std::unique_ptr<Blob> Blob::from_bytes(mutils::DeserializationManager*, const ch
     return std::make_unique<Blob>(v + sizeof(std::size_t), ((std::size_t*)(v))[0]);
 }
 
+/*
 bool ObjectWithUInt64Key::operator==(const ObjectWithUInt64Key& other) {
     return (this->key == other.key) && (this->version == other.version);
 }
+*/
 
 bool ObjectWithUInt64Key::is_valid() const {
-    return (key == INVALID_UINT64_OBJECT_KEY);
+    return (key != INVALID_UINT64_OBJECT_KEY);
 }
 
 // constructor 0 : copy constructor
@@ -200,9 +202,11 @@ ObjectWithUInt64Key create_null_object_cb<uint64_t,ObjectWithUInt64Key,&ObjectWi
     return ObjectWithUInt64Key(key,Blob{});
 }
 
+/*
 bool ObjectWithStringKey::operator==(const ObjectWithStringKey& other) {
     return (this->key == other.key) && (this->version == other.version);
 }
+*/
 
 bool ObjectWithStringKey::is_valid() const {
     return !key.empty();
