@@ -381,7 +381,7 @@ bool DeltaCascadeStoreCore<KT,VT,IK,IV>::ordered_remove(const VT& value, persist
     // create delta.
     assert(this->delta.is_empty());
     this->delta.calibrate(mutils::bytes_size(value));
-    mutils::to_bytes(key,this->delta.data_ptr());
+    mutils::to_bytes(value,this->delta.data_ptr());
     this->delta.set_data_len(mutils::bytes_size(value));
     // apply_ordered_put
     apply_ordered_put(value);
