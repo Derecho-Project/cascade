@@ -107,6 +107,7 @@ ObjectWithUInt64Key::ObjectWithUInt64Key(const uint64_t _key,
                                          const Blob& _blob) : 
     version(persistent::INVALID_VERSION),
     timestamp_us(0),
+    previous_version(INVALID_VERSION),
     previous_version_by_key(INVALID_VERSION),
     key(_key),
     blob(_blob) {}
@@ -114,11 +115,13 @@ ObjectWithUInt64Key::ObjectWithUInt64Key(const uint64_t _key,
 // constructor 0.5 : copy constructor
 ObjectWithUInt64Key::ObjectWithUInt64Key(const persistent::version_t _version,
                                          const uint64_t _timestamp_us,
+                                         const persistent::version_t _previous_version,
                                          const persistent::version_t _previous_version_by_key,
                                          const uint64_t _key,
                                          const Blob& _blob) :
     version(_version),
     timestamp_us(_timestamp_us),
+    previous_version(_previous_version),
     previous_version_by_key(_previous_version_by_key),
     key(_key), 
     blob(_blob) {}
@@ -129,6 +132,7 @@ ObjectWithUInt64Key::ObjectWithUInt64Key(const uint64_t _key,
                                          const std::size_t _s) :
     version(persistent::INVALID_VERSION),
     timestamp_us(0),
+    previous_version(INVALID_VERSION),
     previous_version_by_key(INVALID_VERSION),
     key(_key),
     blob(_b, _s) {}
@@ -136,12 +140,14 @@ ObjectWithUInt64Key::ObjectWithUInt64Key(const uint64_t _key,
 // constructor 1.5 : copy constructor
 ObjectWithUInt64Key::ObjectWithUInt64Key(const persistent::version_t _version,
                                          const uint64_t _timestamp_us,
+                                         const persistent::version_t _previous_version,
                                          const persistent::version_t _previous_version_by_key,
                                          const uint64_t _key,
                                          const char* const _b,
                                          const std::size_t _s) :
     version(_version),
     timestamp_us(_timestamp_us),
+    previous_version(_previous_version),
     previous_version_by_key(_previous_version_by_key),
     key(_key),
     blob(_b, _s) {}
@@ -150,6 +156,7 @@ ObjectWithUInt64Key::ObjectWithUInt64Key(const persistent::version_t _version,
 ObjectWithUInt64Key::ObjectWithUInt64Key(ObjectWithUInt64Key&& other) :
     version(other.version),
     timestamp_us(other.timestamp_us),
+    previous_version(other.previous_version),
     previous_version_by_key(other.previous_version_by_key),
     key(other.key),
     blob(std::move(other.blob)) {}
@@ -158,6 +165,7 @@ ObjectWithUInt64Key::ObjectWithUInt64Key(ObjectWithUInt64Key&& other) :
 ObjectWithUInt64Key::ObjectWithUInt64Key(const ObjectWithUInt64Key& other) :
     version(other.version),
     timestamp_us(other.timestamp_us),
+    previous_version(other.previous_version),
     previous_version_by_key(other.previous_version_by_key),
     key(other.key),
     blob(other.blob) {}
@@ -166,6 +174,7 @@ ObjectWithUInt64Key::ObjectWithUInt64Key(const ObjectWithUInt64Key& other) :
 ObjectWithUInt64Key::ObjectWithUInt64Key() :
     version(persistent::INVALID_VERSION),
     timestamp_us(0),
+    previous_version(INVALID_VERSION),
     previous_version_by_key(INVALID_VERSION),
     key(INVALID_UINT64_OBJECT_KEY) {}
 
@@ -177,7 +186,8 @@ bool ObjectWithUInt64Key::is_null() const {
     return (this->blob.size == 0);
 }
 
-void ObjectWithUInt64Key::set_previous_version(persistent::version_t, persistent::version_t prev_ver_by_key) const {
+void ObjectWithUInt64Key::set_previous_version(persistent::version_t prev_ver, persistent::version_t prev_ver_by_key) const {
+    this->previous_version = prev_ver;
     this->previous_version_by_key = prev_ver_by_key;
 }
 
@@ -217,17 +227,20 @@ ObjectWithStringKey::ObjectWithStringKey(const std::string& _key,
                                          const Blob& _blob) : 
     version(persistent::INVALID_VERSION),
     timestamp_us(0),
+    previous_version(INVALID_VERSION),
     previous_version_by_key(INVALID_VERSION),
     key(_key),
     blob(_blob) {}
 // constructor 0.5 : copy constructor
 ObjectWithStringKey::ObjectWithStringKey(const persistent::version_t _version,
                                          const uint64_t _timestamp_us,
+                                         const persistent::version_t _previous_version,
                                          const persistent::version_t _previous_version_by_key,
                                          const std::string& _key,
                                          const Blob& _blob) :
     version(_version),
     timestamp_us(_timestamp_us),
+    previous_version(_previous_version),
     previous_version_by_key(_previous_version_by_key),
     key(_key), 
     blob(_blob) {}
@@ -238,18 +251,21 @@ ObjectWithStringKey::ObjectWithStringKey(const std::string& _key,
                                          const std::size_t _s) : 
     version(persistent::INVALID_VERSION),
     timestamp_us(0),
+    previous_version(INVALID_VERSION),
     previous_version_by_key(INVALID_VERSION),
     key(_key),
     blob(_b, _s) {}
 // constructor 1.5 : copy constructor
 ObjectWithStringKey::ObjectWithStringKey(const persistent::version_t _version,
                                          const uint64_t _timestamp_us,
+                                         const persistent::version_t _previous_version,
                                          const persistent::version_t _previous_version_by_key,
                                          const std::string& _key,
                                          const char* const _b,
                                          const std::size_t _s) : 
     version(_version),
     timestamp_us(_timestamp_us),
+    previous_version(_previous_version),
     previous_version_by_key(_previous_version_by_key),
     key(_key), 
     blob(_b, _s) {}
@@ -258,6 +274,7 @@ ObjectWithStringKey::ObjectWithStringKey(const persistent::version_t _version,
 ObjectWithStringKey::ObjectWithStringKey(ObjectWithStringKey&& other) : 
     version(other.version),
     timestamp_us(other.timestamp_us),
+    previous_version(other.previous_version),
     previous_version_by_key(other.previous_version_by_key),
     key(other.key),
     blob(std::move(other.blob)) {}
@@ -266,6 +283,7 @@ ObjectWithStringKey::ObjectWithStringKey(ObjectWithStringKey&& other) :
 ObjectWithStringKey::ObjectWithStringKey(const ObjectWithStringKey& other) : 
     version(other.version),
     timestamp_us(other.timestamp_us),
+    previous_version(other.previous_version),
     previous_version_by_key(other.previous_version_by_key),
     key(other.key),
     blob(other.blob) {}
@@ -274,6 +292,7 @@ ObjectWithStringKey::ObjectWithStringKey(const ObjectWithStringKey& other) :
 ObjectWithStringKey::ObjectWithStringKey() : 
     version(persistent::INVALID_VERSION),
     timestamp_us(0),
+    previous_version(INVALID_VERSION),
     previous_version_by_key(INVALID_VERSION),
     key() {}
 
@@ -286,7 +305,8 @@ bool ObjectWithStringKey::is_null() const {
 }
 
 
-void ObjectWithStringKey::set_previous_version(persistent::version_t, persistent::version_t prev_ver_by_key) const {
+void ObjectWithStringKey::set_previous_version(persistent::version_t prev_ver, persistent::version_t prev_ver_by_key) const {
+    this->previous_version = prev_ver;
     this->previous_version_by_key = prev_ver_by_key;
 }
 

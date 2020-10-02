@@ -144,14 +144,22 @@ std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::or
 
     std::tuple<persistent::version_t,uint64_t> version_and_timestamp = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_next_version();
 
-    this->kv_map.erase(value.get_key_ref());
     if constexpr (std::is_base_of<IKeepVersion,VT>::value) {
         value.set_version(std::get<0>(version_and_timestamp));
     }
     if constexpr (std::is_base_of<IKeepTimestamp,VT>::value) {
         value.set_timestamp(std::get<1>(version_and_timestamp));
     }
+    if constexpr (std::is_base_of<IKeepPreviousVersion,VT>::value) {
+        if (this->kv_map.find(value.get_key_ref())!=this->kv_map.end()) {
+            value.set_previous_version(this->update_version,this->kv_map.at(value.get_key_ref()).get_version());
+        } else {
+            value.set_previous_version(this->update_version,persistent::INVALID_VERSION);
+        }
+    }
+    this->kv_map.erase(value.get_key_ref()); // remove
     this->kv_map.emplace(value.get_key_ref(), value); // copy constructor
+    this->update_version = std::get<0>(version_and_timestamp);
 
     if (cascade_watcher_ptr) {
         (*cascade_watcher_ptr)(
@@ -169,19 +177,42 @@ template<typename KT, typename VT, KT* IK, VT* IV>
 std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::ordered_remove(const KT& key) {
     debug_enter_func_with_args("key={}",key);
 
-    std::tuple<persistent::version_t,uint64_t> version = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_next_version();
-    if(this->kv_map.erase(key)) {
-        if (cascade_watcher_ptr) {
-            (*cascade_watcher_ptr)(
-                group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_subgroup_id(),
-                group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_shard_num(),
-                key, *IV, nullptr/*cascade_context*/);
-        }
+    std::tuple<persistent::version_t,uint64_t> version_and_timestamp = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_next_version();
+
+    if (this->kv_map.find(key)==this->kv_map.end()) {
+        debug_leave_func_with_value("version=0x{:x},timestamp={}",std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp));
+        return version_and_timestamp;
     }
 
-    debug_leave_func_with_value("version=0x{:x},timestamp={}",std::get<0>(version), std::get<1>(version));
+    auto value = create_null_object_cb<KT,VT,IK,IV>(key);
+
+    if constexpr (std::is_base_of<IKeepVersion,VT>::value) {
+        value.set_version(std::get<0>(version_and_timestamp));
+    }
+    if constexpr (std::is_base_of<IKeepTimestamp,VT>::value) {
+        value.set_timestamp(std::get<1>(version_and_timestamp));
+    }
+    if constexpr (std::is_base_of<IKeepPreviousVersion,VT>::value) {
+        if (this->kv_map.find(key)!=this->kv_map.end()) {
+            value.set_previous_version(this->update_version,this->kv_map.at(key).get_version());
+        } else {
+            value.set_previous_version(this->update_version,persistent::INVALID_VERSION);
+        }
+    }
+    this->kv_map.erase(key); // remove
+    this->kv_map.emplace(key, value);
+    this->update_version = std::get<0>(version_and_timestamp);
+
+    if (cascade_watcher_ptr) {
+        (*cascade_watcher_ptr)(
+            group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_subgroup_id(),
+            group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_shard_num(),
+            key, value, nullptr/*cascade_context*/);
+    }
+
+    debug_leave_func_with_value("version=0x{:x},timestamp={}",std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp));
     
-    return version;
+    return version_and_timestamp;
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
@@ -214,14 +245,16 @@ std::unique_ptr<VolatileCascadeStore<KT,VT,IK,IV>> VolatileCascadeStore<KT,VT,IK
     mutils::DeserializationManager* dsm, 
     char const* buf) {
     auto kv_map_ptr = mutils::from_bytes<std::map<KT,VT>>(dsm,buf);
+    auto update_version_ptr = mutils::from_bytes<persistent::version_t>(dsm,buf+mutils::bytes_size(*kv_map_ptr));
     auto volatile_cascade_store_ptr =
-        std::make_unique<VolatileCascadeStore>(std::move(*kv_map_ptr),&(dsm->mgr<CascadeWatcher<KT,VT,IK,IV>>()));
+        std::make_unique<VolatileCascadeStore>(std::move(*kv_map_ptr),*update_version_ptr,&(dsm->mgr<CascadeWatcher<KT,VT,IK,IV>>()));
     return volatile_cascade_store_ptr;
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
 VolatileCascadeStore<KT,VT,IK,IV>::VolatileCascadeStore(
     CascadeWatcher<KT,VT,IK,IV>* cw):
+    update_version(persistent::INVALID_VERSION),
     cascade_watcher_ptr(cw) {
     debug_enter_func();
     debug_leave_func();
@@ -229,8 +262,9 @@ VolatileCascadeStore<KT,VT,IK,IV>::VolatileCascadeStore(
 
 template<typename KT, typename VT, KT* IK, VT* IV>
 VolatileCascadeStore<KT,VT,IK,IV>::VolatileCascadeStore(
-    const std::map<KT,VT>& _kvm, CascadeWatcher<KT,VT,IK,IV>* cw):
+    const std::map<KT,VT>& _kvm, persistent::version_t _uv, CascadeWatcher<KT,VT,IK,IV>* cw):
     kv_map(_kvm),
+    update_version(_uv),
     cascade_watcher_ptr(cw) {
     debug_enter_func_with_args("copy to kv_map, size={}",kv_map.size());
     debug_leave_func();
@@ -238,8 +272,9 @@ VolatileCascadeStore<KT,VT,IK,IV>::VolatileCascadeStore(
 
 template<typename KT, typename VT, KT* IK, VT* IV>
 VolatileCascadeStore<KT,VT,IK,IV>::VolatileCascadeStore(
-    std::map<KT,VT>&& _kvm, CascadeWatcher<KT,VT,IK,IV>* cw):
+    std::map<KT,VT>&& _kvm, persistent::version_t _uv, CascadeWatcher<KT,VT,IK,IV>* cw):
     kv_map(std::move(_kvm)),
+    update_version(_uv),
     cascade_watcher_ptr(cw) {
     debug_enter_func_with_args("move to kv_map, size={}",kv_map.size());
     debug_leave_func();

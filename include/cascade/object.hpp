@@ -78,6 +78,7 @@ class ObjectWithUInt64Key : public mutils::ByteRepresentable,
 public:
     mutable persistent::version_t                       version;
     mutable uint64_t                                    timestamp_us;
+    mutable persistent::version_t                       previous_version; // previous version, INVALID_VERSION for the first version
     mutable persistent::version_t                       previous_version_by_key; // previous version by key, INVALID_VERSION for the first value of the key.
     uint64_t                                            key; // object_id
     Blob                                                blob; // the object
@@ -91,6 +92,7 @@ public:
     // constructor 0.5 : copy constructor
     ObjectWithUInt64Key(const persistent::version_t _version,
                         const uint64_t _timestamp_us,
+                        const persistent::version_t _previous_version,
                         const persistent::version_t _previous_version_by_key,
                         const uint64_t _key,
                         const Blob& _blob);
@@ -103,6 +105,7 @@ public:
     // constructor 1.5 : copy constructor
     ObjectWithUInt64Key(const persistent::version_t _version,
                         const uint64_t _timestamp_us,
+                        const persistent::version_t _previous_version,
                         const persistent::version_t _previous_version_by_key,
                         const uint64_t _key,
                         const char* const _b,
@@ -122,13 +125,13 @@ public:
     virtual const uint64_t& get_key_ref() const override;
     virtual bool is_null() const override;
     virtual bool is_valid() const override;
-    virtual void set_previous_version(persistent::version_t, persistent::version_t prev_ver_by_key) const override;
+    virtual void set_previous_version(persistent::version_t prev_ver, persistent::version_t prev_ver_by_key) const override;
     virtual void set_version(persistent::version_t ver) const override;
     virtual persistent::version_t get_version() const override;
     virtual void set_timestamp(uint64_t ts_us) const override;
     virtual uint64_t get_timestamp() const override;
 
-    DEFAULT_SERIALIZATION_SUPPORT(ObjectWithUInt64Key, version, timestamp_us, previous_version_by_key, key, blob);
+    DEFAULT_SERIALIZATION_SUPPORT(ObjectWithUInt64Key, version, timestamp_us, previous_version, previous_version_by_key, key, blob);
 
     // IK and IV for volatile cascade store
     static uint64_t IK;
@@ -153,7 +156,8 @@ inline std::ostream& operator<<(std::ostream& out, const Blob& b) {
 inline std::ostream& operator<<(std::ostream& out, const ObjectWithUInt64Key& o) {
     out << "ObjectWithUInt64Key{ver: 0x" << std::hex << o.version << std::dec 
         << ", ts(us): " << o.timestamp_us 
-        << ", prev_ver: " << std::hex << o.previous_version_by_key << std::dec
+        << ", prev_ver: " << std::hex << o.previous_version << std::dec
+        << ", prev_ver_by_key: " << std::hex << o.previous_version_by_key << std::dec
         << ", id:" << o.key 
         << ", data:" << o.blob << "}";
     return out;
@@ -166,6 +170,7 @@ class ObjectWithStringKey : public mutils::ByteRepresentable,
 public:
     mutable persistent::version_t                       version;                // object version
     mutable uint64_t                                    timestamp_us;           // timestamp in microsecond
+    mutable persistent::version_t                       previous_version;       // previous version, INVALID_VERSION for the first version.
     mutable persistent::version_t                       previous_version_by_key; // previous version by key, INVALID_VERSION for the first value of the key.
     std::string                                         key;                     // object_id
     Blob                                                blob;                    // the object data
@@ -179,6 +184,7 @@ public:
     // constructor 0.5 : copy constructor
     ObjectWithStringKey(const persistent::version_t _version,
                         const uint64_t _timestamp_us,
+                        const persistent::version_t _previous_version,
                         const persistent::version_t _previous_version_by_key,
                         const std::string& _key,
                         const Blob& _blob);
@@ -191,6 +197,7 @@ public:
     // constructor 1.5 : copy constructor
     ObjectWithStringKey(const persistent::version_t _version,
                         const uint64_t _timestamp_us,
+                        const persistent::version_t _previous_version,
                         const persistent::version_t _previous_version_by_key,
                         const std::string& _key,
                         const char* const _b,
@@ -210,13 +217,13 @@ public:
     virtual const std::string& get_key_ref() const override;
     virtual bool is_null() const override;
     virtual bool is_valid() const override;
-    virtual void set_previous_version(persistent::version_t, persistent::version_t perv_ver_by_key) const override;
+    virtual void set_previous_version(persistent::version_t prev_ver, persistent::version_t perv_ver_by_key) const override;
     virtual void set_version(persistent::version_t ver) const override;
     virtual persistent::version_t get_version() const override;
     virtual void set_timestamp(uint64_t ts_us) const override;
     virtual uint64_t get_timestamp() const override;
 
-    DEFAULT_SERIALIZATION_SUPPORT(ObjectWithStringKey, version, timestamp_us, previous_version_by_key, key, blob);
+    DEFAULT_SERIALIZATION_SUPPORT(ObjectWithStringKey, version, timestamp_us, previous_version, previous_version_by_key, key, blob);
 
     // IK and IV for volatile cascade store
     static std::string IK;
@@ -226,11 +233,13 @@ public:
 inline std::ostream& operator<<(std::ostream& out, const ObjectWithStringKey& o) {
     out << "ObjectWithStringKey{ver: 0x" << std::hex << o.version << std::dec 
         << ", ts: " << o.timestamp_us
-        << ", prev_ver: " << std::hex << o.previous_version_by_key << std::dec
+        << ", prev_ver: " << std::hex << o.previous_version << std::dec
+        << ", prev_ver_by_key: " << std::hex << o.previous_version_by_key << std::dec
         << ", id:" << o.key 
         << ", data:" << o.blob << "}";
     return out;
 }
+
 /**
 template <typename KT, typename VT, KT* IK, VT* IV>
 std::enable_if_t<std::disjunction<std::is_same<ObjectWithStringKey,VT>,std::is_same<ObjectWithStringKey,VT>>::value, VT> create_null_object_cb(const KT& key) {
