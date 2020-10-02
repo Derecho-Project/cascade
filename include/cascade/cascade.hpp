@@ -225,6 +225,8 @@ namespace cascade {
         using derecho::GroupReference::group;
         /* volatile cascade store in memory */
         std::map<KT,VT> kv_map;
+        /* record the version of latest update */
+        persistent::version_t update_version;
         /* watcher */
         CascadeWatcher<KT,VT,IK,IV>* cascade_watcher_ptr;
         
@@ -257,7 +259,7 @@ namespace cascade {
         virtual uint64_t ordered_get_size(const KT& key) override;
 
         // serialization support
-        DEFAULT_SERIALIZE(kv_map);
+        DEFAULT_SERIALIZE(kv_map,update_version);
 
         static std::unique_ptr<VolatileCascadeStore> from_bytes(mutils::DeserializationManager* dsm, char const* buf);
 
@@ -267,8 +269,8 @@ namespace cascade {
 
         /* constructors */
         VolatileCascadeStore(CascadeWatcher<KT,VT,IK,IV>* cw=nullptr);
-        VolatileCascadeStore(const std::map<KT,VT>& _kvm, CascadeWatcher<KT,VT,IK,IV>* cw=nullptr); // copy kv_map
-        VolatileCascadeStore(std::map<KT,VT>&& _kvm, CascadeWatcher<KT,VT,IK,IV>* cw=nullptr); // move kv_map
+        VolatileCascadeStore(const std::map<KT,VT>& _kvm, persistent::version_t _uv, CascadeWatcher<KT,VT,IK,IV>* cw=nullptr); // copy kv_map
+        VolatileCascadeStore(std::map<KT,VT>&& _kvm, persistent::version_t _uv, CascadeWatcher<KT,VT,IK,IV>* cw=nullptr); // move kv_map
     };
 
     /**
