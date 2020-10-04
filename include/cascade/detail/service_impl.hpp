@@ -272,7 +272,7 @@ derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> ServiceClien
         uint32_t shard_index) {
     auto& caller = external_group.template get_subgroup_caller<SubgroupType>(subgroup_index);
     node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
-    return caller.template p2p_send<RPC_NAME(get)>(node_id,key,version);
+    return caller.template p2p_send<RPC_NAME(get)>(node_id,key,version,false); 
 }
 
 template <typename... CascadeTypes>
@@ -296,7 +296,7 @@ derecho::rpc::QueryResults<uint64_t> ServiceClient<CascadeTypes...>::get_size(
         uint32_t shard_index) {
     auto& caller = external_group.template get_subgroup_caller<SubgroupType>(subgroup_index);
     node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
-    return caller.template p2p_send<RPC_NAME(get_size)>(node_id,key,version);
+    return caller.template p2p_send<RPC_NAME(get_size)>(node_id,key,version,false);
 }
 
 template <typename... CascadeTypes>
