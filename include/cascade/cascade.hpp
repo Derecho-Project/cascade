@@ -537,15 +537,14 @@ namespace cascade {
      * it saw (those versions might be VT members). If an application rejects writes from a client without knowing the
      * latest state of corresponding key, it can return false, meaning verify failed, if 'prev_ver_by_key' is greater
      * than the previous state cached in VT.
-     *
-     * Question: how to support this for VolatileCascadeStore? cache it???
      */
-    class IVerifyPreviousVersion {
+    class IVerifyPreviousVersion : public IKeepPreviousVersion {
     public:
         /**
          * verify_previous_version() is a callback on PresistentCascadeStore/VolatileCascadeStore::ordered_put();
          * @param prev_ver          The previous version
          * @param prev_ver_by_key   The previous version of the same key in VT object
+         * @return If 'prev_ver' and 'prev_ver_by_key' are acceptable, it returns True, otherwise, false.
          */
         virtual bool verify_previous_version(persistent::version_t prev_ver, persistent::version_t prev_ver_by_key) const = 0;
     };
