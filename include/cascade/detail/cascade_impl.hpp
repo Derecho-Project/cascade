@@ -150,6 +150,19 @@ std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::or
     if constexpr (std::is_base_of<IKeepTimestamp,VT>::value) {
         value.set_timestamp(std::get<1>(version_and_timestamp));
     }
+    // Verify previous version MUST happen before update previous versions.
+    if constexpr (std::is_base_of<IVerifyPreviousVersion,VT>::value) {
+        bool verify_result;
+        if (this->kv_map.find(value.get_key_ref())!=this->kv_map.end()) {
+            verify_result = value.verify_previous_version(this->update_version,this->kv_map.at(value.get_key_ref()).get_version());
+        } else {
+            verify_result = value.verify_previous_version(this->update_version,persistent::INVALID_VERSION);
+        }
+        if (!verify_result) {
+            // reject the update by returning an invalid version and timestamp
+            return {persistent::INVALID_VERSION,0};
+        }
+    }
     if constexpr (std::is_base_of<IKeepPreviousVersion,VT>::value) {
         if (this->kv_map.find(value.get_key_ref())!=this->kv_map.end()) {
             value.set_previous_version(this->update_version,this->kv_map.at(value.get_key_ref()).get_version());
@@ -381,6 +394,19 @@ std::unique_ptr<DeltaCascadeStoreCore<KT,VT,IK,IV>> DeltaCascadeStoreCore<KT,VT,
 
 template <typename KT, typename VT, KT* IK, VT *IV>
 bool DeltaCascadeStoreCore<KT,VT,IK,IV>::ordered_put(const VT& value, persistent::version_t prev_ver) {
+    // verify version MUST happen before updating it's previous versions (prev_ver,prev_ver_by_key).
+    if constexpr (std::is_base_of<IVerifyPreviousVersion,VT>::value) {
+        bool verify_result;
+        if (kv_map.find(value.get_key_ref())!=this->kv_map.end()) {
+            verify_result = value.verify_previous_version(prev_ver,this->kv_map.at(value.get_key_ref()).get_version());
+        } else {
+            verify_result = value.verify_previous_version(prev_ver,persistent::INVALID_VERSION);
+        }
+        if (!verify_result) {
+            // reject the package if verify failed.
+            return false;
+        }
+    }
     if constexpr (std::is_base_of<IKeepPreviousVersion,VT>::value) {
         persistent::version_t prev_ver_by_key = persistent::INVALID_VERSION;
         if (kv_map.find(value.get_key_ref()) != kv_map.end()) {
@@ -643,7 +669,11 @@ std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST
     if constexpr (std::is_base_of<IKeepTimestamp,VT>::value) {
         value.set_timestamp(std::get<1>(version_and_timestamp));
     }
-    this->persistent_core->ordered_put(value,this->persistent_core.getLatestVersion());
+    if (this->persistent_core->ordered_put(value,this->persistent_core.getLatestVersion()) == false) {
+        // verification failed. S we return invalid versions.
+        debug_leave_func_with_value("version=0x{:x},timestamp={}",std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp));
+        return {persistent::INVALID_VERSION,0};
+    }
     if (cascade_watcher_ptr) {
         (*cascade_watcher_ptr)(
             group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_subgroup_id(),

@@ -74,7 +74,7 @@ public:
 class ObjectWithUInt64Key : public mutils::ByteRepresentable,
                             public ICascadeObject<uint64_t>,
                             public IKeepTimestamp,
-                            public IKeepPreviousVersion {
+                            public IVerifyPreviousVersion {
 public:
     mutable persistent::version_t                       version;
     mutable uint64_t                                    timestamp_us;
@@ -125,11 +125,12 @@ public:
     virtual const uint64_t& get_key_ref() const override;
     virtual bool is_null() const override;
     virtual bool is_valid() const override;
-    virtual void set_previous_version(persistent::version_t prev_ver, persistent::version_t prev_ver_by_key) const override;
     virtual void set_version(persistent::version_t ver) const override;
     virtual persistent::version_t get_version() const override;
     virtual void set_timestamp(uint64_t ts_us) const override;
     virtual uint64_t get_timestamp() const override;
+    virtual void set_previous_version(persistent::version_t prev_ver, persistent::version_t prev_ver_by_key) const override;
+    virtual bool verify_previous_version(persistent::version_t prev_ver, persistent::version_t prev_ver_by_key) const override;
 
     DEFAULT_SERIALIZATION_SUPPORT(ObjectWithUInt64Key, version, timestamp_us, previous_version, previous_version_by_key, key, blob);
 
@@ -166,7 +167,7 @@ inline std::ostream& operator<<(std::ostream& out, const ObjectWithUInt64Key& o)
 class ObjectWithStringKey : public mutils::ByteRepresentable,
                             public ICascadeObject<std::string>,
                             public IKeepTimestamp,
-                            public IKeepPreviousVersion {
+                            public IVerifyPreviousVersion {
 public:
     mutable persistent::version_t                       version;                // object version
     mutable uint64_t                                    timestamp_us;           // timestamp in microsecond
@@ -217,11 +218,12 @@ public:
     virtual const std::string& get_key_ref() const override;
     virtual bool is_null() const override;
     virtual bool is_valid() const override;
-    virtual void set_previous_version(persistent::version_t prev_ver, persistent::version_t perv_ver_by_key) const override;
     virtual void set_version(persistent::version_t ver) const override;
     virtual persistent::version_t get_version() const override;
     virtual void set_timestamp(uint64_t ts_us) const override;
     virtual uint64_t get_timestamp() const override;
+    virtual void set_previous_version(persistent::version_t prev_ver, persistent::version_t perv_ver_by_key) const override;
+    virtual bool verify_previous_version(persistent::version_t prev_ver, persistent::version_t perv_ver_by_key) const override;
 
     DEFAULT_SERIALIZATION_SUPPORT(ObjectWithStringKey, version, timestamp_us, previous_version, previous_version_by_key, key, blob);
 

@@ -186,11 +186,6 @@ bool ObjectWithUInt64Key::is_null() const {
     return (this->blob.size == 0);
 }
 
-void ObjectWithUInt64Key::set_previous_version(persistent::version_t prev_ver, persistent::version_t prev_ver_by_key) const {
-    this->previous_version = prev_ver;
-    this->previous_version_by_key = prev_ver_by_key;
-}
-
 void ObjectWithUInt64Key::set_version(persistent::version_t ver) const {
     this->version = ver;
 }
@@ -205,6 +200,21 @@ void ObjectWithUInt64Key::set_timestamp(uint64_t ts_us) const {
 
 uint64_t ObjectWithUInt64Key::get_timestamp() const {
     return this->timestamp_us;
+}
+
+void ObjectWithUInt64Key::set_previous_version(persistent::version_t prev_ver, persistent::version_t prev_ver_by_key) const {
+    this->previous_version = prev_ver;
+    this->previous_version_by_key = prev_ver_by_key;
+}
+
+bool ObjectWithUInt64Key::verify_previous_version(persistent::version_t prev_ver, persistent::version_t prev_ver_by_key) const {
+    // NOTICE: We provide the default behaviour of verify_previous_version as a demonstration. Please change the
+    // following code or implementing your own Object Types with a verify_previous_version implementation to customize
+    // it. The default behavior is self-explanatory and can be disabled by setting corresponding object previous versions to
+    // INVALID_VERSION.
+
+    return ((this->previous_version == persistent::INVALID_VERSION)?true:(this->previous_version >= prev_ver)) &&
+           ((this->previous_version_by_key == persistent::INVALID_VERSION)?true:(this->previous_version_by_key >= prev_ver_by_key));
 }
 
 template <>
@@ -304,12 +314,6 @@ bool ObjectWithStringKey::is_null() const {
     return (this->blob.size == 0);
 }
 
-
-void ObjectWithStringKey::set_previous_version(persistent::version_t prev_ver, persistent::version_t prev_ver_by_key) const {
-    this->previous_version = prev_ver;
-    this->previous_version_by_key = prev_ver_by_key;
-}
-
 void ObjectWithStringKey::set_version(persistent::version_t ver) const {
     this->version = ver;
 }
@@ -324,6 +328,21 @@ void ObjectWithStringKey::set_timestamp(uint64_t ts_us) const {
 
 uint64_t ObjectWithStringKey::get_timestamp() const {
     return this->timestamp_us;
+}
+
+void ObjectWithStringKey::set_previous_version(persistent::version_t prev_ver, persistent::version_t prev_ver_by_key) const {
+    this->previous_version = prev_ver;
+    this->previous_version_by_key = prev_ver_by_key;
+}
+
+bool ObjectWithStringKey::verify_previous_version(persistent::version_t prev_ver, persistent::version_t prev_ver_by_key) const {
+    // NOTICE: We provide the default behaviour of verify_previous_version as a demonstration. Please change the
+    // following code or implementing your own Object Types with a verify_previous_version implementation to customize
+    // it. The default behavior is self-explanatory and can be disabled by setting corresponding object previous versions to
+    // INVALID_VERSION.
+
+    return ((this->previous_version == persistent::INVALID_VERSION)?true:(this->previous_version >= prev_ver)) &&
+           ((this->previous_version_by_key == persistent::INVALID_VERSION)?true:(this->previous_version_by_key >= prev_ver_by_key));
 }
 
 template <>
