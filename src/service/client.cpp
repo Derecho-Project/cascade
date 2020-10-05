@@ -132,7 +132,7 @@ static void print_red(std::string msg) {
     }
 
 template <typename SubgroupType>
-void put(ServiceClientAPI& capi, std::string& key, std::string& value, uint32_t subgroup_index, uint32_t shard_index) {
+void put(ServiceClientAPI& capi, std::string& key, std::string& value, persistent::version_t pver, persistent::version_t pver_bk, uint32_t subgroup_index, uint32_t shard_index) {
     typename SubgroupType::ObjectType obj;
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
         obj.key = static_cast<uint64_t>(std::stol(key));
@@ -142,6 +142,8 @@ void put(ServiceClientAPI& capi, std::string& key, std::string& value, uint32_t 
         print_red(std::string("Unhandled KeyType:") + typeid(typename SubgroupType::KeyType).name());
         return;
     }
+    obj.previous_version = pver;
+    obj.previous_version_by_key = pver_bk;
     obj.blob = Blob(value.c_str(),value.length());
     derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> result = capi.template put<SubgroupType>(obj, subgroup_index, shard_index);
     check_put_and_remove_result(result);
@@ -245,18 +247,18 @@ void list_keys_by_time(ServiceClientAPI& capi, uint64_t ts_us, uint32_t subgroup
 void interactive_test(ServiceClientAPI& capi) {
     const char* help_info =
     "list_all_members\n\tlist all members in top level derecho group.\n"
-    "list_type_members <type> [subgroup_index] [shard_index]\n\tlist members in shard by subgroup type.\n"
-    "list_subgroup_members [subgroup_id] [shard_index]\n\tlist members in shard by subgroup id.\n"
+    "list_type_members <type> [subgroup_index(0)] [shard_index(0)]\n\tlist members in shard by subgroup type.\n"
+    "list_subgroup_members [subgroup_id(0)] [shard_index(0)]\n\tlist members in shard by subgroup id.\n"
     "set_member_selection_policy <type> <subgroup_index> <shard_index> <policy> [user_specified_node_id]\n\tset member selection policy\n"
-    "get_member_selection_policy <type> [subgroup_index] [shard_index]\n\tget member selection policy\n"
-    "put <type> <key> <value> [subgroup_index] [shard_index]\n\tput an object\n"
-    "remove <type> <key> [subgroup_index] [shard_index]\n\tremove an object\n"
-    "get <type> <key> [version] [subgroup_index] [shard_index]\n\tget an object(by version)\n"
-    "get_by_time <type> <key> <ts_us> [subgroup_index] [shard_index]\n\tget an object by timestamp\n"
-    "get_size <type> <key> [version] [subgroup_index] [shard_index]\n\tget the size of an object(by version)\n"
-    "get_size_by_time <type> <key> <ts_us> [subgroup_index] [shard_index]\n\tget the size of an object by timestamp\n"
-    "list_keys <type> [version] [subgroup_index] [shard_index]\n\tlist keys in shard (by version)\n"
-    "list_keys_by_time <type> <ts_us> [subgroup_index] [shard_index]\n\tlist keys in shard by time\n"
+    "get_member_selection_policy <type> [subgroup_index(0)] [shard_index(0)]\n\tget member selection policy\n"
+    "put <type> <key> <value> [pver(-1)] [pver_by_key(-1)] [subgroup_index(0)] [shard_index(0)]\n\tput an object\n"
+    "remove <type> <key> [subgroup_index(0)] [shard_index(0)]\n\tremove an object\n"
+    "get <type> <key> [version(-1)] [subgroup_index(0)] [shard_index(0)]\n\tget an object(by version)\n"
+    "get_by_time <type> <key> <ts_us> [subgroup_index(0)] [shard_index(0)]\n\tget an object by timestamp\n"
+    "get_size <type> <key> [version(-1)] [subgroup_index(0)] [shard_index(0)]\n\tget the size of an object(by version)\n"
+    "get_size_by_time <type> <key> <ts_us> [subgroup_index(0)] [shard_index(0)]\n\tget the size of an object by timestamp\n"
+    "list_keys <type> [version(-1)] [subgroup_index(0)] [shard_index(0)]\n\tlist keys in shard (by version)\n"
+    "list_keys_by_time <type> <ts_us> [subgroup_index(0)] [shard_index(0)]\n\tlist keys in shard by time\n"
     "quit|exit\n\texit the client.\n"
     "help\n\tprint this message.\n"
     "\n"
@@ -337,15 +339,21 @@ void interactive_test(ServiceClientAPI& capi) {
             }
             on_subgroup_type(cmd_tokens[1],set_member_selection_policy,capi,subgroup_index,shard_index,policy,user_specified_node_id);
         } else if (cmd_tokens[0] == "put") {
+            persistent::version_t pver = persistent::INVALID_VERSION;
+            persistent::version_t pver_bk = persistent::INVALID_VERSION;
             if (cmd_tokens.size() < 4) {
                 print_red("Invalid format:" + cmdline);
                 continue;
             }
             if (cmd_tokens.size() >= 5)
-                subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
+                pver = static_cast<persistent::version_t>(std::stol(cmd_tokens[4]));
             if (cmd_tokens.size() >= 6)
-                shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[5]));
-            on_subgroup_type(cmd_tokens[1],put,capi,cmd_tokens[2]/*key*/,cmd_tokens[3]/*value*/,subgroup_index,shard_index);
+                pver_bk = static_cast<persistent::version_t>(std::stol(cmd_tokens[5]));
+            if (cmd_tokens.size() >= 7)
+                subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[6]));
+            if (cmd_tokens.size() >= 8)
+                shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[7]));
+            on_subgroup_type(cmd_tokens[1],put,capi,cmd_tokens[2]/*key*/,cmd_tokens[3]/*value*/,pver,pver_bk,subgroup_index,shard_index);
         } else if (cmd_tokens[0] == "remove") {
             if (cmd_tokens.size() < 3) {
                 print_red("Invalid format:" + cmdline);
