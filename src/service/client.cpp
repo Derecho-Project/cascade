@@ -275,7 +275,7 @@ void interactive_test(ServiceClientAPI& capi) {
     "list_keys <type> [version] [subgroup_index] [shard_index]\n\tlist keys in shard (by version)\n"
     "list_keys_by_time <type> <ts_us> [subgroup_index] [shard_index]\n\tlist keys in shard by time\n"
 #if HAS_BOOLINQ
-    "list_data_by_prefix <type> <prefix> [version] [subgroup_index] [shard_index\n\t test LINQ api\n]"
+    "list_data_by_prefix <type> <prefix> [version] [subgroup_index] [shard_index]\n\t test LINQ api\n"
 #endif //HAS_BOOLINQ
     "quit|exit\n\texit the client.\n"
     "help\n\tprint this message.\n"
