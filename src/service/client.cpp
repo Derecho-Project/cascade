@@ -241,6 +241,23 @@ void list_keys_by_time(ServiceClientAPI& capi, uint64_t ts_us, uint32_t subgroup
     check_list_keys_result(result);
 }
 
+#if HAS_BOOLINQ
+//    "list_data_by_prefix <type> <prefix> [version] [subgroup_index] [shard_index\n\t test LINQ api\n]"
+template <typename SubgroupType>
+void list_data_by_prefix(ServiceClientAPI& capi, std::string prefix, persistent::version_t ver, uint32_t subgroup_index, uint32_t shard_index) {
+    std::vector<typename SubgroupType::KeyType> keys;
+    for (auto& obj : from_shard<SubgroupType,ServiceClientAPI>(keys,capi,subgroup_index,shard_index,ver).where([&prefix](typename SubgroupType::ObjectType o){
+                if (o.blob.size < prefix.size()) {
+                    return false;
+                } else {
+                    return (std::string(o.blob.bytes,prefix.size()) == prefix);
+                }
+            }).toStdVector()) {
+        std::cout << "Found:" << obj << std::endl;
+    }
+}
+#endif// HAS_BOOLINQ
+
 /* TEST2: put/get/remove tests */
 void interactive_test(ServiceClientAPI& capi) {
     const char* help_info =
@@ -257,6 +274,9 @@ void interactive_test(ServiceClientAPI& capi) {
     "get_size_by_time <type> <key> <ts_us> [subgroup_index] [shard_index]\n\tget the size of an object by timestamp\n"
     "list_keys <type> [version] [subgroup_index] [shard_index]\n\tlist keys in shard (by version)\n"
     "list_keys_by_time <type> <ts_us> [subgroup_index] [shard_index]\n\tlist keys in shard by time\n"
+#if HAS_BOOLINQ
+    "list_data_by_prefix <type> <prefix> [version] [subgroup_index] [shard_index\n\t test LINQ api\n]"
+#endif //HAS_BOOLINQ
     "quit|exit\n\texit the client.\n"
     "help\n\tprint this message.\n"
     "\n"
@@ -430,6 +450,21 @@ void interactive_test(ServiceClientAPI& capi) {
                 shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
             }
             on_subgroup_type(cmd_tokens[1],list_keys_by_time,capi,ts_us,subgroup_index,shard_index);
+#if HAS_BOOLINQ
+        } else if (cmd_tokens[0] == "list_data_by_prefix") {
+            if (cmd_tokens.size() < 3) {
+                print_red("Invalid format:" + cmdline);
+                continue;
+            }
+            std::string& prefix = cmd_tokens[2];
+            if (cmd_tokens.size() >= 4)
+                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[3]));
+            if (cmd_tokens.size() >= 5)
+                subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
+            if (cmd_tokens.size() >= 6)
+                shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[5]));
+            on_subgroup_type(cmd_tokens[1],list_data_by_prefix,capi,prefix,version,subgroup_index,shard_index);
+#endif//HAS_BOOLINQ
         } else {
             print_red("command:" + cmd_tokens[0] + " is not implemented or unknown.");
         }
