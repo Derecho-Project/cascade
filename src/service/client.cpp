@@ -92,18 +92,17 @@ void member_test(ServiceClientAPI& capi) {
     print_shard_member(capi,3,0);
 }
 
-static std::vector<std::string> tokenize(std::string& line) {
+static std::vector<std::string> tokenize(std::string &line, const char *delimiter) {
     std::vector<std::string> tokens;
     char line_buf[1024];
     std::strcpy(line_buf, line.c_str());
-    char *token = std::strtok(line_buf, " ");
+    char *token = std::strtok(line_buf, delimiter);
     while (token != nullptr) {
         tokens.push_back(std::string(token));
-        token = std::strtok(NULL, " ");
+        token = std::strtok(NULL, delimiter);
     }
     return tokens; // RVO
 }
-
 
 static void print_red(std::string msg) {
     std::cout << "\033[1;31m"
@@ -256,6 +255,90 @@ void list_data_by_prefix(ServiceClientAPI& capi, std::string prefix, persistent:
         std::cout << "Found:" << obj << std::endl;
     }
 }
+
+//    "list_data_by_version <type> <key> <subgroup_index> <shard_index> [version]\n\t test LINQ api - version_iterator \n"
+template <typename SubgroupType>
+void list_data_by_version(ServiceClientAPI &capi, std::string &key, uint32_t subgroup_index, uint32_t shard_index, persistent::version_t version) {
+    if constexpr (std::is_same<typename SubgroupType::KeyType, uint64_t>::value) {
+        auto result = capi.template get<SubgroupType>(static_cast<uint64_t>(std::stol(key)), version, subgroup_index, shard_index);
+        for (auto &reply_future : result.get()) {
+            auto reply = reply_future.second.get();
+            if (reply.is_valid()) {
+                version = reply.version;
+            } else {
+                return;
+            }
+        }
+        for (auto &obj : from_versions<SubgroupType, ServiceClientAPI>(static_cast<uint64_t>(std::stol(key)), capi, subgroup_index, shard_index, version).toStdVector()) {
+            std::cout << "Found:" << obj << std::endl;
+        }
+    } else if constexpr (std::is_same<typename SubgroupType::KeyType, std::string>::value) {
+        auto result = capi.template get<SubgroupType>(key, version, subgroup_index, shard_index);
+        for (auto &reply_future : result.get()) {
+            auto reply = reply_future.second.get();
+            if (reply.is_valid()) {
+                version = reply.version;
+            } else {
+                return;
+            }
+        }
+        for (auto &obj : from_versions<SubgroupType, ServiceClientAPI>(key, capi, subgroup_index, shard_index, version).toStdVector()) {
+            std::cout << "Found:" << obj << std::endl;
+        }
+    }
+}
+
+//    "list_data_of_key_between_timestamp <type> <key> [ts_begin] [ts_end] [subgroup_index] [shard_index]\n\t test LINQ api - time_iterator \n"
+template <typename SubgroupType>
+void list_data_of_key_between_timestamp(ServiceClientAPI &capi, std::string &key, uint64_t ts_begin, uint64_t ts_end, uint32_t subgroup_index, uint32_t shard_index) {
+    std::vector<typename SubgroupType::KeyType> keys;
+    if constexpr (std::is_same<typename SubgroupType::KeyType, uint64_t>::value) {
+        auto result = capi.template get<SubgroupType>(static_cast<uint64_t>(std::stol(key)), CURRENT_VERSION, subgroup_index, shard_index);
+        for (auto &reply_future : result.get()) {
+            auto reply = reply_future.second.get();
+            if (reply.is_valid()) {
+                ts_end = reply.timestamp_us >= ts_end ? ts_end : reply.timestamp_us;
+            } else {
+                return;
+            }
+        }
+        for (auto &obj : from_shard_by_time<SubgroupType, ServiceClientAPI>(keys, capi, subgroup_index, shard_index, ts_end).where([&key,ts_begin](typename SubgroupType::ObjectType obj) {
+                    return !obj.is_null() && static_cast<uint64_t>(std::stol(key)) == obj.key && obj.timestamp_us >= ts_begin;
+                }).toStdVector()) {
+            std::cout << "Found:" << obj << std::endl;
+        }
+    } else if constexpr (std::is_same<typename SubgroupType::KeyType, std::string>::value) {
+        // set the timestamp to the latest update if ts_end > latest_ts
+        auto result = capi.template get<SubgroupType>(key, CURRENT_VERSION, subgroup_index, shard_index);
+        for (auto &reply_future : result.get()) {
+            auto reply = reply_future.second.get();
+            if (reply.is_valid()) {
+                ts_end = reply.timestamp_us >= ts_end ? ts_end : reply.timestamp_us;
+            } else {
+                return;
+            }
+        }
+        for (auto &obj : from_shard_by_time<SubgroupType, ServiceClientAPI>(keys, capi, subgroup_index, shard_index, ts_end).where([&key,ts_begin](typename SubgroupType::ObjectType obj) {
+                    return (!obj.is_null() && key == obj.key && obj.timestamp_us >= ts_begin);
+                }).toStdVector()) {
+            std::cout << "Found:" << obj << std::endl;
+        }
+    }
+}
+
+/** Comment this out before we have the correct subgroup implementation.
+//    "list_data_in_subgroup <type> <subgroup_index> <shard_index_list> [version]\n\t test LINQ api - subgroup_iterator \n"
+template <typename SubgroupType>
+void list_data_in_subgroup(ServiceClientAPI &capi, uint32_t subgroup_index, std::vector<uint32_t> &shidx_list, persistent::version_t version)
+{
+    std::vector<typename SubgroupType::KeyType> keys;
+    std::vector<CascadeShardLinq<SubgroupType, ServiceClientAPI>> shard_linq_list;
+
+    for (auto &obj : from_subgroup<SubgroupType, ServiceClientAPI>(keys, shidx_list, shard_linq_list, capi, subgroup_index, version).toStdVector()) {
+        std::cout << "Found:" << obj << std::endl;
+    }
+}
+**/
 #endif// HAS_BOOLINQ
 
 /* TEST2: put/get/remove tests */
@@ -276,7 +359,10 @@ void interactive_test(ServiceClientAPI& capi) {
     "list_keys_by_time <type> <ts_us> [subgroup_index] [shard_index]\n\tlist keys in shard by time\n"
 #if HAS_BOOLINQ
     "list_data_by_prefix <type> <prefix> [version] [subgroup_index] [shard_index]\n\t test LINQ api\n"
-#endif //HAS_BOOLINQ
+    "list_data_by_version <type> <key> <subgroup_index> <shard_index> [version]\n\t test LINQ api - version_iterator \n"
+    "list_data_of_key_between_timestamp <type> <key> [ts_begin] [ts_end] [subgroup_index] [shard_index]\n\t test LINQ api - time_iterator \n"
+//  "list_data_in_subgroup <type> <subgroup_index> <shard_index_list> [version]\n\t test LINQ api - subgroup_iterator \n"
+#endif// HAS_BOOLINQ
     "quit|exit\n\texit the client.\n"
     "help\n\tprint this message.\n"
     "\n"
@@ -299,7 +385,8 @@ void interactive_test(ServiceClientAPI& capi) {
         if (cmdline == "")continue;
         add_history(cmdline.c_str());
 
-        auto cmd_tokens = tokenize(cmdline);
+        std::string delimiter = " ";
+        auto cmd_tokens = tokenize(cmdline, delimiter.c_str());
         if (cmd_tokens[0] == "help") {
             std::cout << help_info << std::endl;
         } else if (cmd_tokens[0] == "quit" || cmd_tokens[0] == "exit") {
@@ -464,6 +551,61 @@ void interactive_test(ServiceClientAPI& capi) {
             if (cmd_tokens.size() >= 6)
                 shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[5]));
             on_subgroup_type(cmd_tokens[1],list_data_by_prefix,capi,prefix,version,subgroup_index,shard_index);
+        } else if (cmd_tokens[0] == "list_data_by_version") {
+            if (cmd_tokens.size() < 5) {
+                print_red("Invalid format:" + cmdline);
+                continue;
+            }
+            uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
+            uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
+
+            if (cmd_tokens.size() >= 6) {
+                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[5]));
+            }
+            on_subgroup_type(cmd_tokens[1], list_data_by_version, capi, cmd_tokens[2] /*key*/, subgroup_index, shard_index, version);
+        } else if (cmd_tokens[0] == "list_data_of_key_between_timestamp") {
+            if (cmd_tokens.size() < 3) {
+                print_red("Invalid format:" + cmdline);
+                continue;
+            }
+
+            uint64_t start = 0;
+            uint64_t end = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+            if (cmd_tokens.size() >= 4) {
+                start = static_cast<uint64_t>(std::stol(cmd_tokens[3]));
+            }
+            if (cmd_tokens.size() >= 5) {
+                end = static_cast<uint64_t>(std::stol(cmd_tokens[4]));
+            }
+            if (cmd_tokens.size() >= 6) {
+                subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[5]));
+            }
+            if (cmd_tokens.size() >= 7) {
+                shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[6]));
+            }
+            on_subgroup_type(cmd_tokens[1], list_data_of_key_between_timestamp, capi, cmd_tokens[2], start, end, subgroup_index, shard_index);
+/**
+ * Comment this out until we have correct subgroup iterator design.
+        } else if (cmd_tokens[0] == "list_data_in_subgroup") {
+            if (cmd_tokens.size() < 4) {
+                print_red("Invalid format:" + cmdline);
+                continue;
+            }
+            uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[2]));
+
+            // parse shard_index_list from user input
+            std::vector<uint32_t> shard_index_list;
+            delimiter = ",";
+            std::vector<std::string> shard_index_str = tokenize(cmd_tokens[3], delimiter.c_str());
+            std::for_each(shard_index_str.begin(), shard_index_str.end(), [&shard_index_list](std::string &idx_str) {
+                shard_index_list.emplace(shard_index_list.end(), static_cast<uint32_t>(std::stoi(idx_str)));
+            });
+
+            if (cmd_tokens.size() >= 5) {
+                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[4]));
+            }
+            on_subgroup_type(cmd_tokens[1], list_data_in_subgroup, capi, subgroup_index, shard_index_list, version);
+**/
 #endif//HAS_BOOLINQ
         } else {
             print_red("command:" + cmd_tokens[0] + " is not implemented or unknown.");
