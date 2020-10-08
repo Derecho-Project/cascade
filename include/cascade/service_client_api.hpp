@@ -175,23 +175,49 @@ CascadeVersionLinq<CascadeType,ServiceClientType> from_versions(
 		    	throw boolinq::LinqEndException();
 			}
 		
-			/* get object */
-			auto result = capi.template get<CascadeType>(key,ver,subgroup_index,shard_index);
-			for (auto& reply_future:result.get()) {
-		    	auto object = reply_future.second.get();
-		    	ver = object.previous_version_by_key;
-		    	if (!object.is_null()) {
-		        	return object;
-		    	}
-			}
-			throw boolinq::LinqEndException();   
+            // while (ver != INVALID_VERSION) {
+            //     auto not_null = true;
+            //     persistent::version_t cur_ver = ver;
+
+			//     /* decide if the object is null */
+            //     auto result_check_null = capi.template get<CascadeType>(key,ver,subgroup_index,shard_index);
+            //     for (auto& reply_future:result_check_null.get()) {
+            //         auto object = reply_future.second.get();
+            //         ver = object.previous_version_by_key; 
+            //         not_null = not_null && !object.is_null();
+            //     }
+
+            //     std::cout << not_null;
+            //     /* get object */
+            //     if (not_null) {
+            //         auto result_get_obj = capi.template get<CascadeType>(key,cur_ver,subgroup_index,shard_index);
+            //         for (auto& reply_future:result_get_obj.get()) {
+            //             auto object = reply_future.second.get();
+            //             return  object;
+            //         }
+            //     } 
+            // }
+
+            do {
+                auto result = capi.template get<CascadeType>(key,ver,subgroup_index,shard_index);
+                for (auto& reply_future:result.get()) {
+                    auto object = reply_future.second.get();
+                    ver = object.previous_version_by_key; 
+                    if (!object.is_null())
+                        return object;
+                }
+            } while (ver != INVALID_VERSION);
+
+            throw boolinq::LinqEndException();
 	    });
 }
 
 template <typename CascadeType, typename ServiceClientType>
 using CascadeSubgroupLinqStorageType = typename std::pair<typename std::vector<CascadeShardLinq<CascadeType,ServiceClientType>>::iterator, typename std::vector<CascadeShardLinq<CascadeType,ServiceClientType>>::iterator>;
 
-/* A subgroup linq iterates all the objects in the shards of a subgroup */
+/**
+ * The subgroup linq iterates all the objects in the shards of a subgroup
+ */
 template <typename CascadeType, typename ServiceClientType>
 class CascadeSubgroupLinq : public boolinq::Linq<CascadeSubgroupLinqStorageType<CascadeType,ServiceClientType>, typename CascadeType::ObjectType> {
 private:
@@ -214,19 +240,28 @@ public:
 		version(ver) {}
 };
 
-
-/*
- * TODO: This will not work, because the keys will not set correctly because in 'for_each' loop the keys will be
- * overrided by the last shard. Need a map (shard_id->key_list) to hold the keys. Please fix it.
+/**
+ * Create a Linq iterating the objects in a subgroup.
+ * @param shard_index_list      The list that contains shard indexes of the subgroup.
+ * @param shardidx_to_keys      The map that contains mappings between shard index and the corresponding 
+ *                              key lists. The key lists are used to store the generated key_list in [from_shard] 
+ *                              function call. Please keep it alive throughout the life time of the Link object.
+ * @param shard_linq_list       This is an output argument to keep the generated ShardLinq for each shard in the 
+ *                              in the subgroup. Please keep it alive throughout the life time of the Link object.
+ * @param capi                  The cascade client.
+ * @param sgidx
+ * @param version
+ * @return a Linq object
+ */
 template <typename CascadeType, typename ServiceClientType>
 CascadeSubgroupLinq<CascadeType,ServiceClientType> from_subgroup(
-	std::vector<typename CascadeType::KeyType>& keys,
 	std::vector<uint32_t>& shard_index_list,
+    std::unordered_map<uint32_t, std::vector<typename CascadeType::KeyType>>& shardidx_to_keys, 
 	std::vector<CascadeShardLinq<CascadeType,ServiceClientType>>& shard_linq_list,
 	ServiceClientType& capi, uint32_t sgidx, persistent::version_t ver) {
 	
-	std::for_each(shard_index_list.begin(), shard_index_list.end(), [&keys,&shard_linq_list,&capi,sgidx,ver](uint32_t shidx) {
-	    shard_linq_list.push_back(from_shard<CascadeType, ServiceClientType>(keys,capi,sgidx,shidx,ver));
+	std::for_each(shard_index_list.begin(), shard_index_list.end(), [&shardidx_to_keys,&shard_linq_list,&capi,sgidx,ver](uint32_t shidx) {
+	    shard_linq_list.push_back(from_shard<CascadeType, ServiceClientType>(shardidx_to_keys[shidx],capi,sgidx,shidx,ver));
 	});
 	
 	return CascadeSubgroupLinq<CascadeType,ServiceClientType>(capi,sgidx,ver,shard_linq_list,
@@ -238,8 +273,6 @@ CascadeSubgroupLinq<CascadeType,ServiceClientType> from_subgroup(
 			do {
    		    	try {
 		        	auto obj = _storage.first->next();
-					// assignment constructor is deleted
-					// while ((obj = _storage.first->next()).is_null()) {}
 					return obj;
 	    		} 
 				catch(boolinq::LinqEndException &) {
@@ -250,7 +283,6 @@ CascadeSubgroupLinq<CascadeType,ServiceClientType> from_subgroup(
 			throw boolinq::LinqEndException();
 	    });
 }
-*/
 
 #endif//HAS_BOOLINQ
 
