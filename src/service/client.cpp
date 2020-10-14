@@ -330,14 +330,14 @@ void list_data_of_key_between_timestamp(ServiceClientAPI &capi, std::string &key
     }
 }
 
-//    "list_data_in_subgroup <type> <subgroup_index> [version]\n\t test LINQ api - subgroup_iterator \n"
+//    "list_data_in_subgroup <type> <subgroup_index> <subgroup_id> [version]\n\t test LINQ api - subgroup_iterator \n"
 template <typename SubgroupType>
-void list_data_in_subgroup(ServiceClientAPI& capi, uint32_t subgroup_index, persistent::version_t version) {
+void list_data_in_subgroup(ServiceClientAPI& capi, uint32_t subgroup_index, derecho::subgroup_id_t subgroup_id, persistent::version_t version) {
     std::vector<typename SubgroupType::KeyType> keys;
     std::vector<CascadeShardLinq<SubgroupType, ServiceClientAPI>> shard_linq_list;
     std::unordered_map<uint32_t, std::vector<typename SubgroupType::KeyType>> shardidx_to_keys; 
     
-    for (auto &obj : from_subgroup<SubgroupType, ServiceClientAPI>(shardidx_to_keys, shard_linq_list, capi, subgroup_index, version).toStdVector()) {
+    for (auto &obj : from_subgroup<SubgroupType, ServiceClientAPI>(shardidx_to_keys, shard_linq_list, capi, subgroup_id, subgroup_index, version).toStdVector()) {
         std::cout << "Found:" << obj << std::endl;
     }
 }
@@ -363,7 +363,7 @@ void interactive_test(ServiceClientAPI& capi) {
     "list_data_by_prefix <type> <prefix> [version] [subgroup_index] [shard_index]\n\t test LINQ api\n"
     "list_data_between_version <type> <key> <subgroup_index> <shard_index> [version_begin] [version_end]\n\t test LINQ api - version_iterator \n"
     "list_data_of_key_between_timestamp <type> <key> [ts_begin] [ts_end] [subgroup_index] [shard_index]\n\t test LINQ api - time_iterator \n"
-    "list_data_in_subgroup <type> <subgroup_index> [version]\n\t test LINQ api - subgroup_iterator \n"
+    "list_data_in_subgroup <type> <subgroup_index> <subgroup_id> [version]\n\t test LINQ api - subgroup_iterator \n"
 #endif// HAS_BOOLINQ
     "quit|exit\n\texit the client.\n"
     "help\n\tprint this message.\n"
@@ -590,15 +590,16 @@ void interactive_test(ServiceClientAPI& capi) {
             }
             on_subgroup_type(cmd_tokens[1], list_data_of_key_between_timestamp, capi, cmd_tokens[2], start, end, subgroup_index, shard_index);
         } else if (cmd_tokens[0] == "list_data_in_subgroup") {
-            if (cmd_tokens.size() < 3) {
+            if (cmd_tokens.size() < 4) {
                 print_red("Invalid format:" + cmdline);
                 continue;
             }
             uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[2]));
-            if (cmd_tokens.size() >= 4) {
-                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[3]));
+            subgroup_id = static_cast<derecho::subgroup_id_t>(std::stoi(cmd_tokens[3]));
+            if (cmd_tokens.size() >= 5) {
+                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[4]));
             }
-            on_subgroup_type(cmd_tokens[1], list_data_in_subgroup, capi, subgroup_index, version);
+            on_subgroup_type(cmd_tokens[1], list_data_in_subgroup, capi, subgroup_index, subgroup_id, version);
 #endif//HAS_BOOLINQ
         } else {
             print_red("command:" + cmd_tokens[0] + " is not implemented or unknown.");

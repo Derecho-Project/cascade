@@ -67,6 +67,7 @@ CascadeShardLinq<CascadeType,ServiceClientType> from_shard(
         for(auto& reply_future:result.get()) {
             key_list = reply_future.second.get();
         }
+        
         /* set up storage and nextFunc*/
         return CascadeShardLinq<CascadeType,ServiceClientType>(capi,subgroup_index,shard_index,version,key_list,
             [&capi,subgroup_index,shard_index,version](CascadeShardLinqStorageType<CascadeType>& _storage) {
@@ -256,15 +257,21 @@ template <typename CascadeType, typename ServiceClientType>
 CascadeSubgroupLinq<CascadeType,ServiceClientType> from_subgroup(
     std::unordered_map<uint32_t, std::vector<typename CascadeType::KeyType>>& shardidx_to_keys, 
 	std::vector<CascadeShardLinq<CascadeType,ServiceClientType>>& shard_linq_list,
-	ServiceClientType& capi, uint32_t sgidx, persistent::version_t ver) {
-	
-    uint32_t shard_idx_iter = 0;
-	try {
-        while (true) {
-	        shard_linq_list.push_back(from_shard<CascadeType, ServiceClientType>(shardidx_to_keys[shard_idx_iter],capi,sgidx,shard_idx_iter++,ver));
-	    }
-    } catch (std::bad_alloc &) {}
-    
+	ServiceClientType& capi, derecho::subgroup_id_t subgroup_id, uint32_t sgidx, persistent::version_t ver) {
+
+    /* get number of shards in the current subgroup. */
+    uint32_t subgroup_member_size = 0;
+    uint32_t member_size = capi.template get_members().size();
+    auto cur_subgroup_members = capi.template get_shard_members(subgroup_id, 0);
+    if (cur_subgroup_members[0] + cur_subgroup_members.size() == member_size) {
+        subgroup_member_size = cur_subgroup_members.size();
+    } else {
+        subgroup_member_size = capi.template get_shard_members(subgroup_id+1, 0)[0] - cur_subgroup_members[0];
+    }
+    for (uint32_t shidx = 0; shidx < subgroup_member_size; ++shidx) {
+        shard_linq_list.push_back(from_shard<CascadeType, ServiceClientType>(shardidx_to_keys[shidx],capi,sgidx,shidx,ver));
+    }
+
 	return CascadeSubgroupLinq<CascadeType,ServiceClientType>(capi,sgidx,ver,shard_linq_list,
 	    [&shard_linq_list](CascadeSubgroupLinqStorageType<CascadeType,ServiceClientType>& _storage) {
    	        if (_storage.first == _storage.second) {
@@ -275,7 +282,8 @@ CascadeSubgroupLinq<CascadeType,ServiceClientType> from_subgroup(
    		    	try {
 		        	auto obj = _storage.first->next();
 					return obj;
-	    		} catch(boolinq::LinqEndException &) {
+	    		} 
+				catch(boolinq::LinqEndException &) {
  		        	_storage.first++;
 		    	} 
 			} while (_storage.first != _storage.second);
