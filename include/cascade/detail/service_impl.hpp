@@ -306,7 +306,7 @@ derecho::rpc::QueryResults<uint64_t> ServiceClient<CascadeTypes...>::get_size_by
         const uint64_t& ts_us,
         uint32_t subgroup_index,
         uint32_t shard_index) {
-    auto& caller = external_group.template get_subgroup_caller<SubgroupType>();
+    auto& caller = external_group.template get_subgroup_caller<SubgroupType>(subgroup_index);
     node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
     return caller.template p2p_send<RPC_NAME(get_size_by_time)>(node_id,key,ts_us);
 }
@@ -317,7 +317,7 @@ derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> ServiceC
         const persistent::version_t& version,
         uint32_t subgroup_index,
         uint32_t shard_index) {
-    auto& caller = external_group.template get_subgroup_caller<SubgroupType>();
+    auto& caller = external_group.template get_subgroup_caller<SubgroupType>(subgroup_index);
     node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
     return caller.template p2p_send<RPC_NAME(list_keys)>(node_id,version);
 }
@@ -328,7 +328,7 @@ derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> ServiceC
         const uint64_t& ts_us,
         uint32_t subgroup_index,
         uint32_t shard_index) {
-    auto& caller = external_group.template get_subgroup_caller<SubgroupType>();
+    auto& caller = external_group.template get_subgroup_caller<SubgroupType>(subgroup_index);
     node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
     return caller.template p2p_send<RPC_NAME(list_keys_by_time)>(node_id,ts_us);
 }
