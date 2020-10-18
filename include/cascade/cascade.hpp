@@ -390,6 +390,71 @@ namespace cascade {
         // destructor
         virtual ~PersistentCascadeStore();
     };
+
+    /**
+     * template for WAN persistent cascade stores(pcs).
+     * Extends from pcs is not easy, because there are many operations related to the pcs subgroup in pcs's function.
+     * In that case, we need to add the pcs into the subgroup type when building the group,which is not what we want.
+     * So I just extends from the virtual interface: ICascadeStore.
+     * WANPersistentCascadeStore is PersistentCascadeStore that can transfer storage log on WAN.
+     */
+    template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST=persistent::ST_FILE>
+    class WANPersistentCascadeStore : public ICascadeStore<KT, VT, IK, IV>,
+                                   public mutils::ByteRepresentable,
+                                   public derecho::PersistsFields,
+                                   public derecho::GroupReference {
+    public:
+        using derecho::GroupReference::group;
+        persistent::Persistent<DeltaCascadeStoreCore<KT,VT,IK,IV>,ST> persistent_core;
+        std::shared_ptr<CascadeWatcher<KT,VT,IK,IV>> cascade_watcher_ptr;
+        
+        REGISTER_RPC_FUNCTIONS(WANPersistentCascadeStore,
+                               put,
+                               remove,
+                               get,
+                               get_by_time,
+                               list_keys,
+                               list_keys_by_time,
+                               get_size,
+                               get_size_by_time,
+                               ordered_put,
+                               ordered_remove,
+                               ordered_get,
+                               ordered_list_keys,
+                               ordered_get_size);
+        virtual std::tuple<persistent::version_t,uint64_t> put(const VT& value) override;
+        virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) override;
+        virtual const VT get(const KT& key, const persistent::version_t& ver) override;
+        virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) override;
+        virtual std::vector<KT> list_keys(const persistent::version_t& ver) override;
+        virtual std::vector<KT> list_keys_by_time(const uint64_t& ts_us) override;
+        virtual uint64_t get_size(const KT& key, const persistent::version_t& ver) override;
+        virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us) override;
+        virtual std::tuple<persistent::version_t,uint64_t> ordered_put(const VT& value) override;
+        virtual std::tuple<persistent::version_t,uint64_t> ordered_remove(const KT& key) override;
+        virtual const VT ordered_get(const KT& key) override;
+        virtual std::vector<KT> ordered_list_keys() override;
+        virtual uint64_t ordered_get_size(const KT& key) override;
+
+        // serialization support
+        DEFAULT_SERIALIZE(persistent_core);
+
+        static std::unique_ptr<WANPersistentCascadeStore> from_bytes(mutils::DeserializationManager* dsm, char const* buf);
+
+        DEFAULT_DESERIALIZE_NOALLOC(WANPersistentCascadeStore);
+
+        void ensure_registered(mutils::DeserializationManager&) {}
+
+        // constructors
+        WANPersistentCascadeStore(persistent::PersistentRegistry *pr, CascadeWatcher<KT,VT,IK,IV>* cw=nullptr);
+        WANPersistentCascadeStore(persistent::Persistent<DeltaCascadeStoreCore<KT,VT,IK,IV>,ST>&& _persistent_core,
+                               CascadeWatcher<KT,VT,IK,IV>* cw=nullptr); // move persistent_core
+
+        // destructor
+        virtual ~WANPersistentCascadeStore();
+    };
+
+
 } // namespace cascade
 } // namespace derecho
 #include "detail/cascade_impl.hpp"
