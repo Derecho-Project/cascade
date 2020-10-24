@@ -12,8 +12,6 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <thread>
-#include <wan_agent/wan_agent_type_definitions.hpp>
-#include <wan_agent/wan_agent_utils.hpp>
 #include <wan_agent/wan_agent.hpp>
 using std::cout;
 using std::endl;

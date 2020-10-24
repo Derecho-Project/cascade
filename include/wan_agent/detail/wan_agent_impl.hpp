@@ -1,3 +1,4 @@
+#pragma once
 #include <dlfcn.h>
 #include <exception>
 #include <map>

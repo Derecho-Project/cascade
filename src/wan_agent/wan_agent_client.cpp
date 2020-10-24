@@ -10,8 +10,6 @@
 #include <string.h>
 #include <algorithm>
 
-#include <wan_agent/wan_agent_type_definitions.hpp>
-#include <wan_agent/wan_agent_utils.hpp>
 #include <wan_agent/wan_agent.hpp>
 
 using std::cout;
