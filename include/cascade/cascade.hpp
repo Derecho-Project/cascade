@@ -455,7 +455,10 @@ namespace derecho
 
             // constructors
             WANPersistentCascadeStore(persistent::PersistentRegistry *pr, CascadeWatcher<KT, VT, IK, IV> *cw = nullptr);
-            WANPersistentCascadeStore(); // move persistent_core
+            WANPersistentCascadeStore(PersistentCascadeStore<KT, VT, IK, IV, ST> &&_persisent_cascade_store); // move persistent_core, work with from_bytes, seems implicitly deleted
+            WANPersistentCascadeStore(
+                persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST> &_persistent_core,
+                CascadeWatcher<KT, VT, IK, IV> *cw = nullptr); // move persistent_core, work with from_bytes
             // destructor
             virtual ~WANPersistentCascadeStore();
         };

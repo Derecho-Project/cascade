@@ -802,26 +802,49 @@ namespace derecho
         }
 
         template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
+        WANPersistentCascadeStore<KT, VT, IK, IV, ST>::WANPersistentCascadeStore(
+            PersistentCascadeStore<KT, VT, IK, IV, ST> &&_persisent_cascade_store) // move persistent_core, work with from_bytes
+            : persisent_cascade_store(std::move(_persisent_cascade_store))
+        // TODO: 传右值引用的构造函数默认被禁止使用了。
+        {
+        }
+
+        template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
+        WANPersistentCascadeStore<KT, VT, IK, IV, ST>::WANPersistentCascadeStore(
+            persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST> &_persistent_core,
+            CascadeWatcher<KT, VT, IK, IV> *cw) // move persistent_core
+            : persisent_cascade_store(std::move(_persistent_core), cw)
+        {
+        }
+
+        template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
         std::unique_ptr<WANPersistentCascadeStore<KT, VT, IK, IV, ST>> WANPersistentCascadeStore<KT, VT, IK, IV, ST>::from_bytes(mutils::DeserializationManager *dsm, char const *buf)
         {
             // auto persistent_cascade_store_ptr = PersistentCascadeStore<KT, VT, IK, IV, ST>::from_bytes(dsm, buf);
-            // auto WAN_persistent_cascade_store_ptr =
-            //     std::make_unique<WANPersistentCascadeStore>(std::move(*persistent_cascade_store_ptr), &(dsm->mgr<CascadeWatcher<KT, VT, IK, IV>>()));
-            // auto WAN_persistent_cascade_store_ptr =
-            //     std::make_unique<WANPersistentCascadeStore>();
-            return NULL;
+            auto persistent_cascade_store_ptr = mutils::from_bytes<PersistentCascadeStore<KT, VT, IK, IV, ST>>(dsm, buf);
+            auto WAN_persistent_cascade_store_ptr =
+                std::make_unique<WANPersistentCascadeStore>(
+                    persistent_cascade_store_ptr->persistent_core,
+                    persistent_cascade_store_ptr->cascade_watcher_ptr.get());
+
+            return WAN_persistent_cascade_store_ptr;
         }
 
         template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
         std::tuple<persistent::version_t, uint64_t> WANPersistentCascadeStore<KT, VT, IK, IV, ST>::put(const VT &value)
         {
             return persisent_cascade_store.put(value);
+
+            // std::cout << "put!\n";
+            // return std::tuple<persistent::version_t, uint64_t>(0, 0);
         }
 
         template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
         const VT WANPersistentCascadeStore<KT, VT, IK, IV, ST>::get(const KT &key, const persistent::version_t &ver)
         {
             return persisent_cascade_store.get(key, ver);
+            // std::cout << "get!\n";
+            // return *IV;
         }
 
         template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>

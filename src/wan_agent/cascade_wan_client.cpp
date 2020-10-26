@@ -1,4 +1,4 @@
-#include <cascade/service_client_api.hpp>
+#include <cascade/wan_service_client_api.hpp>
 #include <iostream>
 #include <string>
 #include <fstream>

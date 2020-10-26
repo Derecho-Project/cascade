@@ -18,9 +18,6 @@ namespace derecho
         using PCSU = PersistentCascadeStore<uint64_t, ObjectWithUInt64Key, &ObjectWithUInt64Key::IK, &ObjectWithUInt64Key::IV, ST_FILE>;
         using PCSS = PersistentCascadeStore<std::string, ObjectWithStringKey, &ObjectWithStringKey::IK, &ObjectWithStringKey::IV, ST_FILE>;
 
-        // using WPCSU = WANPersistentCascadeStoreInheritance<uint64_t, ObjectWithUInt64Key, &ObjectWithUInt64Key::IK, &ObjectWithUInt64Key::IV, ST_FILE, 2>;
-        // using WPCSS = WANPersistentCascadeStoreInheritance<std::string, ObjectWithStringKey, &ObjectWithStringKey::IK, &ObjectWithStringKey::IV, ST_FILE, 2>;
-
         using WPCSU = WANPersistentCascadeStore<uint64_t, ObjectWithUInt64Key, &ObjectWithUInt64Key::IK, &ObjectWithUInt64Key::IV, ST_FILE>;
         using WPCSS = WANPersistentCascadeStore<std::string, ObjectWithStringKey, &ObjectWithStringKey::IK, &ObjectWithStringKey::IV, ST_FILE>;
 
