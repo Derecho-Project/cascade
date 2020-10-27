@@ -395,6 +395,8 @@ namespace derecho
             PersistentCascadeStore(persistent::PersistentRegistry *pr, CascadeWatcher<KT, VT, IK, IV> *cw = nullptr);
             PersistentCascadeStore(persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST> &&_persistent_core,
                                    CascadeWatcher<KT, VT, IK, IV> *cw = nullptr); // move persistent_core
+            PersistentCascadeStore(
+                PersistentCascadeStore<KT, VT, IK, IV, ST> &&_persistent_cascade_store); // move persistent_cascade_store
 
             // destructor
             virtual ~PersistentCascadeStore();
@@ -457,7 +459,7 @@ namespace derecho
             WANPersistentCascadeStore(persistent::PersistentRegistry *pr, CascadeWatcher<KT, VT, IK, IV> *cw = nullptr);
             WANPersistentCascadeStore(PersistentCascadeStore<KT, VT, IK, IV, ST> &&_persisent_cascade_store); // move persistent_core, work with from_bytes, seems implicitly deleted
             WANPersistentCascadeStore(
-                persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST> &_persistent_core,
+                persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST> &&_persistent_core,
                 CascadeWatcher<KT, VT, IK, IV> *cw = nullptr); // move persistent_core, work with from_bytes
             // destructor
             virtual ~WANPersistentCascadeStore();

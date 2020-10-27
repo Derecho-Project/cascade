@@ -778,6 +778,14 @@ namespace derecho
                                                   cascade_watcher_ptr(cw) {}
 
         template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
+        PersistentCascadeStore<KT, VT, IK, IV, ST>::PersistentCascadeStore(
+            PersistentCascadeStore<KT, VT, IK, IV, ST> &&_persistent_cascade_store)
+            : persistent_core(std::move(_persistent_cascade_store.persistent_core)),
+              cascade_watcher_ptr(std::move(_persistent_cascade_store.cascade_watcher_ptr.get()))
+        {
+        }
+
+        template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
         PersistentCascadeStore<KT, VT, IK, IV, ST>::~PersistentCascadeStore() {}
 
         ///////////////////////////////////////////////////////////////////////////////
@@ -805,14 +813,13 @@ namespace derecho
         WANPersistentCascadeStore<KT, VT, IK, IV, ST>::WANPersistentCascadeStore(
             PersistentCascadeStore<KT, VT, IK, IV, ST> &&_persisent_cascade_store) // move persistent_core, work with from_bytes
             : persisent_cascade_store(std::move(_persisent_cascade_store))
-        // TODO: 传右值引用的构造函数默认被禁止使用了。
         {
         }
 
         template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
         WANPersistentCascadeStore<KT, VT, IK, IV, ST>::WANPersistentCascadeStore(
-            persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST> &_persistent_core,
-            CascadeWatcher<KT, VT, IK, IV> *cw) // move persistent_core
+            persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST> &&_persistent_core,
+            CascadeWatcher<KT, VT, IK, IV> *cw) // move persistent_cascade_store
             : persisent_cascade_store(std::move(_persistent_core), cw)
         {
         }
@@ -824,8 +831,7 @@ namespace derecho
             auto persistent_cascade_store_ptr = mutils::from_bytes<PersistentCascadeStore<KT, VT, IK, IV, ST>>(dsm, buf);
             auto WAN_persistent_cascade_store_ptr =
                 std::make_unique<WANPersistentCascadeStore>(
-                    persistent_cascade_store_ptr->persistent_core,
-                    persistent_cascade_store_ptr->cascade_watcher_ptr.get());
+                    std::move(*persistent_cascade_store_ptr));
 
             return WAN_persistent_cascade_store_ptr;
         }
