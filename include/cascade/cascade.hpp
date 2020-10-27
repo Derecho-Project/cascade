@@ -402,21 +402,16 @@ namespace derecho
             virtual ~PersistentCascadeStore();
         };
 
-        template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST = persistent::ST_FILE, int Placeholder = 1>
-        class WANPersistentCascadeStoreInheritance : public PersistentCascadeStore<KT, VT, IK, IV, ST>
-        {
-        public:
-            // constructors
-            WANPersistentCascadeStoreInheritance(persistent::PersistentRegistry *pr, CascadeWatcher<KT, VT, IK, IV> *cw = nullptr);
-        };
-
         template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST = persistent::ST_FILE>
         class WANPersistentCascadeStore : public ICascadeStore<KT, VT, IK, IV>,
                                           public mutils::ByteRepresentable,
+                                          public derecho::PersistsFields,
                                           public derecho::GroupReference
         {
         public:
-            PersistentCascadeStore<KT, VT, IK, IV, ST> persisent_cascade_store;
+            using derecho::GroupReference::group;
+            persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST> persistent_core;
+            std::shared_ptr<CascadeWatcher<KT, VT, IK, IV>> cascade_watcher_ptr;
 
             REGISTER_RPC_FUNCTIONS(WANPersistentCascadeStore,
                                    put,
@@ -447,20 +442,22 @@ namespace derecho
             virtual uint64_t ordered_get_size(const KT &key) override;
 
             // serialization support
-            DEFAULT_SERIALIZE(persisent_cascade_store);
+            DEFAULT_SERIALIZE(persistent_core);
+
+            static std::unique_ptr<WANPersistentCascadeStore> from_bytes(mutils::DeserializationManager *dsm, char const *buf);
 
             DEFAULT_DESERIALIZE_NOALLOC(WANPersistentCascadeStore);
 
             void ensure_registered(mutils::DeserializationManager &) {}
 
-            static std::unique_ptr<WANPersistentCascadeStore> from_bytes(mutils::DeserializationManager *dsm, char const *buf);
-
             // constructors
             WANPersistentCascadeStore(persistent::PersistentRegistry *pr, CascadeWatcher<KT, VT, IK, IV> *cw = nullptr);
-            WANPersistentCascadeStore(PersistentCascadeStore<KT, VT, IK, IV, ST> &&_persisent_cascade_store); // move persistent_core, work with from_bytes, seems implicitly deleted
+            WANPersistentCascadeStore(persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST> &&_persistent_core,
+                                      CascadeWatcher<KT, VT, IK, IV> *cw = nullptr); // move persistent_core
+
             WANPersistentCascadeStore(
-                persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST> &&_persistent_core,
-                CascadeWatcher<KT, VT, IK, IV> *cw = nullptr); // move persistent_core, work with from_bytes
+                WANPersistentCascadeStore<KT, VT, IK, IV, ST> &&_wan_persistent_cascade_store); // move wan_persistent_cascade_store
+
             // destructor
             virtual ~WANPersistentCascadeStore();
         };

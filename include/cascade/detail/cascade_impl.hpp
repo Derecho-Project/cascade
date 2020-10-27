@@ -791,122 +791,277 @@ namespace derecho
         ///////////////////////////////////////////////////////////////////////////////
         // 3 - WAN Persistent Cascade Store Implementation
         ///////////////////////////////////////////////////////////////////////////////
-
-        template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST, int Placeholder>
-        WANPersistentCascadeStoreInheritance<KT, VT, IK, IV, ST, Placeholder>::WANPersistentCascadeStoreInheritance(
-            persistent::PersistentRegistry *pr,
-            CascadeWatcher<KT, VT, IK, IV> *cw)
-            : PersistentCascadeStore<KT, VT, IK, IV, ST>(pr, cw)
-        {
-            std::cout << Placeholder << std::endl;
-        }
-
-        template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
-        WANPersistentCascadeStore<KT, VT, IK, IV, ST>::WANPersistentCascadeStore(
-            persistent::PersistentRegistry *pr,
-            CascadeWatcher<KT, VT, IK, IV> *cw)
-            : persisent_cascade_store(pr, cw)
-        {
-        }
-
-        template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
-        WANPersistentCascadeStore<KT, VT, IK, IV, ST>::WANPersistentCascadeStore(
-            PersistentCascadeStore<KT, VT, IK, IV, ST> &&_persisent_cascade_store) // move persistent_core, work with from_bytes
-            : persisent_cascade_store(std::move(_persisent_cascade_store))
-        {
-        }
-
-        template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
-        WANPersistentCascadeStore<KT, VT, IK, IV, ST>::WANPersistentCascadeStore(
-            persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST> &&_persistent_core,
-            CascadeWatcher<KT, VT, IK, IV> *cw) // move persistent_cascade_store
-            : persisent_cascade_store(std::move(_persistent_core), cw)
-        {
-        }
-
-        template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
-        std::unique_ptr<WANPersistentCascadeStore<KT, VT, IK, IV, ST>> WANPersistentCascadeStore<KT, VT, IK, IV, ST>::from_bytes(mutils::DeserializationManager *dsm, char const *buf)
-        {
-            // auto persistent_cascade_store_ptr = PersistentCascadeStore<KT, VT, IK, IV, ST>::from_bytes(dsm, buf);
-            auto persistent_cascade_store_ptr = mutils::from_bytes<PersistentCascadeStore<KT, VT, IK, IV, ST>>(dsm, buf);
-            auto WAN_persistent_cascade_store_ptr =
-                std::make_unique<WANPersistentCascadeStore>(
-                    std::move(*persistent_cascade_store_ptr));
-
-            return WAN_persistent_cascade_store_ptr;
-        }
-
         template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
         std::tuple<persistent::version_t, uint64_t> WANPersistentCascadeStore<KT, VT, IK, IV, ST>::put(const VT &value)
         {
-            return persisent_cascade_store.put(value);
-
-            // std::cout << "put!\n";
-            // return std::tuple<persistent::version_t, uint64_t>(0, 0);
-        }
-
-        template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
-        const VT WANPersistentCascadeStore<KT, VT, IK, IV, ST>::get(const KT &key, const persistent::version_t &ver)
-        {
-            return persisent_cascade_store.get(key, ver);
-            // std::cout << "get!\n";
-            // return *IV;
+            debug_enter_func_with_args("value.key={}", value.key);
+            derecho::Replicated<WANPersistentCascadeStore> &subgroup_handle = group->template get_subgroup<WANPersistentCascadeStore>(this->subgroup_index);
+            auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put)>(value);
+            auto &replies = results.get();
+            std::tuple<persistent::version_t, uint64_t> ret(CURRENT_VERSION, 0);
+            // TODO: verfiy consistency ?
+            for (auto &reply_pair : replies)
+            {
+                ret = reply_pair.second.get();
+            }
+            debug_leave_func_with_value("version=0x{:x},timestamp={}", std::get<0>(ret), std::get<1>(ret));
+            return ret;
         }
 
         template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
         std::tuple<persistent::version_t, uint64_t> WANPersistentCascadeStore<KT, VT, IK, IV, ST>::remove(const KT &key)
         {
-            return persisent_cascade_store.remove(key);
+            debug_enter_func_with_args("key={}", key);
+            derecho::Replicated<WANPersistentCascadeStore> &subgroup_handle = group->template get_subgroup<WANPersistentCascadeStore>(this->subgroup_index);
+            auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_remove)>(key);
+            auto &replies = results.get();
+            std::tuple<persistent::version_t, uint64_t> ret(CURRENT_VERSION, 0);
+            // TODO: verify consistency ?
+            for (auto &reply_pair : replies)
+            {
+                ret = reply_pair.second.get();
+            }
+            debug_leave_func_with_value("version=0x{:x},timestamp={}", std::get<0>(ret), std::get<1>(ret));
+            return ret;
         }
+
+        template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
+        const VT WANPersistentCascadeStore<KT, VT, IK, IV, ST>::get(const KT &key, const persistent::version_t &ver)
+        {
+            debug_enter_func_with_args("key={},ver=0x{:x}", key, ver);
+            if (ver != CURRENT_VERSION)
+            {
+                return persistent_core.get(ver)->kv_map.at(key);
+            }
+            derecho::Replicated<WANPersistentCascadeStore> &subgroup_handle = group->template get_subgroup<WANPersistentCascadeStore>(this->subgroup_index);
+            auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_get)>(key);
+            auto &replies = results.get();
+            // TODO: verify consistency ?
+            // for (auto& reply_pair : replies) {
+            //     ret = reply_pair.second.get();
+            // }
+            debug_leave_func();
+            return replies.begin()->second.get();
+        }
+
         template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
         const VT WANPersistentCascadeStore<KT, VT, IK, IV, ST>::get_by_time(const KT &key, const uint64_t &ts_us)
         {
-            return persisent_cascade_store.get_by_time(key, ts_us);
+            debug_enter_func_with_args("key={},ts_us={}", key, ts_us);
+            const HLC hlc(ts_us, 0ull);
+            try
+            {
+                debug_leave_func();
+                return persistent_core.get(hlc)->kv_map.at(key);
+            }
+            catch (const int64_t &ex)
+            {
+                dbg_default_warn("temporal query throws exception:0x{:x}. key={}, ts={}", ex, key, ts_us);
+            }
+            catch (...)
+            {
+                dbg_default_warn("temporal query throws unknown exception. key={}, ts={}", key, ts_us);
+            }
+            debug_leave_func();
+            return *IV;
         }
+
         template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
         uint64_t WANPersistentCascadeStore<KT, VT, IK, IV, ST>::get_size(const KT &key, const persistent::version_t &ver)
         {
-            return persisent_cascade_store.get_size(key, ver);
+            debug_enter_func_with_args("key={},ver=0x{:x}", key, ver);
+            if (ver != CURRENT_VERSION)
+            {
+                return mutils::bytes_size(persistent_core.get(ver)->kv_map.at(key));
+            }
+            derecho::Replicated<WANPersistentCascadeStore> &subgroup_handle = group->template get_subgroup<WANPersistentCascadeStore>(this->subgroup_index);
+            auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_get_size)>(key);
+            auto &replies = results.get();
+            // TODO: verify consistency ?
+            // for (auto& reply_pair : replies) {
+            //     ret = reply_pair.second.get();
+            // }
+            debug_leave_func();
+            return replies.begin()->second.get();
         }
+
         template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
         uint64_t WANPersistentCascadeStore<KT, VT, IK, IV, ST>::get_size_by_time(const KT &key, const uint64_t &ts_us)
         {
-            return persisent_cascade_store.get_size_by_time(key, ts_us);
+            debug_enter_func_with_args("key={},ts_us={}", key, ts_us);
+            const HLC hlc(ts_us, 0ull);
+            try
+            {
+                debug_leave_func();
+                return mutils::bytes_size(persistent_core.get(hlc)->kv_map.at(key));
+            }
+            catch (const int64_t &ex)
+            {
+                dbg_default_warn("temporal query throws exception:0x{:x}. key={}, ts={}", ex, key, ts_us);
+            }
+            catch (...)
+            {
+                dbg_default_warn("temporal query throws unknown exception. key={}, ts={}", key, ts_us);
+            }
+            debug_leave_func();
+            return 0;
         }
+
         template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
         std::vector<KT> WANPersistentCascadeStore<KT, VT, IK, IV, ST>::list_keys(const persistent::version_t &ver)
         {
-            return persisent_cascade_store.list_keys(ver);
+            debug_enter_func_with_args("ver=0x{:x}.", ver);
+            if (ver != CURRENT_VERSION)
+            {
+                std::vector<KT> key_list;
+                auto kv_map = persistent_core.get(ver)->kv_map;
+                for (auto &kv : kv_map)
+                {
+                    key_list.push_back(kv.first);
+                }
+                debug_leave_func();
+                return key_list;
+            }
+            derecho::Replicated<WANPersistentCascadeStore> &subgroup_handle = group->template get_subgroup<WANPersistentCascadeStore>(this->subgroup_index);
+            auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_list_keys)>();
+            auto &replies = results.get();
+            // TODO: verify consistency ?
+            debug_leave_func();
+            return replies.begin()->second.get();
         }
+
         template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
         std::vector<KT> WANPersistentCascadeStore<KT, VT, IK, IV, ST>::list_keys_by_time(const uint64_t &ts_us)
         {
-            return persisent_cascade_store.list_keys_by_time(ts_us);
+            debug_enter_func_with_args("ts_us={}", ts_us);
+            const HLC hlc(ts_us, 0ull);
+            try
+            {
+                auto kv_map = persistent_core.get(hlc)->kv_map;
+                std::vector<KT> key_list;
+                for (auto &kv : kv_map)
+                {
+                    key_list.push_back(kv.first);
+                }
+                debug_leave_func();
+                return key_list;
+            }
+            catch (const int64_t &ex)
+            {
+                dbg_default_warn("temporal query throws exception:0x{:x]. ts={}", ex, ts_us);
+            }
+            catch (...)
+            {
+                dbg_default_warn("temporal query throws unknown exception. ts={}", ts_us);
+            }
+            debug_leave_func();
+            return {};
         }
+
         template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
         std::tuple<persistent::version_t, uint64_t> WANPersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put(const VT &value)
         {
-            return persisent_cascade_store.ordered_put(value);
+            debug_enter_func_with_args("key={}", value.key);
+
+            std::tuple<persistent::version_t, uint64_t> version = group->template get_subgroup<WANPersistentCascadeStore>(this->subgroup_index).get_next_version();
+            value.ver = version;
+            this->persistent_core->ordered_put(value);
+            if (cascade_watcher_ptr)
+            {
+                (*cascade_watcher_ptr)(
+                    group->template get_subgroup<WANPersistentCascadeStore>(this->subgroup_index).get_subgroup_id(),
+                    group->template get_subgroup<WANPersistentCascadeStore>(this->subgroup_index).get_shard_num(),
+                    value.key, value, nullptr /*cascade context*/);
+            }
+
+            debug_leave_func_with_value("version=0x{:x},timestamp={}", std::get<0>(version), std::get<1>(version));
+
+            return version;
         }
+
         template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
         std::tuple<persistent::version_t, uint64_t> WANPersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_remove(const KT &key)
         {
-            return persisent_cascade_store.ordered_remove(key);
+            debug_enter_func_with_args("key={}", key);
+
+            std::tuple<persistent::version_t, uint64_t> version = group->template get_subgroup<WANPersistentCascadeStore>(this->subgroup_index).get_next_version();
+            if (this->persistent_core->ordered_remove(key))
+            {
+                if (cascade_watcher_ptr)
+                {
+                    (*cascade_watcher_ptr)(
+                        group->template get_subgroup<WANPersistentCascadeStore>(this->subgroup_index).get_subgroup_id(),
+                        group->template get_subgroup<WANPersistentCascadeStore>(this->subgroup_index).get_shard_num(),
+                        key, *IV, nullptr /*cascade context*/);
+                }
+            }
+
+            debug_leave_func_with_value("version=0x{:x},timestamp={}", std::get<0>(version), std::get<1>(version));
+
+            return version;
         }
+
         template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
         const VT WANPersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_get(const KT &key)
         {
-            return persisent_cascade_store.ordered_get(key);
+            debug_enter_func_with_args("key={}", key);
+
+            debug_leave_func();
+
+            return this->persistent_core->ordered_get(key);
         }
+
         template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
         uint64_t WANPersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_get_size(const KT &key)
         {
-            return persisent_cascade_store.ordered_get_size(key);
+            debug_enter_func_with_args("key={}", key);
+
+            debug_leave_func();
+
+            return this->persistent_core->ordered_get_size(key);
         }
+
         template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
         std::vector<KT> WANPersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_list_keys()
         {
-            return persisent_cascade_store.ordered_list_keys();
+            debug_enter_func();
+
+            debug_leave_func();
+
+            return this->persistent_core->ordered_list_keys();
+        }
+
+        template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
+        std::unique_ptr<WANPersistentCascadeStore<KT, VT, IK, IV, ST>> WANPersistentCascadeStore<KT, VT, IK, IV, ST>::from_bytes(mutils::DeserializationManager *dsm, char const *buf)
+        {
+            auto persistent_core_ptr = mutils::from_bytes<persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST>>(dsm, buf);
+            auto persistent_cascade_store_ptr =
+                std::make_unique<WANPersistentCascadeStore>(std::move(*persistent_core_ptr), &(dsm->mgr<CascadeWatcher<KT, VT, IK, IV>>()));
+            return persistent_cascade_store_ptr;
+        }
+
+        template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
+        WANPersistentCascadeStore<KT, VT, IK, IV, ST>::WANPersistentCascadeStore(
+            persistent::PersistentRegistry *pr,
+            CascadeWatcher<KT, VT, IK, IV> *cw) : persistent_core([]() {
+                                                      return std::make_unique<DeltaCascadeStoreCore<KT, VT, IK, IV>>();
+                                                  },
+                                                                  nullptr, pr),
+                                                  cascade_watcher_ptr(cw) {}
+
+        template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
+        WANPersistentCascadeStore<KT, VT, IK, IV, ST>::WANPersistentCascadeStore(
+            persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST> &&
+                _persistent_core,
+            CascadeWatcher<KT, VT, IK, IV> *cw) : persistent_core(std::move(_persistent_core)),
+                                                  cascade_watcher_ptr(cw) {}
+
+        template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
+        WANPersistentCascadeStore<KT, VT, IK, IV, ST>::WANPersistentCascadeStore(
+            WANPersistentCascadeStore<KT, VT, IK, IV, ST> &&_wan_persistent_cascade_store)
+            : persistent_core(std::move(_wan_persistent_cascade_store.persistent_core)),
+              cascade_watcher_ptr(std::move(_wan_persistent_cascade_store.cascade_watcher_ptr.get()))
+        {
         }
 
         template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
