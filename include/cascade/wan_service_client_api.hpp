@@ -9,7 +9,7 @@ namespace derecho
         /**
          * The client API
          */
-        using ServiceClientAPI = ServiceClient<WPCSS, WPCSU>;
+        using ServiceClientAPI = ServiceClient<WPCSU, WPCSS>;
 
     } // namespace cascade
 } // namespace derecho

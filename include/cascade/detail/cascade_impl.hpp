@@ -764,11 +764,12 @@ namespace derecho
         template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
         PersistentCascadeStore<KT, VT, IK, IV, ST>::PersistentCascadeStore(
             persistent::PersistentRegistry *pr,
-            CascadeWatcher<KT, VT, IK, IV> *cw) : persistent_core([]() {
-                                                      return std::make_unique<DeltaCascadeStoreCore<KT, VT, IK, IV>>();
-                                                  },
-                                                                  nullptr, pr),
-                                                  cascade_watcher_ptr(cw) {}
+            CascadeWatcher<KT, VT, IK, IV> *cw)
+            : persistent_core([]() {
+                  return std::make_unique<DeltaCascadeStoreCore<KT, VT, IK, IV>>();
+              },
+                              nullptr, pr),
+              cascade_watcher_ptr(cw) {}
 
         template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
         PersistentCascadeStore<KT, VT, IK, IV, ST>::PersistentCascadeStore(
@@ -1035,19 +1036,20 @@ namespace derecho
         std::unique_ptr<WANPersistentCascadeStore<KT, VT, IK, IV, ST>> WANPersistentCascadeStore<KT, VT, IK, IV, ST>::from_bytes(mutils::DeserializationManager *dsm, char const *buf)
         {
             auto persistent_core_ptr = mutils::from_bytes<persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST>>(dsm, buf);
-            auto persistent_cascade_store_ptr =
+            auto wan_persistent_cascade_store_ptr =
                 std::make_unique<WANPersistentCascadeStore>(std::move(*persistent_core_ptr), &(dsm->mgr<CascadeWatcher<KT, VT, IK, IV>>()));
-            return persistent_cascade_store_ptr;
+            return wan_persistent_cascade_store_ptr;
         }
 
         template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
         WANPersistentCascadeStore<KT, VT, IK, IV, ST>::WANPersistentCascadeStore(
             persistent::PersistentRegistry *pr,
-            CascadeWatcher<KT, VT, IK, IV> *cw) : persistent_core([]() {
-                                                      return std::make_unique<DeltaCascadeStoreCore<KT, VT, IK, IV>>();
-                                                  },
-                                                                  nullptr, pr),
-                                                  cascade_watcher_ptr(cw) {}
+            CascadeWatcher<KT, VT, IK, IV> *cw)
+            : persistent_core([]() {
+                  return std::make_unique<DeltaCascadeStoreCore<KT, VT, IK, IV>>();
+              },
+                              nullptr, pr),
+              cascade_watcher_ptr(cw) {}
 
         template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
         WANPersistentCascadeStore<KT, VT, IK, IV, ST>::WANPersistentCascadeStore(
