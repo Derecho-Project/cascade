@@ -137,11 +137,27 @@ std::vector<node_id_t> ServiceClient<CascadeTypes...>::get_shard_members(derecho
     return external_group.get_shard_members(subgroup_id,shard_index);
 }
 
-
 template <typename... CascadeTypes>
 template <typename SubgroupType>
 std::vector<node_id_t> ServiceClient<CascadeTypes...>::get_shard_members(uint32_t subgroup_index, uint32_t shard_index) {
     return external_group.template get_shard_members<SubgroupType>(subgroup_index,shard_index);
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+uint32_t ServiceClient<CascadeTypes...>::get_number_of_subgroups() {
+    return external_group.template get_number_of_subgroups<SubgroupType>();
+}
+
+template <typename... CascadeTypes>
+uint32_t ServiceClient<CascadeTypes...>::get_number_of_shards(derecho::subgroup_id_t subgroup_id) {
+    return external_group.get_number_of_shards(subgroup_id);
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+uint32_t ServiceClient<CascadeTypes...>::get_number_of_shards(uint32_t subgroup_index) {
+    return external_group.template get_number_of_shards<SubgroupType>(subgroup_index);
 }
 
 template <typename... CascadeTypes>
