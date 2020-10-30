@@ -136,13 +136,9 @@ int main(int argc, char **argv)
         {
             uint64_t min, max, median;
             std::vector<uint64_t> v;
-            for (auto &site : conf[WAN_AGENT_CONF_SITES])
+            for (auto &site : conf[WAN_AGENT_CONF_SERVER_SITES])
             {
                 uint32_t sid = site[WAN_AGENT_CONF_SITES_ID];
-                if (sid == static_cast<uint32_t>(conf[WAN_AGENT_CONF_LOCAL_SITE_ID]))
-                {
-                    continue;
-                }
                 v.push_back(table.at(sid));
             }
             std::sort(v.begin(), v.end());
@@ -175,7 +171,7 @@ int main(int argc, char **argv)
         }
     };
 
-    wan_agent::WanAgentClient wan_agent_client(conf, pl);
+    wan_agent::WanAgentSender wan_agent_client(conf, pl);
 
     std::cout << "Press ENTER to send a message." << std::endl;
     std::cin.get();

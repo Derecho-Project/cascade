@@ -806,6 +806,9 @@ namespace derecho
                 ret = reply_pair.second.get();
             }
             debug_leave_func_with_value("version=0x{:x},timestamp={}", std::get<0>(ret), std::get<1>(ret));
+
+            // TODO: need wan support
+
             return ret;
         }
 
@@ -823,6 +826,9 @@ namespace derecho
                 ret = reply_pair.second.get();
             }
             debug_leave_func_with_value("version=0x{:x},timestamp={}", std::get<0>(ret), std::get<1>(ret));
+
+            // TODO: need wan support
+
             return ret;
         }
 

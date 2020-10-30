@@ -20,10 +20,12 @@ namespace wan_agent
 // configuration entries
 #define WAN_AGENT_CONF_VERSION "version"
 #define WAN_AGENT_CONF_TRANSPORT "transport"
-#define WAN_AGENT_CONF_PRIVATE_IP "private_id"
+#define WAN_AGENT_CONF_PRIVATE_IP "private_ip"
 #define WAN_AGENT_CONF_PRIVATE_PORT "private_port"
 #define WAN_AGENT_CONF_LOCAL_SITE_ID "local_site_id"
 #define WAN_AGENT_CONF_SITES "sites"
+#define WAN_AGENT_CONF_SERVER_SITES "server_sites"
+#define WAN_AGENT_CONF_SENDER_SITES "sender_sites"
 #define WAN_AGENT_CONF_SITES_ID "id"
 #define WAN_AGENT_CONF_SITES_IP "ip"
 #define WAN_AGENT_CONF_SITES_PORT "port"
@@ -67,8 +69,11 @@ namespace wan_agent
         std::atomic<bool> is_shutdown;
         /** local site id */
         site_id_t local_site_id;
+        std::string local_ip;
+        unsigned short local_port;
 
-        std::map<site_id_t, std::pair<ip_addr_t, uint16_t>> sites_ip_addrs_and_ports;
+        std::map<site_id_t, std::pair<ip_addr_t, uint16_t>> server_sites_ip_addrs_and_ports;
+        std::map<site_id_t, std::pair<ip_addr_t, uint16_t>> sender_sites_ip_addrs_and_ports;
 
         /**
          * configuration
@@ -139,7 +144,8 @@ namespace wan_agent
     {
     private:
         const site_id_t local_site_id;
-        const std::map<site_id_t, std::pair<ip_addr_t, uint16_t>> &sites_ip_addrs_and_ports;
+
+        size_t num_senders;
         const size_t max_payload_size;
         const RemoteMessageCallback rmc;
 
@@ -155,7 +161,8 @@ namespace wan_agent
 
     public:
         RemoteMessageService(const site_id_t local_site_id,
-                             const std::map<site_id_t, std::pair<ip_addr_t, uint16_t>> &sites_ip_addrs_and_ports,
+                             int num_senders,
+                             unsigned short local_port,
                              const size_t max_payload_size,
                              const RemoteMessageCallback &rmc,
                              const NotifierFunc &ready_notifier_lambda);
@@ -201,53 +208,6 @@ namespace wan_agent
         virtual void shutdown_and_wait() noexcept(false) override;
     };
 
-    // the Client worker, deprecated
-    class MessageSenderRingBuffer final
-    {
-    private:
-        const site_id_t local_site_id;
-        int epoll_fd_send_msg;
-        int epoll_fd_recv_ack;
-
-        const size_t n_slots;
-        size_t head = 0;
-        size_t tail = 0;
-        size_t size = 0;
-        std::vector<std::unique_ptr<char[]>> buf;
-
-        // mutex and condition variables for producer-consumer problem
-        std::mutex mutex;
-        std::condition_variable not_empty;
-        std::condition_variable not_full;
-
-        uint64_t last_all_sent_seqno;
-        std::map<site_id_t, uint64_t> last_sent_seqno;
-        std::map<int, site_id_t> sockfd_to_site_id_map;
-
-        std::map<site_id_t, std::atomic<uint64_t>> &message_counters;
-
-        const ReportACKFunc report_new_ack;
-        const NotifierFunc ready_notifier;
-
-        std::atomic<bool> client_ready;
-        std::atomic<bool> thread_shutdown;
-
-    public:
-        MessageSenderRingBuffer(const site_id_t &local_site_id,
-                                const std::map<site_id_t, std::pair<ip_addr_t, uint16_t>> &sites_ip_addrs_and_ports,
-                                const size_t &n_slots, const size_t &max_payload_size,
-                                std::map<site_id_t, std::atomic<uint64_t>> &message_counters,
-                                const ReportACKFunc &report_new_ack,
-                                const NotifierFunc &ready_notifier_lambda);
-
-        void recv_ack_loop();
-
-        void enqueue(const char *payload, const size_t payload_size);
-
-        void send_msg_loop();
-
-        bool is_client_ready();
-    };
 
     struct LinkedBufferNode
     {
@@ -296,7 +256,7 @@ namespace wan_agent
         // uint64_t *time_keeper = static_cast<uint64_t *>(malloc(sizeof(uint64_t) * 4 * N_MSG));
         // uint64_t *ack_keeper = static_cast<uint64_t *>(malloc(sizeof(uint64_t) * 4 * N_MSG));
         MessageSender(const site_id_t &local_site_id,
-                      const std::map<site_id_t, std::pair<ip_addr_t, uint16_t>> &sites_ip_addrs_and_ports,
+                      const std::map<site_id_t, std::pair<ip_addr_t, uint16_t>> &server_sites_ip_addrs_and_ports,
                       const size_t &n_slots, const size_t &max_payload_size,
                       std::map<site_id_t, std::atomic<uint64_t>> &message_counters,
                       const ReportACKFunc &report_new_ack,
@@ -311,7 +271,7 @@ namespace wan_agent
         }
     };
 
-    class WanAgentClient : public WanAgent
+    class WanAgentSender : public WanAgent
     {
     private:
         /** the conditional variable and thread for notification */
@@ -336,9 +296,9 @@ namespace wan_agent
         std::map<site_id_t, std::atomic<uint64_t>> message_counters;
 
     public:
-        WanAgentClient(const nlohmann::json &wan_group_config,
+        WanAgentSender(const nlohmann::json &wan_group_config,
                        const PredicateLambda &pl);
-        ~WanAgentClient() {}
+        ~WanAgentSender() {}
 
         // bool is_ready()
         // {
