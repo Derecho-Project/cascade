@@ -205,6 +205,8 @@ public:
      * - get_members        returns all members in the top-level Derecho group.
      * - get_shard_members  returns the members in a shard specified by subgroup id(or subgroup type/index pair) and
      *   shard index.
+     * - get_number_of_subgroups    returns the number of subgroups of a given type
+     * - get_number_of_shards       returns the number of shards of a given subgroup
      * During view change, the Client might experience failure if the member is gone. In such a case, the client needs
      * refresh its local member cache by calling get_shard_members.
      */
@@ -212,6 +214,11 @@ public:
     std::vector<node_id_t> get_shard_members(derecho::subgroup_id_t subgroup_id,uint32_t shard_index);
     template <typename SubgroupType>
     std::vector<node_id_t> get_shard_members(uint32_t subgroup_index,uint32_t shard_index);
+    template <typename SubgroupType>
+    uint32_t get_number_of_subgroups();
+    uint32_t get_number_of_shards(derecho::subgroup_id_t subgroup_id);
+    template <typename SubgroupType>
+    uint32_t get_number_of_shards(uint32_t subgroup_index);
 
     /**
      * Member selection policy control API.
