@@ -77,11 +77,11 @@ group_layout =
 ```
 
 # To Run the Cascade Service Example
-Once cascade is built, you will find five folders named `n0` to `n4` in `<build_dir>/src/service/cfg/`. Each of them contains a configuration file to run a demo service node with localhost IP and RDMA API layer over TCP/IP. In the folder, start the node by calling:
+Once cascade is built, you will find seven folders named `n0` to `n6` in `<build_dir>/src/service/cfg/`. Each of them contains a configuration file to run a demo service node with localhost IP and RDMA API layer over TCP/IP. In the folder, start the node by calling:
 ```
 # ../../server
 ```
-Since the demo service requires four nodes to start running, let's start the server nodes in `n0`, `n1`, `n2`, and `n3` and leave `n4` for the client by calling
+Since the demo service requires six nodes to start running, let's start the server nodes in `n0`, `n1`, ..., `n5` and leave `n6` for the client by calling
 ```
 # ../../client
 ```
@@ -90,30 +90,38 @@ Once the client connnects to the service, it is going to show prompt for command
 cmd> help
 list_all_members
         list all members in top level derecho group.
-list_type_members <type> [subgroup_index] [shard_index]
+list_type_members <type> [subgroup_index(0)] [shard_index(0)]
         list members in shard by subgroup type.
-list_subgroup_members [subgroup_id] [shard_index]
+list_subgroup_members [subgroup_id(0)] [shard_index(0)]
         list members in shard by subgroup id.
 set_member_selection_policy <type> <subgroup_index> <shard_index> <policy> [user_specified_node_id]
         set member selection policy
-get_member_selection_policy <type> [subgroup_index] [shard_index]
+get_member_selection_policy <type> [subgroup_index(0)] [shard_index(0)]
         get member selection policy
-put <type> <key> <value> [subgroup_index] [shard_index]
+put <type> <key> <value> [pver(-1)] [pver_by_key(-1)] [subgroup_index(0)] [shard_index(0)]
         put an object
-remove <type> <key> [subgroup_index] [shard_index]
+remove <type> <key> [subgroup_index(0)] [shard_index(0)]
         remove an object
-get <type> <key> [version] [subgroup_index] [shard_index]
+get <type> <key> [version(-1)] [subgroup_index(0)] [shard_index(0)]
         get an object(by version)
-get_by_time <type> <key> <ts_us> [subgroup_index] [shard_index]
+get_by_time <type> <key> <ts_us> [subgroup_index(0)] [shard_index(0)]
         get an object by timestamp
-get_size <type> <key> [version] [subgroup_index] [shard_index]
+get_size <type> <key> [version(-1)] [subgroup_index(0)] [shard_index(0)]
         get the size of an object(by version)
-get_size_by_time <type> <key> <ts_us> [subgroup_index] [shard_index]
+get_size_by_time <type> <key> <ts_us> [subgroup_index(0)] [shard_index(0)]
         get the size of an object by timestamp
-list_keys <type> [version] [subgroup_index] [shard_index]
+list_keys <type> [version(-1)] [subgroup_index(0)] [shard_index(0)]
         list keys in shard (by version)
-list_keys_by_time <type> <ts_us> [subgroup_index] [shard_index]
+list_keys_by_time <type> <ts_us> [subgroup_index(0)] [shard_index(0)]
         list keys in shard by time
+list_data_by_prefix <type> <prefix> [version(-1)] [subgroup_index(0)] [shard_index(0)]
+         test LINQ api
+list_data_between_version <type> <key> <subgroup_index> <shard_index> [version_begin(MIN)] [version_end(MAX)]
+         test LINQ api - version_iterator
+list_data_of_key_between_timestamp <type> <key> [ts_begin(MIN)] [ts_end(MAX)] [subgroup_index(0)] [shard_index(0)]
+         test LINQ api - time_iterator
+list_data_in_subgroup <type> <subgroup_index> [version(-1)]
+         test LINQ api - subgroup_iterator
 quit|exit
         exit the client.
 help
@@ -121,6 +129,7 @@ help
 
 type:=VCSU|VCSS|PCSU|PCSS
 policy:=FirstMember|LastMember|Random|FixedRandom|RoundRobin|UserSpecified
+
 
 cmd>
 ```
