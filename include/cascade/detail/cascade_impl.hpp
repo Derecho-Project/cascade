@@ -542,7 +542,11 @@ const VT PersistentCascadeStore<KT,VT,IK,IV,ST>::get(const KT& key, const persis
                         return *IV;
                     } else {
                         // fall back to the slow path.
-                        return persistent_core.get(ver)->kv_map.at(key);
+                        auto versioned_state_ptr = persistent_core.get(ver);
+                        if (versioned_state_ptr->kv_map.find(key) != versioned_state_ptr->kv_map.end()) {
+                            return versioned_state_ptr->kv_map.at(key);
+                        }
+                        return *IV;
                     }
                 }
             });
@@ -570,7 +574,11 @@ const VT PersistentCascadeStore<KT,VT,IK,IV,ST>::get_by_time(const KT& key, cons
         } else {
             // Reconstructing the state is extremely slow!!!
             // TODO: get the version at time ts_us, and go back from there.
-            return persistent_core.get(hlc)->kv_map.at(key);
+            auto versioned_state_ptr = persistent_core.get(hlc);
+            if (versioned_state_ptr->kv_map.find(key) != versioned_state_ptr->kv_map.end()) {
+                return versioned_state_ptr->kv_map.at(key);
+            }
+            return *IV;
         }
     } catch (const int64_t &ex) {
         dbg_default_warn("temporal query throws exception:0x{:x}. key={}, ts={}", ex, key, ts_us);
