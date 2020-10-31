@@ -171,7 +171,7 @@ int main(int argc, char **argv)
         }
     };
 
-    wan_agent::WanAgentSender wan_agent_client(conf, pl);
+    wan_agent::WanAgentSender wan_agent_sender(conf, pl);
 
     std::cout << "Press ENTER to send a message." << std::endl;
     std::cin.get();
@@ -192,7 +192,7 @@ int main(int argc, char **argv)
     for (uint64_t seq = 0; seq < number_of_messages; seq++)
     {
         time_keeper[seq * 4] = now_us();
-        wan_agent_client.send(payload, message_size);
+        wan_agent_sender.send(payload, message_size);
         //            std::cout << "send a message with size = " << message_size << std::endl;
         while (now_us() < (time_keeper[seq * 4] + send_interval_us))
         {
@@ -207,6 +207,11 @@ int main(int argc, char **argv)
     }
     std::cout << "Send finished." << std::endl;
     print_statistics(time_keeper, number_of_messages, message_size);
+
+    std::cout << "Press ENTER to kill." << std::endl;
+    std::cin.get();
+    wan_agent_sender.shutdown_and_wait();
+
     free(payload);
     free(time_keeper);
 }

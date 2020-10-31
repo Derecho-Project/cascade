@@ -116,6 +116,10 @@ namespace wan_agent
          * shutdown the wan agent service and block until finished.
          */
         virtual void shutdown_and_wait() noexcept(false) = 0;
+
+        bool get_is_shutdown() const {
+            return is_shutdown.load();
+        }
     };
 
     // TODO: how to have multiple wan agents on one site?
@@ -139,6 +143,7 @@ namespace wan_agent
         uint32_t site_id;
     };
 
+    // class WanAgentServer;
     // the Server worker
     class RemoteMessageService final
     {
@@ -159,17 +164,23 @@ namespace wan_agent
          */
         const nlohmann::json config;
 
+        const WanAgent *hugger;
+
+        // use epoll to get message from senders.
+
     public:
         RemoteMessageService(const site_id_t local_site_id,
                              int num_senders,
                              unsigned short local_port,
                              const size_t max_payload_size,
                              const RemoteMessageCallback &rmc,
-                             const NotifierFunc &ready_notifier_lambda);
+                             const NotifierFunc &ready_notifier_lambda,
+                             WanAgent *hugger);
 
         void establish_connections();
 
         void worker(int sock);
+        void epoll_worker(int sock);
 
         bool is_server_ready();
     };
@@ -241,7 +252,7 @@ namespace wan_agent
 
         uint64_t last_all_sent_seqno;
         std::map<site_id_t, uint64_t> last_sent_seqno;
-        std::map<int, site_id_t> sockfd_to_site_id_map;
+        std::map<int, site_id_t> sockfd_to_server_site_id_map;
 
         std::map<site_id_t, std::atomic<uint64_t>> &message_counters;
         const ReportACKFunc report_new_ack;
@@ -268,6 +279,11 @@ namespace wan_agent
         bool is_client_ready()
         {
             return client_ready.load();
+        }
+        void shutdown()
+        {
+            thread_shutdown.store(true);
+            std::cout << "set thread_shutdown to " << thread_shutdown.load() << " in MessageSender shutdown\n";
         }
     };
 

@@ -32,7 +32,6 @@ namespace wan_agent
             WAN_AGENT_CONF_PRIVATE_PORT};
         for (auto &must_have_key : must_have)
         {
-            std::cout << must_have_key << std::endl;
             if (config.find(must_have_key) == config.end())
             {
                 throw std::runtime_error(must_have_key + " is not found");
@@ -42,7 +41,7 @@ namespace wan_agent
         local_ip = config[WAN_AGENT_CONF_PRIVATE_IP];
         local_port = config[WAN_AGENT_CONF_PRIVATE_PORT];
         // Check if sites are valid.
-        if (config[WAN_AGENT_CONF_SENDER_SITES].size() == 0 || config[WAN_AGENT_CONF_SERVER_SITES] ==0)
+        if (config[WAN_AGENT_CONF_SENDER_SITES].size() == 0 || config[WAN_AGENT_CONF_SERVER_SITES] == 0)
         {
             throw std::runtime_error("Sites do not have any configuration");
         }
@@ -97,13 +96,15 @@ namespace wan_agent
                                                unsigned short local_port,
                                                const size_t max_payload_size,
                                                const RemoteMessageCallback &rmc,
-                                               const NotifierFunc &ready_notifier_lambda)
+                                               const NotifierFunc &ready_notifier_lambda,
+                                               WanAgent *hugger)
         : local_site_id(local_site_id),
           num_senders(num_senders),
           max_payload_size(max_payload_size),
           rmc(rmc),
           ready_notifier(ready_notifier_lambda),
-          server_ready(false)
+          server_ready(false),
+          hugger(hugger)
     {
         std::cout << "1: " << local_site_id << std::endl;
         std::cout << "2" << std::endl;
@@ -143,14 +144,14 @@ namespace wan_agent
             struct sockaddr_storage client_addr_info;
             socklen_t len = sizeof client_addr_info;
 
-            int sock = ::accept(server_socket, (struct sockaddr *)&client_addr_info, &len);
-            worker_threads.emplace_back(std::thread(&RemoteMessageService::worker, this, sock));
+            int connected_sock_fd = ::accept(server_socket, (struct sockaddr *)&client_addr_info, &len);
+            worker_threads.emplace_back(std::thread(&RemoteMessageService::epoll_worker, this, connected_sock_fd));
         }
         server_ready.store(true);
         ready_notifier();
     }
 
-    void RemoteMessageService::worker(int sock)
+    void RemoteMessageService::worker(int connected_sock_fd)
     {
         RequestHeader header;
         bool success;
@@ -158,23 +159,69 @@ namespace wan_agent
         std::cout << "worker start" << std::endl;
         while (1)
         {
-            if (sock < 0)
-                throw std::runtime_error("sock closed!");
+            if (connected_sock_fd < 0)
+                throw std::runtime_error("connected_sock_fd closed!");
 
-            success = sock_read(sock, header);
+            success = sock_read(connected_sock_fd, header);
             if (!success)
                 throw std::runtime_error("Failed to read request header");
 
-            success = sock_read(sock, buffer.get(), header.payload_size);
+            success = sock_read(connected_sock_fd, buffer.get(), header.payload_size);
             if (!success)
                 throw std::runtime_error("Failed to read message");
 
             // dbg_default_info("received msg {} from site {}", header.seq, header.site_id);
 
             rmc(header.site_id, buffer.get(), header.payload_size);
-            success = sock_write(sock, Response{header.seq, local_site_id});
+            success = sock_write(connected_sock_fd, Response{header.seq, local_site_id});
             if (!success)
                 throw std::runtime_error("Failed to send ACK message");
+        }
+    }
+
+    void RemoteMessageService::epoll_worker(int connected_sock_fd)
+    {
+        RequestHeader header;
+        std::unique_ptr<char[]> buffer = std::make_unique<char[]>(max_payload_size);
+        bool success;
+        std::cout << "epoll_worker start\n";
+
+        int epoll_fd_recv_msg = epoll_create1(0);
+        if (epoll_fd_recv_msg == -1)
+            throw std::runtime_error("failed to create epoll fd");
+        add_epoll(epoll_fd_recv_msg, EPOLLIN, connected_sock_fd);
+
+        std::cout << "The connected_sock_fd is " << connected_sock_fd << std::endl;
+
+        struct epoll_event events[EPOLL_MAXEVENTS];
+        while (!hugger->get_is_shutdown())
+        {
+            int n = epoll_wait(epoll_fd_recv_msg, events, EPOLL_MAXEVENTS, -1);
+            for (int i = 0; i < n; i++)
+            {
+                if (events[i].events & EPOLLIN)
+                {
+                    std::cout << "get event from fd " << events[i].data.fd << std::endl;
+                    // get msg from sender
+                    success = sock_read(connected_sock_fd, header);
+                    if (!success)
+                    {
+                        std::cout << "Failed to read request header, "
+                                  << "receive " << n << " messages from sender.\n";
+                        throw std::runtime_error("Failed to read request header");
+                    }
+                    success = sock_read(connected_sock_fd, buffer.get(), header.payload_size);
+                    if (!success)
+                        throw std::runtime_error("Failed to read message");
+
+                    // dbg_default_info("received msg {} from site {}", header.seq, header.site_id);
+
+                    rmc(header.site_id, buffer.get(), header.payload_size);
+                    success = sock_write(connected_sock_fd, Response{header.seq, local_site_id});
+                    if (!success)
+                        throw std::runtime_error("Failed to send ACK message");
+                }
+            }
         }
     }
 
@@ -186,14 +233,15 @@ namespace wan_agent
     WanAgentServer::WanAgentServer(const nlohmann::json &wan_group_config,
                                    const RemoteMessageCallback &rmc)
         : WanAgent(wan_group_config),
-          remote_message_callback(rmc), // TODO: server
+          remote_message_callback(rmc),
           remote_message_service(
               local_site_id,
               sender_sites_ip_addrs_and_ports.size(),
               local_port,
               wan_group_config[WAN_AGENT_MAX_PAYLOAD_SIZE],
               rmc,
-              [this]() { this->ready_cv.notify_all(); })
+              [this]() { this->ready_cv.notify_all(); },
+              this)
     {
         std::thread rms_establish_thread(&RemoteMessageService::establish_connections, &remote_message_service);
         rms_establish_thread.detach();
@@ -263,7 +311,7 @@ namespace wan_agent
                 }
                 add_epoll(epoll_fd_send_msg, EPOLLOUT, fd);
                 add_epoll(epoll_fd_recv_ack, EPOLLIN, fd);
-                sockfd_to_site_id_map[fd] = site_id;
+                sockfd_to_server_site_id_map[fd] = site_id;
                 last_sent_seqno.emplace(site_id, static_cast<uint64_t>(-1));
             }
             // sockets.emplace(node_id, fd);
@@ -276,9 +324,11 @@ namespace wan_agent
 
     void MessageSender::recv_ack_loop()
     {
+        log_enter_func();
         struct epoll_event events[EPOLL_MAXEVENTS];
-        while (!thread_shutdown)
+        while (!thread_shutdown.load())
         {
+            std::cout << "in recv_ack_loop, thread_shutdown.load() is " << thread_shutdown.load() << std::endl;
             int n = epoll_wait(epoll_fd_recv_ack, events, EPOLL_MAXEVENTS, -1);
             for (int i = 0; i < n; i++)
             {
@@ -298,6 +348,8 @@ namespace wan_agent
                 }
             }
         }
+        std::cout << "in recv_ack_loop, thread_shutdown.load() is " << thread_shutdown.load() << std::endl;
+        log_exit_func();
     }
 
     void MessageSender::enqueue(const char *payload, const size_t payload_size)
@@ -316,9 +368,11 @@ namespace wan_agent
 
     void MessageSender::send_msg_loop()
     {
+        log_enter_func();
         struct epoll_event events[EPOLL_MAXEVENTS];
-        while (!thread_shutdown)
+        while (!thread_shutdown.load())
         {
+            std::cout << "in send_msg_loop, thread_shutdown.load() is " << thread_shutdown.load() << std::endl;
             std::unique_lock<std::mutex> lock(mutex);
             not_empty.wait(lock, [this]() { return size > 0; });
             // has item on the queue to send
@@ -329,7 +383,7 @@ namespace wan_agent
                 if (events[i].events & EPOLLOUT)
                 {
                     // socket send buffer is available to send message
-                    site_id_t site_id = sockfd_to_site_id_map[events[i].data.fd];
+                    site_id_t site_id = sockfd_to_server_site_id_map[events[i].data.fd];
                     // log_trace("send buffer is available for site {}.", site_id);
                     auto offset = last_sent_seqno[site_id] - last_all_sent_seqno;
                     if (offset == size)
@@ -380,6 +434,8 @@ namespace wan_agent
             }
             lock.unlock();
         }
+        std::cout << "in send_msg_loop, thread_shutdown.load() is " << thread_shutdown.load() << std::endl;
+        log_exit_func();
     }
 
     WanAgentSender::WanAgentSender(const nlohmann::json &wan_group_config,
@@ -412,7 +468,7 @@ namespace wan_agent
         send_msg_thread = std::thread(&MessageSender::send_msg_loop, message_sender.get());
     }
 
-    void WanAgentSender::report_new_ack() // TODO: client
+    void WanAgentSender::report_new_ack()
     {
         log_enter_func();
         std::unique_lock lck(new_ack_mutex);
@@ -422,7 +478,7 @@ namespace wan_agent
         log_exit_func();
     }
 
-    void WanAgentSender::predicate_loop() // TODO: client
+    void WanAgentSender::predicate_loop()
     {
         log_enter_func();
         while (!is_shutdown.load())
@@ -446,8 +502,15 @@ namespace wan_agent
     {
         log_enter_func();
         is_shutdown.store(true);
-        report_new_ack();        // TODO: clientGuess: to wake up all predicate_loop threads with a pusedo "new ack"
-        predicate_thread.join(); // TODO: client
+        report_new_ack(); // to wake up all predicate_loop threads with a pusedo "new ack"
+        predicate_thread.join();
+
+        message_sender->shutdown();
+        // send_msg_thread.join();
+        // recv_ack_thread.join();
+        std::cout << "send_msg_thread.joinable(): " << send_msg_thread.joinable() << ", recv_ack_thread.joinable(): " << recv_ack_thread.joinable();
+        send_msg_thread.detach();
+        recv_ack_thread.detach();
         log_exit_func();
     }
 
