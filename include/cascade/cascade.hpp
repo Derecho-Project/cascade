@@ -13,6 +13,9 @@
 
 #include <cascade/config.h>
 
+#include <nlohmann/json.hpp>
+#include <wan_agent/wan_agent.hpp>
+
 namespace derecho
 {
     namespace cascade
@@ -396,12 +399,13 @@ namespace derecho
             PersistentCascadeStore(persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST> &&_persistent_core,
                                    CascadeWatcher<KT, VT, IK, IV> *cw = nullptr); // move persistent_core
             PersistentCascadeStore(
-                PersistentCascadeStore<KT, VT, IK, IV, ST> &&_persistent_cascade_store); // move persistent_cascade_store
+                PersistentCascadeStore<KT, VT, IK, IV, ST> &&_persistent_cascade_store); // move persistent_cascade_store, maybe useless
 
             // destructor
             virtual ~PersistentCascadeStore();
         };
 
+#define CONF_WAN_SENDER_CFG "CASCADE/wan_sender_cfg"
         template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST = persistent::ST_FILE>
         class WANPersistentCascadeStore : public ICascadeStore<KT, VT, IK, IV>,
                                           public mutils::ByteRepresentable,
@@ -450,13 +454,21 @@ namespace derecho
 
             void ensure_registered(mutils::DeserializationManager &) {}
 
+        public:
+            // WanAgent stuff
+            wan_agent::PredicateLambda pl;
+            std::unique_ptr<wan_agent::WanAgentSender> wan_agent_sender;
+            nlohmann::json wan_conf_json;
+
+        public:
+            void init_wan_config();
             // constructors
             WANPersistentCascadeStore(persistent::PersistentRegistry *pr, CascadeWatcher<KT, VT, IK, IV> *cw = nullptr);
             WANPersistentCascadeStore(persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST> &&_persistent_core,
                                       CascadeWatcher<KT, VT, IK, IV> *cw = nullptr); // move persistent_core
 
             WANPersistentCascadeStore(
-                WANPersistentCascadeStore<KT, VT, IK, IV, ST> &&_wan_persistent_cascade_store); // move wan_persistent_cascade_store
+                WANPersistentCascadeStore<KT, VT, IK, IV, ST> &&_wan_persistent_cascade_store); // move wan_persistent_cascade_store, maybe useless
 
             // destructor
             virtual ~WANPersistentCascadeStore();

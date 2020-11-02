@@ -809,12 +809,47 @@ namespace derecho
 
             // TODO: need wan support
 
+            // byte_size/actual_size may be larger than WAN_AGENT_MAX_PAYLOAD_SIZE
+            size_t byte_size = value.bytes_size();
+            char *buffer = static_cast<char *>(malloc(byte_size));
+            size_t actual_size = value.to_bytes(buffer);
+            std::cout << "Alloc size: " << byte_size << ", actual size: " << actual_size << std::endl;
+            if (byte_size != actual_size)
+            {
+                throw std::runtime_error("to_bytes() and bytes_size() return different size");
+            }
+
+            // do not use wan_agent::WAN_AGENT_MAX_PAYLOAD_SIZE, macro define is not constrained by namespace, even class definition, function definition
+            const size_t wan_max_payload_size = wan_conf_json[WAN_AGENT_MAX_PAYLOAD_SIZE];
+
+            if (actual_size < wan_max_payload_size)
+            {
+                wan_agent_sender->send(buffer, actual_size);
+            }
+            else // need divide into blocks
+            {
+                while (actual_size > wan_max_payload_size)
+                {
+                    wan_agent_sender->send(buffer, wan_max_payload_size);
+                    buffer += wan_max_payload_size;
+                    actual_size -= wan_max_payload_size;
+                }
+            }
+
+            debug_leave_func_with_value("Send to WanAgent server {} bytes.", actual_size);
             return ret;
         }
 
         template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
         std::tuple<persistent::version_t, uint64_t> WANPersistentCascadeStore<KT, VT, IK, IV, ST>::remove(const KT &key)
         {
+
+            ///////////////////////////////////////////////////////////////////////////////
+            // TODO: It makes sense to send the remove command to the WanAgent's server
+            // as well,but the WanAgent's server doesn't actually store any data at the
+            // moment, so it's ignored.
+            ///////////////////////////////////////////////////////////////////////////////
+
             debug_enter_func_with_args("key={}", key);
             derecho::Replicated<WANPersistentCascadeStore> &subgroup_handle = group->template get_subgroup<WANPersistentCascadeStore>(this->subgroup_index);
             auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_remove)>(key);
@@ -826,8 +861,6 @@ namespace derecho
                 ret = reply_pair.second.get();
             }
             debug_leave_func_with_value("version=0x{:x},timestamp={}", std::get<0>(ret), std::get<1>(ret));
-
-            // TODO: need wan support
 
             return ret;
         }
@@ -1048,6 +1081,24 @@ namespace derecho
         }
 
         template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
+        void WANPersistentCascadeStore<KT, VT, IK, IV, ST>::init_wan_config()
+        {
+            ///////////////////////////////////////////////////////////////////////////////
+            // TODO: determine how to register Predicate to cascade.
+            ///////////////////////////////////////////////////////////////////////////////
+
+            // table: key is site_id, value is seq_no
+            pl = [](const std::map<uint32_t, uint64_t> &table) {
+                for (auto &item : table)
+                {
+                    std::cout << "site " << item.first << " ack for seq_no " << item.second << std::endl;
+                }
+            };
+
+            wan_agent_sender = std::make_unique<wan_agent::WanAgentSender>(wan_conf_json, pl);
+        }
+
+        template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
         WANPersistentCascadeStore<KT, VT, IK, IV, ST>::WANPersistentCascadeStore(
             persistent::PersistentRegistry *pr,
             CascadeWatcher<KT, VT, IK, IV> *cw)
@@ -1055,20 +1106,28 @@ namespace derecho
                   return std::make_unique<DeltaCascadeStoreCore<KT, VT, IK, IV>>();
               },
                               nullptr, pr),
-              cascade_watcher_ptr(cw) {}
+              cascade_watcher_ptr(cw), wan_conf_json(nlohmann::json::parse(derecho::getConfString(CONF_WAN_SENDER_CFG)))
+        {
+            std::cout << derecho::getConfString(CONF_WAN_SENDER_CFG) << std::endl;
+            init_wan_config();
+        }
 
         template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
         WANPersistentCascadeStore<KT, VT, IK, IV, ST>::WANPersistentCascadeStore(
             persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST> &&
                 _persistent_core,
-            CascadeWatcher<KT, VT, IK, IV> *cw) : persistent_core(std::move(_persistent_core)),
-                                                  cascade_watcher_ptr(cw) {}
+            CascadeWatcher<KT, VT, IK, IV> *cw) // move persistent_core
+            : persistent_core(std::move(_persistent_core)),
+              cascade_watcher_ptr(cw), wan_conf_json(nlohmann::json::parse(derecho::getConfString(CONF_WAN_SENDER_CFG)))
+        {
+            init_wan_config();
+        }
 
         template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
         WANPersistentCascadeStore<KT, VT, IK, IV, ST>::WANPersistentCascadeStore(
-            WANPersistentCascadeStore<KT, VT, IK, IV, ST> &&_wan_persistent_cascade_store)
+            WANPersistentCascadeStore<KT, VT, IK, IV, ST> &&_wan_persistent_cascade_store) // move wan_persistent_cascade_store, maybe useless
             : persistent_core(std::move(_wan_persistent_cascade_store.persistent_core)),
-              cascade_watcher_ptr(std::move(_wan_persistent_cascade_store.cascade_watcher_ptr.get()))
+              cascade_watcher_ptr(std::move(_wan_persistent_cascade_store.cascade_watcher_ptr.get())), wan_agent_sender(std::move(_wan_persistent_cascade_store.wan_agent_sender.get()))
         {
         }
 

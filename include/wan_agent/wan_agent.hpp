@@ -117,7 +117,8 @@ namespace wan_agent
          */
         virtual void shutdown_and_wait() noexcept(false) = 0;
 
-        bool get_is_shutdown() const {
+        bool get_is_shutdown() const
+        {
             return is_shutdown.load();
         }
     };
@@ -154,8 +155,6 @@ namespace wan_agent
         const size_t max_payload_size;
         const RemoteMessageCallback rmc;
 
-        const NotifierFunc ready_notifier;
-        std::atomic<bool> server_ready;
         std::list<std::thread> worker_threads;
 
         int server_socket;
@@ -174,7 +173,6 @@ namespace wan_agent
                              unsigned short local_port,
                              const size_t max_payload_size,
                              const RemoteMessageCallback &rmc,
-                             const NotifierFunc &ready_notifier_lambda,
                              WanAgent *hugger);
 
         void establish_connections();
@@ -219,7 +217,6 @@ namespace wan_agent
         virtual void shutdown_and_wait() noexcept(false) override;
     };
 
-
     struct LinkedBufferNode
     {
         size_t message_size;
@@ -257,9 +254,6 @@ namespace wan_agent
         std::map<site_id_t, std::atomic<uint64_t>> &message_counters;
         const ReportACKFunc report_new_ack;
 
-        const NotifierFunc ready_notifier;
-        std::atomic<bool> client_ready;
-
         std::atomic<bool> thread_shutdown;
 
     public:
@@ -270,16 +264,11 @@ namespace wan_agent
                       const std::map<site_id_t, std::pair<ip_addr_t, uint16_t>> &server_sites_ip_addrs_and_ports,
                       const size_t &n_slots, const size_t &max_payload_size,
                       std::map<site_id_t, std::atomic<uint64_t>> &message_counters,
-                      const ReportACKFunc &report_new_ack,
-                      const NotifierFunc &ready_notifier_lambda);
+                      const ReportACKFunc &report_new_ack);
 
         void recv_ack_loop();
         void enqueue(const char *payload, const size_t payload_size);
         void send_msg_loop();
-        bool is_client_ready()
-        {
-            return client_ready.load();
-        }
         void shutdown()
         {
             thread_shutdown.store(true);
@@ -304,9 +293,6 @@ namespace wan_agent
         const PredicateLambda &predicate_lambda;
 
         std::unique_ptr<MessageSender> message_sender;
-        // the conditional variable for initialization
-        std::mutex ready_mutex;           // TODO: 思考下ready的作用究竟是什么
-        std::condition_variable ready_cv; // TODO: 思考下ready的作用究竟是什么
         std::thread recv_ack_thread;
         std::thread send_msg_thread;
         std::map<site_id_t, std::atomic<uint64_t>> message_counters;

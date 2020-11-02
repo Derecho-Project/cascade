@@ -96,14 +96,11 @@ namespace wan_agent
                                                unsigned short local_port,
                                                const size_t max_payload_size,
                                                const RemoteMessageCallback &rmc,
-                                               const NotifierFunc &ready_notifier_lambda,
                                                WanAgent *hugger)
         : local_site_id(local_site_id),
           num_senders(num_senders),
           max_payload_size(max_payload_size),
           rmc(rmc),
-          ready_notifier(ready_notifier_lambda),
-          server_ready(false),
           hugger(hugger)
     {
         std::cout << "1: " << local_site_id << std::endl;
@@ -147,8 +144,6 @@ namespace wan_agent
             int connected_sock_fd = ::accept(server_socket, (struct sockaddr *)&client_addr_info, &len);
             worker_threads.emplace_back(std::thread(&RemoteMessageService::epoll_worker, this, connected_sock_fd));
         }
-        server_ready.store(true);
-        ready_notifier();
     }
 
     void RemoteMessageService::worker(int connected_sock_fd)
@@ -225,11 +220,6 @@ namespace wan_agent
         }
     }
 
-    bool RemoteMessageService::is_server_ready()
-    {
-        return server_ready.load();
-    }
-
     WanAgentServer::WanAgentServer(const nlohmann::json &wan_group_config,
                                    const RemoteMessageCallback &rmc)
         : WanAgent(wan_group_config),
@@ -240,7 +230,6 @@ namespace wan_agent
               local_port,
               wan_group_config[WAN_AGENT_MAX_PAYLOAD_SIZE],
               rmc,
-              [this]() { this->ready_cv.notify_all(); },
               this)
     {
         std::thread rms_establish_thread(&RemoteMessageService::establish_connections, &remote_message_service);
@@ -266,15 +255,12 @@ namespace wan_agent
                                  const std::map<site_id_t, std::pair<ip_addr_t, uint16_t>> &server_sites_ip_addrs_and_ports,
                                  const size_t &n_slots, const size_t &max_payload_size,
                                  std::map<site_id_t, std::atomic<uint64_t>> &message_counters,
-                                 const ReportACKFunc &report_new_ack,
-                                 const NotifierFunc &ready_notifier_lambda)
+                                 const ReportACKFunc &report_new_ack)
         : local_site_id(local_site_id),
           n_slots(n_slots),
           last_all_sent_seqno(static_cast<uint64_t>(-1)),
           message_counters(message_counters),
           report_new_ack(report_new_ack),
-          ready_notifier(ready_notifier_lambda),
-          client_ready(false),
           thread_shutdown(false)
     {
         log_enter_func();
@@ -316,9 +302,6 @@ namespace wan_agent
             }
             // sockets.emplace(node_id, fd);
         }
-
-        client_ready.store(true);
-        ready_notifier();
         log_exit_func();
     }
 
@@ -461,8 +444,7 @@ namespace wan_agent
             wan_group_config[WAN_AGENT_WINDOW_SIZE],
             wan_group_config[WAN_AGENT_MAX_PAYLOAD_SIZE],
             message_counters,
-            [this]() { this->report_new_ack(); },
-            [this]() { this->ready_cv.notify_all(); });
+            [this]() { this->report_new_ack(); });
 
         recv_ack_thread = std::thread(&MessageSender::recv_ack_loop, message_sender.get());
         send_msg_thread = std::thread(&MessageSender::send_msg_loop, message_sender.get());
