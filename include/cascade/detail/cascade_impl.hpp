@@ -260,35 +260,48 @@ std::unique_ptr<VolatileCascadeStore<KT,VT,IK,IV>> VolatileCascadeStore<KT,VT,IK
     auto kv_map_ptr = mutils::from_bytes<std::map<KT,VT>>(dsm,buf);
     auto update_version_ptr = mutils::from_bytes<persistent::version_t>(dsm,buf+mutils::bytes_size(*kv_map_ptr));
     auto volatile_cascade_store_ptr =
-        std::make_unique<VolatileCascadeStore>(std::move(*kv_map_ptr),*update_version_ptr,&(dsm->mgr<CascadeWatcher<KT,VT,IK,IV>>()));
+        std::make_unique<VolatileCascadeStore>(std::move(*kv_map_ptr),
+                                               *update_version_ptr,
+                                               dsm->registered<CascadeWatcher<KT,VT,IK,IV>>()?&(dsm->mgr<CascadeWatcher<KT,VT,IK,IV>>()):nullptr,
+                                               dsm->registered<CascadeContext>()?&(dsm->mgr<CascadeContext>()):nullptr);
     return volatile_cascade_store_ptr;
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
 VolatileCascadeStore<KT,VT,IK,IV>::VolatileCascadeStore(
-    CascadeWatcher<KT,VT,IK,IV>* cw):
+    CascadeWatcher<KT,VT,IK,IV>* cw,
+    CascadeContext* cc):
     update_version(persistent::INVALID_VERSION),
-    cascade_watcher_ptr(cw) {
+    cascade_watcher_ptr(cw),
+    cascade_context_ptr(cc) {
     debug_enter_func();
     debug_leave_func();
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
 VolatileCascadeStore<KT,VT,IK,IV>::VolatileCascadeStore(
-    const std::map<KT,VT>& _kvm, persistent::version_t _uv, CascadeWatcher<KT,VT,IK,IV>* cw):
+    const std::map<KT,VT>& _kvm,
+    persistent::version_t _uv,
+    CascadeWatcher<KT,VT,IK,IV>* cw,
+    CascadeContext* cc):
     kv_map(_kvm),
     update_version(_uv),
-    cascade_watcher_ptr(cw) {
+    cascade_watcher_ptr(cw),
+    cascade_context_ptr(cc) {
     debug_enter_func_with_args("copy to kv_map, size={}",kv_map.size());
     debug_leave_func();
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
 VolatileCascadeStore<KT,VT,IK,IV>::VolatileCascadeStore(
-    std::map<KT,VT>&& _kvm, persistent::version_t _uv, CascadeWatcher<KT,VT,IK,IV>* cw):
+    std::map<KT,VT>&& _kvm,
+    persistent::version_t _uv,
+    CascadeWatcher<KT,VT,IK,IV>* cw,
+    CascadeContext* cc):
     kv_map(std::move(_kvm)),
     update_version(_uv),
-    cascade_watcher_ptr(cw) {
+    cascade_watcher_ptr(cw),
+    cascade_context_ptr(cc) {
     debug_enter_func_with_args("move to kv_map, size={}",kv_map.size());
     debug_leave_func();
 }
@@ -751,30 +764,36 @@ template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 std::unique_ptr<PersistentCascadeStore<KT,VT,IK,IV,ST>> PersistentCascadeStore<KT,VT,IK,IV,ST>::from_bytes(mutils::DeserializationManager* dsm, char const* buf) {
     auto persistent_core_ptr = mutils::from_bytes<persistent::Persistent<DeltaCascadeStoreCore<KT,VT,IK,IV>,ST>>(dsm,buf);
     auto persistent_cascade_store_ptr =
-        std::make_unique<PersistentCascadeStore>(std::move(*persistent_core_ptr),&(dsm->mgr<CascadeWatcher<KT,VT,IK,IV>>()));
+        std::make_unique<PersistentCascadeStore>(std::move(*persistent_core_ptr),
+                                                 dsm->registered<CascadeWatcher<KT,VT,IK,IV>>()?&(dsm->mgr<CascadeWatcher<KT,VT,IK,IV>>()):nullptr,
+                                                 dsm->registered<CascadeContext>()?&(dsm->mgr<CascadeContext>()):nullptr);
     return persistent_cascade_store_ptr;
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 PersistentCascadeStore<KT,VT,IK,IV,ST>::PersistentCascadeStore(
                                                persistent::PersistentRegistry* pr,
-                                               CascadeWatcher<KT,VT,IK,IV>* cw):
+                                               CascadeWatcher<KT,VT,IK,IV>* cw,
+                                               CascadeContext* cc):
                                                persistent_core(
                                                    [](){
                                                        return std::make_unique<DeltaCascadeStoreCore<KT,VT,IK,IV>>();
                                                    },
                                                    nullptr,
                                                    pr),
-                                               cascade_watcher_ptr(cw) {}
+                                               cascade_watcher_ptr(cw),
+                                               cascade_context_ptr(cc) {}
 
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 PersistentCascadeStore<KT,VT,IK,IV,ST>::PersistentCascadeStore(
                                                persistent::Persistent<DeltaCascadeStoreCore<KT,VT,IK,IV>,ST>&&
                                                _persistent_core,
-                                               CascadeWatcher<KT,VT,IK,IV>* cw):
+                                               CascadeWatcher<KT,VT,IK,IV>* cw,
+                                               CascadeContext* cc):
                                                persistent_core(std::move(_persistent_core)),
-                                               cascade_watcher_ptr(cw) {}
+                                               cascade_watcher_ptr(cw),
+                                               cascade_context_ptr(cc) {}
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 PersistentCascadeStore<KT,VT,IK,IV,ST>::~PersistentCascadeStore() {}
