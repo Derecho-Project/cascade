@@ -21,6 +21,7 @@ void print_shard_member(ServiceClientAPI& capi, uint32_t subgroup_index, uint32_
     std::cout << "]" << std::endl;
 }
 
+/** disabled
 void print_shard_member(ServiceClientAPI& capi, derecho::subgroup_id_t subgroup_id, uint32_t shard_index) {
     std::cout << "subgroup_id=" << subgroup_id << ","
               << "shard_index=" << shard_index << " member list = [";
@@ -30,6 +31,7 @@ void print_shard_member(ServiceClientAPI& capi, derecho::subgroup_id_t subgroup_
     }
     std::cout << "]" << std::endl;
 }
+**/
 
 static const char* policy_names[] = {
     "FirstMember",
@@ -86,10 +88,12 @@ void member_test(ServiceClientAPI& capi) {
     print_shard_member<VCSS>(capi,0,0);
     print_shard_member<PCSU>(capi,0,0);
     print_shard_member<PCSS>(capi,0,0);
+    /** disabled.
     print_shard_member(capi,0,0);
     print_shard_member(capi,1,0);
     print_shard_member(capi,2,0);
     print_shard_member(capi,3,0);
+    **/
 }
 
 static std::vector<std::string> tokenize(std::string &line, const char *delimiter) {
@@ -352,7 +356,7 @@ void interactive_test(ServiceClientAPI& capi) {
     const char* help_info =
     "list_all_members\n\tlist all members in top level derecho group.\n"
     "list_type_members <type> [subgroup_index(0)] [shard_index(0)]\n\tlist members in shard by subgroup type.\n"
-    "list_subgroup_members [subgroup_id(0)] [shard_index(0)]\n\tlist members in shard by subgroup id.\n"
+    // "list_subgroup_members [subgroup_id(0)] [shard_index(0)]\n\tlist members in shard by subgroup id.\n"
     "set_member_selection_policy <type> <subgroup_index> <shard_index> <policy> [user_specified_node_id]\n\tset member selection policy\n"
     "get_member_selection_policy <type> [subgroup_index(0)] [shard_index(0)]\n\tget member selection policy\n"
     "put <type> <key> <value> [pver(-1)] [pver_by_key(-1)] [subgroup_index(0)] [shard_index(0)]\n\tput an object\n"
@@ -375,13 +379,13 @@ void interactive_test(ServiceClientAPI& capi) {
     "type:=VCSU|VCSS|PCSU|PCSS\n"
     "policy:=FirstMember|LastMember|Random|FixedRandom|RoundRobin|UserSpecified\n"
     ;
-    derecho::subgroup_id_t subgroup_id;
+    // derecho::subgroup_id_t subgroup_id;
     uint32_t subgroup_index,shard_index;
     persistent::version_t version;
 
     // loop
     while (true) {
-        subgroup_id = 0;
+        // subgroup_id = 0;
         subgroup_index = 0;
         shard_index = 0;
         version = CURRENT_VERSION;
@@ -416,12 +420,14 @@ void interactive_test(ServiceClientAPI& capi) {
                 shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
             }
             on_subgroup_type(cmd_tokens[1],print_shard_member,capi,subgroup_index,shard_index);
+/* disabled exposing subgroup_id
         } else if (cmd_tokens[0] == "list_subgroup_members") {
             if (cmd_tokens.size() >= 2)
                 subgroup_id = static_cast<derecho::subgroup_id_t>(std::stoi(cmd_tokens[1]));
             if (cmd_tokens.size() >= 3)
                 shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[2]));
             print_shard_member(capi,subgroup_id,shard_index);
+*/
         } else if (cmd_tokens[0] == "get_member_selection_policy") {
             if (cmd_tokens.size() < 2) {
                 print_red("Invalid format:" + cmdline);
