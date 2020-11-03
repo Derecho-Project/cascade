@@ -7,6 +7,7 @@
 #include <derecho/utils/time.h>
 #include <nlohmann/json.hpp>
 #include "cascade.hpp"
+#include "cascade_context.hpp"
 
 using json = nlohmann::json; 
 
@@ -97,13 +98,6 @@ public:
      * wait on the service util it stop
      */
     static void wait();
-};
-
-/**
- * The Service Context
- */
-template <typename... CascadeTypes>
-class ServiceContext {
 };
 
 /**
