@@ -148,8 +148,10 @@ template <> struct do_hash<std::tuple<std::type_index,uint32_t,uint32_t>> {
 template <typename... CascadeTypes>
 class ServiceClient {
 private:
-    // caller
-    derecho::ExternalGroup<CascadeTypes...> external_group;
+    // default caller as an external client.
+    std::unique_ptr<derecho::ExternalGroup<CascadeTypes...>> external_group_ptr;
+    // caller as a group member.
+    derecho::Group<CascadeTypes...>* group_ptr;
     /**
      * 'member_selection_policies' is a map from derecho shard to its member selection policy.
      * We use a 3-tuple consisting of subgroup type index, subgroup index, and shard index to identify a shard. And
@@ -195,6 +197,13 @@ private:
     void refresh_member_cache_entry(uint32_t subgroup_index, uint32_t shard_index);
 public:
     /**
+     * The Constructor
+     * @param _group_ptr The caller can pass a pointer pointing to a derecho group object. If the pointer is
+     *                   valid, the implementation will reply on the group object instead of creating an external
+     *                   client to communicate with group members.
+     */
+    ServiceClient(derecho::Group<CascadeTypes...>* _group_ptr=nullptr);
+    /**
      * Derecho group helpers: They derive the API in derecho::ExternalClient.
      * - get_members        returns all members in the top-level Derecho group.
      * - get_shard_members  returns the members in a shard specified by subgroup id(or subgroup type/index pair) and
@@ -205,12 +214,12 @@ public:
      * refresh its local member cache by calling get_shard_members.
      */
     std::vector<node_id_t> get_members();
-    std::vector<node_id_t> get_shard_members(derecho::subgroup_id_t subgroup_id,uint32_t shard_index);
+    // std::vector<node_id_t> get_shard_members(derecho::subgroup_id_t subgroup_id,uint32_t shard_index);
     template <typename SubgroupType>
     std::vector<node_id_t> get_shard_members(uint32_t subgroup_index,uint32_t shard_index);
-    template <typename SubgroupType>
-    uint32_t get_number_of_subgroups();
-    uint32_t get_number_of_shards(derecho::subgroup_id_t subgroup_id);
+    // template <typename SubgroupType>
+    // uint32_t get_number_of_subgroups();
+    // uint32_t get_number_of_shards(derecho::subgroup_id_t subgroup_id);
     template <typename SubgroupType>
     uint32_t get_number_of_shards(uint32_t subgroup_index);
 
