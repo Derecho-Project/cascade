@@ -505,5 +505,92 @@ derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> ServiceC
     }
 }
 
+template <typename... CascadeTypes>
+CascadeContext<CascadeTypes...>::CascadeContext() {}
+
+template <typename... CascadeTypes>
+void CascadeContext<CascadeTypes...>::construct(const off_critical_data_path_func_t<CascadeTypes...>& _off_critical_data_path_handler,
+                               derecho::Group<CascadeTypes...>* group_ptr) {
+    // 0 - TODO:load resources configuration here.
+    // 1 - setup off_critical_data_path_handler
+    this->off_critical_data_path_handler = _off_critical_data_path_handler;
+    // 2 - prepare the service client
+    service_client = std::make_unique<ServiceClient<CascadeTypes...>>(group_ptr);
+    // 3 - start the working threads
+    is_running.store(true);
+    for (uint32_t i=0;i<derecho::getConfUInt32(OFF_CRITICAL_DATA_PATH_THREAD_POOL_SIZE);i++) {
+        off_critical_data_path_thread_pool.emplace_back(std::thread(&CascadeContext<CascadeTypes...>::workhorse,this));
+    }
+}
+
+template <typename... CascadeTypes>
+void CascadeContext<CascadeTypes...>::workhorse() {
+    pthread_setname_np(pthread_self(), "cascade_context");
+    dbg_default_trace("Cascade context workhorse[{}] started", std::this_thread::get_id());
+    while(is_running) {
+        // waiting for an action
+        std::unique_lock<std::mutex> lck(action_queue_mutex);
+        action_queue_cv.wait(lck,[this](){return !action_queue.empty() || !is_running;});
+        if (!action_queue.empty()) {
+            // pick an action and process it.
+            Action a = std::move(action_queue.front());
+            action_queue.pop_front();
+            lck.unlock();
+            if (this->off_critical_data_path_handler) {
+                this->off_critical_data_path_handler(std::move(a),this);
+            }
+        }
+        if (!is_running) {
+            // processing all existing actions
+            if (!lck) { // regain the lock in case we released it in the above block.
+                lck.lock();
+            }
+            while (!action_queue.empty()) {
+                if (this->off_critical_data_path_handler) {
+                    this->off_critical_data_path_handler(std::move(action_queue.front()),this);
+                }
+                action_queue.pop_front();
+            }
+            lck.unlock();
+        }
+    }
+    dbg_default_trace("Cascade context workhorse[{}] finished normally.", std::this_thread::get_id());
+}
+
+template <typename... CascadeTypes>
+void CascadeContext<CascadeTypes...>::destroy() {
+    dbg_default_trace("Destroying Cascade context@{:p}.",static_cast<void*>(this));
+    is_running.store(false);
+    action_queue_cv.notify_all();
+    for (auto& th: off_critical_data_path_thread_pool) {
+        if (th.joinable()) {
+            th.join();
+        }
+    }
+    off_critical_data_path_thread_pool.clear();
+    dbg_default_trace("Cascade context@{:p} is destroyed.",static_cast<void*>(this));
+}
+
+template <typename... CascadeTypes>
+bool CascadeContext<CascadeTypes...>::post(Action&& action) {
+    dbg_default_trace("Posting an action to Cascade context@{:p}.", static_cast<void*>(this));
+    if (is_running) {
+        std::unique_lock<std::mutex> lck(action_queue_mutex);
+        action_queue.emplace_back(std::move(action));
+        lck.unlock();
+        action_queue_cv.notify_one();
+    } else {
+        dbg_default_warn("Failed to post to Cascade context@{:p} because it is not running.", static_cast<void*>(this));
+        return false;
+    }
+    dbg_default_trace("Action posted to Cascade context@{:p}.", static_cast<void*>(this));
+    return true;
+}
+
+template <typename... CascadeTypes>
+CascadeContext<CascadeTypes...>::~CascadeContext() {
+    destroy();
+}
+
 }
 }

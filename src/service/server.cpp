@@ -49,6 +49,7 @@ int main(int argc, char** argv) {
     void (*on_cascade_exit)() = nullptr;
     std::shared_ptr<UCW> (*get_ucw)() = nullptr;
     std::shared_ptr<SCW> (*get_scw)() = nullptr;
+    void (*off_critical_data_path_action_handler)(Action&&,ICascadeContext*) = nullptr;
     void* dl_handle = nullptr;
 
     if (ondata_library.size()>0) {
@@ -83,6 +84,13 @@ int main(int argc, char** argv) {
         *reinterpret_cast<void **>(&get_scw) = dlsym(dl_handle, "_ZN7derecho7cascade19get_cascade_watcherINS0_14CascadeWatcherINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEENS0_19ObjectWithStringKeyEXadL_ZNS9_2IKB5cxx11EEEXadL_ZNS9_2IVEEEEEEESt10shared_ptrIT_Ev");
         if (get_scw == nullptr) {
             dbg_default_error("Failed to load get_scw(). error={}", dlerror());
+            dlclose(dl_handle);
+            return -1;
+        }
+        // 5 - get the off critical data path handler
+        *reinterpret_cast<void **>(&off_critical_data_path_action_handler) = dlsym(dl_handle, "");
+        if (off_critical_data_path_action_handler == nullptr) {
+            dbg_default_error("Failed to load off_critical_data_path_action_handler(). error={}", dlerror());
             dlclose(dl_handle);
             return -1;
         }
