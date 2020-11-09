@@ -509,8 +509,8 @@ template <typename... CascadeTypes>
 CascadeContext<CascadeTypes...>::CascadeContext() {}
 
 template <typename... CascadeTypes>
-void CascadeContext<CascadeTypes...>::construct(const off_critical_data_path_func_t& _off_critical_data_path_handler,
-                               derecho::Group<CascadeTypes...>* group_ptr) {
+void CascadeContext<CascadeTypes...>::construct(OffCriticalDataPathObserver* _off_critical_data_path_handler,
+                                                derecho::Group<CascadeTypes...>* group_ptr) {
     // 0 - TODO:load resources configuration here.
     // 1 - setup off_critical_data_path_handler
     this->off_critical_data_path_handler = _off_critical_data_path_handler;
@@ -536,8 +536,8 @@ void CascadeContext<CascadeTypes...>::workhorse() {
             Action a = std::move(action_queue.front());
             action_queue.pop_front();
             lck.unlock();
-            if (this->off_critical_data_path_handler) {
-                this->off_critical_data_path_handler(std::move(a),this);
+            if (off_critical_data_path_handler) {
+                (*off_critical_data_path_handler)(std::move(a),this);
             }
         }
         if (!is_running) {
@@ -546,8 +546,8 @@ void CascadeContext<CascadeTypes...>::workhorse() {
                 lck.lock();
             }
             while (!action_queue.empty()) {
-                if (this->off_critical_data_path_handler) {
-                    this->off_critical_data_path_handler(std::move(action_queue.front()),this);
+                if (off_critical_data_path_handler) {
+                    (*off_critical_data_path_handler)(std::move(action_queue.front()),this);
                 }
                 action_queue.pop_front();
             }

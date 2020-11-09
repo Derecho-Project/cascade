@@ -47,13 +47,14 @@ int main(int argc, char** argv) {
     std::shared_ptr<CriticalDataPathObserver<PCSU>> cdpo_pcsu_ptr;
     std::shared_ptr<CriticalDataPathObserver<VCSS>> cdpo_vcss_ptr;
     std::shared_ptr<CriticalDataPathObserver<PCSS>> cdpo_pcss_ptr;
+    std::shared_ptr<OffCriticalDataPathObserver> ocdpo_ptr;
     void (*on_cascade_initialization)() = nullptr;
     void (*on_cascade_exit)() = nullptr;
     std::shared_ptr<CriticalDataPathObserver<VCSU>> (*get_cdpo_vcsu)() = nullptr;
     std::shared_ptr<CriticalDataPathObserver<PCSU>> (*get_cdpo_pcsu)() = nullptr;
     std::shared_ptr<CriticalDataPathObserver<VCSS>> (*get_cdpo_vcss)() = nullptr;
     std::shared_ptr<CriticalDataPathObserver<PCSS>> (*get_cdpo_pcss)() = nullptr;
-    void (*off_critical_data_path_action_handler)(Action&&,ICascadeContext*) = nullptr;
+    std::shared_ptr<OffCriticalDataPathObserver> (*get_ocdpo)() = nullptr;
     void* dl_handle = nullptr;
 
     if (ondata_library.size()>0) {
@@ -78,26 +79,26 @@ int main(int argc, char** argv) {
             return -1;
         }
         // 3 - get cdpos
-        *reinterpret_cast<void **>(&get_cdpo_vcsu) = dlsym(dl_handle, "_ZN7derecho7cascade19get_cascade_watcherINS0_14CascadeWatcherImNS0_19ObjectWithUInt64KeyEXadL_ZNS3_2IKEEEXadL_ZNS3_2IVEEEEEEESt10shared_ptrIT_Ev");
+        *reinterpret_cast<void **>(&get_cdpo_vcsu) = dlsym(dl_handle, "_ZN7derecho7cascade31get_critical_data_path_observerINS0_20VolatileCascadeStoreImNS0_19ObjectWithUInt64KeyEXadL_ZNS3_2IKEEEXadL_ZNS3_2IVEEEEEEESt10shared_ptrINS0_24CriticalDataPathObserverIT_EEEv");
         if (get_cdpo_vcsu == nullptr) {
             dbg_default_warn("Failed to load get_cdpo_vcsu(). error={}", dlerror());
         }
-        *reinterpret_cast<void **>(&get_cdpo_pcsu) = dlsym(dl_handle, "_ZN7derecho7cascade19get_cascade_watcherINS0_14CascadeWatcherImNS0_19ObjectWithUInt64KeyEXadL_ZNS3_2IKEEEXadL_ZNS3_2IVEEEEEEESt10shared_ptrIT_Ev");
+        *reinterpret_cast<void **>(&get_cdpo_pcsu) = dlsym(dl_handle, "_ZN7derecho7cascade31get_critical_data_path_observerINS0_22PersistentCascadeStoreImNS0_19ObjectWithUInt64KeyEXadL_ZNS3_2IKEEEXadL_ZNS3_2IVEEELN10persistent11StorageTypeE0EEEEESt10shared_ptrINS0_24CriticalDataPathObserverIT_EEEv" );
         if (get_cdpo_pcsu == nullptr) {
             dbg_default_warn("Failed to load get_cdpo_pcsu(). error={}", dlerror());
         }
-        *reinterpret_cast<void **>(&get_cdpo_vcss) = dlsym(dl_handle, "_ZN7derecho7cascade19get_cascade_watcherINS0_14CascadeWatcherImNS0_19ObjectWithUInt64KeyEXadL_ZNS3_2IKEEEXadL_ZNS3_2IVEEEEEEESt10shared_ptrIT_Ev");
+        *reinterpret_cast<void **>(&get_cdpo_vcss) = dlsym(dl_handle, "_ZN7derecho7cascade31get_critical_data_path_observerINS0_20VolatileCascadeStoreINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEENS0_19ObjectWithStringKeyEXadL_ZNS9_2IKB5cxx11EEEXadL_ZNS9_2IVEEEEEEESt10shared_ptrINS0_24CriticalDataPathObserverIT_EEEv");
         if (get_cdpo_vcss == nullptr) {
             dbg_default_warn("Failed to load get_cdpo_vcss(). error={}", dlerror());
         }
-        *reinterpret_cast<void **>(&get_cdpo_pcss) = dlsym(dl_handle, "_ZN7derecho7cascade19get_cascade_watcherINS0_14CascadeWatcherImNS0_19ObjectWithUInt64KeyEXadL_ZNS3_2IKEEEXadL_ZNS3_2IVEEEEEEESt10shared_ptrIT_Ev");
+        *reinterpret_cast<void **>(&get_cdpo_pcss) = dlsym(dl_handle, "_ZN7derecho7cascade31get_critical_data_path_observerINS0_22PersistentCascadeStoreINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEENS0_19ObjectWithStringKeyEXadL_ZNS9_2IKB5cxx11EEEXadL_ZNS9_2IVEEELN10persistent11StorageTypeE0EEEEESt10shared_ptrINS0_24CriticalDataPathObserverIT_EEEv");
         if (get_cdpo_pcss == nullptr) {
             dbg_default_warn("Failed to load get_cdpo_pcss(). error={}", dlerror());
         }
         // 4 - get the off critical data path handler
-        *reinterpret_cast<void **>(&off_critical_data_path_action_handler) = dlsym(dl_handle, "");
-        if (off_critical_data_path_action_handler == nullptr) {
-            dbg_default_error("Failed to load off_critical_data_path_action_handler(). error={}", dlerror());
+        *reinterpret_cast<void **>(&get_ocdpo) = dlsym(dl_handle, "_ZN7derecho7cascade35get_off_critical_data_path_observerEv");
+        if (get_ocdpo == nullptr) {
+            dbg_default_error("Failed to load get_ocdpo(). error={}", dlerror());
             dlclose(dl_handle);
             return -1;
         }
@@ -121,6 +122,9 @@ int main(int argc, char** argv) {
     if (get_cdpo_pcss) {
         cdpo_pcss_ptr = std::move(get_cdpo_pcss());
     }
+    if (get_ocdpo) {
+        ocdpo_ptr = std::move(get_ocdpo());
+    }
 
     auto vcsu_factory = [&cdpo_vcsu_ptr](persistent::PersistentRegistry* pr, derecho::subgroup_id_t) {
         return std::make_unique<VCSU>(cdpo_vcsu_ptr.get());
@@ -135,7 +139,7 @@ int main(int argc, char** argv) {
         return std::make_unique<PCSS>(pr,cdpo_pcss_ptr.get());
     };
     dbg_default_trace("starting service...");
-    Service<VCSU,VCSS,PCSU,PCSS>::start(group_layout,{cdpo_vcsu_ptr.get(),cdpo_vcss_ptr.get(),cdpo_pcsu_ptr.get(),cdpo_pcss_ptr.get()},vcsu_factory,vcss_factory,pcsu_factory,pcss_factory);
+    Service<VCSU,VCSS,PCSU,PCSS>::start(group_layout,{cdpo_vcsu_ptr.get(),cdpo_vcss_ptr.get(),cdpo_pcsu_ptr.get(),cdpo_pcss_ptr.get(),ocdpo_ptr.get()},vcsu_factory,vcss_factory,pcsu_factory,pcss_factory);
     dbg_default_trace("started service, waiting till it ends.");
     std::cout << "Press Enter to Shutdown." << std::endl;
     std::cin.get();

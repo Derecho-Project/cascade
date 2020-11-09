@@ -77,7 +77,10 @@ namespace cascade {
     /**
      * The off-critical data path handler API
      */
-    using off_critical_data_path_func_t = std::function<void(Action&&, ICascadeContext*)>;
+    class OffCriticalDataPathObserver: public derecho::DeserializationContext {
+    public:
+        virtual void operator() (Action&&, ICascadeContext*){};
+    };
     
     #define CONF_ONDATA_LIBRARY     "CASCADE/ondata_library"
     #define CONF_GROUP_LAYOUT       "CASCADE/group_layout"
@@ -455,7 +458,7 @@ namespace cascade {
         std::condition_variable action_queue_cv;
         /** thread pool control */
         std::atomic<bool>               is_running;
-        off_critical_data_path_func_t   off_critical_data_path_handler;
+        OffCriticalDataPathObserver*    off_critical_data_path_handler;
         std::vector<std::thread>        off_critical_data_path_thread_pool;
         /** the service client: off critical data path logic use it to send data to a next tier. */
         std::unique_ptr<ServiceClient<CascadeTypes...>> service_client;
@@ -484,9 +487,10 @@ namespace cascade {
          * needs the off critical data path handler from main();
          * 
          * @param off_critical_data_path_handler    The off critical data path handler
+         * @param group_ptr                         The group handle
          */
-        void construct(const off_critical_data_path_func_t& off_critical_data_path_handler,
-                               derecho::Group<CascadeTypes...>* group_ptr);
+        void construct(OffCriticalDataPathObserver* off_critical_data_path_handler,
+                       derecho::Group<CascadeTypes...>* group_ptr);
         /**
          * post an action to the Context for processing.
          *
