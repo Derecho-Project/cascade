@@ -45,7 +45,7 @@ namespace cascade {
     /**
      * The off-critical data path handler API
      */
-    class CascadeContext: public derecho::DeserializationContext {};
+    class ICascadeContext: public derecho::DeserializationContext {};
 
     /**
      * The cascade store interface.
@@ -235,7 +235,7 @@ namespace cascade {
         /* watcher */
         CascadeWatcher<KT,VT,IK,IV>* cascade_watcher_ptr;
         /* cascade context */
-        CascadeContext* cascade_context_ptr;
+        ICascadeContext* cascade_context_ptr;
         
         REGISTER_RPC_FUNCTIONS(VolatileCascadeStore,
                                put,
@@ -276,15 +276,15 @@ namespace cascade {
 
         /* constructors */
         VolatileCascadeStore(CascadeWatcher<KT,VT,IK,IV>* cw=nullptr,
-                             CascadeContext* cc=nullptr);
+                             ICascadeContext* cc=nullptr);
         VolatileCascadeStore(const std::map<KT,VT>& _kvm,
                              persistent::version_t _uv,
                              CascadeWatcher<KT,VT,IK,IV>* cw=nullptr,
-                             CascadeContext* cc=nullptr); // copy kv_map
+                             ICascadeContext* cc=nullptr); // copy kv_map
         VolatileCascadeStore(std::map<KT,VT>&& _kvm,
                              persistent::version_t _uv,
                              CascadeWatcher<KT,VT,IK,IV>* cw=nullptr,
-                             CascadeContext* cc=nullptr); // move kv_map
+                             ICascadeContext* cc=nullptr); // move kv_map
     };
 
     /**
@@ -390,7 +390,7 @@ namespace cascade {
         persistent::Persistent<DeltaCascadeStoreCore<KT,VT,IK,IV>,ST> persistent_core;
         CascadeWatcher<KT,VT,IK,IV>* cascade_watcher_ptr;
         /* cascade context */
-        CascadeContext* cascade_context_ptr;
+        ICascadeContext* cascade_context_ptr;
         
         REGISTER_RPC_FUNCTIONS(PersistentCascadeStore,
                                put,
@@ -432,10 +432,10 @@ namespace cascade {
         // constructors
         PersistentCascadeStore(persistent::PersistentRegistry *pr,
                                CascadeWatcher<KT,VT,IK,IV>* cw=nullptr,
-                               CascadeContext* cc=nullptr);
+                               ICascadeContext* cc=nullptr);
         PersistentCascadeStore(persistent::Persistent<DeltaCascadeStoreCore<KT,VT,IK,IV>,ST>&& _persistent_core,
                                CascadeWatcher<KT,VT,IK,IV>* cw=nullptr,
-                               CascadeContext* cc=nullptr); // move persistent_core
+                               ICascadeContext* cc=nullptr); // move persistent_core
 
         // destructor
         virtual ~PersistentCascadeStore();

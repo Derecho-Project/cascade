@@ -46,5 +46,19 @@ std::shared_ptr<UCW> get_cascade_watcher<UCW>();
 template <>
 std::shared_ptr<SCW> get_cascade_watcher<SCW>();
 
+/**
+ * The logic off critical data path
+ *
+ * The on critical data path handler (as implemented in the watchers) generates action objects and post them to the
+ * off critical data path in CascadeContext(cctx). CascadeContext runs a thread pool to process those action objects by
+ * calling this function. The CascadeContext* contains the resources for the critical data path handler like:
+ * - handle to the derecho group
+ * - description of the available resources
+ *
+ * @param action    The action object
+ * @param cctx      The cascade context
+ */
+void off_critical_data_path_action_handler(Action&& action, ICascadeContext* cctx);
+
 } // namespace cascade
 } // namespace derecho

@@ -10,7 +10,7 @@ set(cascade_build_VERSION 0.9.1)
 # C++ STANDARD
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS "-fPIC")
-set(CMAKE_CXX_FLAGS_DEBUG "-O0 -Wall -ggdb -gdwarf-3")
+set(CMAKE_CXX_FLAGS_DEBUG "-O0 -Wall -ggdb -gdwarf-3 -ftemplate-backtrace-limit=0")
 set(CMAKE_CXX_FLAGS_RELEASE "-Wall")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-Wall -ggdb -gdwarf-3")
 
