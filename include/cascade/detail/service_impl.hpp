@@ -509,7 +509,7 @@ template <typename... CascadeTypes>
 CascadeContext<CascadeTypes...>::CascadeContext() {}
 
 template <typename... CascadeTypes>
-void CascadeContext<CascadeTypes...>::construct(const off_critical_data_path_func_t<CascadeTypes...>& _off_critical_data_path_handler,
+void CascadeContext<CascadeTypes...>::construct(const off_critical_data_path_func_t& _off_critical_data_path_handler,
                                derecho::Group<CascadeTypes...>* group_ptr) {
     // 0 - TODO:load resources configuration here.
     // 1 - setup off_critical_data_path_handler

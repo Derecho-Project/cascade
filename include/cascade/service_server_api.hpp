@@ -18,33 +18,39 @@ void on_cascade_initialization();
 void on_cascade_exit();
 
 /**
- * The actions on data path
+ * The critical data path observers
  *
- * Application specifies the data path actions by providing CascadeWatcher implementations for UCW and SCW. The
- * definition of UCW and SCW is in "service_types.hpp", specialized from CascadeWatcher template type defined in
- * "service.hpp". Please refer to those files for details. But no worries: the interface is pretty simple and
- * self-explanatory.
+ * Application specifies the critical data path observer by providing CriticalDataPathObserver implementations for each
+ * of the Cascade subgroup types in the service: VCSU/PCSU/VCSS/PCSS. The definition of the above types is in
+ * "service_types.hpp" and "cascade.hpp".
  *
- * Once UCW and SCW implementations are ready, the application is required to implement the following two functions
- * which will exposed as shared library API:
+ * To process data on the critical path, an application programmer need implement corresponding CriticalDataPathObserver
+ * for each of the Cascade subgroup types. Once the observer implementations are ready, the application is required to
+ * implement the following functions exposed as shared library API:
  * 
- * template<>
- * std::shared_ptr<UCW> get_cascade_watcher<UCW>();
+ * template <>
+ * std::shared_ptr<CriticalDataPathObserver<VCSU>> get_critical_data_path_observer<VCSU>();
+ * template <>
+ * std::shared_ptr<CriticalDataPathObserver<VCSS>> get_critical_data_path_observer<VCSS>();
+ * template <>
+ * std::shared_ptr<CriticalDataPathObserver<PCSU>> get_critical_data_path_observer<PCSU>();
+ * template <>
+ * std::shared_ptr<CriticalDataPathObserver<PCSS>> get_critical_data_path_observer<PCSS>();
  *
- * template<>
- * std::shared_ptr<SCW> get_cascade_watcher<SCW>();
- *
- * @return a shared pointer to the CascadeWatcher implementation. Cascade service will hold this pointer using its
+ * @return a shared pointer to the CriticalDataPathObserver implementation. Cascade service will hold this pointer using its
  * lifetime.
  */
-template <typename CWType>
-std::shared_ptr<CWType> get_cascade_watcher();
+template <typename CascadeType>
+std::shared_ptr<CriticalDataPathObserver<CascadeType>> get_critical_data_path_observer();
 
 template <>
-std::shared_ptr<UCW> get_cascade_watcher<UCW>();
-
+std::shared_ptr<CriticalDataPathObserver<VCSU>> get_critical_data_path_observer<VCSU>();
 template <>
-std::shared_ptr<SCW> get_cascade_watcher<SCW>();
+std::shared_ptr<CriticalDataPathObserver<VCSS>> get_critical_data_path_observer<VCSS>();
+template <>
+std::shared_ptr<CriticalDataPathObserver<PCSU>> get_critical_data_path_observer<PCSU>();
+template <>
+std::shared_ptr<CriticalDataPathObserver<PCSS>> get_critical_data_path_observer<PCSS>();
 
 /**
  * The logic off critical data path
