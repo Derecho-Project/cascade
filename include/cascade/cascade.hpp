@@ -16,36 +16,43 @@
 namespace derecho {
 namespace cascade {
 
-#define CURRENT_VERSION     (persistent::INVALID_VERSION)
-    /**
-     * Watcher Type
-     * CascadeWatcher takes four arguments
-     * @param subgroup_id_t subgroup_id - subgroup id
-     * @param const uint32_t shard_num  - shard num
-     * @param const KT& key             - key
-     * @param const VT& value           - value
-     * @param void* cascade_context     - the cascade context
-     * @return void
-     */
-    template<typename KT, typename VT, KT* IK, VT* IV> // TODO: use shared_ptr or not???
-    class CascadeWatcher: public derecho::DeserializationContext {
-    public:
-        /**
-         * The critical data path behaviour is defined here. The default behaviour is do nothing.
-         *
-         * @param subgroup_id TODO: should we use subgroup idx in the same type? which seems more useful.
-         * @param shard_id
-         * @param key
-         * @param value
-         * @param cascade_ctxt - The cascade context to be used later
-         */
-        virtual void operator () (const subgroup_id_t subgroup_id, const uint32_t shard_id, const KT& key, const VT& value, void* cascade_ctxt) {}
-    };
-
     /**
      * The off-critical data path handler API
      */
     class ICascadeContext: public derecho::DeserializationContext {};
+
+#define CURRENT_VERSION     (persistent::INVALID_VERSION)
+    /**
+     * CriticalDataPathObserver
+     *
+     * @tparam CascadeType - the CriticalDataPathObserver for corresponding cascade type.
+     *
+     * A CriticalDataPathObserver object takes four arguments
+     * @param uint32_t subgroup_idx     - subgroup index
+     * @param const uint32_t shard_num  - shard num
+     * @param const KT& key             - key
+     * @param const VT& value           - value
+     * @param ICascadeContext* cascade_context - the cascade context
+     * @return void
+     */
+    template<typename CascadeType>
+    class CriticalDataPathObserver: public derecho::DeserializationContext {
+    public:
+        /**
+         * The critical data path behaviour is defined here. The default behaviour is do nothing.
+         *
+         * @param subgroup_idx
+         * @param shard_idx
+         * @param key
+         * @param value
+         * @param cascade_ctxt - The cascade context to be used later
+         */
+        virtual void operator () (const uint32_t subgroup_idx,
+                                  const uint32_t shard_idx,
+                                  const typename CascadeType::KeyType& key,
+                                  const typename CascadeType::ObjectType& value,
+                                  void* cascade_ctxt) {}
+    };
 
     /**
      * The cascade store interface.
@@ -233,7 +240,7 @@ namespace cascade {
         /* record the version of latest update */
         persistent::version_t update_version;
         /* watcher */
-        CascadeWatcher<KT,VT,IK,IV>* cascade_watcher_ptr;
+        CriticalDataPathObserver<VolatileCascadeStore<KT,VT,IK,IV>>* cascade_watcher_ptr;
         /* cascade context */
         ICascadeContext* cascade_context_ptr;
         
@@ -275,15 +282,15 @@ namespace cascade {
         void ensure_registered(mutils::DeserializationManager&) {}
 
         /* constructors */
-        VolatileCascadeStore(CascadeWatcher<KT,VT,IK,IV>* cw=nullptr,
+        VolatileCascadeStore(CriticalDataPathObserver<VolatileCascadeStore<KT,VT,IK,IV>>* cw=nullptr,
                              ICascadeContext* cc=nullptr);
         VolatileCascadeStore(const std::map<KT,VT>& _kvm,
                              persistent::version_t _uv,
-                             CascadeWatcher<KT,VT,IK,IV>* cw=nullptr,
+                             CriticalDataPathObserver<VolatileCascadeStore<KT,VT,IK,IV>>* cw=nullptr,
                              ICascadeContext* cc=nullptr); // copy kv_map
         VolatileCascadeStore(std::map<KT,VT>&& _kvm,
                              persistent::version_t _uv,
-                             CascadeWatcher<KT,VT,IK,IV>* cw=nullptr,
+                             CriticalDataPathObserver<VolatileCascadeStore<KT,VT,IK,IV>>* cw=nullptr,
                              ICascadeContext* cc=nullptr); // move kv_map
     };
 
@@ -388,7 +395,7 @@ namespace cascade {
     public:
         using derecho::GroupReference::group;
         persistent::Persistent<DeltaCascadeStoreCore<KT,VT,IK,IV>,ST> persistent_core;
-        CascadeWatcher<KT,VT,IK,IV>* cascade_watcher_ptr;
+        CriticalDataPathObserver<PersistentCascadeStore<KT,VT,IK,IV>>* cascade_watcher_ptr;
         /* cascade context */
         ICascadeContext* cascade_context_ptr;
         
@@ -431,10 +438,10 @@ namespace cascade {
 
         // constructors
         PersistentCascadeStore(persistent::PersistentRegistry *pr,
-                               CascadeWatcher<KT,VT,IK,IV>* cw=nullptr,
+                               CriticalDataPathObserver<PersistentCascadeStore<KT,VT,IK,IV>>* cw=nullptr,
                                ICascadeContext* cc=nullptr);
         PersistentCascadeStore(persistent::Persistent<DeltaCascadeStoreCore<KT,VT,IK,IV>,ST>&& _persistent_core,
-                               CascadeWatcher<KT,VT,IK,IV>* cw=nullptr,
+                               CriticalDataPathObserver<PersistentCascadeStore<KT,VT,IK,IV>>* cw=nullptr,
                                ICascadeContext* cc=nullptr); // move persistent_core
 
         // destructor

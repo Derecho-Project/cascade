@@ -16,8 +16,5 @@ using VCSS = VolatileCascadeStore<std::string,ObjectWithStringKey,&ObjectWithStr
 using PCSU = PersistentCascadeStore<uint64_t,ObjectWithUInt64Key,&ObjectWithUInt64Key::IK,&ObjectWithUInt64Key::IV,ST_FILE>;
 using PCSS = PersistentCascadeStore<std::string,ObjectWithStringKey,&ObjectWithStringKey::IK,&ObjectWithStringKey::IV,ST_FILE>;
 
-using UCW = CascadeWatcher<uint64_t,ObjectWithUInt64Key,&ObjectWithUInt64Key::IK,&ObjectWithUInt64Key::IV>;
-using SCW = CascadeWatcher<std::string,ObjectWithStringKey,&ObjectWithStringKey::IK,&ObjectWithStringKey::IV>;
-
 } // namespace cascade
 } // namespace derecho

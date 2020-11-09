@@ -43,12 +43,16 @@ int main(int argc, char** argv) {
         ondata_library = derecho::getConfString(CONF_ONDATA_LIBRARY);
     }
 
-    std::shared_ptr<UCW> ucw_ptr;
-    std::shared_ptr<SCW> scw_ptr;
+    std::shared_ptr<CriticalDataPathObserver<VCSU>> cdpo_vcsu_ptr;
+    std::shared_ptr<CriticalDataPathObserver<PCSU>> cdpo_pcsu_ptr;
+    std::shared_ptr<CriticalDataPathObserver<VCSS>> cdpo_vcss_ptr;
+    std::shared_ptr<CriticalDataPathObserver<PCSS>> cdpo_pcss_ptr;
     void (*on_cascade_initialization)() = nullptr;
     void (*on_cascade_exit)() = nullptr;
-    std::shared_ptr<UCW> (*get_ucw)() = nullptr;
-    std::shared_ptr<SCW> (*get_scw)() = nullptr;
+    std::shared_ptr<CriticalDataPathObserver<VCSU>> (*get_cdpo_vcsu)() = nullptr;
+    std::shared_ptr<CriticalDataPathObserver<PCSU>> (*get_cdpo_pcsu)() = nullptr;
+    std::shared_ptr<CriticalDataPathObserver<VCSS>> (*get_cdpo_vcss)() = nullptr;
+    std::shared_ptr<CriticalDataPathObserver<PCSS>> (*get_cdpo_pcss)() = nullptr;
     void (*off_critical_data_path_action_handler)(Action&&,ICascadeContext*) = nullptr;
     void* dl_handle = nullptr;
 
@@ -73,21 +77,24 @@ int main(int argc, char** argv) {
             dlclose(dl_handle);
             return -1;
         }
-        // 3 - get_ucw
-        *reinterpret_cast<void **>(&get_ucw) = dlsym(dl_handle, "_ZN7derecho7cascade19get_cascade_watcherINS0_14CascadeWatcherImNS0_19ObjectWithUInt64KeyEXadL_ZNS3_2IKEEEXadL_ZNS3_2IVEEEEEEESt10shared_ptrIT_Ev");
-        if (get_ucw == nullptr) {
-            dbg_default_error("Failed to load get_ucw(). error={}", dlerror());
-            dlclose(dl_handle);
-            return -1;
+        // 3 - get cdpos
+        *reinterpret_cast<void **>(&get_cdpo_vcsu) = dlsym(dl_handle, "_ZN7derecho7cascade19get_cascade_watcherINS0_14CascadeWatcherImNS0_19ObjectWithUInt64KeyEXadL_ZNS3_2IKEEEXadL_ZNS3_2IVEEEEEEESt10shared_ptrIT_Ev");
+        if (get_cdpo_vcsu == nullptr) {
+            dbg_default_warn("Failed to load get_cdpo_vcsu(). error={}", dlerror());
         }
-        // 4 - get_scw
-        *reinterpret_cast<void **>(&get_scw) = dlsym(dl_handle, "_ZN7derecho7cascade19get_cascade_watcherINS0_14CascadeWatcherINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEENS0_19ObjectWithStringKeyEXadL_ZNS9_2IKB5cxx11EEEXadL_ZNS9_2IVEEEEEEESt10shared_ptrIT_Ev");
-        if (get_scw == nullptr) {
-            dbg_default_error("Failed to load get_scw(). error={}", dlerror());
-            dlclose(dl_handle);
-            return -1;
+        *reinterpret_cast<void **>(&get_cdpo_pcsu) = dlsym(dl_handle, "_ZN7derecho7cascade19get_cascade_watcherINS0_14CascadeWatcherImNS0_19ObjectWithUInt64KeyEXadL_ZNS3_2IKEEEXadL_ZNS3_2IVEEEEEEESt10shared_ptrIT_Ev");
+        if (get_cdpo_pcsu == nullptr) {
+            dbg_default_warn("Failed to load get_cdpo_pcsu(). error={}", dlerror());
         }
-        // 5 - get the off critical data path handler
+        *reinterpret_cast<void **>(&get_cdpo_vcss) = dlsym(dl_handle, "_ZN7derecho7cascade19get_cascade_watcherINS0_14CascadeWatcherImNS0_19ObjectWithUInt64KeyEXadL_ZNS3_2IKEEEXadL_ZNS3_2IVEEEEEEESt10shared_ptrIT_Ev");
+        if (get_cdpo_vcss == nullptr) {
+            dbg_default_warn("Failed to load get_cdpo_vcss(). error={}", dlerror());
+        }
+        *reinterpret_cast<void **>(&get_cdpo_pcss) = dlsym(dl_handle, "_ZN7derecho7cascade19get_cascade_watcherINS0_14CascadeWatcherImNS0_19ObjectWithUInt64KeyEXadL_ZNS3_2IKEEEXadL_ZNS3_2IVEEEEEEESt10shared_ptrIT_Ev");
+        if (get_cdpo_pcss == nullptr) {
+            dbg_default_warn("Failed to load get_cdpo_pcss(). error={}", dlerror());
+        }
+        // 4 - get the off critical data path handler
         *reinterpret_cast<void **>(&off_critical_data_path_action_handler) = dlsym(dl_handle, "");
         if (off_critical_data_path_action_handler == nullptr) {
             dbg_default_error("Failed to load off_critical_data_path_action_handler(). error={}", dlerror());
@@ -102,27 +109,33 @@ int main(int argc, char** argv) {
     }
 
     // create service
-    if (get_ucw) {
-        ucw_ptr = std::move(get_ucw());
+    if (get_cdpo_vcsu) {
+        cdpo_vcsu_ptr = std::move(get_cdpo_vcsu());
     }
-    if (get_scw) {
-        scw_ptr = std::move(get_scw());
+    if (get_cdpo_pcsu) {
+        cdpo_pcsu_ptr = std::move(get_cdpo_pcsu());
+    }
+    if (get_cdpo_vcss) {
+        cdpo_vcss_ptr = std::move(get_cdpo_vcss());
+    }
+    if (get_cdpo_pcss) {
+        cdpo_pcss_ptr = std::move(get_cdpo_pcss());
     }
 
-    auto vcsu_factory = [&ucw_ptr](persistent::PersistentRegistry* pr, derecho::subgroup_id_t) {
-        return std::make_unique<VCSU>(ucw_ptr.get());
+    auto vcsu_factory = [&cdpo_vcsu_ptr](persistent::PersistentRegistry* pr, derecho::subgroup_id_t) {
+        return std::make_unique<VCSU>(cdpo_vcsu_ptr.get());
     };
-    auto vcss_factory = [&scw_ptr](persistent::PersistentRegistry* pr, derecho::subgroup_id_t) {
-        return std::make_unique<VCSS>(scw_ptr.get());
+    auto vcss_factory = [&cdpo_vcss_ptr](persistent::PersistentRegistry* pr, derecho::subgroup_id_t) {
+        return std::make_unique<VCSS>(cdpo_vcss_ptr.get());
     };
-    auto pcsu_factory = [&ucw_ptr](persistent::PersistentRegistry* pr, derecho::subgroup_id_t) {
-        return std::make_unique<PCSU>(pr,ucw_ptr.get());
+    auto pcsu_factory = [&cdpo_pcsu_ptr](persistent::PersistentRegistry* pr, derecho::subgroup_id_t) {
+        return std::make_unique<PCSU>(pr,cdpo_pcsu_ptr.get());
     };
-    auto pcss_factory = [&scw_ptr](persistent::PersistentRegistry* pr, derecho::subgroup_id_t) {
-        return std::make_unique<PCSS>(pr,scw_ptr.get());
+    auto pcss_factory = [&cdpo_pcss_ptr](persistent::PersistentRegistry* pr, derecho::subgroup_id_t) {
+        return std::make_unique<PCSS>(pr,cdpo_pcss_ptr.get());
     };
     dbg_default_trace("starting service...");
-    Service<VCSU,VCSS,PCSU,PCSS>::start(group_layout,{ucw_ptr.get(),scw_ptr.get()},vcsu_factory,vcss_factory,pcsu_factory,pcss_factory);
+    Service<VCSU,VCSS,PCSU,PCSS>::start(group_layout,{cdpo_vcsu_ptr.get(),cdpo_vcss_ptr.get(),cdpo_pcsu_ptr.get(),cdpo_pcss_ptr.get()},vcsu_factory,vcss_factory,pcsu_factory,pcss_factory);
     dbg_default_trace("started service, waiting till it ends.");
     std::cout << "Press Enter to Shutdown." << std::endl;
     std::cin.get();

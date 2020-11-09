@@ -77,8 +77,7 @@ namespace cascade {
     /**
      * The off-critical data path handler API
      */
-    template <typename... CascadeTypes>
-    using off_critical_data_path_func_t = std::function<void(Action&&, CascadeContext<CascadeTypes...>*)>;
+    using off_critical_data_path_func_t = std::function<void(Action&&, ICascadeContext*)>;
     
     #define CONF_ONDATA_LIBRARY     "CASCADE/ondata_library"
     #define CONF_GROUP_LAYOUT       "CASCADE/group_layout"
@@ -162,10 +161,11 @@ namespace cascade {
      * Create the critical data path callback function.
      * Application should provide corresponding callbacks. The application MUST hold the ownership of the
      * callback objects and make sure its availability during service lifecycle.
-     */
+     *
     template <typename KT, typename VT, KT* IK, VT *IV>
     std::shared_ptr<CascadeWatcher<KT,VT,IK,IV>> create_critical_data_path_callback();
-    
+     */
+
     /**
      * defining key strings used in the [CASCADE] section of configuration file.
      */
@@ -454,9 +454,9 @@ namespace cascade {
         std::mutex              action_queue_mutex;
         std::condition_variable action_queue_cv;
         /** thread pool control */
-        std::atomic<bool>           is_running;
-        off_critical_data_path_func_t<CascadeTypes...>   off_critical_data_path_handler;
-        std::vector<std::thread>    off_critical_data_path_thread_pool;
+        std::atomic<bool>               is_running;
+        off_critical_data_path_func_t   off_critical_data_path_handler;
+        std::vector<std::thread>        off_critical_data_path_thread_pool;
         /** the service client: off critical data path logic use it to send data to a next tier. */
         std::unique_ptr<ServiceClient<CascadeTypes...>> service_client;
         /** 
@@ -485,7 +485,7 @@ namespace cascade {
          * 
          * @param off_critical_data_path_handler    The off critical data path handler
          */
-        void construct(const off_critical_data_path_func_t<CascadeTypes...>& off_critical_data_path_handler,
+        void construct(const off_critical_data_path_func_t& off_critical_data_path_handler,
                                derecho::Group<CascadeTypes...>* group_ptr);
         /**
          * post an action to the Context for processing.

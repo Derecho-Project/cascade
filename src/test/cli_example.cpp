@@ -261,16 +261,16 @@ void do_client() {
     }
 }
 
-  
-class PerfCascadeWatcher : public CascadeWatcher<uint64_t,ObjectWithUInt64Key,&ObjectWithUInt64Key::IK,&ObjectWithUInt64Key::IV> {
+template <typename CascadeType>
+class PerfCDPO : public CriticalDataPathObserver<CascadeType> {
 public:
     // @overload
-    void operator () (derecho::subgroup_id_t sid,
-               const uint32_t shard_id,
-               const uint64_t& key,
-               const ObjectWithUInt64Key& value,
-               void* cascade_context) {
-                dbg_default_info("Watcher is called with\n\tsubgroup id = {},\n\tshard number = {},\n\tkey = {},\n\tvalue = [hidden].", sid, shard_id, key);
+    void operator () (const uint32_t sgidx,
+                      const uint32_t shidx,
+                      const typename CascadeType::KeyType& key,
+                      const typename CascadeType::ObjectType& value,
+                      ICascadeContext* cascade_context) {
+        dbg_default_info("CDPO is called with\n\tsubgroup idx = {},\n\tshard idx = {},\n\tkey = {},\n\tvalue = [hidden].", sgidx, shidx, key);
     }
 };
 
@@ -292,15 +292,16 @@ void do_server() {
              derecho::one_subgroup_policy(derecho::flexible_even_shards("PCS"))}
         })
     };
-	PerfCascadeWatcher pcw;
-    auto vcs_factory = [&pcw](persistent::PersistentRegistry* pr, derecho::subgroup_id_t) {
-        return std::make_unique<VCS>(&pcw);
+	PerfCDPO<VCS> vcs_cdpo;
+    PerfCDPO<PCS> pcs_cdpo;
+    auto vcs_factory = [&vcs_cdpo](persistent::PersistentRegistry* pr, derecho::subgroup_id_t) {
+        return std::make_unique<VCS>(&vcs_cdpo);
     };
-    auto pcs_factory = [&pcw](persistent::PersistentRegistry* pr, derecho::subgroup_id_t) {
-        return std::make_unique<PCS>(pr,&pcw);
+    auto pcs_factory = [&pcs_cdpo](persistent::PersistentRegistry* pr, derecho::subgroup_id_t) {
+        return std::make_unique<PCS>(pr,&pcs_cdpo);
     };
     /** 2 - create group */
-    derecho::Group<VCS,PCS> group(callback_set,si,{&pcw}/*deserialization manager*/,
+    derecho::Group<VCS,PCS> group(callback_set,si,{&vcs_cdpo,&pcs_cdpo}/*deserialization manager*/,
                                   std::vector<derecho::view_upcall_t>{},
                                   vcs_factory,pcs_factory);
     std::cout << "Cascade Server finished constructing Derecho group." << std::endl;

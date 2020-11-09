@@ -262,14 +262,14 @@ std::unique_ptr<VolatileCascadeStore<KT,VT,IK,IV>> VolatileCascadeStore<KT,VT,IK
     auto volatile_cascade_store_ptr =
         std::make_unique<VolatileCascadeStore>(std::move(*kv_map_ptr),
                                                *update_version_ptr,
-                                               dsm->registered<CascadeWatcher<KT,VT,IK,IV>>()?&(dsm->mgr<CascadeWatcher<KT,VT,IK,IV>>()):nullptr,
+                                               dsm->registered<CriticalDataPathObserver<VolatileCascadeStore<KT,VT,IK,IV>>>()?&(dsm->mgr<CriticalDataPathObserver<VolatileCascadeStore<KT,VT,IK,IV>>>()):nullptr,
                                                dsm->registered<ICascadeContext>()?&(dsm->mgr<ICascadeContext>()):nullptr);
     return volatile_cascade_store_ptr;
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
 VolatileCascadeStore<KT,VT,IK,IV>::VolatileCascadeStore(
-    CascadeWatcher<KT,VT,IK,IV>* cw,
+    CriticalDataPathObserver<VolatileCascadeStore<KT,VT,IK,IV>>* cw,
     ICascadeContext* cc):
     update_version(persistent::INVALID_VERSION),
     cascade_watcher_ptr(cw),
@@ -282,7 +282,7 @@ template<typename KT, typename VT, KT* IK, VT* IV>
 VolatileCascadeStore<KT,VT,IK,IV>::VolatileCascadeStore(
     const std::map<KT,VT>& _kvm,
     persistent::version_t _uv,
-    CascadeWatcher<KT,VT,IK,IV>* cw,
+    CriticalDataPathObserver<VolatileCascadeStore<KT,VT,IK,IV>>* cw,
     ICascadeContext* cc):
     kv_map(_kvm),
     update_version(_uv),
@@ -296,7 +296,7 @@ template<typename KT, typename VT, KT* IK, VT* IV>
 VolatileCascadeStore<KT,VT,IK,IV>::VolatileCascadeStore(
     std::map<KT,VT>&& _kvm,
     persistent::version_t _uv,
-    CascadeWatcher<KT,VT,IK,IV>* cw,
+    CriticalDataPathObserver<VolatileCascadeStore<KT,VT,IK,IV>>* cw,
     ICascadeContext* cc):
     kv_map(std::move(_kvm)),
     update_version(_uv),
@@ -765,7 +765,7 @@ std::unique_ptr<PersistentCascadeStore<KT,VT,IK,IV,ST>> PersistentCascadeStore<K
     auto persistent_core_ptr = mutils::from_bytes<persistent::Persistent<DeltaCascadeStoreCore<KT,VT,IK,IV>,ST>>(dsm,buf);
     auto persistent_cascade_store_ptr =
         std::make_unique<PersistentCascadeStore>(std::move(*persistent_core_ptr),
-                                                 dsm->registered<CascadeWatcher<KT,VT,IK,IV>>()?&(dsm->mgr<CascadeWatcher<KT,VT,IK,IV>>()):nullptr,
+                                                 dsm->registered<CriticalDataPathObserver<PersistentCascadeStore<KT,VT,IK,IV>>>()?&(dsm->mgr<CriticalDataPathObserver<PersistentCascadeStore<KT,VT,IK,IV>>>()):nullptr,
                                                  dsm->registered<ICascadeContext>()?&(dsm->mgr<ICascadeContext>()):nullptr);
     return persistent_cascade_store_ptr;
 }
@@ -773,7 +773,7 @@ std::unique_ptr<PersistentCascadeStore<KT,VT,IK,IV,ST>> PersistentCascadeStore<K
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 PersistentCascadeStore<KT,VT,IK,IV,ST>::PersistentCascadeStore(
                                                persistent::PersistentRegistry* pr,
-                                               CascadeWatcher<KT,VT,IK,IV>* cw,
+                                               CriticalDataPathObserver<PersistentCascadeStore<KT,VT,IK,IV>>* cw,
                                                ICascadeContext* cc):
                                                persistent_core(
                                                    [](){
@@ -789,7 +789,7 @@ template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 PersistentCascadeStore<KT,VT,IK,IV,ST>::PersistentCascadeStore(
                                                persistent::Persistent<DeltaCascadeStoreCore<KT,VT,IK,IV>,ST>&&
                                                _persistent_core,
-                                               CascadeWatcher<KT,VT,IK,IV>* cw,
+                                               CriticalDataPathObserver<PersistentCascadeStore<KT,VT,IK,IV>>* cw,
                                                ICascadeContext* cc):
                                                persistent_core(std::move(_persistent_core)),
                                                cascade_watcher_ptr(cw),
