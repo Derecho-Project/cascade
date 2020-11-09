@@ -53,18 +53,16 @@ template <>
 std::shared_ptr<CriticalDataPathObserver<PCSS>> get_critical_data_path_observer<PCSS>();
 
 /**
- * The logic off critical data path
+ * The off critical data path observer
  *
- * The on critical data path handler (as implemented in the watchers) generates action objects and post them to the
- * off critical data path in CascadeContext(cctx). CascadeContext runs a thread pool to process those action objects by
- * calling this function. The CascadeContext* contains the resources for the critical data path handler like:
- * - handle to the derecho group
- * - description of the available resources
+ * Application specifies the off critical data path observer by providing an OffCriticalDataPathObserver implementation.
+ * The definition of this interface is in header file "service.hpp".
  *
- * @param action    The action object
- * @param cctx      The cascade context
+ * To process data off the critical path, the OffCriticalDataPathObserver::operator () needs to handle all the actions
+ * it received. The action type Action is also defined in header file "service.hpp". We provided examples showing how to
+ * implement an off critical data path observer class.
  */
-void off_critical_data_path_action_handler(Action&& action, ICascadeContext* cctx);
+std::shared_ptr<OffCriticalDataPathObserver> get_off_critical_data_path_observer();
 
 } // namespace cascade
 } // namespace derecho

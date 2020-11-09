@@ -32,14 +32,6 @@ target_include_directories(client PRIVATE
 )
 target_link_libraries(client cascade readline)
 
-add_library(ondata_example SHARED ondata_library_example.cpp)
-target_include_directories(ondata_example PRIVATE
-    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
-)
-
 if (${HAS_FUSE})
     add_executable(fuse_client fuse_client.cpp)
     target_include_directories(fuse_client PRIVATE
@@ -50,3 +42,5 @@ if (${HAS_FUSE})
     )
     target_link_libraries(fuse_client cascade readline fuse3)
 endif()
+
+add_subdirectory(data_path_logic)

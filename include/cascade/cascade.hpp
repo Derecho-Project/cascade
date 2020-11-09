@@ -51,7 +51,7 @@ namespace cascade {
                                   const uint32_t shard_idx,
                                   const typename CascadeType::KeyType& key,
                                   const typename CascadeType::ObjectType& value,
-                                  void* cascade_ctxt) {}
+                                  ICascadeContext* cascade_ctxt) {}
     };
 
     /**
