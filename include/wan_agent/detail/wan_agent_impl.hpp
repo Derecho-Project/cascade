@@ -13,6 +13,8 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <wan_agent/logger.hpp>
+#include <sstream>
+
 
 namespace wan_agent
 {
@@ -427,7 +429,10 @@ namespace wan_agent
           has_new_ack(false),
           predicate_lambda(pl)
     {
-
+        std::string pss = "MIN($1,MAX($2,$3))";
+        std::istringstream iss(pss);
+        predicate_generator = new Predicate_Generator(iss);
+        predicate = predicate_generator->get_predicate_function();
         // start predicate thread.
         predicate_thread = std::thread(&WanAgentSender::predicate_loop, this);
         for (const auto &pair : server_sites_ip_addrs_and_ports)
@@ -472,6 +477,10 @@ namespace wan_agent
                 break;
             }
             std::map<site_id_t, uint64_t> mcs = std::move(get_message_counters());
+            
+            int arr[6] = {0, 3, 7, 1, 5, 9};
+            int val = predicate(5, arr);
+            std::cout << "VAL IS : " << val << std::endl;
             has_new_ack = false; // clean
             lck.unlock();
             // call predicate

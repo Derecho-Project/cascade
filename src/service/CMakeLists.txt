@@ -15,7 +15,7 @@ target_include_directories(server PRIVATE
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
-target_link_libraries(server cascade dl)
+target_link_libraries(server cascade dl predicate_generator)
 
 add_custom_command(TARGET server POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/cfg
@@ -28,7 +28,7 @@ target_include_directories(client PRIVATE
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
-target_link_libraries(client cascade readline)
+target_link_libraries(client cascade readline )
 
 add_library(ondata_example SHARED ondata_library_example.cpp)
 target_include_directories(ondata_example PRIVATE

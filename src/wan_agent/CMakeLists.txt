@@ -8,7 +8,7 @@ target_include_directories(wan_agent_server PUBLIC
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
-target_link_libraries(wan_agent_server pthread)
+target_link_libraries(wan_agent_server pthread predicate_generator)
 
 add_executable(wan_agent_sender wan_agent_sender.cpp)
 target_include_directories(wan_agent_sender PUBLIC
@@ -16,7 +16,7 @@ target_include_directories(wan_agent_sender PUBLIC
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
-target_link_libraries(wan_agent_sender pthread)
+target_link_libraries(wan_agent_sender pthread predicate_generator)
 
 add_library(cascade_wan_service OBJECT cascade_wan_service.cpp)
 target_include_directories(cascade_wan_service PRIVATE
@@ -31,7 +31,7 @@ target_include_directories(cascade_wan_sender PRIVATE
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
-target_link_libraries(cascade_wan_sender cascade dl)
+target_link_libraries(cascade_wan_sender cascade dl predicate_generator)
 add_custom_command(TARGET cascade_wan_sender POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/cfg
     ${CMAKE_CURRENT_BINARY_DIR}/cfg
@@ -43,7 +43,7 @@ target_include_directories(cascade_wan_client PRIVATE
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
-target_link_libraries(cascade_wan_client cascade readline)
+target_link_libraries(cascade_wan_client cascade readline predicate_generator)
 
 add_library(cascade_wan_ondata_example SHARED cascade_wan_ondata_library_example.cpp)
 target_include_directories(cascade_wan_ondata_example PRIVATE

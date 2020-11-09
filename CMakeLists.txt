@@ -37,6 +37,9 @@ find_package(derecho REQUIRED)
 # json
 find_package(nlohmann_json 3.2.0 REQUIRED)
 
+# predicate_generator
+find_package(predicate_generator REQUIRED)
+
 set(CMAKE_REQUIRED_DEFINITIONS -DFUSE_USE_VERSION=30)
 include(CheckIncludeFiles)
 # fuse
@@ -61,7 +64,8 @@ add_library(cascade SHARED
 target_link_libraries(cascade
     ${derecho_LIBRARIES}
     ${mutils_LIBRARIES} 
-    ${OPENSSL_LIBRARIES})
+    ${OPENSSL_LIBRARIES}
+    predicate_generator)
 set_target_properties(cascade PROPERTIES
     SOVERSION ${cascade_VERSION}
     VERSION ${cascade_build_VERSION}

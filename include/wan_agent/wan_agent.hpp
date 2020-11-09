@@ -11,7 +11,7 @@
 #include <exception>
 #include <wan_agent/wan_agent_type_definitions.hpp>
 #include <wan_agent/wan_agent_utils.hpp>
-
+#include "predicate_generator.hpp"
 namespace wan_agent
 {
 
@@ -296,7 +296,8 @@ namespace wan_agent
         std::thread recv_ack_thread;
         std::thread send_msg_thread;
         std::map<site_id_t, std::atomic<uint64_t>> message_counters;
-
+        Predicate_Generator *predicate_generator;
+        predicate_fn_type predicate;
     public:
         WanAgentSender(const nlohmann::json &wan_group_config,
                        const PredicateLambda &pl);
