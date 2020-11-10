@@ -32,6 +32,9 @@ using json = nlohmann::json;
  */
 namespace derecho {
 namespace cascade {
+    /* Cascade Factory type*/
+    template <typename CascadeType>
+    using Factory = std::function<std::unique_ptr<CascadeType>(persistent::PersistentRegistry*, subgroup_id_t subgroup_id, ICascadeContext*)>;
     
     /* The cascade context to be defined later */
     template <typename... CascadeTypes>
@@ -103,7 +106,7 @@ namespace cascade {
         Service(const json& layout,
                 OffCriticalDataPathObserver *ocdpo_ptr,
                 const std::vector<DeserializationContext*>& dsms,
-                derecho::Factory<CascadeTypes>... factories);
+                derecho::cascade::Factory<CascadeTypes>... factories);
         /**
          * The workhorse
          */
@@ -155,7 +158,7 @@ namespace cascade {
         static void start(const json& layout,
                           OffCriticalDataPathObserver *ocdpo_ptr,
                           const std::vector<DeserializationContext*>& dsms,
-                          derecho::Factory<CascadeTypes>... factories);
+                          derecho::cascade::Factory<CascadeTypes>... factories);
         /**
          * Check if service is started or not.
          */
