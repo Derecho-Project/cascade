@@ -51,3 +51,11 @@ target_include_directories(cascade_wan_ondata_example PRIVATE
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
+
+add_executable(perf_with_wan perf_with_wan.cpp)
+target_include_directories(perf_with_wan PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+)
+target_link_libraries(perf_with_wan cascade predicate_generator)
