@@ -126,17 +126,17 @@ int main(int argc, char** argv) {
         ocdpo_ptr = std::move(get_ocdpo());
     }
 
-    auto vcsu_factory = [&cdpo_vcsu_ptr](persistent::PersistentRegistry* pr, derecho::subgroup_id_t) {
-        return std::make_unique<VCSU>(cdpo_vcsu_ptr.get());
+    auto vcsu_factory = [&cdpo_vcsu_ptr](persistent::PersistentRegistry*, derecho::subgroup_id_t, ICascadeContext* context_ptr) {
+        return std::make_unique<VCSU>(cdpo_vcsu_ptr.get(),context_ptr);
     };
-    auto vcss_factory = [&cdpo_vcss_ptr](persistent::PersistentRegistry* pr, derecho::subgroup_id_t) {
-        return std::make_unique<VCSS>(cdpo_vcss_ptr.get());
+    auto vcss_factory = [&cdpo_vcss_ptr](persistent::PersistentRegistry*, derecho::subgroup_id_t, ICascadeContext* context_ptr) {
+        return std::make_unique<VCSS>(cdpo_vcss_ptr.get(),context_ptr);
     };
-    auto pcsu_factory = [&cdpo_pcsu_ptr](persistent::PersistentRegistry* pr, derecho::subgroup_id_t) {
-        return std::make_unique<PCSU>(pr,cdpo_pcsu_ptr.get());
+    auto pcsu_factory = [&cdpo_pcsu_ptr](persistent::PersistentRegistry* pr, derecho::subgroup_id_t, ICascadeContext* context_ptr) {
+        return std::make_unique<PCSU>(pr,cdpo_pcsu_ptr.get(),context_ptr);
     };
-    auto pcss_factory = [&cdpo_pcss_ptr](persistent::PersistentRegistry* pr, derecho::subgroup_id_t) {
-        return std::make_unique<PCSS>(pr,cdpo_pcss_ptr.get());
+    auto pcss_factory = [&cdpo_pcss_ptr](persistent::PersistentRegistry* pr, derecho::subgroup_id_t, ICascadeContext* context_ptr) {
+        return std::make_unique<PCSS>(pr,cdpo_pcss_ptr.get(),context_ptr);
     };
     dbg_default_trace("starting service...");
     Service<VCSU,VCSS,PCSU,PCSS>::start(group_layout,ocdpo_ptr.get(),{cdpo_vcsu_ptr.get(),cdpo_vcss_ptr.get(),cdpo_pcsu_ptr.get(),cdpo_pcss_ptr.get()},vcsu_factory,vcss_factory,pcsu_factory,pcss_factory);

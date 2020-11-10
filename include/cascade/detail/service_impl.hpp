@@ -48,11 +48,18 @@ derecho::SubgroupInfo generate_subgroup_info(const json& layout) {
     return derecho::SubgroupInfo(derecho::DefaultSubgroupAllocator(dsa_map));
 }
 
+template <typename CascadeType>
+derecho::Factory<CascadeType> factory_wrapper(ICascadeContext* context_ptr, derecho::cascade::Factory<CascadeType> cascade_factory) {
+    return [context_ptr,cascade_factory](persistent::PersistentRegistry *pr, subgroup_id_t subgroup_id) {
+            return cascade_factory(pr,subgroup_id,context_ptr);
+        };
+}
+
 template <typename... CascadeTypes>
 Service<CascadeTypes...>::Service(const json& layout,
                                   OffCriticalDataPathObserver* ocdpo_ptr,
                                   const std::vector<DeserializationContext*>& dsms,
-                                  derecho::Factory<CascadeTypes>... factories) {
+                                  derecho::cascade::Factory<CascadeTypes>... factories) {
     // STEP 1 - load configuration
     derecho::SubgroupInfo si = generate_subgroup_info<CascadeTypes...>(layout);
     dbg_default_trace("subgroups info created from layout.");
@@ -66,7 +73,7 @@ Service<CascadeTypes...>::Service(const json& layout,
                 si,
                 new_dsms,
                 std::vector<derecho::view_upcall_t>{},
-                factories...);
+                factory_wrapper(context.get(),factories)...);
     dbg_default_trace("joined group.");
     // STEP 4 - construct context
     context->construct(ocdpo_ptr,group.get());
@@ -114,7 +121,7 @@ template <typename... CascadeTypes>
 std::unique_ptr<Service<CascadeTypes...>> Service<CascadeTypes...>::service_ptr;
 
 template <typename... CascadeTypes>
-void Service<CascadeTypes...>::start(const json& layout, OffCriticalDataPathObserver* ocdpo_ptr, const std::vector<DeserializationContext*>& dsms, derecho::Factory<CascadeTypes>... factories) {
+void Service<CascadeTypes...>::start(const json& layout, OffCriticalDataPathObserver* ocdpo_ptr, const std::vector<DeserializationContext*>& dsms, derecho::cascade::Factory<CascadeTypes>... factories) {
     if (!service_ptr) {
         service_ptr = std::make_unique<Service<CascadeTypes...>>(layout, ocdpo_ptr, dsms, factories...);
     } 
