@@ -49,19 +49,28 @@ derecho::SubgroupInfo generate_subgroup_info(const json& layout) {
 }
 
 template <typename... CascadeTypes>
-Service<CascadeTypes...>::Service(const json& layout, const std::vector<DeserializationContext*>& dsms, derecho::Factory<CascadeTypes>... factories) {
+Service<CascadeTypes...>::Service(const json& layout,
+                                  OffCriticalDataPathObserver* ocdpo_ptr,
+                                  const std::vector<DeserializationContext*>& dsms,
+                                  derecho::Factory<CascadeTypes>... factories) {
     // STEP 1 - load configuration
     derecho::SubgroupInfo si = generate_subgroup_info<CascadeTypes...>(layout);
     dbg_default_trace("subgroups info created from layout.");
-    // STEP 2 - create derecho group
+    // STEP 2 - setup cascade context
+    context = std::make_unique<CascadeContext<CascadeTypes...>>();
+    std::vector<DeserializationContext*> new_dsms(dsms);
+    new_dsms.emplace_back(context.get());
+    // STEP 3 - create derecho group
     group = std::make_unique<derecho::Group<CascadeTypes...>>(
                 CallbackSet{},
                 si,
-                dsms,
+                new_dsms,
                 std::vector<derecho::view_upcall_t>{},
                 factories...);
     dbg_default_trace("joined group.");
-    // STEP 3 - create service thread
+    // STEP 4 - construct context
+    context->construct(ocdpo_ptr,group.get());
+    // STEP 5 - create service thread
     this->_is_running = true;
     service_thread = std::thread(&Service<CascadeTypes...>::run, this);
     dbg_default_trace("created daemon thread.");
@@ -105,9 +114,9 @@ template <typename... CascadeTypes>
 std::unique_ptr<Service<CascadeTypes...>> Service<CascadeTypes...>::service_ptr;
 
 template <typename... CascadeTypes>
-void Service<CascadeTypes...>::start(const json& layout, const std::vector<DeserializationContext*>& dsms, derecho::Factory<CascadeTypes>... factories) {
+void Service<CascadeTypes...>::start(const json& layout, OffCriticalDataPathObserver* ocdpo_ptr, const std::vector<DeserializationContext*>& dsms, derecho::Factory<CascadeTypes>... factories) {
     if (!service_ptr) {
-        service_ptr = std::make_unique<Service<CascadeTypes...>>(layout, dsms, factories...);
+        service_ptr = std::make_unique<Service<CascadeTypes...>>(layout, ocdpo_ptr, dsms, factories...);
     } 
 }
 
@@ -526,7 +535,7 @@ void CascadeContext<CascadeTypes...>::construct(OffCriticalDataPathObserver* _of
 template <typename... CascadeTypes>
 void CascadeContext<CascadeTypes...>::workhorse() {
     pthread_setname_np(pthread_self(), "cascade_context");
-    dbg_default_trace("Cascade context workhorse[{}] started", std::this_thread::get_id());
+    dbg_default_trace("Cascade context workhorse[{}] started", gettid());
     while(is_running) {
         // waiting for an action
         std::unique_lock<std::mutex> lck(action_queue_mutex);
@@ -554,7 +563,7 @@ void CascadeContext<CascadeTypes...>::workhorse() {
             lck.unlock();
         }
     }
-    dbg_default_trace("Cascade context workhorse[{}] finished normally.", std::this_thread::get_id());
+    dbg_default_trace("Cascade context workhorse[{}] finished normally.", gettid());
 }
 
 template <typename... CascadeTypes>

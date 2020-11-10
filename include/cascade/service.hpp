@@ -96,10 +96,14 @@ namespace cascade {
          * Constructor
          * The constructor will load the configuration, start the service thread.
          * @param layout TODO: explain layout
+         * @param ocdpo_ptr Off-critical data path observer.
          * @param dsms TODO: explain it here
          * @param factories: explain it here
          */
-        Service(const json& layout, const std::vector<DeserializationContext*>& dsms, derecho::Factory<CascadeTypes>... factories);
+        Service(const json& layout,
+                OffCriticalDataPathObserver *ocdpo_ptr,
+                const std::vector<DeserializationContext*>& dsms,
+                derecho::Factory<CascadeTypes>... factories);
         /**
          * The workhorse
          */
@@ -142,10 +146,16 @@ namespace cascade {
         /**
          * Start the singleton service
          * Please make sure only one thread call start. We do not defense such an incorrect usage.
+         *
          * @param layout TODO: explain layout
+         * @param ocdpo_ptr Off-critical data path observer pointer
+         * @param dsms
          * @param factories - the factories to create objects.
          */
-        static void start(const json& layout, const std::vector<DeserializationContext*>& dsms, derecho::Factory<CascadeTypes>... factories);
+        static void start(const json& layout,
+                          OffCriticalDataPathObserver *ocdpo_ptr,
+                          const std::vector<DeserializationContext*>& dsms,
+                          derecho::Factory<CascadeTypes>... factories);
         /**
          * Check if service is started or not.
          */

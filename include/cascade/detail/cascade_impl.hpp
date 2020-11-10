@@ -178,7 +178,7 @@ std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::or
         (*cascade_watcher_ptr)(
             group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_subgroup_id(),
             group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_shard_num(),
-            value.get_key_ref(), value, nullptr/*cascade_context*/);
+            value.get_key_ref(), value, cascade_context_ptr);
     }
 
     debug_leave_func_with_value("version=0x{:x},timestamp={}",std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp));
@@ -220,7 +220,7 @@ std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::or
         (*cascade_watcher_ptr)(
             group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_subgroup_id(),
             group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_shard_num(),
-            key, value, nullptr/*cascade_context*/);
+            key, value,cascade_context_ptr);
     }
 
     debug_leave_func_with_value("version=0x{:x},timestamp={}",std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp));
@@ -699,7 +699,7 @@ std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST
         (*cascade_watcher_ptr)(
             group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_subgroup_id(),
             group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_shard_num(),
-            value.get_key_ref(), value, nullptr/*cascade context*/);
+            value.get_key_ref(), value, cascade_context_ptr);
     }
 
     debug_leave_func_with_value("version=0x{:x},timestamp={}",std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp));
@@ -723,7 +723,7 @@ std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST
             (*cascade_watcher_ptr)(
                 group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_subgroup_id(),
                 group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_shard_num(),
-                key, value, nullptr/*cascade context*/);
+                key, value, cascade_context_ptr);
         }
     }
 
