@@ -18,8 +18,8 @@
 using namespace derecho::cascade;
 using derecho::ExternalClientCaller;
 
-using VCS = VolatileCascadeStore<uint64_t, ObjectWithUInt64Key, &ObjectWithUInt64Key::IK, &ObjectWithUInt64Key::IV>;
-using PCS = PersistentCascadeStore<uint64_t, ObjectWithUInt64Key, &ObjectWithUInt64Key::IK, &ObjectWithUInt64Key::IV, ST_FILE>;
+using WPCSU = WANPersistentCascadeStore<uint64_t, ObjectWithUInt64Key, &ObjectWithUInt64Key::IK, &ObjectWithUInt64Key::IV, ST_FILE>;
+using WPCSS = WANPersistentCascadeStore<std::string, ObjectWithStringKey, &ObjectWithStringKey::IK, &ObjectWithStringKey::IV, ST_FILE>;
 
 #define SHUTDOWN_SERVER_PORT (2300)
 // timing unit.
@@ -131,7 +131,7 @@ public:
 
 int do_server()
 {
-    dbg_default_info("Starting cascade server.");
+    dbg_default_info("Starting cascade sender.");
 
     /** 1 - group building blocks*/
     derecho::CallbackSet callback_set{
@@ -140,21 +140,21 @@ int do_server()
         nullptr  // global persistence callback
     };
     derecho::SubgroupInfo si{
-        derecho::DefaultSubgroupAllocator({{std::type_index(typeid(VCS)),
-                                            derecho::one_subgroup_policy(derecho::flexible_even_shards("VCS"))},
-                                           {std::type_index(typeid(PCS)),
-                                            derecho::one_subgroup_policy(derecho::flexible_even_shards("PCS"))}})};
+        derecho::DefaultSubgroupAllocator({{std::type_index(typeid(WPCSU)),
+                                            derecho::one_subgroup_policy(derecho::flexible_even_shards("WPCSU"))},
+                                           {std::type_index(typeid(WPCSS)),
+                                            derecho::one_subgroup_policy(derecho::flexible_even_shards("WPCSS"))}})};
     PerfCascadeWatcher pcw;
-    auto vcs_factory = [&pcw](persistent::PersistentRegistry *pr, derecho::subgroup_id_t) {
-        return std::make_unique<VCS>(&pcw);
+    auto wpcsu_factory = [&pcw](persistent::PersistentRegistry *pr, derecho::subgroup_id_t) {
+        return std::make_unique<WPCSU>(pr, &pcw);
     };
-    auto pcs_factory = [&pcw](persistent::PersistentRegistry *pr, derecho::subgroup_id_t) {
-        return std::make_unique<PCS>(pr, &pcw);
+    auto wpcss_factory = [&pcw](persistent::PersistentRegistry *pr, derecho::subgroup_id_t) {
+        return std::make_unique<WPCSS>(pr); // TODO: pcw is for uint key, ignore it for now.
     };
     /** 2 - create group */
-    derecho::Group<VCS, PCS> group(callback_set, si, {&pcw} /*deserialization manager*/,
+    derecho::Group<WPCSU, WPCSS> group(callback_set, si, {&pcw} /*deserialization manager*/,
                                    std::vector<derecho::view_upcall_t>{},
-                                   vcs_factory, pcs_factory);
+                                   wpcsu_factory, wpcss_factory);
 
     /** 3 - telnet server for shutdown */
     int sport = SHUTDOWN_SERVER_PORT;
@@ -343,7 +343,7 @@ int do_client(int argc, char **args)
     const uint64_t max_distinct_objects = 4096;
     const char *test_type = args[0];
     const uint64_t num_messages = std::stoi(args[1]);
-    const int is_persistent = std::stoi(args[2]);
+    const int is_wpcss = std::stoi(args[2]);
     const uint64_t max_pending_ops = (argc >= 4) ? std::stoi(args[3]) : 0;
 
     if (strcmp(test_type, "put") != 0)
@@ -353,30 +353,30 @@ int do_client(int argc, char **args)
     }
 
     /** 1 - create external client group*/
-    derecho::ExternalGroup<VCS, PCS> group;
+    derecho::ExternalGroup<WPCSU, WPCSS> group;
 
     uint64_t msg_size = derecho::getConfUInt64(CONF_SUBGROUP_DEFAULT_MAX_PAYLOAD_SIZE);
     uint32_t my_node_id = derecho::getConfUInt32(CONF_DERECHO_LOCAL_ID);
 
     /** 2 - test both latency and bandwidth */
-    if (is_persistent)
+    if (is_wpcss)
     {
-        if (derecho::hasCustomizedConfKey("SUBGROUP/PCS/max_payload_size"))
+        if (derecho::hasCustomizedConfKey("SUBGROUP/WPCSS/max_payload_size"))
         {
-            msg_size = derecho::getConfUInt64("SUBGROUP/PCS/max_payload_size") - 128;
+            msg_size = derecho::getConfUInt64("SUBGROUP/WPCSS/max_payload_size") - 128;
         }
         struct client_states cs(max_pending_ops, num_messages, msg_size);
         char *bbuf = (char *)malloc(msg_size);
         bzero(bbuf, msg_size);
 
-        ExternalClientCaller<PCS, std::remove_reference<decltype(group)>::type> &pcs_ec = group.get_subgroup_caller<PCS>();
-        auto members = group.template get_shard_members<PCS>(0, 0);
+        ExternalClientCaller<WPCSS, std::remove_reference<decltype(group)>::type> &wpcss_ec = group.get_subgroup_caller<WPCSS>();
+        auto members = group.template get_shard_members<WPCSS>(0, 0);
         node_id_t server_id = members[my_node_id % members.size()];
 
         for (uint64_t i = 0; i < num_messages; i++)
         {
-            ObjectWithUInt64Key o(randomize_key(i) % max_distinct_objects, Blob(bbuf, msg_size));
-            cs.do_send(i, [&o, &pcs_ec, &server_id]() { return std::move(pcs_ec.p2p_send<RPC_NAME(put)>(server_id, o)); });
+            ObjectWithStringKey o(std::to_string(randomize_key(i) % max_distinct_objects), Blob(bbuf, msg_size));
+            cs.do_send(i, [&o, &wpcss_ec, &server_id]() { return std::move(wpcss_ec.p2p_send<RPC_NAME(put)>(server_id, o)); });
         }
         free(bbuf);
 
@@ -385,22 +385,22 @@ int do_client(int argc, char **args)
     }
     else
     {
-        if (derecho::hasCustomizedConfKey("SUBGROUP/VCS/max_payload_size"))
+        if (derecho::hasCustomizedConfKey("SUBGROUP/WPCSU/max_payload_size"))
         {
-            msg_size = derecho::getConfUInt64("SUBGROUP/VCS/max_payload_size") - 128;
+            msg_size = derecho::getConfUInt64("SUBGROUP/WPCSU/max_payload_size") - 128;
         }
         struct client_states cs(max_pending_ops, num_messages, msg_size);
         char *bbuf = (char *)malloc(msg_size);
         bzero(bbuf, msg_size);
 
-        ExternalClientCaller<VCS, std::remove_reference<decltype(group)>::type> &vcs_ec = group.get_subgroup_caller<VCS>();
-        auto members = group.template get_shard_members<VCS>(0, 0);
+        ExternalClientCaller<WPCSU, std::remove_reference<decltype(group)>::type> &wpcsu_ec = group.get_subgroup_caller<WPCSU>();
+        auto members = group.template get_shard_members<WPCSU>(0, 0);
         node_id_t server_id = members[my_node_id % members.size()];
 
         for (uint64_t i = 0; i < num_messages; i++)
         {
             ObjectWithUInt64Key o(randomize_key(i) % max_distinct_objects, Blob(bbuf, msg_size));
-            cs.do_send(i, [&o, &vcs_ec, &server_id]() { return std::move(vcs_ec.p2p_send<RPC_NAME(put)>(server_id, o)); });
+            cs.do_send(i, [&o, &wpcsu_ec, &server_id]() { return std::move(wpcsu_ec.p2p_send<RPC_NAME(put)>(server_id, o)); });
         }
         free(bbuf);
 
@@ -413,11 +413,11 @@ int do_client(int argc, char **args)
 
 void print_help(std::ostream &os, const char *bin)
 {
-    os << "USAGE:" << bin << " [derecho-config-list --] <client|server> args..." << std::endl;
-    os << "    client args: <test_type> <num_messages> <is_persistent> [max_pending_ops]" << std::endl;
+    os << "USAGE:" << bin << " [derecho-config-list --] <client|sender> args..." << std::endl;
+    os << "    client args: <test_type> <num_messages> <is_wpcss> [max_pending_ops]" << std::endl;
     os << "        test_type := [put|get]" << std::endl;
     os << "        max_pending_ops is the maximum number of pending operations allowed. Default is unlimited." << std::endl;
-    os << "    server args: N/A" << std::endl;
+    os << "    sender args: N/A" << std::endl;
 }
 
 int index_of_first_arg(int argc, char **argv)
@@ -450,7 +450,7 @@ int main(int argc, char **argv)
         return 0;
     }
 
-    if (strcmp(argv[first_arg_idx], "server") == 0)
+    if (strcmp(argv[first_arg_idx], "sender") == 0)
     {
         return do_server();
     }
@@ -462,7 +462,7 @@ int main(int argc, char **argv)
             print_help(std::cerr, argv[0]);
             return -1;
         }
-        // passing <test_type> <num_messages> <is_persistent> [tx_deptn]
+        // passing <test_type> <num_messages> <is_wpcss> [tx_deptn]
         return do_client(argc - (first_arg_idx + 1), &argv[first_arg_idx + 1]);
     }
     else

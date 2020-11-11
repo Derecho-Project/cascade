@@ -9,7 +9,7 @@ target_include_directories(cli_example PRIVATE
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
-target_link_libraries(cli_example cascade)
+target_link_libraries(cli_example cascade predicate_generator)
 
 add_executable(perf perf.cpp)
 target_include_directories(perf PRIVATE
@@ -17,7 +17,7 @@ target_include_directories(perf PRIVATE
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
-target_link_libraries(perf cascade)
+target_link_libraries(perf cascade predicate_generator)
 
 add_custom_command(TARGET cli_example POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/cli_example_cfg
