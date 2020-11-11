@@ -31,6 +31,7 @@ namespace wan_agent
 #define WAN_AGENT_CONF_SITES_PORT "port"
 #define WAN_AGENT_MAX_PAYLOAD_SIZE "max_payload_size"
 #define WAN_AGENT_WINDOW_SIZE "window_size"
+#define WAN_AGENT_PREDICATE "predicate"
 #define EPOLL_MAXEVENTS 64
 #define WAN_AGENT_CHECK_SITE_ENTRY(x)                                           \
     if (site.find(x) == site.end())                                             \
@@ -296,6 +297,7 @@ namespace wan_agent
         std::thread recv_ack_thread;
         std::thread send_msg_thread;
         std::map<site_id_t, std::atomic<uint64_t>> message_counters;
+        std::string predicate_experssion;
         Predicate_Generator *predicate_generator;
         predicate_fn_type predicate;
     public:

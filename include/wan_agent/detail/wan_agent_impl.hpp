@@ -14,6 +14,7 @@
 #include <sys/types.h>
 #include <wan_agent/logger.hpp>
 #include <sstream>
+#include <vector>
 
 
 namespace wan_agent
@@ -429,8 +430,9 @@ namespace wan_agent
           has_new_ack(false),
           predicate_lambda(pl)
     {
-        std::string pss = "MIN($1,MAX($2,$3))";
-        std::istringstream iss(pss);
+        // std::string pss = "MIN($1,MAX($2,$3))";
+        predicate_experssion = wan_group_config[WAN_AGENT_PREDICATE];
+        std::istringstream iss(predicate_experssion);
         predicate_generator = new Predicate_Generator(iss);
         predicate = predicate_generator->get_predicate_function();
         // start predicate thread.
@@ -477,10 +479,20 @@ namespace wan_agent
                 break;
             }
             std::map<site_id_t, uint64_t> mcs = std::move(get_message_counters());
-            
-            int arr[6] = {0, 3, 7, 1, 5, 9};
+            std::vector<int> ve;
+            ve.reserve(mcs.size());
+            ve.push_back(0);
+            for(std::map<site_id_t, uint64_t>::iterator it = mcs.begin(); it != mcs.end(); it++){
+                ve.push_back(it->second);
+            }
+            int* arr = &ve[0];
+            for (int i = 1; i < (int) ve.size(); i++){
+                std::cout << ve[i] << " ";
+            }
+            std::cout << std::endl;
+            // int arr[6] = {0, 3, 7, 1, 5, 9};
             int val = predicate(5, arr);
-            std::cout << "VAL IS : " << val << std::endl;
+            std::cout << "Stability Frontier is : " << val << std::endl;
             has_new_ack = false; // clean
             lck.unlock();
             // call predicate

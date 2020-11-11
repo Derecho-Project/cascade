@@ -2,11 +2,10 @@
     "version": "1.0.0",
     "transport": "tcp",
     "private_ip": "127.0.0.1",
-    "private_port": 35000,
-    "local_site_id": 0,
+    "private_port": 36002,
+    "local_site_id": 1002,
     "max_payload_size": 102400,
     "window_size": 1000,
-    "predicate": "MIN($1,MAX($2,$3))",
     "server_sites": [
         {
             "id": 1000,
