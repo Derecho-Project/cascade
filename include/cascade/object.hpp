@@ -29,9 +29,12 @@ class Blob : public mutils::ByteRepresentable {
 public:
     char* bytes;
     std::size_t size;
+    bool is_temporary;
 
     // constructor - copy to own the data
     Blob(const char* const b, const decltype(size) s);
+
+    Blob(char* b, const decltype(size) s, bool temporary);
 
     // copy constructor - copy to own the data
     Blob(const Blob& other);
@@ -62,11 +65,13 @@ public:
 
     static std::unique_ptr<Blob> from_bytes(mutils::DeserializationManager*, const char* const v);
 
-    // from_bytes_noalloc() implementation borrowed from mutils-serialization.
     mutils::context_ptr<Blob> from_bytes_noalloc(
         mutils::DeserializationManager* ctx,
-        const char* const v, 
-        mutils::context_ptr<Blob> = mutils::context_ptr<Blob>{});
+        const char* const v);
+
+    mutils::context_ptr<Blob> from_bytes_noalloc_const(
+        mutils::DeserializationManager* ctx,
+        const char* const v);
 };
 
 #define INVALID_UINT64_OBJECT_KEY (0xffffffffffffffffLLU)
