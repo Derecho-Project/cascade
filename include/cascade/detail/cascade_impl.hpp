@@ -1080,6 +1080,17 @@ namespace derecho
             return wan_persistent_cascade_store_ptr;
         }
 
+
+        template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
+        void WANPersistentCascadeStore<KT, VT, IK, IV, ST>::submit_predicate(const std::string &key, const std::string &predicate_str, const bool inplace){
+            wan_agent_sender->submit_predicate(key, predicate_str, inplace);
+        }
+
+        template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
+        void WANPersistentCascadeStore<KT, VT, IK, IV, ST>::change_predicate(const std::string &key){
+            wan_agent_sender->change_predicate(key);
+        }
+
         template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
         void WANPersistentCascadeStore<KT, VT, IK, IV, ST>::init_wan_config()
         {

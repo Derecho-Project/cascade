@@ -358,6 +358,13 @@ public:
     template <typename SubgroupType>
     derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> list_keys_by_time(const uint64_t& ts_us,
             uint32_t subgroup_index=0, uint32_t shard_index=0);
+    template <typename SubgroupType>
+    void submit_predicate(const std::string& key, const std::string& predicate_str, const bool inplace,
+            uint32_t subgroup_index=0, uint32_t shard_index=0);
+
+    template <typename SubgroupType>
+    void change_predicate(const std::string& key,
+            uint32_t subgroup_index=0, uint32_t shard_index=0);
 };
 
 }// namespace cascade

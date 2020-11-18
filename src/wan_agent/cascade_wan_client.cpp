@@ -155,6 +155,34 @@ void remove(ServiceClientAPI& capi, std::string& key, uint32_t subgroup_index, u
     }
 }
 
+template <typename SubgroupType>
+void submit_predicate(ServiceClientAPI& capi, std::string& key, std::string& predicate_str, bool inplace) {
+    if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
+        // derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> result = std::move(capi.template submit_predicate<SubgroupType>(key, predicate_str, inplace));
+        capi.template submit_predicate<SubgroupType>(key, predicate_str, inplace);
+    } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
+        // derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> result = std::move(capi.template submit_predicate<SubgroupType>(key, predicate_str, inplace));
+        capi.template submit_predicate<SubgroupType>(key, predicate_str, inplace);
+    } else {
+        print_red(std::string("Unhandled KeyType:") + typeid(typename SubgroupType::KeyType).name());
+        return;
+    }
+}
+
+template <typename SubgroupType>
+void change_predicate(ServiceClientAPI& capi, std::string& key) {
+    if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
+        capi.template change_predicate<SubgroupType>(key);
+        // derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> result = std::move(capi.template change_predicate<SubgroupType>(key));
+    } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
+        capi.template change_predicate<SubgroupType>(key);
+        // derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> result = std::move(capi.template change_predicate<SubgroupType>(key));
+    } else {
+        print_red(std::string("Unhandled KeyType:") + typeid(typename SubgroupType::KeyType).name());
+        return;
+    }
+}
+
 #define check_get_result(result) \
     for (auto& reply_future:result.get()) {\
         auto reply = reply_future.second.get();\
@@ -251,6 +279,8 @@ void interactive_test(ServiceClientAPI& capi) {
     "get_size_by_time <type> <key> <ts_us> [subgroup_index] [shard_index]\n\tget the size of an object by timestamp\n"
     "list_keys <type> [version] [subgroup_index] [shard_index]\n\tlist keys in shard (by version)\n"
     "list_keys_by_time <type> <ts_us> [subgroup_index] [shard_index]\n\tlist keys in shard by time\n"
+    "submit_predicate <type> <key> <predicate_sentence> <inplace>\n"
+    "change_predicate <type> <key>\n"
     "quit|exit\n\texit the client.\n"
     "help\n\tprint this message.\n"
     "\n"
@@ -424,7 +454,27 @@ void interactive_test(ServiceClientAPI& capi) {
                 shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
             }
             on_subgroup_type(cmd_tokens[1],list_keys_by_time,capi,ts_us,subgroup_index,shard_index);
-        } else {
+        } 
+        else if (cmd_tokens[0] == "submit_predicate"){
+            if (cmd_tokens.size() < 5) {
+                print_red("Invalid format:" + cmdline);
+                continue;
+            }
+            bool inplace;
+            if(cmd_tokens[4] == "T" || cmd_tokens[4] == "t"){
+                inplace = true;
+            }else{
+                inplace = false;
+            }
+            on_subgroup_type(cmd_tokens[1], submit_predicate, capi, cmd_tokens[2], cmd_tokens[3], inplace);
+        } else if(cmd_tokens[0] == "change_predicate"){
+            if (cmd_tokens.size() < 3) {
+                print_red("Invalid format:" + cmdline);
+                continue;
+            }
+            on_subgroup_type(cmd_tokens[1], change_predicate, capi, cmd_tokens[2]);
+        } 
+        else {
             print_red("command:" + cmd_tokens[0] + " is not implemented or unknown.");
         }
     }

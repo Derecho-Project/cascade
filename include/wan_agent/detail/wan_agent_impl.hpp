@@ -500,7 +500,39 @@ namespace wan_agent
         }
         log_exit_func();
     }
+    void WanAgentSender::submit_predicate(std::string key, std::string predicate_str, bool inplace){
+        std::istringstream iss(predicate_str);
+        predicate_generator = new Predicate_Generator(iss);
+        predicate_fn_type prl = predicate_generator->get_predicate_function();
+        if(inplace){
+             predicate = prl;
+        }
+        predicate_map[key] = prl;
+        test_predicate();
+    }
 
+    void WanAgentSender::change_predicate(std::string key){
+        std::cout << "changing predicate to " << key << std::endl;
+        if(predicate_map.find(key) != predicate_map.end()){ // 0-success
+            predicate = predicate_map[key];
+            printf("change success\n");
+        }else{  //1-error
+            printf("change failed\n");
+            throw std::runtime_error(key + "predicate is not found");
+        }
+
+        test_predicate();
+    }
+
+    void WanAgentSender::test_predicate(){
+        int arr[6] = {0, 3, 7, 1, 5, 9};
+        for(auto it = predicate_map.begin(); it != predicate_map.end(); it++){
+            int val = it->second(5, arr);
+            std::cout << "test_predicate " << it->first << " returned: " << val << std::endl;
+        }
+        int cur = predicate(5, arr);
+        printf("current test_predicate returned: %d\n", cur);
+    }
     void WanAgentSender::shutdown_and_wait()
     {
         log_enter_func();

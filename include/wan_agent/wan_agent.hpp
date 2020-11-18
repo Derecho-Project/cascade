@@ -300,6 +300,7 @@ namespace wan_agent
         std::string predicate_experssion;
         Predicate_Generator *predicate_generator;
         predicate_fn_type predicate;
+        std::map<std::string, predicate_fn_type> predicate_map;
     public:
         WanAgentSender(const nlohmann::json &wan_group_config,
                        const PredicateLambda &pl);
@@ -330,7 +331,11 @@ namespace wan_agent
             message_sender->enqueue(message, message_size);
             return 0ull;
         }
+        void submit_predicate(std::string key, std::string predicate_str, bool inplace);
 
+        void change_predicate(std::string key);
+
+        void test_predicate();
         /**
          * return a moveable conter table
          */
