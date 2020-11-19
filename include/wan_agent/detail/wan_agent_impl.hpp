@@ -520,16 +520,16 @@ namespace wan_agent
 
     void WanAgentSender::change_predicate(std::string key)
     {
-        std::cout << "changing predicate to " << key << std::endl;
+        log_debug("changing predicate to {}", key);
         if (predicate_map.find(key) != predicate_map.end())
         { // 0-success
             predicate = predicate_map[key];
             message_sender->predicate = predicate;
-            printf("change success\n");
+            log_debug("change success");
         }
         else
         { //1-error
-            printf("change failed\n");
+            log_debug("change failed");
             throw std::runtime_error(key + "predicate is not found");
         }
 
@@ -545,7 +545,7 @@ namespace wan_agent
             std::cout << "test_predicate " << it->first << " returned: " << val << std::endl;
         }
         int cur = predicate(5, arr);
-        printf("current test_predicate returned: %d\n", cur);
+        log_debug("current test_predicate returned: {}", cur);
     }
     void WanAgentSender::shutdown_and_wait()
     {

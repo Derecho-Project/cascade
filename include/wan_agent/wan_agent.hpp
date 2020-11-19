@@ -287,7 +287,6 @@ namespace wan_agent
         std::condition_variable new_ack_cv;
         bool has_new_ack;
         // std::thread predicate_thread;
-        
 
         /**
          * predicted_lambda is called when an acknowledgement is received.
@@ -302,6 +301,7 @@ namespace wan_agent
         Predicate_Generator *predicate_generator;
         predicate_fn_type predicate;
         std::map<std::string, predicate_fn_type> predicate_map;
+
     public:
         WanAgentSender(const nlohmann::json &wan_group_config,
                        const PredicateLambda &pl);
