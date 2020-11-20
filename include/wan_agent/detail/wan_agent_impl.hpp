@@ -339,36 +339,23 @@ namespace wan_agent
     void MessageSender::predicate_calculation()
     {
         log_enter_func();
-        // while (!is_shutdown.load())
-        // {
-        // std::unique_lock lck(new_ack_mutex);
-        // new_ack_cv.wait(lck, [this]() { return this->has_new_ack; });
-        // if (is_shutdown.load())
-        // {
-        //     break;
-        // }
-        // std::map<site_id_t, uint64_t> mcs = std::move(message_counters);
-        std::vector<int> ve;
-        ve.reserve(message_counters.size());
-        ve.push_back(0);
-        for (std::map<site_id_t, std::atomic<uint64_t>>::iterator it = message_counters.begin(); it != message_counters.end(); it++)
-        {
-            ve.push_back(it->second.load());
+        std::vector<int> value_ve;
+        std::vector<std::pair<site_id_t, uint64_t>> pair_ve;
+        value_ve.reserve(message_counters.size());
+        pair_ve.reserve(message_counters.size());
+        value_ve.push_back(0);
+        for(std::map<site_id_t, std::atomic<uint64_t>>::iterator it = message_counters.begin(); it != message_counters.end(); it++){
+            value_ve.push_back(it->second.load());
+            pair_ve.push_back(std::make_pair(it->first,it->second.load()));
         }
-        int *arr = &ve[0];
-        for (int i = 1; i < (int)ve.size(); i++)
-        {
-            std::cout << ve[i] << " ";
+        int* arr = &value_ve[0];
+        for (int i = 1; i < (int) value_ve.size(); i++){
+            std::cout << arr[i] << " ";
         }
         std::cout << std::endl;
-        // int arr[6] = {0, 3, 7, 1, 5, 9};
         int val = predicate(5, arr);
-        std::cout << "Stability Frontier is : " << val << std::endl;
-        // has_new_ack = false; // clean
-        // lck.unlock();
-        // call predicate
-        // predicate(mcs);
-        // }
+        log_debug("predicate val is {}", val);
+        log_debug("Stability Frontier key is : {}, value is {}", pair_ve[val-1].first, pair_ve[val-1].second);
         log_exit_func();
     }
 
@@ -515,7 +502,7 @@ namespace wan_agent
             message_sender->predicate = predicate;
         }
         predicate_map[key] = prl;
-        test_predicate();
+        // test_predicate();
     }
 
     void WanAgentSender::change_predicate(std::string key)
@@ -533,7 +520,7 @@ namespace wan_agent
             throw std::runtime_error(key + "predicate is not found");
         }
 
-        test_predicate();
+        // test_predicate();
     }
 
     void WanAgentSender::test_predicate()
