@@ -16,7 +16,6 @@
 #include <sstream>
 #include <vector>
 
-
 namespace wan_agent
 {
 
@@ -329,12 +328,34 @@ namespace wan_agent
                         throw std::runtime_error("sequence number is out of order for site-" + std::to_string(res.site_id) + ", counter = " + std::to_string(message_counters[res.site_id].load()) + ", seqno = " + std::to_string(res.seq));
                     }
                     message_counters[res.site_id]++;
-                    report_new_ack();
+                    predicate_calculation();
                     // ack_keeper[res.seq * 4 + res.site_id - 1] = now_us();
                 }
             }
         }
         std::cout << "in recv_ack_loop, thread_shutdown.load() is " << thread_shutdown.load() << std::endl;
+        log_exit_func();
+    }
+    void MessageSender::predicate_calculation()
+    {
+        log_enter_func();
+        std::vector<int> value_ve;
+        std::vector<std::pair<site_id_t, uint64_t>> pair_ve;
+        value_ve.reserve(message_counters.size());
+        pair_ve.reserve(message_counters.size());
+        value_ve.push_back(0);
+        for(std::map<site_id_t, std::atomic<uint64_t>>::iterator it = message_counters.begin(); it != message_counters.end(); it++){
+            value_ve.push_back(it->second.load());
+            pair_ve.push_back(std::make_pair(it->first,it->second.load()));
+        }
+        int* arr = &value_ve[0];
+        for (int i = 1; i < (int) value_ve.size(); i++){
+            std::cout << arr[i] << " ";
+        }
+        std::cout << std::endl;
+        int val = predicate(5, arr);
+        log_debug("predicate val is {}", val);
+        log_debug("Stability Frontier key is : {}, value is {}", pair_ve[val-1].first, pair_ve[val-1].second);
         log_exit_func();
     }
 
@@ -435,8 +456,9 @@ namespace wan_agent
         std::istringstream iss(predicate_experssion);
         predicate_generator = new Predicate_Generator(iss);
         predicate = predicate_generator->get_predicate_function();
+
         // start predicate thread.
-        predicate_thread = std::thread(&WanAgentSender::predicate_loop, this);
+        // predicate_thread = std::thread(&WanAgentSender::predicate_loop, this);
         for (const auto &pair : server_sites_ip_addrs_and_ports)
         {
             if (local_site_id != pair.first)
@@ -451,66 +473,73 @@ namespace wan_agent
             wan_group_config[WAN_AGENT_WINDOW_SIZE],
             wan_group_config[WAN_AGENT_MAX_PAYLOAD_SIZE],
             message_counters,
-            [this]() { this->report_new_ack(); });
+            [this]() {});
+        // [this]() { this->report_new_ack(); });
 
         recv_ack_thread = std::thread(&MessageSender::recv_ack_loop, message_sender.get());
         send_msg_thread = std::thread(&MessageSender::send_msg_loop, message_sender.get());
+        message_sender->predicate = predicate;
     }
 
-    void WanAgentSender::report_new_ack()
-    {
-        log_enter_func();
-        std::unique_lock lck(new_ack_mutex);
-        has_new_ack = true;
-        lck.unlock();
-        new_ack_cv.notify_all();
-        log_exit_func();
-    }
+    // void WanAgentSender::report_new_ack()
+    // {
+    //     log_enter_func();
+    //     std::unique_lock lck(new_ack_mutex);
+    //     has_new_ack = true;
+    //     lck.unlock();
+    //     new_ack_cv.notify_all();
+    //     log_exit_func();
+    // }
 
-    void WanAgentSender::predicate_loop()
+    void WanAgentSender::submit_predicate(std::string key, std::string predicate_str, bool inplace)
     {
-        log_enter_func();
-        while (!is_shutdown.load())
+        std::istringstream iss(predicate_str);
+        predicate_generator = new Predicate_Generator(iss);
+        predicate_fn_type prl = predicate_generator->get_predicate_function();
+        if (inplace)
         {
-            std::unique_lock lck(new_ack_mutex);
-            new_ack_cv.wait(lck, [this]() { return this->has_new_ack; });
-            if (is_shutdown.load())
-            {
-                break;
-            }
-            std::map<site_id_t, uint64_t> mcs = std::move(get_message_counters());
-            std::vector<int> value_ve;
-            std::vector<std::pair<site_id_t, uint64_t>> pair_ve;
-            value_ve.reserve(mcs.size());
-            pair_ve.reserve(mcs.size());
-            value_ve.push_back(0);
-            for(std::map<site_id_t, uint64_t>::iterator it = mcs.begin(); it != mcs.end(); it++){
-                value_ve.push_back(it->second);
-                pair_ve.push_back(std::make_pair(it->first,it->second));
-            }
-            int* arr = &value_ve[0];
-            for (int i = 1; i < (int) value_ve.size(); i++){
-                std::cout << value_ve[i] << " ";
-            }
-            std::cout << std::endl;
-            // int arr[6] = {0, 3, 7, 1, 5, 9};
-            int val = predicate(5, arr);
-            
-            std::cout << "Stability Frontier key is : " << pair_ve[val-1].first << "\nval is : " <<  pair_ve[val-1].second << std::endl;
-            has_new_ack = false; // clean
-            lck.unlock();
-            // call predicate
-            predicate_lambda(mcs);
+            predicate = prl;
+            message_sender->predicate = predicate;
         }
-        log_exit_func();
+        predicate_map[key] = prl;
+        // test_predicate();
     }
 
+    void WanAgentSender::change_predicate(std::string key)
+    {
+        log_debug("changing predicate to {}", key);
+        if (predicate_map.find(key) != predicate_map.end())
+        { // 0-success
+            predicate = predicate_map[key];
+            message_sender->predicate = predicate;
+            log_debug("change success");
+        }
+        else
+        { //1-error
+            log_debug("change failed");
+            throw std::runtime_error(key + "predicate is not found");
+        }
+
+        // test_predicate();
+    }
+
+    void WanAgentSender::test_predicate()
+    {
+        int arr[6] = {0, 3, 7, 1, 5, 9};
+        for (auto it = predicate_map.begin(); it != predicate_map.end(); it++)
+        {
+            int val = it->second(5, arr);
+            std::cout << "test_predicate " << it->first << " returned: " << val << std::endl;
+        }
+        int cur = predicate(5, arr);
+        log_debug("current test_predicate returned: {}", cur);
+    }
     void WanAgentSender::shutdown_and_wait()
     {
         log_enter_func();
         is_shutdown.store(true);
-        report_new_ack(); // to wake up all predicate_loop threads with a pusedo "new ack"
-        predicate_thread.join();
+        // report_new_ack(); // to wake up all predicate_loop threads with a pusedo "new ack"
+        // predicate_thread.join();
 
         message_sender->shutdown();
         // send_msg_thread.join();

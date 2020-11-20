@@ -333,5 +333,21 @@ derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> ServiceC
     return caller.template p2p_send<RPC_NAME(list_keys_by_time)>(node_id,ts_us);
 }
 
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+void ServiceClient<CascadeTypes...>::submit_predicate(const std::string& key, const std::string& predicate_str, const bool inplace, uint32_t subgroup_index, uint32_t shard_index ){
+    auto& caller = external_group.template get_subgroup_caller<SubgroupType>();
+    node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
+    caller.template p2p_send<RPC_NAME(submit_predicate)>(node_id, key, predicate_str, inplace);
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+void ServiceClient<CascadeTypes...>::change_predicate(const std::string& key, uint32_t subgroup_index, uint32_t shard_index){
+    auto& caller = external_group.template get_subgroup_caller<SubgroupType>();
+    node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
+    caller.template p2p_send<RPC_NAME(change_predicate)>(node_id, key);
+}
+
 }
 }

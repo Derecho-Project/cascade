@@ -153,6 +153,8 @@ namespace derecho
              * @return the size of serialized value.
              */
             virtual uint64_t get_size_by_time(const KT &key, const uint64_t &ts_us) = 0;
+            // virtual void submit_predicate(const std::string &key, const std::string &predicate_str, const bool inplace) {}
+            // virtual uint64_t change_predicate(const std::string &key) {}
 
         protected:
             /**
@@ -430,7 +432,10 @@ namespace derecho
                                    ordered_remove,
                                    ordered_get,
                                    ordered_list_keys,
-                                   ordered_get_size);
+                                   ordered_get_size,
+                                   submit_predicate,
+                                   change_predicate
+                                   );
             virtual std::tuple<persistent::version_t, uint64_t> put(const VT &value) override;
             virtual std::tuple<persistent::version_t, uint64_t> remove(const KT &key) override;
             virtual const VT get(const KT &key, const persistent::version_t &ver) override;
@@ -444,6 +449,7 @@ namespace derecho
             virtual const VT ordered_get(const KT &key) override;
             virtual std::vector<KT> ordered_list_keys() override;
             virtual uint64_t ordered_get_size(const KT &key) override;
+            
 
             // serialization support
             DEFAULT_SERIALIZE(persistent_core);
@@ -456,12 +462,15 @@ namespace derecho
 
         public:
             // WanAgent stuff
+            void submit_predicate(const std::string &key, const std::string &predicate_str, const bool inplace);
+            void change_predicate(const std::string &key);
             wan_agent::PredicateLambda pl;
             std::unique_ptr<wan_agent::WanAgentSender> wan_agent_sender;
             nlohmann::json wan_conf_json;
 
         public:
             void init_wan_config();
+            
             // constructors
             WANPersistentCascadeStore(persistent::PersistentRegistry *pr, CascadeWatcher<KT, VT, IK, IV> *cw = nullptr);
             WANPersistentCascadeStore(persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST> &&_persistent_core,

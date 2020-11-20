@@ -261,6 +261,7 @@ namespace wan_agent
         // uint64_t *buffer_size = static_cast<uint64_t *>(malloc(sizeof(uint64_t) * N_MSG));
         // uint64_t *time_keeper = static_cast<uint64_t *>(malloc(sizeof(uint64_t) * 4 * N_MSG));
         // uint64_t *ack_keeper = static_cast<uint64_t *>(malloc(sizeof(uint64_t) * 4 * N_MSG));
+        predicate_fn_type predicate;
         MessageSender(const site_id_t &local_site_id,
                       const std::map<site_id_t, std::pair<ip_addr_t, uint16_t>> &server_sites_ip_addrs_and_ports,
                       const size_t &n_slots, const size_t &max_payload_size,
@@ -270,6 +271,7 @@ namespace wan_agent
         void recv_ack_loop();
         void enqueue(const char *payload, const size_t payload_size);
         void send_msg_loop();
+        void predicate_calculation();
         void shutdown()
         {
             thread_shutdown.store(true);
@@ -284,9 +286,7 @@ namespace wan_agent
         std::mutex new_ack_mutex;
         std::condition_variable new_ack_cv;
         bool has_new_ack;
-        std::thread predicate_thread;
-        /** predicate_loop */
-        void predicate_loop();
+        // std::thread predicate_thread;
 
         /**
          * predicted_lambda is called when an acknowledgement is received.
@@ -300,6 +300,8 @@ namespace wan_agent
         std::string predicate_experssion;
         Predicate_Generator *predicate_generator;
         predicate_fn_type predicate;
+        std::map<std::string, predicate_fn_type> predicate_map;
+
     public:
         WanAgentSender(const nlohmann::json &wan_group_config,
                        const PredicateLambda &pl);
@@ -330,7 +332,11 @@ namespace wan_agent
             message_sender->enqueue(message, message_size);
             return 0ull;
         }
+        void submit_predicate(std::string key, std::string predicate_str, bool inplace);
 
+        void change_predicate(std::string key);
+
+        void test_predicate();
         /**
          * return a moveable conter table
          */
