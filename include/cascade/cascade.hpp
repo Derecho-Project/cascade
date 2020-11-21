@@ -1,19 +1,17 @@
 #pragma once
-#include <map>
-#include <memory>
-#include <string>
+#include <cascade/config.h>
 #include <time.h>
-#include <iostream>
-#include <tuple>
-#include <optional>
 
 #include <derecho/core/derecho.hpp>
 #include <derecho/mutils-serialization/SerializationSupport.hpp>
 #include <derecho/persistent/Persistent.hpp>
-
-#include <cascade/config.h>
-
+#include <iostream>
+#include <map>
+#include <memory>
 #include <nlohmann/json.hpp>
+#include <optional>
+#include <string>
+#include <tuple>
 #include <wan_agent/wan_agent.hpp>
 
 namespace derecho
@@ -32,49 +30,61 @@ namespace derecho
          * @param void* cascade_context     - the cascade context
          * @return void
          */
-        template <typename KT, typename VT, KT *IK, VT *IV> // TODO: use shared_ptr or not???
+        template <typename KT, typename VT, KT *IK,
+                  VT *IV> // TODO: use shared_ptr or not???
         class CascadeWatcher : public derecho::DeserializationContext
         {
         public:
             /**
-             * The critical data path behaviour is defined here. The default behaviour is do nothing.
+             * The critical data path behaviour is defined here. The default behaviour is
+             * do nothing.
              *
-             * @param subgroup_id TODO: should we use subgroup idx in the same type? which seems more useful.
+             * @param subgroup_id TODO: should we use subgroup idx in the same type? which
+             * seems more useful.
              * @param shard_id
              * @param key
              * @param value
              * @param cascade_ctxt - The cascade context to be used later
              */
-            virtual void operator()(const subgroup_id_t subgroup_id, const uint32_t shard_id, const KT &key, const VT &value, void *cascade_ctxt) {}
+            virtual void operator()(const subgroup_id_t subgroup_id,
+                                    const uint32_t shard_id, const KT &key,
+                                    const VT &value, void *cascade_ctxt) {}
         };
 
         //    /**
         //         * Watcher Context interface
-        //         * Applications using CascadeStore templates MUST provide an ICascadeWatcherContext object
-        //         * to be notified with the updates (put/remove). Users can just use an object of
+        //         * Applications using CascadeStore templates MUST provide an
+        //         ICascadeWatcherContext object
+        //         * to be notified with the updates (put/remove). Users can just use an
+        //         object of
         //         * IndifferentCascadeWatcherContext to ignore those updates.
         //         */
         //    template<typename KT, typename VT, KT* IK, VT* IV>
         //    class ICascadeWatcherContext : public derecho::DeserializationContext {
         //    public:
         //        /**
-        //             * Return a shared pointer to a CascadeWatcher, which is owned by ICascadeWatcherContext.
-        //             * Derived classes MUST guarantee the referenced watcher is valid throughout Cascade
+        //             * Return a shared pointer to a CascadeWatcher, which is owned by
+        //             ICascadeWatcherContext.
+        //             * Derived classes MUST guarantee the referenced watcher is valid
+        //             throughout Cascade
         //             * subgroup's lifetime.
         //             */
-        //        virtual std::shared_ptr<CascadeWatcher<KT,VT,IK,IV>> get_cascade_watcher() = 0;
+        //        virtual std::shared_ptr<CascadeWatcher<KT,VT,IK,IV>>
+        //        get_cascade_watcher() = 0;
         //    };
 
         //    /**
         //         * Use indifferent watcher context to ignore the updates (put/remove).
         //         */
         //    template<typename KT, typename VT, KT* IK, VT* IV>
-        //    class IndifferentCascadeWatcherContext : public ICascadeWatcherContext<KT,VT,IK,IV> {
+        //    class IndifferentCascadeWatcherContext : public
+        //    ICascadeWatcherContext<KT,VT,IK,IV> {
         //        std::shared_ptr<CascadeWatcher<KT,VT,IK,IV>> watcher_ptr;
         //
         //    public:
         //        // override ICascadeWatcherContext::get_cascade_watcher()
-        //        std::shared_ptr<CascadeWatcher<KT,VT,IK,IV>> get_cascade_watcher() override {
+        //        std::shared_ptr<CascadeWatcher<KT,VT,IK,IV>> get_cascade_watcher()
+        //        override {
         //            return this->watcher_ptr;
         //        }
         //    };
@@ -83,12 +93,14 @@ namespace derecho
          * The cascade store interface.
          * @tparam KT The type of the key
          * @tparam VT The type of the value must
-         *            - includes a public and mutable field 'ver' of type std::tuple<version_t,uint64_t> for its version and
-         *              timestamp.
+         *            - includes a public and mutable field 'ver' of type
+         * std::tuple<version_t,uint64_t> for its version and timestamp.
          *            - includes a public field 'key' of type KT for the key
          *            - TODO: enforce this with 'concepts' in C++ 20?
-         * @tparam IK A pointer to an invalid key (generally a static member of class KT)
-         * @tparam IV A pointer to an invalid value (generally a static member of class VT)
+         * @tparam IK A pointer to an invalid key (generally a static member of class
+         * KT)
+         * @tparam IV A pointer to an invalid value (generally a static member of class
+         * VT)
          */
         template <typename KT, typename VT, KT *IK, VT *IV>
         class ICascadeStore
@@ -104,13 +116,15 @@ namespace derecho
             /**
              * put a value (with key)
              * @param value
-             * @return a tuple including version number (version_t) and a timestamp in microseconds.
+             * @return a tuple including version number (version_t) and a timestamp in
+             * microseconds.
              */
             virtual std::tuple<persistent::version_t, uint64_t> put(const VT &value) = 0;
             /**
              * remove a value with key
              * @param key
-             * @return a tuple including version number (version_t) and a timestamp in microseconds.
+             * @return a tuple including version number (version_t) and a timestamp in
+             * microseconds.
              */
             virtual std::tuple<persistent::version_t, uint64_t> remove(const KT &key) = 0;
             /**
@@ -129,7 +143,8 @@ namespace derecho
             virtual const VT get_by_time(const KT &key, const uint64_t &ts_us) = 0;
             /**
              * list keys by version
-             * @param ver - Version, if version  == CURRENT_VERSION, get the latest list of keys.
+             * @param ver - Version, if version  == CURRENT_VERSION, get the latest list
+             * of keys.
              * @return a list of keys.
              */
             virtual std::vector<KT> list_keys(const persistent::version_t &ver) = 0;
@@ -145,7 +160,8 @@ namespace derecho
              * @param ver - Version, if version == CURRENT_VERSION, get the latest value.
              * @return the size of serialized value.
              */
-            virtual uint64_t get_size(const KT &key, const persistent::version_t &ver) = 0;
+            virtual uint64_t get_size(const KT &key,
+                                      const persistent::version_t &ver) = 0;
             /**
              * get value by timestamp
              * @param key
@@ -153,22 +169,27 @@ namespace derecho
              * @return the size of serialized value.
              */
             virtual uint64_t get_size_by_time(const KT &key, const uint64_t &ts_us) = 0;
-            // virtual void submit_predicate(const std::string &key, const std::string &predicate_str, const bool inplace) {}
-            // virtual uint64_t change_predicate(const std::string &key) {}
+            // virtual void submit_predicate(const std::string &key, const std::string
+            // &predicate_str, const bool inplace) {} virtual uint64_t
+            // change_predicate(const std::string &key) {}
 
         protected:
             /**
              * ordered_put
              * @param value
-             * @return a tuple including version number (version_t) and a timestamp in microseconds.
+             * @return a tuple including version number (version_t) and a timestamp in
+             * microseconds.
              */
-            virtual std::tuple<persistent::version_t, uint64_t> ordered_put(const VT &value) = 0;
+            virtual std::tuple<persistent::version_t, uint64_t> ordered_put(
+                const VT &value) = 0;
             /**
              * ordered_remove
              * @param key
-             * @return a tuple including version number (version_t) and a timestamp in microseconds.
+             * @return a tuple including version number (version_t) and a timestamp in
+             * microseconds.
              */
-            virtual std::tuple<persistent::version_t, uint64_t> ordered_remove(const KT &key) = 0;
+            virtual std::tuple<persistent::version_t, uint64_t> ordered_remove(
+                const KT &key) = 0;
             /**
              * ordered_get
              * @param key
@@ -187,22 +208,24 @@ namespace derecho
         };
 
         /**
-         * template volatile cascade stores.
-         * 
-         * VolatileCascadeStore is highly efficient by manage all the data only in the memory without implementing the heavy
-         * log mechanism. Reading by version or time will always return invlaid value.
-         */
+     * template volatile cascade stores.
+     * 
+     * VolatileCascadeStore is highly efficient by manage all the data only in the memory without implementing the heavy
+     * log mechanism. Reading by version or time will always return invlaid value.
+     */
         template <typename KT, typename VT, KT *IK, VT *IV>
         class VolatileCascadeStore : public ICascadeStore<KT, VT, IK, IV>,
                                      public mutils::ByteRepresentable,
                                      public derecho::GroupReference
         {
         public:
-            /* group reference     */
+            /* group reference */
             using derecho::GroupReference::group;
-            /* volatile cascade store in memory     */
+            /* volatile cascade store in memory */
             std::map<KT, VT> kv_map;
-            /* watcher     */
+            /* record the version of latest update */
+            persistent::version_t update_version;
+            /* watcher */
             CascadeWatcher<KT, VT, IK, IV> *cascade_watcher_ptr;
 
             REGISTER_RPC_FUNCTIONS(VolatileCascadeStore,
@@ -221,11 +244,11 @@ namespace derecho
                                    ordered_get_size);
             virtual std::tuple<persistent::version_t, uint64_t> put(const VT &value) override;
             virtual std::tuple<persistent::version_t, uint64_t> remove(const KT &key) override;
-            virtual const VT get(const KT &key, const persistent::version_t &ver) override;
+            virtual const VT get(const KT &key, const persistent::version_t &ver, bool exact = false) override;
             virtual const VT get_by_time(const KT &key, const uint64_t &ts_us) override;
             virtual std::vector<KT> list_keys(const persistent::version_t &ver) override;
             virtual std::vector<KT> list_keys_by_time(const uint64_t &ts_us) override;
-            virtual uint64_t get_size(const KT &key, const persistent::version_t &ver) override;
+            virtual uint64_t get_size(const KT &key, const persistent::version_t &ver, bool exact = false) override;
             virtual uint64_t get_size_by_time(const KT &key, const uint64_t &ts_us) override;
             virtual std::tuple<persistent::version_t, uint64_t> ordered_put(const VT &value) override;
             virtual std::tuple<persistent::version_t, uint64_t> ordered_remove(const KT &key) override;
@@ -234,7 +257,7 @@ namespace derecho
             virtual uint64_t ordered_get_size(const KT &key) override;
 
             // serialization support
-            DEFAULT_SERIALIZE(kv_map);
+            DEFAULT_SERIALIZE(kv_map, update_version);
 
             static std::unique_ptr<VolatileCascadeStore> from_bytes(mutils::DeserializationManager *dsm, char const *buf);
 
@@ -242,26 +265,27 @@ namespace derecho
 
             void ensure_registered(mutils::DeserializationManager &) {}
 
-            /* constructors     */
+            /* constructors */
             VolatileCascadeStore(CascadeWatcher<KT, VT, IK, IV> *cw = nullptr);
-            VolatileCascadeStore(const std::map<KT, VT> &_kvm, CascadeWatcher<KT, VT, IK, IV> *cw = nullptr); // copy kv_map
-            VolatileCascadeStore(std::map<KT, VT> &&_kvm, CascadeWatcher<KT, VT, IK, IV> *cw = nullptr);      // move kv_map
+            VolatileCascadeStore(const std::map<KT, VT> &_kvm, persistent::version_t _uv, CascadeWatcher<KT, VT, IK, IV> *cw = nullptr); // copy kv_map
+            VolatileCascadeStore(std::map<KT, VT> &&_kvm, persistent::version_t _uv, CascadeWatcher<KT, VT, IK, IV> *cw = nullptr);      // move kv_map
         };
 
         /**
-         * Persistent Cascade Store Delta Support
-         */
+     * Persistent Cascade Store Delta Support
+     */
         template <typename KT, typename VT, KT *IK, VT *IV>
         class DeltaCascadeStoreCore : public mutils::ByteRepresentable,
                                       public persistent::IDeltaSupport<DeltaCascadeStoreCore<KT, VT, IK, IV>>
         {
             // TODO: use max payload size in subgroup configuration.
 #define DEFAULT_DELTA_BUFFER_CAPACITY (4096)
-            enum _OPID
-            {
-                PUT,
-                REMOVE
-            };
+            /**
+         * Initialize the delta data structure.
+         */
+            void initialize_delta();
+
+        public:
             // delta
             typedef struct
             {
@@ -269,7 +293,6 @@ namespace derecho
                 size_t len;
                 char *buffer;
                 // methods
-                inline void set_opid(_OPID opid);
                 inline void set_data_len(const size_t &dlen);
                 inline char *data_ptr();
                 inline void calibrate(const size_t &dlen);
@@ -279,12 +302,12 @@ namespace derecho
             } _Delta;
             _Delta delta;
 
-            /**
-             * Initialize the delta data structure.
-             */
-            void initialize_delta();
+            struct DeltaBytesFormat
+            {
+                uint32_t op;
+                char first_data_byte;
+            };
 
-        public:
             std::map<KT, VT> kv_map;
 
             //////////////////////////////////////////////////////////////////////////
@@ -301,32 +324,25 @@ namespace derecho
             virtual void applyDelta(char const *const delta) override;
             static std::unique_ptr<DeltaCascadeStoreCore<KT, VT, IK, IV>> create(mutils::DeserializationManager *dm);
             /**
-             * Do ordered put without generating a delta.
-             */
-            inline void apply_ordered_put(const VT &value);
+         * apply put to current state
+         */
+            void apply_ordered_put(const VT &value);
             /**
-             * Do ordered remove without generating a delta.
-             */
-            inline bool apply_ordered_remove(const KT &key);
+         * Ordered put, and generate a delta.
+         */
+            virtual bool ordered_put(const VT &value, persistent::version_t prever);
             /**
-             * Ordered put, and generate a delta.
-             */
-            virtual bool ordered_put(const VT &value);
+         * Ordered remove, and generate a delta.
+         */
+            virtual bool ordered_remove(const VT &value, persistent::version_t prev_ver);
             /**
-             * Ordered remove, and generate a delta.
-             */
-            virtual bool ordered_remove(const KT &key);
-            /**
-             * ordered get, no need to generate a delta.
-             */
+         * ordered get, no need to generate a delta.
+         */
             virtual const VT ordered_get(const KT &key);
             /**
-             * ordered list_keys, no need to generate a delta.
-             */
+         * ordered list_keys, no need to generate a delta.
+         */
             virtual std::vector<KT> ordered_list_keys();
-            /**
-             * ordered get_size, not need to generate a delta.
-             */
             virtual uint64_t ordered_get_size(const KT &key);
 
             // serialization supports
@@ -343,12 +359,14 @@ namespace derecho
 
         /**
          * template for persistent cascade stores.
-         * 
-         * PersistentCascadeStore is full-fledged implementation with log mechansim. Data can be stored in different
-         * persistent devices including file system(persistent::ST_FILE) or SPDK(persistent::ST_SPDK). Please note that the
-         * data is cached in memory too.
+         *
+         * PersistentCascadeStore is full-fledged implementation with log mechansim.
+         * Data can be stored in different persistent devices including file
+         * system(persistent::ST_FILE) or SPDK(persistent::ST_SPDK). Please note that
+         * the data is cached in memory too.
          */
-        template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST = persistent::ST_FILE>
+        template <typename KT, typename VT, KT *IK, VT *IV,
+                  persistent::StorageType ST = persistent::ST_FILE>
         class PersistentCascadeStore : public ICascadeStore<KT, VT, IK, IV>,
                                        public mutils::ByteRepresentable,
                                        public derecho::PersistsFields,
@@ -356,33 +374,31 @@ namespace derecho
         {
         public:
             using derecho::GroupReference::group;
-            persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST> persistent_core;
+            persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST>
+                persistent_core;
             std::shared_ptr<CascadeWatcher<KT, VT, IK, IV>> cascade_watcher_ptr;
 
-            REGISTER_RPC_FUNCTIONS(PersistentCascadeStore,
-                                   put,
-                                   remove,
-                                   get,
-                                   get_by_time,
-                                   list_keys,
-                                   list_keys_by_time,
-                                   get_size,
-                                   get_size_by_time,
-                                   ordered_put,
-                                   ordered_remove,
-                                   ordered_get,
-                                   ordered_list_keys,
-                                   ordered_get_size);
-            virtual std::tuple<persistent::version_t, uint64_t> put(const VT &value) override;
-            virtual std::tuple<persistent::version_t, uint64_t> remove(const KT &key) override;
-            virtual const VT get(const KT &key, const persistent::version_t &ver) override;
+            REGISTER_RPC_FUNCTIONS(PersistentCascadeStore, put, remove, get, get_by_time,
+                                   list_keys, list_keys_by_time, get_size,
+                                   get_size_by_time, ordered_put, ordered_remove,
+                                   ordered_get, ordered_list_keys, ordered_get_size);
+            virtual std::tuple<persistent::version_t, uint64_t> put(
+                const VT &value) override;
+            virtual std::tuple<persistent::version_t, uint64_t> remove(
+                const KT &key) override;
+            virtual const VT get(const KT &key, const persistent::version_t &ver,
+                                 bool exact = false) override;
             virtual const VT get_by_time(const KT &key, const uint64_t &ts_us) override;
             virtual std::vector<KT> list_keys(const persistent::version_t &ver) override;
             virtual std::vector<KT> list_keys_by_time(const uint64_t &ts_us) override;
-            virtual uint64_t get_size(const KT &key, const persistent::version_t &ver) override;
-            virtual uint64_t get_size_by_time(const KT &key, const uint64_t &ts_us) override;
-            virtual std::tuple<persistent::version_t, uint64_t> ordered_put(const VT &value) override;
-            virtual std::tuple<persistent::version_t, uint64_t> ordered_remove(const KT &key) override;
+            virtual uint64_t get_size(const KT &key, const persistent::version_t &ver,
+                                      bool exact = false) override;
+            virtual uint64_t get_size_by_time(const KT &key,
+                                              const uint64_t &ts_us) override;
+            virtual std::tuple<persistent::version_t, uint64_t> ordered_put(
+                const VT &value) override;
+            virtual std::tuple<persistent::version_t, uint64_t> ordered_remove(
+                const KT &key) override;
             virtual const VT ordered_get(const KT &key) override;
             virtual std::vector<KT> ordered_list_keys() override;
             virtual uint64_t ordered_get_size(const KT &key) override;
@@ -390,16 +406,21 @@ namespace derecho
             // serialization support
             DEFAULT_SERIALIZE(persistent_core);
 
-            static std::unique_ptr<PersistentCascadeStore> from_bytes(mutils::DeserializationManager *dsm, char const *buf);
+            static std::unique_ptr<PersistentCascadeStore> from_bytes(
+                mutils::DeserializationManager *dsm, char const *buf);
 
             DEFAULT_DESERIALIZE_NOALLOC(PersistentCascadeStore);
 
             void ensure_registered(mutils::DeserializationManager &) {}
 
             // constructors
-            PersistentCascadeStore(persistent::PersistentRegistry *pr, CascadeWatcher<KT, VT, IK, IV> *cw = nullptr);
-            PersistentCascadeStore(persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST> &&_persistent_core,
-                                   CascadeWatcher<KT, VT, IK, IV> *cw = nullptr); // move persistent_core
+            PersistentCascadeStore(persistent::PersistentRegistry *pr,
+                                   CascadeWatcher<KT, VT, IK, IV> *cw = nullptr);
+            PersistentCascadeStore(
+                persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST> &&
+                    _persistent_core,
+                CascadeWatcher<KT, VT, IK, IV> *cw = nullptr); // move persistent_core
+
             PersistentCascadeStore(
                 PersistentCascadeStore<KT, VT, IK, IV, ST> &&_persistent_cascade_store); // move persistent_cascade_store, maybe useless
 
@@ -408,7 +429,8 @@ namespace derecho
         };
 
 #define CONF_WAN_SENDER_CFG "CASCADE/wan_sender_cfg"
-        template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST = persistent::ST_FILE>
+        template <typename KT, typename VT, KT *IK, VT *IV,
+                  persistent::StorageType ST = persistent::ST_FILE>
         class WANPersistentCascadeStore : public ICascadeStore<KT, VT, IK, IV>,
                                           public mutils::ByteRepresentable,
                                           public derecho::PersistsFields,
@@ -416,45 +438,41 @@ namespace derecho
         {
         public:
             using derecho::GroupReference::group;
-            persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST> persistent_core;
+            persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST>
+                persistent_core;
             std::shared_ptr<CascadeWatcher<KT, VT, IK, IV>> cascade_watcher_ptr;
 
-            REGISTER_RPC_FUNCTIONS(WANPersistentCascadeStore,
-                                   put,
-                                   remove,
-                                   get,
-                                   get_by_time,
-                                   list_keys,
-                                   list_keys_by_time,
-                                   get_size,
-                                   get_size_by_time,
-                                   ordered_put,
-                                   ordered_remove,
-                                   ordered_get,
-                                   ordered_list_keys,
-                                   ordered_get_size,
-                                   submit_predicate,
-                                   change_predicate
-                                   );
-            virtual std::tuple<persistent::version_t, uint64_t> put(const VT &value) override;
-            virtual std::tuple<persistent::version_t, uint64_t> remove(const KT &key) override;
-            virtual const VT get(const KT &key, const persistent::version_t &ver) override;
+            REGISTER_RPC_FUNCTIONS(WANPersistentCascadeStore, put, remove, get,
+                                   get_by_time, list_keys, list_keys_by_time, get_size,
+                                   get_size_by_time, ordered_put, ordered_remove,
+                                   ordered_get, ordered_list_keys, ordered_get_size,
+                                   submit_predicate, change_predicate);
+            virtual std::tuple<persistent::version_t, uint64_t> put(
+                const VT &value) override;
+            virtual std::tuple<persistent::version_t, uint64_t> remove(
+                const KT &key) override;
+            virtual const VT get(const KT &key,
+                                 const persistent::version_t &ver) override;
             virtual const VT get_by_time(const KT &key, const uint64_t &ts_us) override;
             virtual std::vector<KT> list_keys(const persistent::version_t &ver) override;
             virtual std::vector<KT> list_keys_by_time(const uint64_t &ts_us) override;
-            virtual uint64_t get_size(const KT &key, const persistent::version_t &ver) override;
-            virtual uint64_t get_size_by_time(const KT &key, const uint64_t &ts_us) override;
-            virtual std::tuple<persistent::version_t, uint64_t> ordered_put(const VT &value) override;
-            virtual std::tuple<persistent::version_t, uint64_t> ordered_remove(const KT &key) override;
+            virtual uint64_t get_size(const KT &key,
+                                      const persistent::version_t &ver) override;
+            virtual uint64_t get_size_by_time(const KT &key,
+                                              const uint64_t &ts_us) override;
+            virtual std::tuple<persistent::version_t, uint64_t> ordered_put(
+                const VT &value) override;
+            virtual std::tuple<persistent::version_t, uint64_t> ordered_remove(
+                const KT &key) override;
             virtual const VT ordered_get(const KT &key) override;
             virtual std::vector<KT> ordered_list_keys() override;
             virtual uint64_t ordered_get_size(const KT &key) override;
-            
 
             // serialization support
             DEFAULT_SERIALIZE(persistent_core);
 
-            static std::unique_ptr<WANPersistentCascadeStore> from_bytes(mutils::DeserializationManager *dsm, char const *buf);
+            static std::unique_ptr<WANPersistentCascadeStore> from_bytes(
+                mutils::DeserializationManager *dsm, char const *buf);
 
             DEFAULT_DESERIALIZE_NOALLOC(WANPersistentCascadeStore);
 
@@ -462,7 +480,8 @@ namespace derecho
 
         public:
             // WanAgent stuff
-            void submit_predicate(const std::string &key, const std::string &predicate_str, const bool inplace);
+            void submit_predicate(const std::string &key,
+                                  const std::string &predicate_str, const bool inplace);
             void change_predicate(const std::string &key);
             wan_agent::PredicateLambda pl;
             std::unique_ptr<wan_agent::WanAgentSender> wan_agent_sender;
@@ -470,18 +489,174 @@ namespace derecho
 
         public:
             void init_wan_config();
-            
+
             // constructors
-            WANPersistentCascadeStore(persistent::PersistentRegistry *pr, CascadeWatcher<KT, VT, IK, IV> *cw = nullptr);
-            WANPersistentCascadeStore(persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST> &&_persistent_core,
-                                      CascadeWatcher<KT, VT, IK, IV> *cw = nullptr); // move persistent_core
+            WANPersistentCascadeStore(persistent::PersistentRegistry *pr,
+                                      CascadeWatcher<KT, VT, IK, IV> *cw = nullptr);
+            WANPersistentCascadeStore(
+                persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST> &&
+                    _persistent_core,
+                CascadeWatcher<KT, VT, IK, IV> *cw = nullptr); // move persistent_core
 
             WANPersistentCascadeStore(
-                WANPersistentCascadeStore<KT, VT, IK, IV, ST> &&_wan_persistent_cascade_store); // move wan_persistent_cascade_store, maybe useless
+                WANPersistentCascadeStore<KT, VT, IK, IV, ST> &&
+                    _wan_persistent_cascade_store); // move wan_persistent_cascade_store,
+                                                    // maybe useless
 
             // destructor
             virtual ~WANPersistentCascadeStore();
         };
+
+        /**
+         * Interfaces for ValueTypes, derive them to enable corresponding features.
+         */
+
+        /**
+         * create_null_object(const KT&)
+         *
+         * Users need to implement this function to create a null object of a given key.
+         *
+         * return a null VT object.
+         */
+        template <typename KT, typename VT, KT *IK, VT *IV>
+        VT create_null_object_cb(const KT &key = *IK);
+
+        /**
+         * The VT template type of PersistentCascadeStore/VolatileCascadeStore must
+         * implement ICascadeObject interface. We use both the concepts of null and
+         * valid object in Cascade. A null object precisely means 'no data'; while a
+         * valid object literarily means an object is 'valid'. Technically, a null
+         * object has a valid key while invalid object does not.
+         */
+        template <typename KT>
+        class ICascadeObject
+        {
+        public:
+            /**
+             * get_key_ref()
+             *
+             * Get a const reference to the key.
+             *
+             * @return a const reference to the key
+             */
+            virtual const KT &get_key_ref() const = 0;
+            /**
+             * is_null()
+             *
+             * Test if this Object is null or not.
+             *
+             * @return true for null object
+             */
+            virtual bool is_null() const = 0;
+            /**
+             * is_valid()
+             *
+             * Test if this Object is valid or not.
+             *
+             * @ return true for invalid object
+             */
+            virtual bool is_valid() const = 0;
+        };
+
+        /**
+         * TODO:
+         * If the VT template type of PersistentCascadeStore/VolatileCascadeStore
+         * implements IKeepVersion interface, its 'set_version' method will be called on
+         * 'ordered_put' or 'ordered_remove' with the current version assigned to this
+         * operation. The VT implementer may save this version in its states.
+         */
+        class IKeepVersion
+        {
+            /**
+             * set_version() is a callback on PersistentCascadeStore/VolatileCascadeStore
+             * updates.
+             * @param ver   The current version
+             */
+            virtual void set_version(persistent::version_t ver) const = 0;
+            /**
+             * get_version returns the version
+             * @return the VT's version
+             */
+            virtual persistent::version_t get_version() const = 0;
+        };
+
+        /**
+         * TODO:
+         * If the VT template type of PersistentCascadeStore/VolatileCascadeStore
+         * implements IKeepTimestamp interface, its 'set_timestamp' method will be
+         * called on updates with the timestamp in microseconds assigned to this
+         * operation. The VT implementer may save this timestamp in its states.
+         */
+        class IKeepTimestamp
+        {
+            /**
+             * set_timestamp() is a callback on
+             * PersistentCascadeStore/VolatileCascadeStore updates.
+             * @param ts_us The timestamp in microseconds
+             */
+            virtual void set_timestamp(uint64_t ts_us) const = 0;
+            /**
+             * get_timestamp() returns VT's timestamp
+             */
+            virtual uint64_t get_timestamp() const = 0;
+        };
+
+        /**
+         * If the VT template type of PersistentCascadeStore implements
+         * IKeepPreviousVersion interface, its 'set_previous_version' method will be
+         * called on 'ordered_put' with the previous version in the shard as well as the
+         * previous version of the same key. If this is the first value of that key,
+         * 'set_previous_version' will be called with "INVALID_VERSION", meaning a
+         * genesis value. Therefore, the VT implementer must save the version in its
+         * object and knows how to get them when they get a value from cascade.
+         */
+        class IKeepPreviousVersion : public IKeepVersion
+        {
+        public:
+            /**
+             * set_previous_version() is a callback on
+             * PersistentCascadeStore::ordered_put();
+             * @param prev_ver          The previous version
+             * @param prev_ver_by_key   The previous version of the same key in VT object
+             */
+            virtual void set_previous_version(
+                persistent::version_t prev_ver,
+                persistent::version_t perv_ver_by_key) const = 0;
+        };
+
+        /**
+         * TODO:
+         * If the VT template of PersistentCascadeStore/VolatileCascadeStore implements
+         * IVerifyPreviousVersion interface, its 'verify_previous_version' will be
+         * called on 'ordered_put' with the previous version in the shard as well as the
+         * previous version of the same key. If this is the first value of that key,
+         * 'verify_previous_version' will be called with "INVALID_VERSION", meaning a
+         * genesis value. The VT implementer must make sure if that satisfy application
+         * semantics.
+         *
+         * For example, a VT object may compare if the given 'prev_ver' and
+         * 'prev_ver_key_key' matche the previous versions it saw (those versions might
+         * be VT members). If an application rejects writes from a client without
+         * knowing the latest state of corresponding key, it can return false, meaning
+         * verify failed, if 'prev_ver_by_key' is greater than the previous state cached
+         * in VT.
+         */
+        class IVerifyPreviousVersion : public IKeepPreviousVersion
+        {
+        public:
+            /**
+             * verify_previous_version() is a callback on
+             * PresistentCascadeStore/VolatileCascadeStore::ordered_put();
+             * @param prev_ver          The previous version
+             * @param prev_ver_by_key   The previous version of the same key in VT object
+             * @return If 'prev_ver' and 'prev_ver_by_key' are acceptable, it returns
+             * True, otherwise, false.
+             */
+            virtual bool verify_previous_version(
+                persistent::version_t prev_ver,
+                persistent::version_t prev_ver_by_key) const = 0;
+        };
+
     } // namespace cascade
 } // namespace derecho
 #include "detail/cascade_impl.hpp"

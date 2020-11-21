@@ -42,8 +42,11 @@ find_package(predicate_generator REQUIRED)
 
 set(CMAKE_REQUIRED_DEFINITIONS -DFUSE_USE_VERSION=30)
 include(CheckIncludeFiles)
+
 # fuse
 CHECK_INCLUDE_FILES("fuse3/fuse.h;fuse3/fuse_lowlevel.h" HAS_FUSE)
+# boolinq
+CHECK_INCLUDE_FILES("boolinq/boolinq.h" HAS_BOOLINQ)
 
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/cascade/config.h)
 
@@ -101,5 +104,11 @@ configure_file (cascadeConfig.cmake
 set(ConfigPackageLocation lib/cmake/cascade)
 install(EXPORT cascade
     FILE cascadeTargets.cmake
+    DESTINATION ${ConfigPackageLocation}
+)
+
+install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/cascade/cascadeConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/cascade/cascadeConfigVersion.cmake"
     DESTINATION ${ConfigPackageLocation}
 )

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10.1)
+cmake_minimum_required(VERSION 3.10.0)
 set(CMAKE_DISABLE_SOURCE_CHANGES ON)
 set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 
@@ -8,6 +8,7 @@ target_include_directories(cli_example PRIVATE
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
 )
 target_link_libraries(cli_example cascade predicate_generator)
 
@@ -16,6 +17,7 @@ target_include_directories(perf PRIVATE
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
 )
 target_link_libraries(perf cascade predicate_generator)
 
