@@ -352,4 +352,3 @@ namespace wan_agent
     };
 
 } // namespace wan_agent
-#include "detail/wan_agent_impl.hpp"

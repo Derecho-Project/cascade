@@ -39,4 +39,3 @@ public:
 #endif//NDEBUG
 
 }
-# include<wan_agent/detail/logger_impl.hpp>

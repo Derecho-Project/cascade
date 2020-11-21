@@ -1016,7 +1016,7 @@ namespace derecho
         }
 
         template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
-        const VT WANPersistentCascadeStore<KT, VT, IK, IV, ST>::get(const KT &key, const persistent::version_t &ver)
+        const VT WANPersistentCascadeStore<KT, VT, IK, IV, ST>::get(const KT &key, const persistent::version_t &ver, bool)
         {
             debug_enter_func_with_args("key={},ver=0x{:x}", key, ver);
             if (ver != CURRENT_VERSION)
@@ -1057,7 +1057,7 @@ namespace derecho
         }
 
         template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
-        uint64_t WANPersistentCascadeStore<KT, VT, IK, IV, ST>::get_size(const KT &key, const persistent::version_t &ver)
+        uint64_t WANPersistentCascadeStore<KT, VT, IK, IV, ST>::get_size(const KT &key, const persistent::version_t &ver, bool)
         {
             debug_enter_func_with_args("key={},ver=0x{:x}", key, ver);
             if (ver != CURRENT_VERSION)
@@ -1151,44 +1151,63 @@ namespace derecho
         template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
         std::tuple<persistent::version_t, uint64_t> WANPersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put(const VT &value)
         {
-            debug_enter_func_with_args("key={}", value.key);
-
-            std::tuple<persistent::version_t, uint64_t> version = group->template get_subgroup<WANPersistentCascadeStore>(this->subgroup_index).get_next_version();
-            value.ver = version;
-            this->persistent_core->ordered_put(value);
+            debug_enter_func_with_args("key={}", value.get_key_ref());
+            std::tuple<persistent::version_t, uint64_t> version_and_timestamp = group->template get_subgroup<WANPersistentCascadeStore>(this->subgroup_index).get_next_version();
+            if constexpr (std::is_base_of<IKeepVersion, VT>::value)
+            {
+                value.set_version(std::get<0>(version_and_timestamp));
+            }
+            if constexpr (std::is_base_of<IKeepTimestamp, VT>::value)
+            {
+                value.set_timestamp(std::get<1>(version_and_timestamp));
+            }
+            if (this->persistent_core->ordered_put(value, this->persistent_core.getLatestVersion()) == false)
+            {
+                // verification failed. S we return invalid versions.
+                debug_leave_func_with_value("version=0x{:x},timestamp={}", std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp));
+                return {persistent::INVALID_VERSION, 0};
+            }
             if (cascade_watcher_ptr)
             {
                 (*cascade_watcher_ptr)(
                     group->template get_subgroup<WANPersistentCascadeStore>(this->subgroup_index).get_subgroup_id(),
                     group->template get_subgroup<WANPersistentCascadeStore>(this->subgroup_index).get_shard_num(),
-                    value.key, value, nullptr /*cascade context*/);
+                    value.get_key_ref(), value, nullptr /*cascade context*/);
             }
 
-            debug_leave_func_with_value("version=0x{:x},timestamp={}", std::get<0>(version), std::get<1>(version));
+            debug_leave_func_with_value("version=0x{:x},timestamp={}", std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp));
 
-            return version;
+            return version_and_timestamp;
         }
 
         template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>
         std::tuple<persistent::version_t, uint64_t> WANPersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_remove(const KT &key)
         {
             debug_enter_func_with_args("key={}", key);
-
-            std::tuple<persistent::version_t, uint64_t> version = group->template get_subgroup<WANPersistentCascadeStore>(this->subgroup_index).get_next_version();
-            if (this->persistent_core->ordered_remove(key))
+            std::tuple<persistent::version_t, uint64_t> version_and_timestamp = group->template get_subgroup<WANPersistentCascadeStore>(this->subgroup_index).get_next_version();
+            auto value = create_null_object_cb<KT, VT, IK, IV>(key);
+            if constexpr (std::is_base_of<IKeepVersion, VT>::value)
+            {
+                value.set_version(std::get<0>(version_and_timestamp));
+            }
+            if constexpr (std::is_base_of<IKeepTimestamp, VT>::value)
+            {
+                value.set_timestamp(std::get<1>(version_and_timestamp));
+            }
+            if (this->persistent_core->ordered_remove(value, this->persistent_core.getLatestVersion()))
             {
                 if (cascade_watcher_ptr)
                 {
                     (*cascade_watcher_ptr)(
                         group->template get_subgroup<WANPersistentCascadeStore>(this->subgroup_index).get_subgroup_id(),
                         group->template get_subgroup<WANPersistentCascadeStore>(this->subgroup_index).get_shard_num(),
-                        key, *IV, nullptr /*cascade context*/);
+                        key, value, nullptr /*cascade context*/);
                 }
             }
 
-            debug_leave_func_with_value("version=0x{:x},timestamp={}", std::get<0>(version), std::get<1>(version));
+            debug_leave_func_with_value("version=0x{:x},timestamp={}", std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp));
 
-            return version;
+            return version_and_timestamp;
         }
 
         template <typename KT, typename VT, KT *IK, VT *IV, persistent::StorageType ST>

@@ -68,7 +68,8 @@ target_link_libraries(cascade
     ${derecho_LIBRARIES}
     ${mutils_LIBRARIES} 
     ${OPENSSL_LIBRARIES}
-    predicate_generator)
+    predicate_generator
+    wan_agent)
 set_target_properties(cascade PROPERTIES
     SOVERSION ${cascade_VERSION}
     VERSION ${cascade_build_VERSION}
@@ -77,6 +78,22 @@ add_dependencies(cascade core)
 #    utils core)
 
 # make install
+install(TARGETS wan_logger EXPORT wan_logger
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
+install(DIRECTORY
+        include/wan_logger
+        DESTINATION include)
+install(TARGETS wan_agent_utils EXPORT wan_agent_utils
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
+install(DIRECTORY
+        include/wan_agent_utils
+        DESTINATION include)
+install(TARGETS wan_agent EXPORT wan_agent
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
+install(DIRECTORY
+        include/wan_agent
+        DESTINATION include)
+
 install(TARGETS cascade EXPORT cascade
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 install(DIRECTORY
@@ -93,6 +110,13 @@ write_basic_package_version_file(
     COMPATIBILITY AnyNewerVersion
 )
 
+export (EXPORT wan_logger
+    FILE "${CMAKE_CURRENT_BINARY_DIR}/wan_logger/wan_loggerTargets.cmake")
+export (EXPORT wan_agent_utils
+    FILE "${CMAKE_CURRENT_BINARY_DIR}/wan_agent_utils/wan_agent_utilsTargets.cmake")
+export (EXPORT wan_agent
+    FILE "${CMAKE_CURRENT_BINARY_DIR}/wan_agent/wan_agentTargets.cmake")
+
 export (EXPORT cascade
     FILE "${CMAKE_CURRENT_BINARY_DIR}/cascade/cascadeTargets.cmake"
 )
@@ -102,6 +126,18 @@ configure_file (cascadeConfig.cmake
 )
 
 set(ConfigPackageLocation lib/cmake/cascade)
+install(EXPORT wan_logger
+    FILE wan_loggerTargets.cmake
+    DESTINATION ${ConfigPackageLocation}
+)
+install(EXPORT wan_agent_utils
+    FILE wan_agent_utilsTargets.cmake
+    DESTINATION ${ConfigPackageLocation}
+)
+install(EXPORT wan_agent
+    FILE wan_agentTargets.cmake
+    DESTINATION ${ConfigPackageLocation}
+)
 install(EXPORT cascade
     FILE cascadeTargets.cmake
     DESTINATION ${ConfigPackageLocation}
