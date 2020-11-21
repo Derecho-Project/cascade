@@ -10,7 +10,7 @@
 #include <nlohmann/json.hpp>
 #include <exception>
 #include <wan_agent/wan_agent_type_definitions.hpp>
-#include <wan_agent/wan_agent_utils.hpp>
+// #include <wan_agent/wan_agent_utils.hpp>
 #include "predicate_generator.hpp"
 namespace wan_agent
 {

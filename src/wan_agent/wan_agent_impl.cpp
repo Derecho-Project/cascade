@@ -16,6 +16,7 @@
 
 #include <wan_agent/logger.hpp>
 #include <wan_agent/wan_agent.hpp>
+#include "wan_agent_utils.cpp"
 
 namespace wan_agent
 {
