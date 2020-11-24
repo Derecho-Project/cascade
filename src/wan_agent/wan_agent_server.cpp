@@ -16,12 +16,10 @@
 using std::cout;
 using std::endl;
 
-int main(int argc, char **argv)
-{
+int main(int argc, char** argv) {
     // TODO: should use code in wan_agent/wan_agent.hpp, not duplicated code.
 
-    if (argc < 2)
-    {
+    if(argc < 2) {
         cout << "Invalid command line arguments." << endl;
         cout << "USAGE:" << argv[0] << "wan_agent configuration file" << endl;
         cout << "Thank you" << endl;
@@ -32,7 +30,7 @@ int main(int argc, char **argv)
     nlohmann::json conf;
     json_file >> conf;
 
-    wan_agent::RemoteMessageCallback rmc = [](const uint32_t from, const char *msg, const size_t size) {
+    wan_agent::RemoteMessageCallback rmc = [](const uint32_t from, const char* msg, const size_t size) {
         std::cout << "message received from site:" << from
                   << ", message size:" << size << " bytes"
                   << std::endl;

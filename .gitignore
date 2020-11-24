@@ -17,3 +17,6 @@ temp_derecho_build.sh
 
 *bak
 small_service/
+
+copy_cfg.sh
+clean_plog.sh

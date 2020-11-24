@@ -63,6 +63,10 @@ add_custom_command(TARGET cascade_wan_sender POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/cfg
     ${CMAKE_CURRENT_BINARY_DIR}/cfg
 )
+add_custom_command(TARGET cascade_wan_sender POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/larger_cfg
+    ${CMAKE_CURRENT_BINARY_DIR}/larger_cfg
+)
 
 add_executable(cascade_wan_client cascade_wan_client.cpp)
 target_include_directories(cascade_wan_client PRIVATE
