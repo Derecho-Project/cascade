@@ -44,13 +44,6 @@ target_include_directories(wan_agent_sender PUBLIC
 )
 target_link_libraries(wan_agent_sender wan_agent pthread predicate_generator)
 
-add_library(cascade_wan_service OBJECT cascade_wan_service.cpp)
-target_include_directories(cascade_wan_service PRIVATE
-    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-)
-
 add_executable(cascade_wan_sender cascade_wan_sender.cpp)
 target_include_directories(cascade_wan_sender PRIVATE
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>

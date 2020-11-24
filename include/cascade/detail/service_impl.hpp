@@ -31,7 +31,9 @@ template <typename FirstCascadeType, typename SecondCascadeType, typename... Res
 void populate_policy_by_subgroup_type_map(
         std::map<std::type_index, std::variant<SubgroupAllocationPolicy, CrossProductPolicy>>& dsa_map,
         const json& layout, int type_idx) {
-    dsa_map.emplace(std::type_index(typeid(FirstCascadeType)), parse_json_subgroup_policy(layout[type_idx]));
+    dbg_default_trace("prepare to call parse_json_subgroup_policy");
+    dsa_map.emplace(std::type_index(typeid(FirstCascadeType)), 
+    parse_json_subgroup_policy(layout[type_idx]));
     populate_policy_by_subgroup_type_map<SecondCascadeType, RestCascadeTypes...>(dsa_map, layout, type_idx + 1);
 }
 
