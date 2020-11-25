@@ -31,11 +31,6 @@ bool sock_read(int sock, char* buffer, size_t size) {
     return true;
 };
 
-template <typename T>
-bool sock_read(int sock, T& obj) {
-    return sock_read(sock, reinterpret_cast<char*>(&obj), sizeof(obj));
-};
-
 bool sock_write(int sock, const char* buffer, size_t size) {
     if(sock < 0) {
         fprintf(stderr, "WARNING: Attempted to write to closed socket\n");
@@ -55,9 +50,4 @@ bool sock_write(int sock, const char* buffer, size_t size) {
         }
     }
     return true;
-};
-
-template <typename T>
-bool sock_write(int sock, const T& obj) {
-    return sock_write(sock, reinterpret_cast<const char*>(&obj), sizeof(obj));
 };

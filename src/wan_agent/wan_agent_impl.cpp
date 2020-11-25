@@ -14,9 +14,9 @@
 #include <sys/types.h>
 #include <vector>
 
-#include "wan_agent_utils.cpp"
 #include <wan_agent/logger.hpp>
 #include <wan_agent/wan_agent.hpp>
+#include <wan_agent/wan_agent_utils.hpp>
 
 namespace wan_agent {
 

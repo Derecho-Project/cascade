@@ -807,7 +807,7 @@ std::tuple<persistent::version_t, uint64_t> WANPersistentCascadeStore<KT, VT, IK
 
     // std::size_t number_of_shards = group->template get_number_of_shards<WANPersistentCascadeStore>(subgroup_index);
 
-    node_id_t my_id = atoi(derecho::getConfString(CONF_DERECHO_LOCAL_ID).c_str());
+    node_id_t my_id = getConfUInt32(CONF_DERECHO_LOCAL_ID);
     dbg_default_info("My id is {}", my_id);
 
     node_id_t node_with_lowest_rank = subgroup_members.at(shard_num).at(0);

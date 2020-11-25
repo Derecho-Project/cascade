@@ -9,17 +9,17 @@ target_include_directories(wan_logger PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
 
-# add_library(wan_agent_utils OBJECT wan_agent_utils.cpp)
-# target_include_directories(wan_agent_utils PUBLIC
-#     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
-#     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
-#     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-# )
+add_library(wan_agent_utils OBJECT wan_agent_utils.cpp)
+target_include_directories(wan_agent_utils PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+)
 
 add_library(wan_agent SHARED 
     wan_agent_impl.cpp
-    $<TARGET_OBJECTS:wan_logger>)
-    # $<TARGET_OBJECTS:wan_agent_utils>)
+    $<TARGET_OBJECTS:wan_logger>
+    $<TARGET_OBJECTS:wan_agent_utils>)
 target_include_directories(wan_agent PUBLIC
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
