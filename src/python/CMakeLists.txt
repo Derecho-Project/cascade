@@ -21,5 +21,6 @@ target_link_libraries(cascade_py PUBLIC cascade)
 add_custom_command(TARGET cascade_py POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/testNodes ${CMAKE_CURRENT_BINARY_DIR}/testNodes
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/interactiveTest.py ${CMAKE_CURRENT_BINARY_DIR}/interactiveTest.py
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/perf_test.py ${CMAKE_CURRENT_BINARY_DIR}/perf_test.py
 )
 

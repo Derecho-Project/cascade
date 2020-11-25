@@ -152,7 +152,9 @@ policy:=FirstMember|LastMember|Random|FixedRandom|RoundRobin|UserSpecified\n\
                 shard_index = int(sl[5])
 
             b = a.get(sl[1], sl[2], version, subgroup_index, shard_index)
+
             print(b.get_result())
+            
             continue
 
         if(sl[0] == 'remove'):

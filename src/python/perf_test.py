@@ -1,27 +1,9 @@
 import cascade_py
 import threading
 import time
-import ctypes
 import math
 import sys
 import cProfile, pstats, io
-
-class timespec(ctypes.Structure):
-    _fields_ = [
-        ('tv_sec', ctypes.c_int64), # seconds,
-        ('tv_nsec', ctypes.c_int64), # nanoseconds
-        ]
-
-clock_gettime = ctypes.cdll.LoadLibrary('libc.so.6').clock_gettime
-clock_getargtypes = [ctypes.c_int64, ctypes.POINTER(timespec)]
-clock_getrestype = ctypes.c_int64    
-
-def time_ns():
-    tmp = timespec()
-    ret = clock_gettime(0, ctypes.pointer(tmp))
-    if bool(ret):
-        raise OSError()
-    return tmp.tv_sec * 10 ** 9 + tmp.tv_nsec
 
 class AtomicInteger():
     def __init__(self, value=0):
@@ -112,7 +94,7 @@ class client_states:
             for qr in my_future_queue:
                 store = qr.get_result()
 
-                self.recv_tss[future_counter] = time_ns() / 1000
+                self.recv_tss[future_counter] = time.time() * (10**6)
                 future_counter+=1
 
                 if(self.max_pending_ops > 0):
@@ -132,7 +114,7 @@ class client_states:
         # wait for tx slot semaphore
         if(self.max_pending_ops > 0):
             with self.idle_tx_slot_mutex:
-                while(self.idle_tx_slot_cnt <= 0):
+                while(self.idle_tx_slot_cnt.value <= 0):
                     try:
                         self.idle_tx_slot_cv.wait()
                     except:
@@ -140,7 +122,7 @@ class client_states:
                 self.idle_tx_slot_cnt.dec()
             
         # record the send time
-        self.send_tss[msg_cnt] = time_ns() / 1000
+        self.send_tss[msg_cnt] = time.time() * (10**6)
 
         #print("Start put")
 
@@ -154,8 +136,8 @@ class client_states:
 
     def print_statistics(self):
 
-        #for i in range(0, self.num_messages):
-        #    print(self.send_tss[i],self.recv_tss[i], (self.recv_tss[i] - self.send_tss[i]))
+        for i in range(0, self.num_messages):
+            print(self.send_tss[i],self.recv_tss[i], (self.recv_tss[i] - self.send_tss[i]))
         
 
         total_bytes = self.num_messages * self.message_size
@@ -181,7 +163,7 @@ class client_states:
         print("Latency-std (us):", std_latency_us)
 
 def randomize_key(i):
-    random_seed = time_ns()
+    random_seed = int(time.time() * (10**6))
     x = i ^ random_seed
     x ^= x << 13
     x ^= x >> 7
@@ -243,7 +225,7 @@ def main():
         #sending
         for i in range(0,num_messages):
             key = str(randomize_key(i) % max_distinct_objects)
-            #print("key",key)
+            print("key",key)
             vol_client.do_send(i, "VCSU", key, bb)
 
         try:
@@ -268,4 +250,4 @@ def main2():
     
 
 if __name__ == '__main__':
-    main2()
+    main()
