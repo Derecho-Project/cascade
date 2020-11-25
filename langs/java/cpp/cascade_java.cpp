@@ -382,7 +382,7 @@ derecho::cascade::ObjectWithStringKey *translate_str_obj(JNIEnv *env, jobject ke
  * @return a handle of the future that stores the version and timestamp.
  */
 template <typename T>
-jlong put(std::function<typename T::ValType *(JNIEnv *, jobject, jobject)> f, JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong subgroup_index, jlong shard_index, jobject key, jobject val)
+jlong put(std::function<typename T::ObjectType *(JNIEnv *, jobject, jobject)> f, JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong subgroup_index, jlong shard_index, jobject key, jobject val)
 {
 // #ifndef NDEBUG
 //     std::cout << "entering jlong put! Here am I! " << std::endl;
@@ -395,7 +395,7 @@ jlong put(std::function<typename T::ValType *(JNIEnv *, jobject, jobject)> f, JN
 //     printf("\n");
 // #endif
     // translate Java objects to C++ objects.
-    typename T::ValType *obj = f(env, key, val);
+    typename T::ObjectType *obj = f(env, key, val);
     // std::cout << "putting! " << subgroup_index << " " << shard_index << std::endl;
     // execute the put
     derecho::rpc::QueryResults<std::tuple<persistent::version_t, uint64_t>> res = capi->put<T>(*obj, subgroup_index, shard_index);
@@ -447,9 +447,9 @@ jlong get(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong subgroup_
     // translate the key
     typename T::KeyType obj = f(env, key);
     // execute get
-    derecho::rpc::QueryResults<const typename T::ValType> res = capi->get<T>(obj, ver, subgroup_index, shard_index);
+    derecho::rpc::QueryResults<const typename T::ObjectType> res = capi->get<T>(obj, ver, subgroup_index, shard_index);
     // store the result in a handler
-    QueryResultHolder<const typename T::ValType> *qrh = new QueryResultHolder<const typename T::ValType>(res);
+    QueryResultHolder<const typename T::ObjectType> *qrh = new QueryResultHolder<const typename T::ObjectType>(res);
     return reinterpret_cast<jlong>(qrh);
 }
 
@@ -491,9 +491,9 @@ jlong get_by_time(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong s
     // translate the key
     typename T::KeyType obj = f(env, key);
     // execute get
-    derecho::rpc::QueryResults<const typename T::ValType> res = capi->get_by_time<T>(obj, timestamp, subgroup_index, shard_index);
+    derecho::rpc::QueryResults<const typename T::ObjectType> res = capi->get_by_time<T>(obj, timestamp, subgroup_index, shard_index);
     // store the result in a handler
-    QueryResultHolder<const typename T::ValType> *qrh = new QueryResultHolder<const typename T::ValType>(res);
+    QueryResultHolder<const typename T::ObjectType> *qrh = new QueryResultHolder<const typename T::ObjectType>(res);
     return reinterpret_cast<jlong>(qrh);
 }
 
