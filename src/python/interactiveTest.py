@@ -131,7 +131,7 @@ policy:=FirstMember|LastMember|Random|FixedRandom|RoundRobin|UserSpecified\n\
             if(len(sl) >= 6):
                 shard_index = int(sl[5])
 
-            b = a.put(sl[1], sl[2], sl[3],subgroup_index, shard_index)
+            b = a.put(sl[1], sl[2], bytes(sl[3],'utf-8'), subgroup_index, shard_index)
             print(b.get_result())
             continue
 
