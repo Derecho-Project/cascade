@@ -1,0 +1,2 @@
+#cmakedefine HAS_FUSE 1
+#cmakedefine HAS_BOOLINQ 1

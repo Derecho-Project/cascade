@@ -92,72 +92,263 @@ std::unique_ptr<Blob> Blob::from_bytes(mutils::DeserializationManager*, const ch
     return std::make_unique<Blob>(v + sizeof(std::size_t), ((std::size_t*)(v))[0]);
 }
 
-
+/*
 bool ObjectWithUInt64Key::operator==(const ObjectWithUInt64Key& other) {
-    return (this->key == other.key) && (this->ver == other.ver);
+    return (this->key == other.key) && (this->version == other.version);
 }
+*/
 
 bool ObjectWithUInt64Key::is_valid() const {
-    return (key == INVALID_UINT64_OBJECT_KEY);
+    return (key != INVALID_UINT64_OBJECT_KEY);
 }
 
 // constructor 0 : copy constructor
-ObjectWithUInt64Key::ObjectWithUInt64Key(const uint64_t& _key, const Blob& _blob) : ver(persistent::INVALID_VERSION,0),
-                                             key(_key),
-                                             blob(_blob) {}
+ObjectWithUInt64Key::ObjectWithUInt64Key(const uint64_t _key,
+                                         const Blob& _blob) : 
+    version(persistent::INVALID_VERSION),
+    timestamp_us(0),
+    previous_version(INVALID_VERSION),
+    previous_version_by_key(INVALID_VERSION),
+    key(_key),
+    blob(_blob) {}
+
 // constructor 0.5 : copy constructor
-ObjectWithUInt64Key::ObjectWithUInt64Key(const std::tuple<persistent::version_t,uint64_t> _ver, const uint64_t& _key, const Blob& _blob) : ver(_ver), key(_key), blob(_blob) {}
+ObjectWithUInt64Key::ObjectWithUInt64Key(const persistent::version_t _version,
+                                         const uint64_t _timestamp_us,
+                                         const persistent::version_t _previous_version,
+                                         const persistent::version_t _previous_version_by_key,
+                                         const uint64_t _key,
+                                         const Blob& _blob) :
+    version(_version),
+    timestamp_us(_timestamp_us),
+    previous_version(_previous_version),
+    previous_version_by_key(_previous_version_by_key),
+    key(_key), 
+    blob(_blob) {}
 
 // constructor 1 : copy consotructor
-ObjectWithUInt64Key::ObjectWithUInt64Key(const uint64_t _key, const char* const _b, const std::size_t _s) : ver(persistent::INVALID_VERSION,0),
-                                                                          key(_key),
-                                                                          blob(_b, _s) {}
+ObjectWithUInt64Key::ObjectWithUInt64Key(const uint64_t _key,
+                                         const char* const _b,
+                                         const std::size_t _s) :
+    version(persistent::INVALID_VERSION),
+    timestamp_us(0),
+    previous_version(INVALID_VERSION),
+    previous_version_by_key(INVALID_VERSION),
+    key(_key),
+    blob(_b, _s) {}
+
 // constructor 1.5 : copy constructor
-ObjectWithUInt64Key::ObjectWithUInt64Key(const std::tuple<persistent::version_t,uint64_t> _ver, const uint64_t _key, const char* const _b, const std::size_t _s) : ver(_ver), key(_key), blob(_b, _s) {}
+ObjectWithUInt64Key::ObjectWithUInt64Key(const persistent::version_t _version,
+                                         const uint64_t _timestamp_us,
+                                         const persistent::version_t _previous_version,
+                                         const persistent::version_t _previous_version_by_key,
+                                         const uint64_t _key,
+                                         const char* const _b,
+                                         const std::size_t _s) :
+    version(_version),
+    timestamp_us(_timestamp_us),
+    previous_version(_previous_version),
+    previous_version_by_key(_previous_version_by_key),
+    key(_key),
+    blob(_b, _s) {}
 
 // constructor 2 : move constructor
-ObjectWithUInt64Key::ObjectWithUInt64Key(ObjectWithUInt64Key&& other) : ver(other.ver),
-                         key(other.key),
-                         blob(std::move(other.blob)) {}
-// constructor 3 : copy constructor
-ObjectWithUInt64Key::ObjectWithUInt64Key(const ObjectWithUInt64Key& other) : ver(other.ver),
-                              key(other.key),
-                              blob(other.blob) {}
-// constructor 4 : default invalid constructor
-ObjectWithUInt64Key::ObjectWithUInt64Key() : ver(persistent::INVALID_VERSION,0), key(INVALID_UINT64_OBJECT_KEY) {}
+ObjectWithUInt64Key::ObjectWithUInt64Key(ObjectWithUInt64Key&& other) :
+    version(other.version),
+    timestamp_us(other.timestamp_us),
+    previous_version(other.previous_version),
+    previous_version_by_key(other.previous_version_by_key),
+    key(other.key),
+    blob(std::move(other.blob)) {}
 
-bool ObjectWithStringKey::operator==(const ObjectWithStringKey& other) {
-    return (this->key == other.key) && (this->ver == other.ver);
+// constructor 3 : copy constructor
+ObjectWithUInt64Key::ObjectWithUInt64Key(const ObjectWithUInt64Key& other) :
+    version(other.version),
+    timestamp_us(other.timestamp_us),
+    previous_version(other.previous_version),
+    previous_version_by_key(other.previous_version_by_key),
+    key(other.key),
+    blob(other.blob) {}
+
+// constructor 4 : default invalid constructor
+ObjectWithUInt64Key::ObjectWithUInt64Key() :
+    version(persistent::INVALID_VERSION),
+    timestamp_us(0),
+    previous_version(INVALID_VERSION),
+    previous_version_by_key(INVALID_VERSION),
+    key(INVALID_UINT64_OBJECT_KEY) {}
+
+const uint64_t& ObjectWithUInt64Key::get_key_ref() const {
+    return this->key;
 }
+
+bool ObjectWithUInt64Key::is_null() const {
+    return (this->blob.size == 0);
+}
+
+void ObjectWithUInt64Key::set_version(persistent::version_t ver) const {
+    this->version = ver;
+}
+
+persistent::version_t ObjectWithUInt64Key::get_version() const {
+    return this->version;
+}
+
+void ObjectWithUInt64Key::set_timestamp(uint64_t ts_us) const {
+    this->timestamp_us = ts_us;
+}
+
+uint64_t ObjectWithUInt64Key::get_timestamp() const {
+    return this->timestamp_us;
+}
+
+void ObjectWithUInt64Key::set_previous_version(persistent::version_t prev_ver, persistent::version_t prev_ver_by_key) const {
+    this->previous_version = prev_ver;
+    this->previous_version_by_key = prev_ver_by_key;
+}
+
+bool ObjectWithUInt64Key::verify_previous_version(persistent::version_t prev_ver, persistent::version_t prev_ver_by_key) const {
+    // NOTICE: We provide the default behaviour of verify_previous_version as a demonstration. Please change the
+    // following code or implementing your own Object Types with a verify_previous_version implementation to customize
+    // it. The default behavior is self-explanatory and can be disabled by setting corresponding object previous versions to
+    // INVALID_VERSION.
+
+    return ((this->previous_version == persistent::INVALID_VERSION)?true:(this->previous_version >= prev_ver)) &&
+           ((this->previous_version_by_key == persistent::INVALID_VERSION)?true:(this->previous_version_by_key >= prev_ver_by_key));
+}
+
+template <>
+ObjectWithUInt64Key create_null_object_cb<uint64_t,ObjectWithUInt64Key,&ObjectWithUInt64Key::IK,&ObjectWithUInt64Key::IV>(const uint64_t& key) {
+    return ObjectWithUInt64Key(key,Blob{});
+}
+
+/*
+bool ObjectWithStringKey::operator==(const ObjectWithStringKey& other) {
+    return (this->key == other.key) && (this->version == other.version);
+}
+*/
 
 bool ObjectWithStringKey::is_valid() const {
     return !key.empty();
 }
 
 // constructor 0 : copy constructor
-ObjectWithStringKey::ObjectWithStringKey(const std::string& _key, const Blob& _blob) : ver(persistent::INVALID_VERSION,0),
-                                             key(_key),
-                                             blob(_blob) {}
+ObjectWithStringKey::ObjectWithStringKey(const std::string& _key, 
+                                         const Blob& _blob) : 
+    version(persistent::INVALID_VERSION),
+    timestamp_us(0),
+    previous_version(INVALID_VERSION),
+    previous_version_by_key(INVALID_VERSION),
+    key(_key),
+    blob(_blob) {}
 // constructor 0.5 : copy constructor
-ObjectWithStringKey::ObjectWithStringKey(const std::tuple<persistent::version_t,uint64_t> _ver, const std::string& _key, const Blob& _blob) : ver(_ver), key(_key), blob(_blob) {}
+ObjectWithStringKey::ObjectWithStringKey(const persistent::version_t _version,
+                                         const uint64_t _timestamp_us,
+                                         const persistent::version_t _previous_version,
+                                         const persistent::version_t _previous_version_by_key,
+                                         const std::string& _key,
+                                         const Blob& _blob) :
+    version(_version),
+    timestamp_us(_timestamp_us),
+    previous_version(_previous_version),
+    previous_version_by_key(_previous_version_by_key),
+    key(_key), 
+    blob(_blob) {}
 
 // constructor 1 : copy consotructor
-ObjectWithStringKey::ObjectWithStringKey(const std::string& _key, const char* const _b, const std::size_t _s) : ver(persistent::INVALID_VERSION,0),
-                                                                          key(_key),
-                                                                          blob(_b, _s) {}
+ObjectWithStringKey::ObjectWithStringKey(const std::string& _key,
+                                         const char* const _b, 
+                                         const std::size_t _s) : 
+    version(persistent::INVALID_VERSION),
+    timestamp_us(0),
+    previous_version(INVALID_VERSION),
+    previous_version_by_key(INVALID_VERSION),
+    key(_key),
+    blob(_b, _s) {}
 // constructor 1.5 : copy constructor
-ObjectWithStringKey::ObjectWithStringKey(const std::tuple<persistent::version_t,uint64_t> _ver, const std::string& _key, const char* const _b, const std::size_t _s) : ver(_ver), key(_key), blob(_b, _s) {}
+ObjectWithStringKey::ObjectWithStringKey(const persistent::version_t _version,
+                                         const uint64_t _timestamp_us,
+                                         const persistent::version_t _previous_version,
+                                         const persistent::version_t _previous_version_by_key,
+                                         const std::string& _key,
+                                         const char* const _b,
+                                         const std::size_t _s) : 
+    version(_version),
+    timestamp_us(_timestamp_us),
+    previous_version(_previous_version),
+    previous_version_by_key(_previous_version_by_key),
+    key(_key), 
+    blob(_b, _s) {}
 
 // constructor 2 : move constructor
-ObjectWithStringKey::ObjectWithStringKey(ObjectWithStringKey&& other) : ver(other.ver),
-                         key(other.key),
-                         blob(std::move(other.blob)) {}
+ObjectWithStringKey::ObjectWithStringKey(ObjectWithStringKey&& other) : 
+    version(other.version),
+    timestamp_us(other.timestamp_us),
+    previous_version(other.previous_version),
+    previous_version_by_key(other.previous_version_by_key),
+    key(other.key),
+    blob(std::move(other.blob)) {}
+
 // constructor 3 : copy constructor
-ObjectWithStringKey::ObjectWithStringKey(const ObjectWithStringKey& other) : ver(other.ver),
-                              key(other.key),
-                              blob(other.blob) {}
+ObjectWithStringKey::ObjectWithStringKey(const ObjectWithStringKey& other) : 
+    version(other.version),
+    timestamp_us(other.timestamp_us),
+    previous_version(other.previous_version),
+    previous_version_by_key(other.previous_version_by_key),
+    key(other.key),
+    blob(other.blob) {}
+
 // constructor 4 : default invalid constructor
-ObjectWithStringKey::ObjectWithStringKey() : ver(persistent::INVALID_VERSION,0), key() {}
+ObjectWithStringKey::ObjectWithStringKey() : 
+    version(persistent::INVALID_VERSION),
+    timestamp_us(0),
+    previous_version(INVALID_VERSION),
+    previous_version_by_key(INVALID_VERSION),
+    key() {}
+
+const std::string& ObjectWithStringKey::get_key_ref() const {
+    return this->key;
+}
+
+bool ObjectWithStringKey::is_null() const {
+    return (this->blob.size == 0);
+}
+
+void ObjectWithStringKey::set_version(persistent::version_t ver) const {
+    this->version = ver;
+}
+
+persistent::version_t ObjectWithStringKey::get_version() const {
+    return this->version;
+}
+
+void ObjectWithStringKey::set_timestamp(uint64_t ts_us) const {
+    this->timestamp_us = ts_us;
+}
+
+uint64_t ObjectWithStringKey::get_timestamp() const {
+    return this->timestamp_us;
+}
+
+void ObjectWithStringKey::set_previous_version(persistent::version_t prev_ver, persistent::version_t prev_ver_by_key) const {
+    this->previous_version = prev_ver;
+    this->previous_version_by_key = prev_ver_by_key;
+}
+
+bool ObjectWithStringKey::verify_previous_version(persistent::version_t prev_ver, persistent::version_t prev_ver_by_key) const {
+    // NOTICE: We provide the default behaviour of verify_previous_version as a demonstration. Please change the
+    // following code or implementing your own Object Types with a verify_previous_version implementation to customize
+    // it. The default behavior is self-explanatory and can be disabled by setting corresponding object previous versions to
+    // INVALID_VERSION.
+
+    return ((this->previous_version == persistent::INVALID_VERSION)?true:(this->previous_version >= prev_ver)) &&
+           ((this->previous_version_by_key == persistent::INVALID_VERSION)?true:(this->previous_version_by_key >= prev_ver_by_key));
+}
+
+template <>
+ObjectWithStringKey create_null_object_cb<std::string,ObjectWithStringKey,&ObjectWithStringKey::IK,&ObjectWithStringKey::IV>(const std::string& key) {
+    return ObjectWithStringKey(key,Blob{});
+}
 
 } // namespace cascade
 } // namespace derecho
