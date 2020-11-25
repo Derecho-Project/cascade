@@ -24,6 +24,8 @@ namespace py = pybind11;
         print_red("unknown subgroup type:" + x); \
     } \
 
+
+
 static const char* policy_names[] = {
     "FirstMember",
     "LastMember",
@@ -39,7 +41,7 @@ static const char* policy_names[] = {
 */
 std::function<py::bytes(ObjectWithStringKey)> s_f = [](ObjectWithStringKey obj) {
 
-        std::string s(obj.blob.bytes);
+        std::string s(obj.blob.bytes, obj.blob.size);
         return py::bytes(s);   
 
     };
@@ -49,7 +51,7 @@ std::function<py::bytes(ObjectWithStringKey)> s_f = [](ObjectWithStringKey obj) 
 */
 std::function<py::bytes(ObjectWithUInt64Key)> u_f = [](ObjectWithUInt64Key obj) {
 
-        std::string s(obj.blob.bytes);
+        std::string s(obj.blob.bytes, obj.blob.size);
         return py::bytes(s);
 
     };
@@ -165,7 +167,6 @@ auto put(ServiceClientAPI& capi, std::string& key, std::string& value, uint32_t 
     derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> result = capi.template put<SubgroupType>(obj, subgroup_index, shard_index);
     QueryResultsStore<std::tuple<persistent::version_t,uint64_t>, std::vector<long>>* s = new QueryResultsStore<std::tuple<persistent::version_t,uint64_t>, std::vector<long>>(result, bundle_f); 
     return py::cast(s);
-
 }
 
 /**
@@ -315,8 +316,10 @@ PYBIND11_MODULE(cascade_py,m)
               }
 		return pol;
           }, "Get the member selection policy of the specified subgroup and shard.")
-         .def("put", [](ServiceClientAPI& capi, std::string service_type, std::string& key, std::string& value, uint32_t subgroup_index, uint32_t shard_index){
-            on_subgroup_type(service_type, return put, capi, key, value, subgroup_index, shard_index);
+         .def("put", [](ServiceClientAPI& capi, std::string service_type, std::string& key, py::bytes value, uint32_t subgroup_index, uint32_t shard_index){
+
+            std::string val = std::string(value);
+            on_subgroup_type(service_type, return put, capi, key, val, subgroup_index, shard_index);
 
             return py::cast(NULL);
 
