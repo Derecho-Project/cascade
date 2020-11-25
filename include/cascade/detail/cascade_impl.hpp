@@ -805,8 +805,20 @@ std::tuple<persistent::version_t, uint64_t> WANPersistentCascadeStore<KT, VT, IK
     std::vector<std::vector<node_id_t>> subgroup_members = group->template get_subgroup_members<WANPersistentCascadeStore>(subgroup_index);
     std::cout << subgroup_members << std::endl;
 
-    std::size_t number_of_shards = group->template get_number_of_shards<WANPersistentCascadeStore>(subgroup_index);
-    std::cout << "_Group::get_number_of_shards() returns " << number_of_shards << " shards, _Group::get_subgroup_members() returns " << subgroup_members.size() << " shards." << std::endl;
+    // std::size_t number_of_shards = group->template get_number_of_shards<WANPersistentCascadeStore>(subgroup_index);
+
+    node_id_t my_id = atoi(derecho::getConfString(CONF_DERECHO_LOCAL_ID).c_str());
+    dbg_default_info("My id is {}", my_id);
+
+    node_id_t node_with_lowest_rank = subgroup_members.at(shard_num).at(0);
+
+    if (node_with_lowest_rank == my_id) {
+        dbg_default_info("I am the node with lowest rank in my shard, I'll send to WanAgentServers");
+        do_wan_agent_send(value);
+    } else {
+        dbg_default_info("I'll tell the node with lowest rank in my shard to send to WanAgentServers");
+        subgroup_handle.template p2p_send<RPC_NAME(do_wan_agent_send)>(node_with_lowest_rank, value);
+    }
 
     return ret;
 }
