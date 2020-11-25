@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10.1)
+cmake_minimum_required(VERSION 3.10.0)
 set(CMAKE_DISABLE_SOURCE_CHANGES ON)
 set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 project(cascade CXX)
@@ -37,6 +37,16 @@ find_package(derecho REQUIRED)
 # json
 find_package(nlohmann_json 3.2.0 REQUIRED)
 
+set(CMAKE_REQUIRED_DEFINITIONS -DFUSE_USE_VERSION=30)
+include(CheckIncludeFiles)
+
+# fuse
+CHECK_INCLUDE_FILES("fuse3/fuse.h;fuse3/fuse_lowlevel.h" HAS_FUSE)
+# boolinq
+CHECK_INCLUDE_FILES("boolinq/boolinq.h" HAS_BOOLINQ)
+
+CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/cascade/config.h)
+
 add_subdirectory(src/core)
 add_subdirectory(src/utils)
 add_subdirectory(src/service)
@@ -68,6 +78,9 @@ install(TARGETS cascade EXPORT cascade
 install(DIRECTORY
         include/cascade
         DESTINATION include)
+install(FILES
+        ${CMAKE_CURRENT_BINARY_DIR}/include/cascade/config.h
+        DESTINATION include/cascade)
 
 include(CMakePackageConfigHelpers)
 write_basic_package_version_file(
@@ -87,5 +100,11 @@ configure_file (cascadeConfig.cmake
 set(ConfigPackageLocation lib/cmake/cascade)
 install(EXPORT cascade
     FILE cascadeTargets.cmake
+    DESTINATION ${ConfigPackageLocation}
+)
+
+install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/cascade/cascadeConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/cascade/cascadeConfigVersion.cmake"
     DESTINATION ${ConfigPackageLocation}
 )

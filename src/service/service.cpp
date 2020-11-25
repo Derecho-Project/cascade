@@ -5,17 +5,17 @@ namespace derecho {
 namespace cascade {
 
 SubgroupAllocationPolicy parse_json_subgroup_policy(const json& jconf) {
-    if (!jconf.is_array()) {
+    if (!jconf.is_object() || !jconf[JSON_CONF_LAYOUT].is_array()) {
         dbg_default_error("parse_json_subgroup_policy cannot parse {}.", jconf.get<std::string>());
         throw derecho::derecho_exception("parse_json_subgroup_policy cannot parse" + jconf.get<std::string>());
     }
 
     SubgroupAllocationPolicy subgroup_allocation_policy;
     subgroup_allocation_policy.identical_subgroups = false;
-    subgroup_allocation_policy.num_subgroups = jconf.size();
+    subgroup_allocation_policy.num_subgroups = jconf[JSON_CONF_LAYOUT].size();
     subgroup_allocation_policy.shard_policy_by_subgroup = std::vector<ShardAllocationPolicy>();
 
-    for (auto subgroup_it:jconf) {
+    for (auto subgroup_it:jconf[JSON_CONF_LAYOUT]) {
         ShardAllocationPolicy shard_allocation_policy;
         size_t num_shards = subgroup_it[MIN_NODES_BY_SHARD].size();
         if (subgroup_it[MAX_NODES_BY_SHARD].size() != num_shards ||  

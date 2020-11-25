@@ -25,6 +25,10 @@ using json = nlohmann::json;
 namespace derecho {
 namespace cascade {
 
+#define CONF_ONDATA_LIBRARY     "CASCADE/ondata_library"
+#define CONF_GROUP_LAYOUT       "CASCADE/group_layout"
+#define JSON_CONF_TYPE_ALIAS    "type_alias"
+#define JSON_CONF_LAYOUT        "layout"
 /**
  * The service will start a cascade service node to serve the client.
  */
@@ -201,6 +205,8 @@ public:
      * - get_members        returns all members in the top-level Derecho group.
      * - get_shard_members  returns the members in a shard specified by subgroup id(or subgroup type/index pair) and
      *   shard index.
+     * - get_number_of_subgroups    returns the number of subgroups of a given type
+     * - get_number_of_shards       returns the number of shards of a given subgroup
      * During view change, the Client might experience failure if the member is gone. In such a case, the client needs
      * refresh its local member cache by calling get_shard_members.
      */
@@ -208,6 +214,11 @@ public:
     std::vector<node_id_t> get_shard_members(derecho::subgroup_id_t subgroup_id,uint32_t shard_index);
     template <typename SubgroupType>
     std::vector<node_id_t> get_shard_members(uint32_t subgroup_index,uint32_t shard_index);
+    template <typename SubgroupType>
+    uint32_t get_number_of_subgroups();
+    uint32_t get_number_of_shards(derecho::subgroup_id_t subgroup_id);
+    template <typename SubgroupType>
+    uint32_t get_number_of_shards(uint32_t subgroup_index);
 
     /**
      * Member selection policy control API.
@@ -230,7 +241,16 @@ public:
     /**
      * "put" writes an object to a given subgroup/shard.
      *
-     * @param value             the object to write
+     * @param object            the object to write.
+     *                          User provided SubgroupType::ObjectType must have the following two members:
+     *                          - SubgroupType::ObjectType::key of SubgroupType::KeyType, which must be set to a
+     *                            valid key.
+     *                          - SubgroupType::ObjectType::ver of std::tuple<persistent::version_t, uint64_t>.
+     *                            Similar to the return object, this member is a two tuple with the first member
+     *                            for a version and the second for a timestamp. A caller of put can specify either
+     *                            of the version and timestamp meaning what is the latest version/timestamp the caller
+     *                            has seen. Cascade will reject the write if the corresponding key has been updated
+     *                            already. TODO: should we make it an optional feature?
      * @subugroup_index         the subgroup index of CascadeType
      * @shard_index             the shard index.
      *
@@ -238,7 +258,7 @@ public:
      * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
      */
     template <typename SubgroupType>
-    derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> put(const typename SubgroupType::ValType& value, 
+    derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> put(const typename SubgroupType::ObjectType& object,
             uint32_t subgroup_index=0, uint32_t shard_index=0);
 
     /**
@@ -259,7 +279,7 @@ public:
      * "get" retrieve the object of a given key
      *
      * @param key               the object key
-     * @param version           if version is INVALID_VERSION, this "get" will fire a ordered send to get the latest
+     * @param version           if version is CURRENT_VERSION, this "get" will fire a ordered send to get the latest
      *                          state of the key. Otherwise, it will try to read the key's state at version.
      * @subugroup_index         the subgroup index of CascadeType
      * @shard_index             the shard index.
@@ -268,7 +288,7 @@ public:
      * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
      */
     template <typename SubgroupType>
-    derecho::rpc::QueryResults<const typename SubgroupType::ValType> get(const typename SubgroupType::KeyType& key, const persistent::version_t& version = persistent::INVALID_VERSION,
+    derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> get(const typename SubgroupType::KeyType& key, const persistent::version_t& version = CURRENT_VERSION,
             uint32_t subgroup_index=0, uint32_t shard_index=0);
 
     /**
@@ -283,7 +303,67 @@ public:
      * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
      */
     template <typename SubgroupType>
-    derecho::rpc::QueryResults<const typename SubgroupType::ValType> get_by_time(const typename SubgroupType::KeyType& key, const uint64_t& ts_us,
+    derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> get_by_time(const typename SubgroupType::KeyType& key, const uint64_t& ts_us,
+            uint32_t subgroup_index=0, uint32_t shard_index=0);
+
+    /**
+     * "get_size" retrieve size of the object of a given key
+     *
+     * @param key               the object key
+     * @param version           if version is CURRENT_VERSION, this "get" will fire a ordered send to get the latest
+     *                          state of the key. Otherwise, it will try to read the key's state at version.
+     * @subugroup_index         the subgroup index of CascadeType
+     * @shard_index             the shard index.
+     *
+     * @return a future to the retrieved size.
+     * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
+     */
+    template <typename SubgroupType>
+    derecho::rpc::QueryResults<uint64_t> get_size(const typename SubgroupType::KeyType& key, const persistent::version_t& version = CURRENT_VERSION,
+            uint32_t subgroup_index=0, uint32_t shard_index=0);
+
+    /**
+     * "get_size_by_time" retrieve size of the object of a given key
+     *
+     * @param key               the object key
+     * @param ts_us             Wall clock time in microseconds. 
+     * @subugroup_index         the subgroup index of CascadeType
+     * @shard_index             the shard index.
+     *
+     * @return a future to the retrieved size.
+     * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
+     */
+    template <typename SubgroupType>
+    derecho::rpc::QueryResults<uint64_t> get_size_by_time(const typename SubgroupType::KeyType& key, const uint64_t& ts_us,
+            uint32_t subgroup_index=0, uint32_t shard_index=0);
+
+    /**
+     * "list_keys" retrieve the list of keys in a shard
+     *
+     * @param version           if version is CURRENT_VERSION, this "get" will fire a ordered send to get the latest
+     *                          state of the key. Otherwise, it will try to read the key's state at version.
+     * @subugroup_index         the subgroup index of CascadeType
+     * @shard_index             the shard index.
+     *
+     * @return a future to the retrieved object.
+     * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
+     */
+    template <typename SubgroupType>
+    derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> list_keys(const persistent::version_t& version = CURRENT_VERSION,
+            uint32_t subgroup_index=0, uint32_t shard_index=0);
+
+    /**
+     * "list_keys_by_time" retrieve the list of keys in a shard
+     *
+     * @param ts_us             Wall clock time in microseconds.
+     * @subugroup_index         the subgroup index of CascadeType
+     * @shard_index             the shard index.
+     *
+     * @return a future to the retrieved object.
+     * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
+     */
+    template <typename SubgroupType>
+    derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> list_keys_by_time(const uint64_t& ts_us,
             uint32_t subgroup_index=0, uint32_t shard_index=0);
 };
 
