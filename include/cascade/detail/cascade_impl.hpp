@@ -812,7 +812,7 @@ std::tuple<persistent::version_t, uint64_t> WANPersistentCascadeStore<KT, VT, IK
 
     node_id_t node_with_lowest_rank = subgroup_members.at(shard_num).at(0);
 
-    if (node_with_lowest_rank == my_id) {
+    if(node_with_lowest_rank == my_id) {
         dbg_default_info("I am the node with lowest rank in my shard, I'll send to WanAgentServers");
         do_wan_agent_send(value);
     } else {
@@ -825,6 +825,10 @@ std::tuple<persistent::version_t, uint64_t> WANPersistentCascadeStore<KT, VT, IK
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void WANPersistentCascadeStore<KT, VT, IK, IV, ST>::do_wan_agent_send(const VT& value) {
+    if(!wan_agent_sender) {
+        init_wan_config();
+    }
+
     // byte_size/actual_size may be larger than WAN_AGENT_MAX_PAYLOAD_SIZE
     size_t byte_size = value.bytes_size();
     char* buffer = static_cast<char*>(malloc(byte_size));
@@ -1078,10 +1082,6 @@ void WANPersistentCascadeStore<KT, VT, IK, IV, ST>::change_predicate(const std::
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void WANPersistentCascadeStore<KT, VT, IK, IV, ST>::init_wan_config() {
-    ///////////////////////////////////////////////////////////////////////////////
-    // TODO: determine how to register Predicate to cascade.
-    ///////////////////////////////////////////////////////////////////////////////
-
     // table: key is site_id, value is seq_no
     wan_agent::PredicateLambda pl = [](const std::map<uint32_t, uint64_t>& table) {
         for(auto& item : table) {
@@ -1103,7 +1103,6 @@ WANPersistentCascadeStore<KT, VT, IK, IV, ST>::WANPersistentCascadeStore(
           cascade_watcher_ptr(cw),
           wan_conf_json(nlohmann::json::parse(derecho::getConfString(CONF_WAN_SENDER_CFG))) {
     std::cout << derecho::getConfString(CONF_WAN_SENDER_CFG) << std::endl;
-    init_wan_config();
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
@@ -1114,7 +1113,6 @@ WANPersistentCascadeStore<KT, VT, IK, IV, ST>::WANPersistentCascadeStore(
         : persistent_core(std::move(_persistent_core)),
           cascade_watcher_ptr(cw),
           wan_conf_json(nlohmann::json::parse(derecho::getConfString(CONF_WAN_SENDER_CFG))) {
-    init_wan_config();
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
