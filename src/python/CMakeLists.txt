@@ -9,9 +9,10 @@ set(CMAKE_CXX_FLAGS_DEBUG "-O0 -ggdb")
 
 find_package(pybind11)
 
-pybind11_add_module(cascade_py ${CMAKE_SOURCE_DIR}/src/python/src/wrapper/cascade_py.cpp)
+pybind11_add_module(cascade_py src/wrapper/cascade_py.cpp)
 
 target_include_directories(cascade_py PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
