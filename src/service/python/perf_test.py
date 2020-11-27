@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import cascade_py
 import threading
 import time

@@ -1,5 +1,5 @@
+#!/usr/bin/env python3
 import cascade_py
-
 
 def main1():
     a = cascade_py.ServiceClientAPI()
