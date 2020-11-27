@@ -264,7 +264,7 @@ auto get_by_time(ServiceClientAPI& capi, std::string& key, uint64_t ts_us, uint3
 
 PYBIND11_MODULE(cascade_py,m)
 {
-  m.doc() = "ServiceClientAPI for Cascade";
+  m.doc() = "Python API for Cascade.";
 
   py::class_<ServiceClientAPI>(m, "ServiceClientAPI")
 	  .def(py::init(), "Service Client API for managing cascade store.")

@@ -50,3 +50,5 @@ if (${HAS_FUSE})
     )
     target_link_libraries(fuse_client cascade readline fuse3)
 endif()
+
+add_subdirectory(python)
