@@ -16,6 +16,8 @@ set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-Wall -ggdb -gdwarf-3")
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/Modules")
 
+include(GNUInstallDirs)
+
 if ( NOT DEFINED CMAKE_INSTALL_LIBDIR )
     set( CMAKE_INSTALL_LIBDIR lib )
 endif ()
@@ -75,11 +77,12 @@ add_dependencies(cascade core)
 install(TARGETS cascade EXPORT cascade
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 install(DIRECTORY
-        include/cascade
-        DESTINATION include)
-install(FILES
-        ${CMAKE_CURRENT_BINARY_DIR}/include/cascade/config.h
-        DESTINATION include/cascade)
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/cascade
+        ${CMAKE_CURRENT_BINARY_DIR}/include/cascade
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+        FILES_MATCHING
+        PATTERN "*.h"
+        PATTERN "*.hpp")
 
 include(CMakePackageConfigHelpers)
 write_basic_package_version_file(
