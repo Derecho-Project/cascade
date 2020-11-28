@@ -67,6 +67,7 @@ message(${CMAKE_SOURCE_DIR}/include)
 
 include_directories(${JAVA_INCLUDE_PATH}
                     ${JAVA_INCLUDE_PATH2}
+		    ${CMAKE_BINARY_DIR}/include
                     ${CMAKE_SOURCE_DIR}/include
                     ${CMAKE_INSTALL_PREFIX}/include)
 add_library(cascadejavacpp SHARED ${CMAKE_CURRENT_SOURCE_DIR}/cpp/cascade_java.cpp)
