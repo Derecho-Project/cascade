@@ -1,6 +1,6 @@
+#include <cascade/service_client_api.hpp>
 #include "io_cascade_Client.h"
 #include "io_cascade_QueryResults.h"
-#include <cascade/service_client_api.hpp>
 
 /**
  * macros for handling multiple subgroup types

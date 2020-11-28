@@ -1,5 +1,4 @@
 cmake_minimum_required (VERSION 3.0)
-project(cascade_java)
 
 find_package(Java)
 
@@ -8,6 +7,9 @@ if (NOT Java_FOUND)
 	return()
 endif (NOT Java_FOUND)
 
+# set(JAVA_AWT_LIBRARY NotNeeded)
+# set(JAVA_JVM_LIBRARY NotNeeded)
+# set(JAVA_AWT_INCLUDE_PATH NotNeeded)
 find_package(JNI)
 
 if (NOT JNI_FOUND)
@@ -70,6 +72,10 @@ include_directories(${JAVA_INCLUDE_PATH}
                     ${CMAKE_SOURCE_DIR}/include
                     ${CMAKE_INSTALL_PREFIX}/include)
 add_library(cascadejavacpp SHARED ${CMAKE_CURRENT_SOURCE_DIR}/cpp/cascade_java.cpp)
+target_include_directories(cascadejavacpp PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
 target_link_libraries(cascadejavacpp cascade)
 
 install(TARGETS cascadejavacpp DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/)
