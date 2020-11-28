@@ -20,5 +20,8 @@ if (pybind11_FOUND)
     )
     install(TARGETS cascade_py EXPORT cascade_py
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
+    install(FILES interactive_test.py perf_test.py
+            TYPE BIN
+            PERMISSIONS OWNER_WRITE OWNER_READ GROUP_READ WORLD_READ OWNER_EXECUTE GROUP_EXECUTE WORLD_EXECUTE)
 endif()
 

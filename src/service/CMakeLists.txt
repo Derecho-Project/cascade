@@ -17,7 +17,7 @@ target_include_directories(server PRIVATE
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
 )
 target_link_libraries(server cascade dl)
-
+set_target_properties(server PROPERTIES OUTPUT_NAME cascade_server)
 add_custom_command(TARGET server POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/cfg
     ${CMAKE_CURRENT_BINARY_DIR}/cfg
@@ -31,6 +31,7 @@ target_include_directories(client PRIVATE
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
 )
 target_link_libraries(client cascade readline)
+set_target_properties(client PROPERTIES OUTPUT_NAME cascade_client)
 
 add_library(ondata_example SHARED ondata_library_example.cpp)
 target_include_directories(ondata_example PRIVATE
@@ -49,6 +50,16 @@ if (${HAS_FUSE})
         $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
     )
     target_link_libraries(fuse_client cascade readline fuse3)
+    set_target_properties(fuse_client PROPERTIES OUTPUT_NAME cascade_fuse_client)
+endif()
+
+# install
+install(TARGETS client server
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+if (${HAS_FUSE})
+    install(TARGETS fuse_client
+            RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 endif()
 
 add_subdirectory(python)
