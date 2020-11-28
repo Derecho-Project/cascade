@@ -165,14 +165,14 @@ hdABCDEFG#
 Please note that the file contents are deserialized byte array of the corresponding object.
 
 # Python API
-We provide python support too. If you didn't see `<build_path>/src/service/python/interactive_test.py`, it's probably because the python support is not enabled. Please following the [build guidance](../../README.md#build-cascade) for how to enable python support. Otherwise, python support is enabled and you can just use `interactive_test.py` as `cascade_client` to test the python support. It also relies on the `derecho.cfg` configuration file in current working path.
+Cascade service supports data access with Python. If you didn't see `<build_path>/src/service/python/interactive_test.py`, it's probably because the python support is not enabled. Please following the [build guidance](../../README.md#build-cascade) for how to enable python support. Otherwise, python support is enabled and you can just use `interactive_test.py` as `cascade_client` to test the python support. It also relies on the `derecho.cfg` configuration file in current work directory.
 
 Cascade python API is managed in `cascade_py.ServiceClientAPI` class. To use this API, you just import the `cascade_py` package and create an object of type `cascade_py.ServiceClientAPI` as follows.
 ```
 import cascade_py
 capi = cascade_py.ServiceClientAPI()
 ```
-Then you can just use the methods defined in `ServiceClientAPI` class, which mirror the C++ [`ServiceClientAPI` interface](https://github.com/Derecho-Project/cascade/blob/0180b419a024e980bb41c5062e37e216db2905d4/include/cascade/service.hpp#L155). Please use [`interactive_test.py`](python/interactive_test.py) as an example. 
+Then you can just use the methods defined in `ServiceClientAPI` class, which mirror the C++ [`ServiceClientAPI` interface](../../include/cascade/service.hpp#L155). Please use [`interactive_test.py`](python/interactive_test.py) as an example. 
 
 To use this api in your python application, please first install cascade. Then you can start python command and type `import cascade_py` to verify installation as follows:
 ```
@@ -208,4 +208,24 @@ sys.path.append('<path-to-cascade_py-library>')
 ```
 to tell python runtime about cascade_py location.
 
-Please note that the python API does not implement the LINQ API yet. We plan to add it later.
+Please note that the python API does not implement the LINQ support yet. We plan to add it later.
+
+# Java API
+Cascade service also supports data access using Java. Cascade cmake building script will detect the Java environment to decide whether to enable Java support. We suggest openjdk-14. For example, on Ubuntu, you can install it as follows:
+```
+# sudo apt install openjdk-14-jdk
+```
+Once Java support is built, you should see `libcascade_jni.so` and `cascade.jar` in `<build_path>/src/service/java/`. `libcascade_jni.so` is the jni shared library; and `cascade.jar` is the API library for Java applications. You should also find `client_test.jar`, the Java version of `cascade_client`. To test, prepare the `derecho.cfg` in current work directory and try
+```
+java -cp "cascade.jar:client_test.jar" io.cascade.test.ClientTest
+```
+Then it will show the same cli once connected to a server.
+
+Sometimes, cmake cannot find Java native interface(JNI) headers and libraries automatically. It will complain that JNI is not found. You can set `JAVA_HOME` environment to tell cmake the location of the JDK as follows (my java is installed in `/usr/lib/jvm/java-14-openjdk-amd64`):
+```
+export JAVA_HOME=/usr/lib/jvm/java-14-openjdk-amd64
+```
+
+To use the Java API, you just add `cascade.jar` to your classpath and import `io.cascade.*;`. The API is defined in `io.cascade.Client` mirroring the C++ [`ServiceClientAPI` interface](../../include/cascade/service.hpp#L155). Please refer to [`ClientTest.java`](java/io/cascade/test/ClientTest.java) as an example. 
+
+Please note that the Java API does not implement the LINQ support yet. We plan to add it later.
