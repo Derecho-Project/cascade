@@ -79,11 +79,11 @@ group_layout =
 # To Run the Cascade Service Example
 Once cascade is built, you will find seven folders named `n0` to `n6` in `<build_dir>/src/service/cfg/`. Each of them contains a configuration file to run a demo service node with localhost IP and RDMA API layer over TCP/IP. In the folder, start the node by calling:
 ```
-# ../../server
+# ../../cascade_server
 ```
 Since the demo service requires six nodes to start running, let's start the server nodes in `n0`, `n1`, ..., `n5` and leave `n6` for the client by calling
 ```
-# ../../client
+# ../../cascade_client
 ```
 Once the client connnects to the service, it is going to show prompt for command.
 ```
@@ -150,7 +150,7 @@ You can also check the ".cascade" file to get Cascade service properties like me
 To start the file system API, run `fuse_client` in n4:
 ```
 # mkdir fcc
-# ../../fuse_client -s -f fcc 
+# ../../cascade_fuse_client -s -f fcc 
 ```
 Then, the file system api will mount on `fcc` folder.
 ```
@@ -163,3 +163,49 @@ node IDs: 0,1,3,2,
 hdABCDEFG#
 ```
 Please note that the file contents are deserialized byte array of the corresponding object.
+
+# Python API
+We provide python support too. If you didn't see `<build_path>/src/service/python/interactive_test.py`, it's probably because the python support is not enabled. Please following the [build guidance](../../README.md#build-cascade) for how to enable python support. Otherwise, python support is enabled and you can just use `interactive_test.py` as `cascade_client` to test the python support. It also relies on the `derecho.cfg` configuration file in current working path.
+
+Cascade python API is managed in `cascade_py.ServiceClientAPI` class. To use this API, you just import the `cascade_py` package and create an object of type `cascade_py.ServiceClientAPI` as follows.
+```
+import cascade_py
+capi = cascade_py.ServiceClientAPI()
+```
+Then you can just use the methods defined in `ServiceClientAPI` class, which mirror the C++ [`ServiceClientAPI` interface](https://github.com/Derecho-Project/cascade/blob/0180b419a024e980bb41c5062e37e216db2905d4/include/cascade/service.hpp#L155). Please use [`interactive_test.py`](python/interactive_test.py) as an example. 
+
+To use this api in your python application, please first install cascade. Then you can start python command and type `import cascade_py` to verify installation as follows:
+```
+❯ python
+Python 3.8.2 (default, Jul 16 2020, 14:00:26) 
+[GCC 9.3.0] on linux
+Type "help", "copyright", "credits" or "license" for more information.
+>>> import cascade_py
+>>> print(cascade_py.__doc__)
+Python API for Cascade.
+>>> 
+```
+A common failure is python cannot find the `cascade_py` module:
+```
+❯ python
+Python 3.8.2 (default, Jul 16 2020, 14:00:26) 
+[GCC 9.3.0] on linux
+Type "help", "copyright", "credits" or "license" for more information.
+>>> import cascade_py
+Traceback (most recent call last):
+  File "<stdin>", line 1, in <module>
+ModuleNotFoundError: No module named 'cascade+py'
+>>> 
+```
+It happens when python runtime cannot locate the shared library (e.g. `cascade_py.cpython-38-x86_64-linux-gnu.so`) containing `cascade_py` module because the shared library is not on python's search path. You can either set the `PYTHONPATH` variable
+```
+export PYTHONPATH=<path-to-cascade_py-library>
+```
+or add the path before import it:
+```
+import sys
+sys.path.append('<path-to-cascade_py-library>')
+```
+to tell python runtime about cascade_py location.
+
+Please note that the python API does not implement the LINQ API yet. We plan to add it later.
