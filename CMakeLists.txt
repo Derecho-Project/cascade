@@ -99,7 +99,7 @@ configure_file (cascadeConfig.cmake
     "${CMAKE_CURRENT_BINARY_DIR}/cascade/cascadeConfig.cmake"
 )
 
-set(ConfigPackageLocation lib/cmake/cascade)
+set(ConfigPackageLocation ${CMAKE_INSTALL_LIBDIR}/cmake/cascade)
 install(EXPORT cascade
     FILE cascadeTargets.cmake
     DESTINATION ${ConfigPackageLocation}
