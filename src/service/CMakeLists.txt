@@ -63,3 +63,4 @@ if (${HAS_FUSE})
 endif()
 
 add_subdirectory(python)
+add_subdirectory(java)
