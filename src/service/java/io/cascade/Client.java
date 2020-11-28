@@ -7,6 +7,14 @@ import java.nio.ByteBuffer;
  * The client API for cascade.
  */
 public class Client {
+    /* Load JNI library */
+    static {
+        try {
+            System.loadLibrary("cascade_jni");
+        } catch (UnsatisfiedLinkError ufle) {
+            System.err.println(ufle.getMessage());
+        }
+    }
 
     /**
      * A handle that stores the memory address of the corresponding C++

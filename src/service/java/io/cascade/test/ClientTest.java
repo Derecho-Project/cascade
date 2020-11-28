@@ -13,15 +13,6 @@ import java.util.Map;
  */
 public class ClientTest {
 
-    /* Load the dynamic C++ side library. */
-    static {
-        try {
-            System.loadLibrary("cascadejavacpp");
-        } catch (UnsatisfiedLinkError e) {
-            System.out.println(e.getMessage());
-        }
-    }
-
     /** First test on whether we can get members and get shard members. */
     public static final void main1() {
         Client client = new Client();
