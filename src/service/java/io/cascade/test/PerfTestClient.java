@@ -80,15 +80,6 @@ class PollingThread extends Thread {
  */
 public class PerfTestClient {
 
-    /* Load the dynamic C++ side library. */
-    static {
-        try {
-            System.loadLibrary("cascadejavacpp");
-        } catch (UnsatisfiedLinkError e) {
-            System.out.println(e.getMessage());
-        }
-    }
-
     // 1. transmittion depth for throttling the sender
     // 0 for unlimited.
     int maxPendingOps;
