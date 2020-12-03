@@ -43,7 +43,10 @@ namespace cascade {
     /**
      * An interface for user-defined action data.
      */
-    class ActionData {};
+    class ActionData {
+    public:
+        virtual ~ActionData(){};
+    };
     
     /**
      * Action is an command passed from the on critical data path logic (cascade watcher) to the off critical data path
@@ -239,7 +242,7 @@ namespace cascade {
             std::tuple<std::type_index,uint32_t,uint32_t>,
             std::tuple<ShardMemberSelectionPolicy,node_id_t>,
             do_hash<std::tuple<std::type_index,uint32_t,uint32_t>>> member_selection_policies;
-        std::shared_mutex member_selection_policies_mutex;
+        mutable std::shared_mutex member_selection_policies_mutex;
         /**
          * 'member_cache' is a map from derecho shard to its member list. This cache is used to accelerate the member
          * choices process. If the client cannot connect to the cached member (after a couple of retries), it will refresh
@@ -249,7 +252,7 @@ namespace cascade {
             std::tuple<std::type_index,uint32_t,uint32_t>,
             std::vector<node_id_t>,
             do_hash<std::tuple<std::type_index,uint32_t,uint32_t>>> member_cache;
-        std::shared_mutex member_cache_mutex;
+        mutable std::shared_mutex member_cache_mutex;
     
         /**
          * Pick a member by a given a policy.
@@ -279,6 +282,7 @@ namespace cascade {
         ServiceClient(derecho::Group<CascadeTypes...>* _group_ptr=nullptr);
         /**
          * Derecho group helpers: They derive the API in derecho::ExternalClient.
+         * - get_my_id          return my local node id.
          * - get_members        returns all members in the top-level Derecho group.
          * - get_shard_members  returns the members in a shard specified by subgroup id(or subgroup type/index pair) and
          *   shard index.
@@ -287,15 +291,16 @@ namespace cascade {
          * During view change, the Client might experience failure if the member is gone. In such a case, the client needs
          * refresh its local member cache by calling get_shard_members.
          */
-        std::vector<node_id_t> get_members();
+        node_id_t get_my_id() const;
+        std::vector<node_id_t> get_members() const;
         // std::vector<node_id_t> get_shard_members(derecho::subgroup_id_t subgroup_id,uint32_t shard_index);
         template <typename SubgroupType>
-        std::vector<node_id_t> get_shard_members(uint32_t subgroup_index,uint32_t shard_index);
+        std::vector<node_id_t> get_shard_members(uint32_t subgroup_index,uint32_t shard_index) const;
         // template <typename SubgroupType>
         // uint32_t get_number_of_subgroups();
         // uint32_t get_number_of_shards(derecho::subgroup_id_t subgroup_id);
         template <typename SubgroupType>
-        uint32_t get_number_of_shards(uint32_t subgroup_index);
+        uint32_t get_number_of_shards(uint32_t subgroup_index) const;
     
         /**
          * Member selection policy control API.
@@ -313,7 +318,7 @@ namespace cascade {
     
         template <typename SubgroupType>
         std::tuple<ShardMemberSelectionPolicy,node_id_t> get_member_selection_policy(
-                uint32_t subgroup_index, uint32_t shard_index);
+                uint32_t subgroup_index, uint32_t shard_index) const;
     
         /**
          * "put" writes an object to a given subgroup/shard.
@@ -467,7 +472,7 @@ namespace cascade {
     private:
         /** action_queue control */
         std::list<Action>       action_queue;
-        std::mutex              action_queue_mutex;
+        mutable std::mutex      action_queue_mutex;
         std::condition_variable action_queue_cv;
         /** thread pool control */
         std::atomic<bool>               is_running;
@@ -504,6 +509,13 @@ namespace cascade {
          */
         void construct(OffCriticalDataPathObserver* off_critical_data_path_handler,
                        derecho::Group<CascadeTypes...>* group_ptr);
+        /**
+         * get the reference to encapsulated service client handle.
+         * The reference is valid only after construct() is called.
+         * 
+         * @return a reference to service client.
+         */
+        ServiceClient<CascadeTypes...>& get_service_client_ref() const;
         /**
          * post an action to the Context for processing.
          *

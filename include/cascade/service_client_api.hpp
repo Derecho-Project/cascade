@@ -2,7 +2,7 @@
 #include "service_types.hpp"
 #include "service.hpp"
 
-#if HAS_BOOLINQ
+#ifdef HAS_BOOLINQ
 #include <boolinq/boolinq.h>
 #endif
 
@@ -16,7 +16,7 @@ using ServiceClientAPI = ServiceClient<VCSU,VCSS,PCSU,PCSS>;
 /**
  * Create Linq iterators on keys or versions of keys
  */
-#if HAS_BOOLINQ
+#ifdef HAS_BOOLINQ
 
 template <typename CascadeType>
 using CascadeShardLinqStorageType = std::pair<typename std::vector<typename CascadeType::KeyType>::iterator, typename std::vector<typename CascadeType::KeyType>::iterator>;

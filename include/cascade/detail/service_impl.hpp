@@ -152,7 +152,16 @@ ServiceClient<CascadeTypes...>::ServiceClient(derecho::Group<CascadeTypes...>* _
 }
 
 template <typename... CascadeTypes>
-std::vector<node_id_t> ServiceClient<CascadeTypes...>::get_members() {
+node_id_t ServiceClient<CascadeTypes...>::get_my_id() const {
+    if (group_ptr != nullptr) {
+        return group_ptr->get_my_id();
+    } else {
+        return external_group_ptr->get_my_id();
+    }
+}
+
+template <typename... CascadeTypes>
+std::vector<node_id_t> ServiceClient<CascadeTypes...>::get_members() const {
     if (group_ptr != nullptr) {
         return group_ptr->get_members();
     } else {
@@ -175,7 +184,7 @@ std::vector<node_id_t> ServiceClient<CascadeTypes...>::get_shard_members(derecho
 
 template <typename... CascadeTypes>
 template <typename SubgroupType>
-std::vector<node_id_t> ServiceClient<CascadeTypes...>::get_shard_members(uint32_t subgroup_index, uint32_t shard_index) {
+std::vector<node_id_t> ServiceClient<CascadeTypes...>::get_shard_members(uint32_t subgroup_index, uint32_t shard_index) const {
     if (group_ptr != nullptr) {
         std::vector<std::vector<node_id_t>> subgroup_members = group_ptr->template get_subgroup_members<SubgroupType>(subgroup_index);
         if (subgroup_members.size() > shard_index) {
@@ -212,7 +221,7 @@ uint32_t ServiceClient<CascadeTypes...>::get_number_of_shards(derecho::subgroup_
 
 template <typename... CascadeTypes>
 template <typename SubgroupType>
-uint32_t ServiceClient<CascadeTypes...>::get_number_of_shards(uint32_t subgroup_index) {
+uint32_t ServiceClient<CascadeTypes...>::get_number_of_shards(uint32_t subgroup_index) const {
     if (group_ptr != nullptr) {
         return group_ptr->template get_subgroup_members<SubgroupType>(subgroup_index).size();
     } else {
@@ -234,7 +243,7 @@ void ServiceClient<CascadeTypes...>::set_member_selection_policy(uint32_t subgro
 template <typename... CascadeTypes>
 template <typename SubgroupType>
 std::tuple<ShardMemberSelectionPolicy,node_id_t> ServiceClient<CascadeTypes...>::get_member_selection_policy(
-        uint32_t subgroup_index, uint32_t shard_index) {
+        uint32_t subgroup_index, uint32_t shard_index) const {
     // read lock policies
     std::shared_lock rlck(this->member_selection_policies_mutex);
     auto key = std::make_tuple(std::type_index(typeid(SubgroupType)),subgroup_index,shard_index);
@@ -585,6 +594,11 @@ void CascadeContext<CascadeTypes...>::destroy() {
     }
     off_critical_data_path_thread_pool.clear();
     dbg_default_trace("Cascade context@{:p} is destroyed.",static_cast<void*>(this));
+}
+
+template <typename... CascadeTypes>
+ServiceClient<CascadeTypes...>& CascadeContext<CascadeTypes...>::get_service_client_ref() const {
+    return *service_client.get();
 }
 
 template <typename... CascadeTypes>
