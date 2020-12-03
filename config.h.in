@@ -1,2 +1,3 @@
-#cmakedefine HAS_FUSE 1
-#cmakedefine HAS_BOOLINQ 1
+#cmakedefine HAS_FUSE
+#cmakedefine HAS_BOOLINQ
+#cmakedefine HAS_MXNET_CPP

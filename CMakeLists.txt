@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10.0)
+cmake_minimum_required(VERSION 3.12.4)
 set(CMAKE_DISABLE_SOURCE_CHANGES ON)
 set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 project(cascade CXX)
@@ -37,13 +37,22 @@ find_package(derecho REQUIRED)
 # json
 find_package(nlohmann_json 3.2.0 REQUIRED)
 
+#opencv
+find_package(OpenCV QUIET)
+
 set(CMAKE_REQUIRED_DEFINITIONS -DFUSE_USE_VERSION=30)
+set(CMAKE_REQUIRED_LIBRARIES mxnet)
 include(CheckIncludeFiles)
+include(CheckIncludeFileCXX)
 
 # fuse
 CHECK_INCLUDE_FILES("fuse3/fuse.h;fuse3/fuse_lowlevel.h" HAS_FUSE)
+
 # boolinq
-CHECK_INCLUDE_FILES("boolinq/boolinq.h" HAS_BOOLINQ)
+CHECK_INCLUDE_FILE_CXX("boolinq/boolinq.h" HAS_BOOLINQ)
+
+#mxnet
+CHECK_INCLUDE_FILE_CXX("mxnet-cpp/MxNetCpp.h" HAS_MXNET_CPP)
 
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/cascade/config.h)
 
