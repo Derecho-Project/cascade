@@ -22,4 +22,13 @@ if (HAS_MXNET_CPP AND OPENCV_CORE_FOUND)
         $<BUILD_INTERFACE:${OpenCV_INCLUDE_DIRS}>
     )
     target_link_libraries(cnn_classifier_dpl mxnet cascade ${OpenCV_LIBS})
+
+    add_executable(cnn_classifier_client cnn_classifier_client.cpp)
+    target_include_directories(cnn_classifier_client PRIVATE
+        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<BUILD_INTERFACE:${OpenCV_INCLUDE_DIRS}>
+    )
+    target_link_libraries(cnn_classifier_client cascade ${OpenCV_LIBS})
 endif()
