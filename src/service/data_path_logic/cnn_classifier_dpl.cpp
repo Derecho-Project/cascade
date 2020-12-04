@@ -196,6 +196,7 @@ private:
     std::unique_ptr<mxnet::cpp::Executor> executor_pointer;    
     
     void load_synset() {
+        dbg_default_trace("synset file="+derecho::getConfString(DPL_CONF_FLOWER_SYNSET));
         std::ifstream fin(derecho::getConfString(DPL_CONF_FLOWER_SYNSET));
         synset_vector.clear();
         for(std::string syn;std::getline(fin,syn);) {
@@ -205,6 +206,7 @@ private:
     }
 
     void load_symbol() {
+        dbg_default_trace("symbol file="+derecho::getConfString(DPL_CONF_FLOWER_SYMBOL));
         this->net = mxnet::cpp::Symbol::Load(derecho::getConfString(DPL_CONF_FLOWER_SYMBOL));
     }
 
