@@ -31,4 +31,9 @@ if (HAS_MXNET_CPP AND OPENCV_CORE_FOUND)
         $<BUILD_INTERFACE:${OpenCV_INCLUDE_DIRS}>
     )
     target_link_libraries(cnn_classifier_client cascade ${OpenCV_LIBS})
+    add_custom_command(TARGET cnn_classifier_client POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/cnn_classifier_cfg
+        ${CMAKE_CURRENT_BINARY_DIR}/cnn_classifier_cfg
+        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/download_cnn_classifier_models.sh
+        ${CMAKE_CURRENT_BINARY_DIR}/download_cnn_classifier_models.sh)
 endif()
