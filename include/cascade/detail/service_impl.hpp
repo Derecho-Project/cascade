@@ -4,6 +4,11 @@
 #include <variant>
 #include <derecho/core/derecho.hpp>
 
+#if __GLIBC__ == 2 && __GLIBC_MINOR__ < 30
+#include <sys/syscall.h>
+#define gettid() syscall(SYS_gettid)
+#endif
+
 namespace derecho{
 namespace cascade{
 
@@ -551,7 +556,7 @@ void CascadeContext<CascadeTypes...>::construct(OffCriticalDataPathObserver* _of
 template <typename... CascadeTypes>
 void CascadeContext<CascadeTypes...>::workhorse() {
     pthread_setname_np(pthread_self(), "cascade_context");
-    dbg_default_trace("Cascade context workhorse[{}] started", gettid());
+    dbg_default_trace("Cascade context workhorse[{}] started", static_cast<uint64_t>(gettid()));
     while(is_running) {
         // waiting for an action
         std::unique_lock<std::mutex> lck(action_queue_mutex);
@@ -579,7 +584,7 @@ void CascadeContext<CascadeTypes...>::workhorse() {
             lck.unlock();
         }
     }
-    dbg_default_trace("Cascade context workhorse[{}] finished normally.", gettid());
+    dbg_default_trace("Cascade context workhorse[{}] finished normally.", static_cast<uint64_t>(gettid()));
 }
 
 template <typename... CascadeTypes>
