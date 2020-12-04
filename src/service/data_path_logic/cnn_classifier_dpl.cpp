@@ -198,9 +198,7 @@ private:
     void load_synset() {
         std::ifstream fin(derecho::getConfString(DPL_CONF_FLOWER_SYNSET));
         synset_vector.clear();
-        while(!fin.eof()) {
-            std::string syn;
-            std::getline(fin,syn);
+        for(std::string syn;std::getline(fin,syn);) {
             synset_vector.push_back(syn);
         }
         fin.close();
@@ -220,12 +218,17 @@ private:
 
     bool load_model() {
 		try {
+            dbg_default_trace("loading synset.");
             load_synset();
+            dbg_default_trace("loading symbol.");
             load_symbol();
+            dbg_default_trace("loading params.");
             load_params();
 
+            dbg_default_trace("waiting for loading.");
             mxnet::cpp::NDArray::WaitAll();
-    
+
+            dbg_default_trace("creating executor.");
             this->net.InferExecutorArrays(
                     global_ctx, &arg_arrays, &grad_arrays, &grad_reqs, &aux_arrays,
                     args_map, std::map<std::string, mxnet::cpp::NDArray>(),
@@ -234,6 +237,7 @@ private:
                 i = mxnet::cpp::OpReqType::kNullOp;
             this->executor_pointer.reset(new mxnet::cpp::Executor(
                     net, global_ctx, arg_arrays, grad_arrays, grad_reqs, aux_arrays));
+            dbg_default_trace("load_model() finished.");
 			return true;
 		} catch(const std::exception& e) {
             std::cerr << "Load model failed with exception " << e.what() << std::endl;
@@ -248,7 +252,9 @@ public:
         OffCriticalDataPathObserver(),
         global_ctx(mxnet::cpp::DeviceType::kCPU,0), // TODO: get resources from CascadeContext
         input_shape(std::vector<mxnet::cpp::index_t>({1, 3, 224, 224})) {
+        dbg_default_trace("loading model begin.");
         load_model();
+        dbg_default_trace("loading model end.");
     }
     virtual void operator () (Action&& action, ICascadeContext* ctxt) {
         std::cout << "[cnn_classifier trigger] I received an Action with type=" << std::hex << action.action_type << "; immediate_data=" << action.immediate_data << std::endl;
