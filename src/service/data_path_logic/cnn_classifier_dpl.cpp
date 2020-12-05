@@ -66,7 +66,7 @@ static StaticActionTable static_action_table;
 class ImageFrame: public ActionData,public Blob {
 public:
     std::string key;
-    ImageFrame(const std::string& k, const Blob& other): key(k), Blob(other) {}
+    ImageFrame(const std::string& k, const Blob& other): Blob(other), key(k) {}
 };
 
 enum TypeFlag {
@@ -211,7 +211,17 @@ private:
     }
 
     void load_params() {
-        this->args_map = mxnet::cpp::NDArray::LoadToMap(derecho::getConfString(DPL_CONF_FLOWER_PARAMS));
+        auto parameters = mxnet::cpp::NDArray::LoadToMap(derecho::getConfString(DPL_CONF_FLOWER_PARAMS));
+        for (const auto& kv : parameters) {
+            if (kv.first.substr(0, 4) == "aux:") {
+                auto name = kv.first.substr(4, kv.first.size() - 4);
+                this->aux_map[name] = kv.second.Copy(global_ctx);
+            } else if (kv.first.substr(0, 4) == "arg:") {
+                auto name = kv.first.substr(4, kv.first.size() - 4);
+                this->args_map[name] = kv.second.Copy(global_ctx);
+            }
+        }
+        mxnet::cpp::NDArray::WaitAll();
         this->args_map["data"] = mxnet::cpp::NDArray(input_shape, global_ctx, false, kFloat32);
         mxnet::cpp::Shape label_shape(input_shape[0]);
         this->args_map["softmax_label"] = mxnet::cpp::NDArray(label_shape, global_ctx, false);
@@ -298,7 +308,6 @@ public:
             }
 
             //TODO: send to another subgroup.
-        
             std::cout << "[cnn_classifier trigger] " << frame->key << " -> " << synset_vector[idx] << "(" << max << ")" << std::endl;
         } else {
             std::cerr << "WARNING:" << action.action_type << " to be supported yet." << std::endl;
