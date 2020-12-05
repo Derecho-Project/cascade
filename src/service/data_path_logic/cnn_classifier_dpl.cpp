@@ -268,7 +268,7 @@ public:
         load_model();
         dbg_default_trace("loading model end.");
     }
-    virtual void operator () (Action&& action, ICascadeContext* ctxt) {
+    virtual void operator () (Action&& action, ICascadeContext* cascade_ctxt) {
         std::cout << "[cnn_classifier trigger] I received an Action with type=" << std::hex << action.action_type << "; immediate_data=" << action.immediate_data << std::endl;
         if (action.action_type == AT_FLOWER_NAME) {
             // do the inference.
@@ -307,8 +307,14 @@ public:
                 }
             }
 
-            //TODO: send to another subgroup.
             std::cout << "[cnn_classifier trigger] " << frame->key << " -> " << synset_vector[idx] << "(" << max << ")" << std::endl;
+            auto* ctxt = dynamic_cast<CascadeContext<VCSU,VCSS,PCSU,PCSS>*>(cascade_ctxt);
+            PCSS::ObjectType obj(frame->key,synset_vector[idx].c_str(),synset_vector[idx].size());
+            auto result = ctxt->get_service_client_ref().template put<PCSS>(obj);
+            for (auto& reply_future:result.get()) {
+                auto reply = reply_future.second.get();
+                dbg_default_debug("node({}) replied with version:({:x},{}us)",reply_future.first,std::get<0>(reply),std::get<1>(reply));
+            }
         } else {
             std::cerr << "WARNING:" << action.action_type << " to be supported yet." << std::endl;
         }
