@@ -144,7 +144,7 @@ std::shared_ptr<CriticalDataPathObserver<PCSS>> get_critical_data_path_observer<
 #define DPL_CONF_PET_SYMBOL  "CASCADE/pet_symbol"
 #define DPL_CONF_PET_PARAMS  "CASCADE/pet_params"
 
-class ClassifierTrigger: public OffCriticalDataPathObserver {
+class InferenceEngine {
 private:
     /**
      * the synset explains inference result.
@@ -195,9 +195,9 @@ private:
      */
     std::unique_ptr<mxnet::cpp::Executor> executor_pointer;    
     
-    void load_synset() {
-        dbg_default_trace("synset file="+derecho::getConfString(DPL_CONF_FLOWER_SYNSET));
-        std::ifstream fin(derecho::getConfString(DPL_CONF_FLOWER_SYNSET));
+    void load_synset(const std::string& synset_file) {
+        dbg_default_trace("synset file="+synset_file);
+        std::ifstream fin(synset_file);
         synset_vector.clear();
         for(std::string syn;std::getline(fin,syn);) {
             synset_vector.push_back(syn);
@@ -205,13 +205,14 @@ private:
         fin.close();
     }
 
-    void load_symbol() {
-        dbg_default_trace("symbol file="+derecho::getConfString(DPL_CONF_FLOWER_SYMBOL));
-        this->net = mxnet::cpp::Symbol::Load(derecho::getConfString(DPL_CONF_FLOWER_SYMBOL));
+    void load_symbol(const std::string& symbol_file) {
+        dbg_default_trace("symbol file="+symbol_file);
+        this->net = mxnet::cpp::Symbol::Load(symbol_file);
     }
 
-    void load_params() {
-        auto parameters = mxnet::cpp::NDArray::LoadToMap(derecho::getConfString(DPL_CONF_FLOWER_PARAMS));
+    void load_params(const std::string& params_file) {
+        dbg_default_trace("params file="+params_file);
+        auto parameters = mxnet::cpp::NDArray::LoadToMap(params_file);
         for (const auto& kv : parameters) {
             if (kv.first.substr(0, 4) == "aux:") {
                 auto name = kv.first.substr(4, kv.first.size() - 4);
@@ -228,16 +229,13 @@ private:
         this->client_data = mxnet::cpp::NDArray(input_shape, global_ctx, false, kFloat32);
     }
 
-    bool load_model() {
+    bool load_model(const std::string& synset_file,
+                    const std::string& symbol_file,
+                    const std::string& params_file) {
 		try {
-            dbg_default_trace("loading synset.");
-            load_synset();
-            dbg_default_trace("loading symbol.");
-            load_symbol();
-            dbg_default_trace("loading params.");
-            load_params();
-
-            dbg_default_trace("waiting for loading.");
+            load_synset(synset_file);
+            load_symbol(symbol_file);
+            load_params(params_file);
             mxnet::cpp::NDArray::WaitAll();
 
             dbg_default_trace("creating executor.");
@@ -259,57 +257,80 @@ private:
             return false;
         }
     }
+
 public:
-    ClassifierTrigger (): 
-        OffCriticalDataPathObserver(),
+    InferenceEngine(const std::string& synset_file,
+                    const std::string& symbol_file,
+                    const std::string& params_file):
         global_ctx(mxnet::cpp::DeviceType::kCPU,0), // TODO: get resources from CascadeContext
         input_shape(std::vector<mxnet::cpp::index_t>({1, 3, 224, 224})) {
         dbg_default_trace("loading model begin.");
-        load_model();
+        load_model(synset_file, symbol_file, params_file);
         dbg_default_trace("loading model end.");
     }
+
+    std::pair<std::string,double> infer(const ImageFrame& frame) {
+        // do the inference.
+        std::vector<unsigned char> decode_buf(frame.size);
+        std::memcpy(static_cast<void*>(decode_buf.data()),
+                    static_cast<const void*>(frame.bytes),
+                    frame.size);
+        cv::Mat mat = cv::imdecode(decode_buf, cv::IMREAD_COLOR);
+        std::vector<mx_float> array;
+        // transform to fit 3x224x224 input layer
+        cv::resize(mat, mat, cv::Size(256, 256));
+        for(int c = 0; c < 3; c++) {            // channels GBR->RGB
+            for(int i = 0; i < 224; i++) {      // height
+                for(int j = 0; j < 224; j++) {  // width
+                    int _i = i + 16;
+                    int _j = j + 16;
+                    array.push_back(
+                            static_cast<float>(mat.data[(_i * 256 + _j) * 3 + (2 - c)]) / 256);
+                }
+            }
+        }
+        // copy to input layer:
+        args_map["data"].SyncCopyFromCPU(array.data(), input_shape.Size());
+    
+        this->executor_pointer->Forward(false);
+        mxnet::cpp::NDArray::WaitAll();
+        // extract the result
+        auto output_shape = executor_pointer->outputs[0].GetShape();
+        mx_float max = -1e10;
+        int idx = -1;
+        for(unsigned int jj = 0; jj < output_shape[1]; jj++) {
+            if(max < executor_pointer->outputs[0].At(0, jj)) {
+                max = executor_pointer->outputs[0].At(0, jj);
+                idx = static_cast<int>(jj);
+            }
+        }
+
+        return {synset_vector[idx],max};
+    }
+};
+
+class ClassifierTrigger: public OffCriticalDataPathObserver {
+private:
+    InferenceEngine flower_ie;
+    InferenceEngine pet_ie;
+public:
+    ClassifierTrigger (): 
+        OffCriticalDataPathObserver(),
+        flower_ie(derecho::getConfString(DPL_CONF_FLOWER_SYNSET),derecho::getConfString(DPL_CONF_FLOWER_SYMBOL),derecho::getConfString(DPL_CONF_FLOWER_PARAMS)),
+        pet_ie(derecho::getConfString(DPL_CONF_PET_SYNSET),derecho::getConfString(DPL_CONF_PET_SYMBOL),derecho::getConfString(DPL_CONF_PET_PARAMS)) {}
     virtual void operator () (Action&& action, ICascadeContext* cascade_ctxt) {
         std::cout << "[cnn_classifier trigger] I received an Action with type=" << std::hex << action.action_type << "; immediate_data=" << action.immediate_data << std::endl;
-        if (action.action_type == AT_FLOWER_NAME) {
-            // do the inference.
+        if (action.action_type == AT_FLOWER_NAME || action.action_type == AT_PET_BREED) {
 			ImageFrame* frame = dynamic_cast<ImageFrame*>(action.action_data.get());
-            std::vector<unsigned char> decode_buf(frame->size);
-            std::memcpy(static_cast<void*>(decode_buf.data()),
-                        static_cast<const void*>(frame->bytes),
-                        frame->size);
-            cv::Mat mat = cv::imdecode(decode_buf, cv::IMREAD_COLOR);
-            std::vector<mx_float> array;
-            // transform to fit 3x224x224 input layer
-            cv::resize(mat, mat, cv::Size(256, 256));
-            for(int c = 0; c < 3; c++) {            // channels GBR->RGB
-                for(int i = 0; i < 224; i++) {      // height
-                    for(int j = 0; j < 224; j++) {  // width
-                        int _i = i + 16;
-                        int _j = j + 16;
-                        array.push_back(
-                                static_cast<float>(mat.data[(_i * 256 + _j) * 3 + (2 - c)]) / 256);
-                    }
-                }
+            std::string name;
+            double soft_max;
+            if (action.action_type == AT_FLOWER_NAME) {
+                std::tie(name,soft_max) = flower_ie.infer(*frame);
+            } else {
+                std::tie(name,soft_max) = pet_ie.infer(*frame);
             }
-            // copy to input layer:
-            args_map["data"].SyncCopyFromCPU(array.data(), input_shape.Size());
-        
-            this->executor_pointer->Forward(false);
-            mxnet::cpp::NDArray::WaitAll();
-            // extract the result
-            auto output_shape = executor_pointer->outputs[0].GetShape();
-            mx_float max = -1e10;
-            int idx = -1;
-            for(unsigned int jj = 0; jj < output_shape[1]; jj++) {
-                if(max < executor_pointer->outputs[0].At(0, jj)) {
-                    max = executor_pointer->outputs[0].At(0, jj);
-                    idx = static_cast<int>(jj);
-                }
-            }
-
-            std::cout << "[cnn_classifier trigger] " << frame->key << " -> " << synset_vector[idx] << "(" << max << ")" << std::endl;
             auto* ctxt = dynamic_cast<CascadeContext<VCSU,VCSS,PCSU,PCSS>*>(cascade_ctxt);
-            PCSS::ObjectType obj(frame->key,synset_vector[idx].c_str(),synset_vector[idx].size());
+            PCSS::ObjectType obj(frame->key,name.c_str(),name.size());
             auto result = ctxt->get_service_client_ref().template put<PCSS>(obj);
             for (auto& reply_future:result.get()) {
                 auto reply = reply_future.second.get();
