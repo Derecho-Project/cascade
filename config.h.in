@@ -1,3 +1,5 @@
 #cmakedefine HAS_FUSE
 #cmakedefine HAS_BOOLINQ
 #cmakedefine HAS_MXNET_CPP
+#cmakedefine HAS_NVIDIA_GPU
+#cmakedefine ENABLE_EVALUATION
