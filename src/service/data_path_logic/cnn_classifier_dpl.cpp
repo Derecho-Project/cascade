@@ -1,3 +1,4 @@
+#include <cascade/config.h>
 #include <cascade/service_server_api.hpp>
 #include <iostream>
 #include <mxnet-cpp/MxNetCpp.h>
@@ -262,7 +263,11 @@ public:
     InferenceEngine(const std::string& synset_file,
                     const std::string& symbol_file,
                     const std::string& params_file):
+#ifdef HAS_NVIDIA_GPU
+        global_ctx(mxnet::cpp::DeviceType::kGPU,1), // TODO: get resources from CascadeContext
+#else // use CPU instead.
         global_ctx(mxnet::cpp::DeviceType::kCPU,0), // TODO: get resources from CascadeContext
+#endif
         input_shape(std::vector<mxnet::cpp::index_t>({1, 3, 224, 224})) {
         dbg_default_trace("loading model begin.");
         load_model(synset_file, symbol_file, params_file);
@@ -289,6 +294,10 @@ public:
                 }
             }
         }
+
+#ifdef ENABLE_EVALUATION
+        uint64_t start_ns = get_time();
+#endif
         // copy to input layer:
         args_map["data"].SyncCopyFromCPU(array.data(), input_shape.Size());
     
@@ -296,14 +305,21 @@ public:
         mxnet::cpp::NDArray::WaitAll();
         // extract the result
         auto output_shape = executor_pointer->outputs[0].GetShape();
+        mxnet::cpp::NDArray output_in_cpu(output_shape,mxnet::cpp::Context::cpu());
+        executor_pointer->outputs[0].CopyTo(&output_in_cpu);
+        mxnet::cpp::NDArray::WaitAll();
         mx_float max = -1e10;
         int idx = -1;
         for(unsigned int jj = 0; jj < output_shape[1]; jj++) {
-            if(max < executor_pointer->outputs[0].At(0, jj)) {
-                max = executor_pointer->outputs[0].At(0, jj);
+            if(max < output_in_cpu.At(0, jj)) {
+                max = output_in_cpu.At(0, jj);
                 idx = static_cast<int>(jj);
             }
         }
+#ifdef ENABLE_EVALUATION
+        uint64_t end_ns = get_time();
+        std::cout << "[EVALUATION] inference took " << std::dec << (end_ns-start_ns) << " ns" << std::endl;
+#endif
 
         return {synset_vector[idx],max};
     }

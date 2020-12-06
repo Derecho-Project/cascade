@@ -54,6 +54,12 @@ CHECK_INCLUDE_FILE_CXX("boolinq/boolinq.h" HAS_BOOLINQ)
 #mxnet
 CHECK_INCLUDE_FILE_CXX("mxnet-cpp/MxNetCpp.h" HAS_MXNET_CPP)
 
+# enable gpu
+set (HAS_NVIDIA_GPU 1)
+
+# enable evaluation
+set (ENABLE_EVALUATION 1)
+
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/cascade/config.h)
 
 add_subdirectory(src/core)
