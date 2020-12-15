@@ -231,19 +231,21 @@ namespace cascade {
         CascadeWatcher<KT,VT,IK,IV>* cascade_watcher_ptr;
         
         REGISTER_RPC_FUNCTIONS(VolatileCascadeStore,
-                               put,
-                               remove,
-                               get,
-                               get_by_time,
-                               list_keys,
-                               list_keys_by_time,
-                               get_size,
-                               get_size_by_time,
-                               ordered_put,
-                               ordered_remove,
-                               ordered_get,
-                               ordered_list_keys,
-                               ordered_get_size);
+                               P2P_TARGETS(
+                                   put,
+                                   remove,
+                                   get,
+                                   get_by_time,
+                                   list_keys,
+                                   list_keys_by_time,
+                                   get_size,
+                                   get_size_by_time),
+                               ORDERED_TARGETS(
+                                   ordered_put,
+                                   ordered_remove,
+                                   ordered_get,
+                                   ordered_list_keys,
+                                   ordered_get_size));
         virtual std::tuple<persistent::version_t,uint64_t> put(const VT& value) override;
         virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) override;
         virtual const VT get(const KT& key, const persistent::version_t& ver, bool exact=false) override;
@@ -377,19 +379,21 @@ namespace cascade {
         std::shared_ptr<CascadeWatcher<KT,VT,IK,IV>> cascade_watcher_ptr;
         
         REGISTER_RPC_FUNCTIONS(PersistentCascadeStore,
-                               put,
-                               remove,
-                               get,
-                               get_by_time,
-                               list_keys,
-                               list_keys_by_time,
-                               get_size,
-                               get_size_by_time,
-                               ordered_put,
-                               ordered_remove,
-                               ordered_get,
-                               ordered_list_keys,
-                               ordered_get_size);
+                               P2P_TARGETS(
+                                   put,
+                                   remove,
+                                   get,
+                                   get_by_time,
+                                   list_keys,
+                                   list_keys_by_time,
+                                   get_size,
+                                   get_size_by_time),
+                               ORDERED_TARGETS(
+                                   ordered_put,
+                                   ordered_remove,
+                                   ordered_get,
+                                   ordered_list_keys,
+                                   ordered_get_size));
         virtual std::tuple<persistent::version_t,uint64_t> put(const VT& value) override;
         virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) override;
         virtual const VT get(const KT& key, const persistent::version_t& ver, bool exact=false) override;
