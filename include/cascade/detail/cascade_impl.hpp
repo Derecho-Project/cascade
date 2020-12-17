@@ -17,7 +17,7 @@ namespace cascade {
 ///////////////////////////////////////////////////////////////////////////////
 
 template<typename KT, typename VT, KT* IK, VT* IV>
-std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::put(const VT& value) {
+std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::put(const VT& value) const {
     debug_enter_func_with_args("value.get_key_ref={}",value.get_key_ref());
     derecho::Replicated<VolatileCascadeStore>& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put)>(value);
@@ -32,7 +32,7 @@ std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::pu
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
-std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::remove(const KT& key) {
+std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::remove(const KT& key) const {
     debug_enter_func_with_args("key={}",key);
     derecho::Replicated<VolatileCascadeStore>& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_remove)>(key);
@@ -47,7 +47,7 @@ std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::re
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
-const VT VolatileCascadeStore<KT,VT,IK,IV>::get(const KT& key, const persistent::version_t& ver, bool) {
+const VT VolatileCascadeStore<KT,VT,IK,IV>::get(const KT& key, const persistent::version_t& ver, bool) const {
     debug_enter_func_with_args("key={},ver=0x{:x}",key,ver);
     if (ver != CURRENT_VERSION) {
         debug_leave_func_with_value("Cannot support versioned get, ver=0x{:x}", ver);
@@ -65,7 +65,7 @@ const VT VolatileCascadeStore<KT,VT,IK,IV>::get(const KT& key, const persistent:
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
-const VT VolatileCascadeStore<KT,VT,IK,IV>::get_by_time(const KT& key, const uint64_t& ts_us) {
+const VT VolatileCascadeStore<KT,VT,IK,IV>::get_by_time(const KT& key, const uint64_t& ts_us) const {
     // VolatileCascadeStore does not support this.
     debug_enter_func();
     debug_leave_func();
@@ -74,7 +74,7 @@ const VT VolatileCascadeStore<KT,VT,IK,IV>::get_by_time(const KT& key, const uin
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
-std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::list_keys(const persistent::version_t& ver) {
+std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::list_keys(const persistent::version_t& ver) const {
     debug_enter_func_with_args("ver=0x{:x}",ver);
     if (ver != CURRENT_VERSION) {
         debug_leave_func_with_value("Cannot support versioned list_keys, ver=0x{:x}", ver);
@@ -93,7 +93,7 @@ std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::list_keys(const persistent::v
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
-std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::list_keys_by_time(const uint64_t& ts_us) {
+std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::list_keys_by_time(const uint64_t& ts_us) const {
     // VolatileCascadeStore does not support this.
     debug_enter_func_with_args("ts_us=0x{:x}", ts_us);
     debug_leave_func();
@@ -101,7 +101,7 @@ std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::list_keys_by_time(const uint6
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
-uint64_t VolatileCascadeStore<KT,VT,IK,IV>::get_size(const KT& key, const persistent::version_t& ver, bool) {
+uint64_t VolatileCascadeStore<KT,VT,IK,IV>::get_size(const KT& key, const persistent::version_t& ver, bool) const {
     debug_enter_func_with_args("key={},ver=0x{:x}",key,ver);
     if (ver != CURRENT_VERSION) {
         debug_leave_func_with_value("Cannot support versioned get, ver=0x{:x}", ver);
@@ -119,7 +119,7 @@ uint64_t VolatileCascadeStore<KT,VT,IK,IV>::get_size(const KT& key, const persis
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
-uint64_t VolatileCascadeStore<KT,VT,IK,IV>::get_size_by_time(const KT& key, const uint64_t& ts_us) {
+uint64_t VolatileCascadeStore<KT,VT,IK,IV>::get_size_by_time(const KT& key, const uint64_t& ts_us) const {
     // VolatileCascadeStore does not support this.
     debug_enter_func();
 
@@ -514,7 +514,7 @@ DeltaCascadeStoreCore<KT,VT,IK,IV>::~DeltaCascadeStoreCore() {
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST>::put(const VT& value) {
+std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST>::put(const VT& value) const {
     debug_enter_func_with_args("value.get_key_ref()={}",value.get_key_ref());
     derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put)>(value);
@@ -529,7 +529,7 @@ std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST>::remove(const KT& key) {
+std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST>::remove(const KT& key) const {
     debug_enter_func_with_args("key={}",key);
     derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_remove)>(key);
@@ -544,7 +544,7 @@ std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-const VT PersistentCascadeStore<KT,VT,IK,IV,ST>::get(const KT& key, const persistent::version_t& ver, bool exact) {
+const VT PersistentCascadeStore<KT,VT,IK,IV,ST>::get(const KT& key, const persistent::version_t& ver, bool exact) const {
     debug_enter_func_with_args("key={},ver=0x{:x}",key,ver);
     if (ver != CURRENT_VERSION) {
         debug_leave_func();
@@ -578,7 +578,7 @@ const VT PersistentCascadeStore<KT,VT,IK,IV,ST>::get(const KT& key, const persis
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-const VT PersistentCascadeStore<KT,VT,IK,IV,ST>::get_by_time(const KT& key, const uint64_t& ts_us) {
+const VT PersistentCascadeStore<KT,VT,IK,IV,ST>::get_by_time(const KT& key, const uint64_t& ts_us) const {
     debug_enter_func_with_args("key={},ts_us={}",key,ts_us);
     const HLC hlc(ts_us,0ull);
     try {
@@ -605,7 +605,7 @@ const VT PersistentCascadeStore<KT,VT,IK,IV,ST>::get_by_time(const KT& key, cons
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-uint64_t PersistentCascadeStore<KT,VT,IK,IV,ST>::get_size(const KT& key, const persistent::version_t& ver, bool exact) {
+uint64_t PersistentCascadeStore<KT,VT,IK,IV,ST>::get_size(const KT& key, const persistent::version_t& ver, bool exact) const {
     debug_enter_func_with_args("key={},ver=0x{:x}",key,ver);
     if (ver != CURRENT_VERSION) {
         if (exact) {
@@ -626,7 +626,7 @@ uint64_t PersistentCascadeStore<KT,VT,IK,IV,ST>::get_size(const KT& key, const p
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-uint64_t PersistentCascadeStore<KT,VT,IK,IV,ST>::get_size_by_time(const KT& key, const uint64_t& ts_us) {
+uint64_t PersistentCascadeStore<KT,VT,IK,IV,ST>::get_size_by_time(const KT& key, const uint64_t& ts_us) const {
     debug_enter_func_with_args("key={},ts_us={}",key,ts_us);
     const HLC hlc(ts_us,0ull);
     try {
@@ -642,7 +642,7 @@ uint64_t PersistentCascadeStore<KT,VT,IK,IV,ST>::get_size_by_time(const KT& key,
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::list_keys(const persistent::version_t& ver) {
+std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::list_keys(const persistent::version_t& ver) const {
     debug_enter_func_with_args("ver=0x{:x}.",ver);
     if (ver != CURRENT_VERSION) {
         std::vector<KT> key_list;
@@ -662,7 +662,7 @@ std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::list_keys(const persiste
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::list_keys_by_time(const uint64_t& ts_us) {
+std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::list_keys_by_time(const uint64_t& ts_us) const {
     debug_enter_func_with_args("ts_us={}",ts_us);
     const HLC hlc(ts_us,0ull);
     try {
