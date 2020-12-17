@@ -62,4 +62,5 @@ This will install the following cascade components:
 There are two ways to use Cascade in an application. You can use Cascade as a standalone service with pre-defined K/V types and configurable layout. Or, you can use the Cascade storage templates (defined in Cascade ) as building blocks to build the application using the Derecho group framework. Please refer to [Cascade service's README](https://github.com/Derecho-Project/cascade/tree/master/src/service) for using Cascade as a service and [cli_example README](https://github.com/Derecho-Project/cascade/tree/master/src/test) for using Cascade components to build your own binary with customized key type and value type.
 
 # New Features to Come
-1) Off-critical data path feature.
+1) Metadata service
+2) Resource management
