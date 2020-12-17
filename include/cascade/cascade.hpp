@@ -73,7 +73,7 @@ namespace cascade {
          *
          * @return a tuple including version number (version_t) and a timestamp in microseconds.
          */
-        virtual std::tuple<persistent::version_t,uint64_t> put(const VT& value) = 0;
+        virtual std::tuple<persistent::version_t,uint64_t> put(const VT& value) const = 0;
         /**
          * remove(const KT&)
          *
@@ -83,7 +83,7 @@ namespace cascade {
          *
          * @return a tuple including version number (version_t) and a timestamp in microseconds.
          */
-        virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) = 0;
+        virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) const = 0;
         /**
          * get(const KT&,const persistent::version_t&)
          *
@@ -103,7 +103,7 @@ namespace cascade {
          *
          * @throws std::runtime_error, if requested value is not found.
          */
-        virtual const VT get(const KT& key, const persistent::version_t& ver, bool exact=false) = 0;
+        virtual const VT get(const KT& key, const persistent::version_t& ver, bool exact=false) const = 0;
         /**
          * get(const KT&, const uint64_t& ts_us)
          * 
@@ -118,7 +118,7 @@ namespace cascade {
          *
          * @return a value
          */
-        virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) = 0;
+        virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) const = 0;
         /**
          * list_keys(const persistent::version_t& ver)
          *
@@ -131,7 +131,7 @@ namespace cascade {
          *
          * @return a list of keys.
          */
-        virtual std::vector<KT> list_keys(const persistent::version_t& ver) = 0;
+        virtual std::vector<KT> list_keys(const persistent::version_t& ver) const = 0;
         /**
          * list_keys_by_time(const uint64_t&)
          *
@@ -145,7 +145,7 @@ namespace cascade {
          *
          * @return a list of keys.
          */
-        virtual std::vector<KT> list_keys_by_time(const uint64_t& ts_us) = 0;
+        virtual std::vector<KT> list_keys_by_time(const uint64_t& ts_us) const = 0;
         /**
          * get_size(const KT&,const persistent::version_t&,bool)
          *
@@ -163,7 +163,7 @@ namespace cascade {
          *
          * @return the size of serialized value.
          */
-        virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, bool exact=false) = 0;
+        virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, bool exact=false) const = 0;
         /**
          * get_size_by_time(const KT&,const uint64_t&)
          *
@@ -178,7 +178,7 @@ namespace cascade {
          *
          * @return the size of serialized value.
          */
-        virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us) = 0;
+        virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us) const = 0;
 
     protected:
         /**
@@ -231,27 +231,29 @@ namespace cascade {
         CascadeWatcher<KT,VT,IK,IV>* cascade_watcher_ptr;
         
         REGISTER_RPC_FUNCTIONS(VolatileCascadeStore,
-                               put,
-                               remove,
-                               get,
-                               get_by_time,
-                               list_keys,
-                               list_keys_by_time,
-                               get_size,
-                               get_size_by_time,
-                               ordered_put,
-                               ordered_remove,
-                               ordered_get,
-                               ordered_list_keys,
-                               ordered_get_size);
-        virtual std::tuple<persistent::version_t,uint64_t> put(const VT& value) override;
-        virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) override;
-        virtual const VT get(const KT& key, const persistent::version_t& ver, bool exact=false) override;
-        virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) override;
-        virtual std::vector<KT> list_keys(const persistent::version_t& ver) override;
-        virtual std::vector<KT> list_keys_by_time(const uint64_t& ts_us) override;
-        virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, bool exact=false) override;
-        virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us) override;
+                               P2P_TARGETS(
+                                   put,
+                                   remove,
+                                   get,
+                                   get_by_time,
+                                   list_keys,
+                                   list_keys_by_time,
+                                   get_size,
+                                   get_size_by_time),
+                               ORDERED_TARGETS(
+                                   ordered_put,
+                                   ordered_remove,
+                                   ordered_get,
+                                   ordered_list_keys,
+                                   ordered_get_size));
+        virtual std::tuple<persistent::version_t,uint64_t> put(const VT& value) const override;
+        virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) const override;
+        virtual const VT get(const KT& key, const persistent::version_t& ver, bool exact=false) const override;
+        virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) const override;
+        virtual std::vector<KT> list_keys(const persistent::version_t& ver) const override;
+        virtual std::vector<KT> list_keys_by_time(const uint64_t& ts_us) const override;
+        virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, bool exact=false) const override;
+        virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us) const override;
         virtual std::tuple<persistent::version_t,uint64_t> ordered_put(const VT& value) override;
         virtual std::tuple<persistent::version_t,uint64_t> ordered_remove(const KT& key) override;
         virtual const VT ordered_get(const KT& key) override;
@@ -377,27 +379,29 @@ namespace cascade {
         std::shared_ptr<CascadeWatcher<KT,VT,IK,IV>> cascade_watcher_ptr;
         
         REGISTER_RPC_FUNCTIONS(PersistentCascadeStore,
-                               put,
-                               remove,
-                               get,
-                               get_by_time,
-                               list_keys,
-                               list_keys_by_time,
-                               get_size,
-                               get_size_by_time,
-                               ordered_put,
-                               ordered_remove,
-                               ordered_get,
-                               ordered_list_keys,
-                               ordered_get_size);
-        virtual std::tuple<persistent::version_t,uint64_t> put(const VT& value) override;
-        virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) override;
-        virtual const VT get(const KT& key, const persistent::version_t& ver, bool exact=false) override;
-        virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) override;
-        virtual std::vector<KT> list_keys(const persistent::version_t& ver) override;
-        virtual std::vector<KT> list_keys_by_time(const uint64_t& ts_us) override;
-        virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, bool exact=false) override;
-        virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us) override;
+                               P2P_TARGETS(
+                                   put,
+                                   remove,
+                                   get,
+                                   get_by_time,
+                                   list_keys,
+                                   list_keys_by_time,
+                                   get_size,
+                                   get_size_by_time),
+                               ORDERED_TARGETS(
+                                   ordered_put,
+                                   ordered_remove,
+                                   ordered_get,
+                                   ordered_list_keys,
+                                   ordered_get_size));
+        virtual std::tuple<persistent::version_t,uint64_t> put(const VT& value) const override;
+        virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) const override;
+        virtual const VT get(const KT& key, const persistent::version_t& ver, bool exact=false) const override;
+        virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) const override;
+        virtual std::vector<KT> list_keys(const persistent::version_t& ver) const override;
+        virtual std::vector<KT> list_keys_by_time(const uint64_t& ts_us) const override;
+        virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, bool exact=false) const override;
+        virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us) const override;
         virtual std::tuple<persistent::version_t,uint64_t> ordered_put(const VT& value) override;
         virtual std::tuple<persistent::version_t,uint64_t> ordered_remove(const KT& key) override;
         virtual const VT ordered_get(const KT& key) override;
