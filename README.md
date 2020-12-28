@@ -23,7 +23,7 @@ Cascade is a C++17 cloud application framework powered by optimized RDMA data pa
 
 ## Prerequisites
 - Linux (other operating systems don't currently support the RDMA features we use. We recommend Ubuntu18 or Ubuntu20. However, other distributions should also work.)
-- A C++ compiler supporting C++17: GCC 7.3+ or Clang 7+
+- A C++ compiler supporting C++17: GCC 8.3+
 - CMake 3.10 or newer
 - [Lohmann's json parser](https://github.com/nlohmann) v3.2.0 or newer
 - [libfuse](https://github.com/libfuse) v3.9.3 or newer (Optional for file system API)
