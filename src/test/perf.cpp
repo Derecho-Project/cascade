@@ -224,7 +224,7 @@ struct client_states {
                 derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>>::ReplyMap& replies = f.get();
                 for (auto& reply_pair : replies) {
                     auto r = reply_pair.second.get();
-                    dbg_default_trace("polled <{},{}> from <>.",std::get<0>(r),std::get<1>(r),reply_pair.first);
+                    dbg_default_trace("polled <{},{}> from {}.",std::get<0>(r),std::get<1>(r),reply_pair.first);
                 }
                 // log time
                 this->recv_tss[future_counter++] = get_time_us();
