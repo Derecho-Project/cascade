@@ -21,21 +21,20 @@ void on_cascade_exit();
  * The critical data path observers
  *
  * Application specifies the critical data path observer by providing CriticalDataPathObserver implementations for each
- * of the Cascade subgroup types in the service: VCSU/PCSU/VCSS/PCSS. The definition of the above types is in
- * "service_types.hpp" and "cascade.hpp".
+ * of the Cascade subgroup types in the service: VolatileCascadeStoreWithStringKey/PersistentCascadeStoreWithStringKey.
+ * The definition of the above types is in "service_types.hpp" and "cascade.hpp".
  *
- * To process data on the critical path, an application programmer need implement corresponding CriticalDataPathObserver
+ * To process data on the critical path, an application programmer needs to implement corresponding CriticalDataPathObserver
  * for each of the Cascade subgroup types. Once the observer implementations are ready, the application is required to
  * implement the following functions exposed as shared library API:
  * 
  * template <>
- * std::shared_ptr<CriticalDataPathObserver<VCSU>> get_critical_data_path_observer<VCSU>();
+ * std::shared_ptr<CriticalDataPathObserver<VolatileCascadeStoreWithStringKey>> 
+ *  get_critical_data_path_observer<VolatileCascadeStoreWithStringKey>();
+ * 
  * template <>
- * std::shared_ptr<CriticalDataPathObserver<VCSS>> get_critical_data_path_observer<VCSS>();
- * template <>
- * std::shared_ptr<CriticalDataPathObserver<PCSU>> get_critical_data_path_observer<PCSU>();
- * template <>
- * std::shared_ptr<CriticalDataPathObserver<PCSS>> get_critical_data_path_observer<PCSS>();
+ * std::shared_ptr<CriticalDataPathObserver<PersistentCascadeStoreWithStringKey>> 
+ *  get_critical_data_path_observer<PersistentCascadeStoreWithStringKey>();
  *
  * @return a shared pointer to the CriticalDataPathObserver implementation. Cascade service will hold this pointer using its
  * lifetime.
@@ -44,13 +43,12 @@ template <typename CascadeType>
 std::shared_ptr<CriticalDataPathObserver<CascadeType>> get_critical_data_path_observer();
 
 template <>
-std::shared_ptr<CriticalDataPathObserver<VCSU>> get_critical_data_path_observer<VCSU>();
+std::shared_ptr<CriticalDataPathObserver<VolatileCascadeStoreWithStringKey>>
+get_critical_data_path_observer<VolatileCascadeStoreWithStringKey>();
+
 template <>
-std::shared_ptr<CriticalDataPathObserver<VCSS>> get_critical_data_path_observer<VCSS>();
-template <>
-std::shared_ptr<CriticalDataPathObserver<PCSU>> get_critical_data_path_observer<PCSU>();
-template <>
-std::shared_ptr<CriticalDataPathObserver<PCSS>> get_critical_data_path_observer<PCSS>();
+std::shared_ptr<CriticalDataPathObserver<PersistentCascadeStoreWithStringKey>>
+get_critical_data_path_observer<PersistentCascadeStoreWithStringKey>();
 
 /**
  * The off critical data path observer

@@ -12,14 +12,10 @@ using namespace derecho::cascade;
 namespace py = pybind11;
 
 #define on_subgroup_type(x, ft, ...) \
-    if ((x) == "VCSU") { \
-        ft <VCSU>(__VA_ARGS__); \
-    } else if ((x) == "VCSS") { \
-        ft <VCSS>(__VA_ARGS__); \
-    } else if ((x) == "PCSU") { \
-        ft <PCSU>(__VA_ARGS__); \
+    if ((x) == "VCSS") { \
+        ft <VolatileCascadeStoreWithStringKey>(__VA_ARGS__); \
     } else if ((x) == "PCSS") { \
-        ft <PCSS>(__VA_ARGS__); \
+        ft <PersistentCascadeStoreWithStringKey>(__VA_ARGS__); \
     } else { \
         print_red("unknown subgroup type:" + x); \
     } \

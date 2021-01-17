@@ -12,12 +12,10 @@
  * flower picture. The result will be stored in a persisted cascade subgroup.
  *
  * We create an environment with the following layout:
- * - Subgroup VCSU:0 - not used.
- * - Subgroup VCSS:0 - categorizer subgroup processes the incoming data and send the result to PCSS:0. VCSS:0 has one
+ * - Subgroup VolatileCascadeStoreWithStringKey:0 - categorizer subgroup processes the incoming data and send the result to PersistentCascadeStoreWithStringKey:0. VolatileCascadeStoreWithStringKey:0 has one
  *                     two-nodes shard for this subgroup. The two nodes process partition the key space bashed on
  *                     a hash function.
- * - Subgroup PCSU:0 - not used.
- * - Subgroup PCSS:0 - persisted tag shard, which stores all the tags. The keys mirror those in VCSS:0. PCSS:0 has one
+ * - Subgroup PersistentCascadeStoreWithStringKey:0 - persisted tag shard, which stores all the tags. The keys mirror those in VolatileCascadeStoreWithStringKey:0. PersistentCascadeStoreWithStringKey:0 has one
  *                     three-node shard for this subgroup.
  *
  * TODO: critical data path --> filter/dispatcher; off critical data path --> trigger
@@ -95,10 +93,10 @@ class ClassifierFilter: public CriticalDataPathObserver<CascadeType> {
                   << " and value = " << value
                   << " . cascade_ctxt = " << cascade_ctxt 
                   << std::endl;
-        auto* ctxt = dynamic_cast<CascadeContext<VCSU,VCSS,PCSU,PCSS>*>(cascade_ctxt);
+        auto* ctxt = dynamic_cast<CascadeContext<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey>*>(cascade_ctxt);
 
-        // skip non VCSS subgroups
-        if constexpr (std::is_same<CascadeType,VCSS>::value) {
+        // skip non VolatileCascadeStoreWithStringKey subgroups
+        if constexpr (std::is_same<CascadeType,VolatileCascadeStoreWithStringKey>::value) {
             // skip irrelevant subgroups and shards
             if (sgidx != 0 || shidx !=0) {
                 return;
@@ -119,23 +117,13 @@ class ClassifierFilter: public CriticalDataPathObserver<CascadeType> {
 };
 
 template <>
-std::shared_ptr<CriticalDataPathObserver<VCSU>> get_critical_data_path_observer<VCSU>() {
-    return std::make_shared<ClassifierFilter<VCSU>>();
+std::shared_ptr<CriticalDataPathObserver<VolatileCascadeStoreWithStringKey>> get_critical_data_path_observer<VolatileCascadeStoreWithStringKey>() {
+    return std::make_shared<ClassifierFilter<VolatileCascadeStoreWithStringKey>>();
 }
 
 template <>
-std::shared_ptr<CriticalDataPathObserver<PCSU>> get_critical_data_path_observer<PCSU>() {
-    return std::make_shared<ClassifierFilter<PCSU>>();
-}
-
-template <>
-std::shared_ptr<CriticalDataPathObserver<VCSS>> get_critical_data_path_observer<VCSS>() {
-    return std::make_shared<ClassifierFilter<VCSS>>();
-}
-
-template <>
-std::shared_ptr<CriticalDataPathObserver<PCSS>> get_critical_data_path_observer<PCSS>() {
-    return std::make_shared<ClassifierFilter<PCSS>>();
+std::shared_ptr<CriticalDataPathObserver<PersistentCascadeStoreWithStringKey>> get_critical_data_path_observer<PersistentCascadeStoreWithStringKey>() {
+    return std::make_shared<ClassifierFilter<PersistentCascadeStoreWithStringKey>>();
 }
 
 #define DPL_CONF_FLOWER_SYNSET  "CASCADE/flower_synset"
@@ -345,9 +333,9 @@ public:
             } else {
                 std::tie(name,soft_max) = pet_ie.infer(*frame);
             }
-            auto* ctxt = dynamic_cast<CascadeContext<VCSU,VCSS,PCSU,PCSS>*>(cascade_ctxt);
-            PCSS::ObjectType obj(frame->key,name.c_str(),name.size());
-            auto result = ctxt->get_service_client_ref().template put<PCSS>(obj);
+            auto* ctxt = dynamic_cast<CascadeContext<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey>*>(cascade_ctxt);
+            PersistentCascadeStoreWithStringKey::ObjectType obj(frame->key,name.c_str(),name.size());
+            auto result = ctxt->get_service_client_ref().template put<PersistentCascadeStoreWithStringKey>(obj);
             for (auto& reply_future:result.get()) {
                 auto reply = reply_future.second.get();
                 dbg_default_debug("node({}) replied with version:({:x},{}us)",reply_future.first,std::get<0>(reply),std::get<1>(reply));

@@ -10,7 +10,7 @@
 
 using namespace derecho::cascade;
 
-VCSS::ObjectType get_photo_object(const char* type, const char* key, const char* photo_file) {
+VolatileCascadeStoreWithStringKey::ObjectType get_photo_object(const char* type, const char* key, const char* photo_file) {
     int fd;
     struct stat st;
     void* file_data;
@@ -18,18 +18,18 @@ VCSS::ObjectType get_photo_object(const char* type, const char* key, const char*
     // open and map file
     if(stat(photo_file, &st) || access(photo_file, R_OK)) {
 		std::cerr << "file " << photo_file << " is not readable." << std::endl;
-		return VCSS::ObjectType::IV;
+		return VolatileCascadeStoreWithStringKey::ObjectType::IV;
     }
 
     if((S_IFMT & st.st_mode) != S_IFREG) {
 		std::cerr << photo_file << " is not a regular file." << std::endl;
-		return VCSS::ObjectType::IV;
+		return VolatileCascadeStoreWithStringKey::ObjectType::IV;
     }
 
     if((fd = open(photo_file, O_RDONLY)) < 0) {
         std::cerr << "Failed to open file(" << photo_file << ") in readonly mode with "
                   << "error:" << strerror(errno) << "." << std::endl;
-        return VCSS::ObjectType::IV;
+        return VolatileCascadeStoreWithStringKey::ObjectType::IV;
     }
 
     if((file_data = mmap(nullptr, st.st_size, PROT_READ, MAP_PRIVATE | MAP_POPULATE,
@@ -37,11 +37,11 @@ VCSS::ObjectType get_photo_object(const char* type, const char* key, const char*
        == MAP_FAILED) {
         std::cerr << "Failed to map file(" << photo_file << ") with "
                   << "error:" << strerror(errno) << "." << std::endl;
-        return VCSS::ObjectType::IV;
+        return VolatileCascadeStoreWithStringKey::ObjectType::IV;
     }
     
     // create Object
-    return VCSS::ObjectType(std::string(type)+"/"+key,static_cast<const char*>(file_data),st.st_size);
+    return VolatileCascadeStoreWithStringKey::ObjectType(std::string(type)+"/"+key,static_cast<const char*>(file_data),st.st_size);
 }
 
 /**
@@ -99,7 +99,7 @@ int main(int argc, char** argv) {
         // STEP 2: send to server
         ServiceClientAPI capi;
         // send to the subgroup 0, shard 0
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ret = capi.template put<VCSS>(obj, 0, 0);
+        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ret = capi.template put<VolatileCascadeStoreWithStringKey>(obj, 0, 0);
         for (auto& reply_future:ret.get()) {
             auto reply = reply_future.second.get();
             std::cout << "node(" << reply_future.first << ") replied with version:" << std::get<0>(reply)
