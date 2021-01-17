@@ -128,7 +128,7 @@ int get_value(JNIEnv *env, jobject service_type)
  * Method:    getShardMembers
  * Signature: (Lio/cascade/ServiceType;JJ)Ljava/util/List;
  */
-JNIEXPORT jobject JNICALL Java_io_cascade_Client_getShardMembers__Lio_cascade_ServiceType_2JJ(JNIEnv *env, jobject obj, jobject service_type, jlong subgroup_index, jlong shard_index)
+JNIEXPORT jobject JNICALL Java_io_cascade_Client_getShardMembers(JNIEnv *env, jobject obj, jobject service_type, jlong subgroup_index, jlong shard_index)
 {
     // get the value of the service type
     int val = get_value(env, service_type);
