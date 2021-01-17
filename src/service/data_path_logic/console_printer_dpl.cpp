@@ -27,7 +27,7 @@ class ExampleCPDO: public CriticalDataPathObserver<CascadeType> {
                   << " and value = " << value
                   << " . cascade_ctxt = " << cascade_ctxt 
                   << std::endl;
-        auto* ctxt = dynamic_cast<CascadeContext<VCSU,VCSS,PCSU,PCSS>*>(cascade_ctxt);
+        auto* ctxt = dynamic_cast<CascadeContext<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey>*>(cascade_ctxt);
         Action act;
         act.action_type = static_cast<uint64_t>(typeid(CascadeType).hash_code());
         act.immediate_data = (static_cast<uint64_t>(sgidx)<<32) + shidx; // user defined type, we use subgroup_index(32bit)|shard_index(32bit)
@@ -36,23 +36,13 @@ class ExampleCPDO: public CriticalDataPathObserver<CascadeType> {
 };
 
 template <>
-std::shared_ptr<CriticalDataPathObserver<VCSU>> get_critical_data_path_observer<VCSU>() {
-    return std::make_shared<ExampleCPDO<VCSU>>();
+std::shared_ptr<CriticalDataPathObserver<VolatileCascadeStoreWithStringKey>> get_critical_data_path_observer<VolatileCascadeStoreWithStringKey>() {
+    return std::make_shared<ExampleCPDO<VolatileCascadeStoreWithStringKey>>();
 }
 
 template <>
-std::shared_ptr<CriticalDataPathObserver<PCSU>> get_critical_data_path_observer<PCSU>() {
-    return std::make_shared<ExampleCPDO<PCSU>>();
-}
-
-template <>
-std::shared_ptr<CriticalDataPathObserver<VCSS>> get_critical_data_path_observer<VCSS>() {
-    return std::make_shared<ExampleCPDO<VCSS>>();
-}
-
-template <>
-std::shared_ptr<CriticalDataPathObserver<PCSS>> get_critical_data_path_observer<PCSS>() {
-    return std::make_shared<ExampleCPDO<PCSS>>();
+std::shared_ptr<CriticalDataPathObserver<PersistentCascadeStoreWithStringKey>> get_critical_data_path_observer<PersistentCascadeStoreWithStringKey>() {
+    return std::make_shared<ExampleCPDO<PersistentCascadeStoreWithStringKey>>();
 }
 
 class ExampleOCPDO: public OffCriticalDataPathObserver {

@@ -84,16 +84,8 @@ void member_test(ServiceClientAPI& capi) {
     }
     std::cout << "]" << std::endl;
     // print per Subgroup Members:
-    print_shard_member<VCSU>(capi,0,0);
-    print_shard_member<VCSS>(capi,0,0);
-    print_shard_member<PCSU>(capi,0,0);
-    print_shard_member<PCSS>(capi,0,0);
-    /** disabled.
-    print_shard_member(capi,0,0);
-    print_shard_member(capi,1,0);
-    print_shard_member(capi,2,0);
-    print_shard_member(capi,3,0);
-    **/
+    print_shard_member<VolatileCascadeStoreWithStringKey>(capi,0,0);
+    print_shard_member<PersistentCascadeStoreWithStringKey>(capi,0,0);
 }
 
 static std::vector<std::string> tokenize(std::string &line, const char *delimiter) {
@@ -115,14 +107,10 @@ static void print_red(std::string msg) {
 }
 
 #define on_subgroup_type(x, ft, ...) \
-    if ((x) == "VCSU") { \
-        ft <VCSU>(__VA_ARGS__); \
-    } else if ((x) == "VCSS") { \
-        ft <VCSS>(__VA_ARGS__); \
-    } else if ((x) == "PCSU") { \
-        ft <PCSU>(__VA_ARGS__); \
+    if ((x) == "VCSS") { \
+        ft <VolatileCascadeStoreWithStringKey>(__VA_ARGS__); \
     } else if ((x) == "PCSS") { \
-        ft <PCSS>(__VA_ARGS__); \
+        ft <PersistentCascadeStoreWithStringKey>(__VA_ARGS__); \
     } else { \
         print_red("unknown subgroup type:" + cmd_tokens[1]); \
     }
@@ -376,7 +364,7 @@ void interactive_test(ServiceClientAPI& capi) {
     "quit|exit\n\texit the client.\n"
     "help\n\tprint this message.\n"
     "\n"
-    "type:=VCSU|VCSS|PCSU|PCSS\n"
+    "type:=VCSS|PCSS\n"
     "policy:=FirstMember|LastMember|Random|FixedRandom|RoundRobin|UserSpecified\n"
     ;
     // derecho::subgroup_id_t subgroup_id;

@@ -6,54 +6,29 @@
  * macros for handling multiple subgroup types
  */
 #define on_subgroup_type(x, ft, ...)             \
-    if ((x) == "VCSU")                           \
+    if ((x) == "VCSS")                           \
     {                                            \
-        ft<derecho::cascade::VCSU>(__VA_ARGS__); \
-    }                                            \
-    else if ((x) == "VCSS")                      \
-    {                                            \
-        ft<derecho::cascade::VCSS>(__VA_ARGS__); \
-    }                                            \
-    else if ((x) == "PCSU")                      \
-    {                                            \
-        ft<derecho::cascade::PCSU>(__VA_ARGS__); \
+        ft<derecho::cascade::VolatileCascadeStoreWithStringKey>(__VA_ARGS__); \
     }                                            \
     else if ((x) == "PCSS")                      \
     {                                            \
-        ft<derecho::cascade::PCSS>(__VA_ARGS__); \
+        ft<derecho::cascade::PersistentCascadeStoreWithStringKey>(__VA_ARGS__); \
     }
 
-#define on_service_val1(service_val, ft, ...)        \
+#define on_service_val(service_val, ft, ...)        \
     switch (service_val)                             \
     {                                                \
     case 0:                                          \
+        ft<derecho::cascade::VolatileCascadeStoreWithStringKey>(__VA_ARGS__);     \
+        break;                                       \
     case 1:                                          \
-    {                                                \
-        if (service_val == 0)                        \
-            ft<derecho::cascade::VCSU>(__VA_ARGS__); \
-        else                                         \
-            ft<derecho::cascade::PCSU>(__VA_ARGS__); \
-    }                                                \
+        ft<derecho::cascade::PersistentCascadeStoreWithStringKey>(__VA_ARGS__);     \
+        break;                                       \
     default:                                         \
         break;                                       \
     }
 
-#define on_service_val2(service_val, ft, ...)        \
-    switch (service_val)                             \
-    {                                                \
-    case 2:                                          \
-    case 3:                                          \
-    {                                                \
-        if (service_val == 2)                        \
-            ft<derecho::cascade::VCSS>(__VA_ARGS__); \
-        else                                         \
-            ft<derecho::cascade::PCSS>(__VA_ARGS__); \
-    }                                                \
-    default:                                         \
-        break;                                       \
-    }
-
-std::string type_arr[4] = {"VCSU", "PCSU", "VCSS", "PCSS"};
+std::string type_arr[2] = {"VCSS", "PCSS"};
 
 /*
  * Class:     io_cascade_Client
@@ -286,32 +261,6 @@ public:
 };
 
 /**
- * Translate Java byte buffer key into uint64 keys. 
- * Requires: [key] must be a valid key within the range.
- */
-uint64_t translate_u64_key(JNIEnv *env, jobject key)
-{
-    // get key from Java byte buffer
-    // std::cout << "entering translating u64 key!" << std::endl;
-    char *key_buf = static_cast<char *>(env->GetDirectBufferAddress(key));
-    // printf("%s\n", key_buf);
-
-    jlong key_len = env->GetDirectBufferCapacity(key);
-
-    // create C++ uint64 key. This would throw an exception if [s] is not
-    // a valid key within the range.
-    std::string s(key_buf, static_cast<uint64_t>(key_len));
-    uint64_t new_key = static_cast<uint64_t>(std::stoul(s));
-
-
-// #ifndef NDEBUG
-//     std::cout << "translating long keys" << std::endl;
-//     std::cout << "the new key is: " << new_key << std::endl;
-// #endif
-    return new_key;
-}
-
-/**
  * Translate Java byte buffer key into std::string keys by their byte values.
  */
 std::string translate_str_key(JNIEnv *env, jobject key)
@@ -326,30 +275,6 @@ std::string translate_str_key(JNIEnv *env, jobject key)
     jlong key_len = env->GetDirectBufferCapacity(key);
     std::string s(key_buf, static_cast<uint64_t>(key_len));
     return s;
-}
-
-/**
- * Translate Java key-value pair into C++ object with uint64 keys.
- * Requires [key] to be a valid key within the uint64 range.
- */
-derecho::cascade::ObjectWithUInt64Key *translate_u64_obj(JNIEnv *env, jobject key, jobject val)
-{
-// #ifndef NDEBUG
-//     std::cout <<"translating u64 object!" << std::endl;
-// #endif
-    // get val from byte buffer
-    const char *buf = static_cast<const char *>(env->GetDirectBufferAddress(val));
-    jlong len = env->GetDirectBufferCapacity(val);
-
-    // Get long key from byte buffer. Requires key to be a valid key within the uint64 range.
-    derecho::cascade::ObjectWithUInt64Key *cas_obj = new derecho::cascade::ObjectWithUInt64Key();
-    cas_obj->key = translate_u64_key(env, key);
-    cas_obj->blob = derecho::cascade::Blob(buf, len);
-
-// #ifndef NDEBUG
-//     std::cout << "the integer key is: " << cas_obj->key << std::endl;
-// #endif
-    return cas_obj;
 }
 
 /**
@@ -422,8 +347,7 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_putInternal(JNIEnv *env, jobject 
 #endif
 
     // executing the put
-    on_service_val1(service_val, return put, translate_u64_obj, env, capi, subgroup_index, shard_index, key, val);
-    on_service_val2(service_val, return put, translate_str_obj, env, capi, subgroup_index, shard_index, key, val);
+    on_service_val(service_val, return put, translate_str_obj, env, capi, subgroup_index, shard_index, key, val);
 
     // if service_val does not match successfully, return -1
     return -1;
@@ -469,8 +393,7 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_getInternal(JNIEnv *env, jobject 
     int service_val = get_value(env, service_type);
 
     // executing the get
-    on_service_val1(service_val, return get, env, capi, subgroup_index, shard_index, key, version, translate_u64_key);
-    on_service_val2(service_val, return get, env, capi, subgroup_index, shard_index, key, version, translate_str_key);
+    on_service_val(service_val, return get, env, capi, subgroup_index, shard_index, key, version, translate_str_key);
 
     // if service_val does not match successfully, return -1
     return -1;
@@ -509,8 +432,7 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_getInternalByTime(JNIEnv *env, jo
     derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
     int service_val = get_value(env, service_type);
 
-    on_service_val1(service_val, return get_by_time, env, capi, subgroup_index, shard_index, key, timestamp, translate_u64_key);
-    on_service_val2(service_val, return get_by_time, env, capi, subgroup_index, shard_index, key, timestamp, translate_str_key);
+    on_service_val(service_val, return get_by_time, env, capi, subgroup_index, shard_index, key, timestamp, translate_str_key);
 
     return -1;
 }
@@ -547,8 +469,7 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_removeInternal(JNIEnv *env, jobje
     derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
     int service_val = get_value(env, service_type);
 
-    on_service_val1(service_val, return remove, env, capi, subgroup_index, shard_index, key, translate_u64_key);
-    on_service_val2(service_val, return remove, env, capi, subgroup_index, shard_index, key, translate_str_key);
+    on_service_val(service_val, return remove, env, capi, subgroup_index, shard_index, key, translate_str_key);
 
     return -1;
 }
