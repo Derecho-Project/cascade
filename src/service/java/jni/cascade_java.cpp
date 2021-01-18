@@ -560,7 +560,7 @@ JNIEXPORT jobject JNICALL Java_io_cascade_QueryResults_getReplyMap(JNIEnv *env, 
     };
 
     // lambda that translates into byte buffer types and receives objects with uint64 keys.
-    auto u64_f = [env](derecho::cascade::ObjectWithUInt64Key obj) {
+/*    auto u64_f = [env](derecho::cascade::ObjectWithUInt64Key obj) {
         char *data = obj.blob.bytes;
         std::size_t size = obj.blob.size;
 
@@ -576,7 +576,7 @@ JNIEXPORT jobject JNICALL Java_io_cascade_QueryResults_getReplyMap(JNIEnv *env, 
         env->CallObjectMethod(byte_buf_obj, put_mid, data_byte_arr);
         return byte_buf_obj;
     };
-
+*/
     auto s_f = [env](derecho::cascade::ObjectWithStringKey obj) {
 // #ifndef NDEBUG
 //         std::cout << "converting objects with string keys!" << std::endl;
@@ -610,10 +610,11 @@ JNIEXPORT jobject JNICALL Java_io_cascade_QueryResults_getReplyMap(JNIEnv *env, 
         {
         case 0:
         case 1:
-            create_object_from_query<const derecho::cascade::ObjectWithUInt64Key>(env, handle, hash_map_object, u64_f);
+/*            create_object_from_query<const derecho::cascade::ObjectWithUInt64Key>(env, handle, hash_map_object, u64_f);
             break;
         case 2:
         case 3:
+*/
             create_object_from_query<const derecho::cascade::ObjectWithStringKey>(env, handle, hash_map_object, s_f);
             break;
         }
