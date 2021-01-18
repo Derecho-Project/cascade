@@ -57,7 +57,7 @@ CHECK_INCLUDE_FILE_CXX("boolinq/boolinq.h" HAS_BOOLINQ)
 CHECK_INCLUDE_FILE_CXX("mxnet-cpp/MxNetCpp.h" HAS_MXNET_CPP)
 
 # enable gpu
-set (HAS_NVIDIA_GPU 1)
+set (HAS_NVIDIA_GPU 0)
 
 # enable evaluation
 set (ENABLE_EVALUATION 1)
