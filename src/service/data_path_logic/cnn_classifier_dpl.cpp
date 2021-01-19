@@ -317,6 +317,7 @@ class ClassifierTrigger: public OffCriticalDataPathObserver {
 private:
     InferenceEngine flower_ie;
     InferenceEngine pet_ie;
+    std::mutex p2p_send_mutex;
 public:
     ClassifierTrigger (): 
         OffCriticalDataPathObserver(),
@@ -335,6 +336,7 @@ public:
             }
             auto* ctxt = dynamic_cast<CascadeContext<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey>*>(cascade_ctxt);
             PersistentCascadeStoreWithStringKey::ObjectType obj(frame->key,name.c_str(),name.size());
+            std::lock_guard<std::mutex> lock(p2p_send_mutex);
             auto result = ctxt->get_service_client_ref().template put<PersistentCascadeStoreWithStringKey>(obj);
             for (auto& reply_future:result.get()) {
                 auto reply = reply_future.second.get();
