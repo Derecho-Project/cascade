@@ -62,21 +62,24 @@ auto parse_file_list(const char* type, const char* files) {
  */
 int main(int argc, char** argv) {
     const char* HELP_INFO = "--(t)ype <pet|flower> --(f)iles <file1:file2:file3...>\n"
+                            "--(n)um_messages <number of messages, default to 100>\n"
                             "--(h)elp";
     int c;
     static struct option long_options[] = {
         {"files",   required_argument,  0,  'f'},
         {"type",    required_argument,  0,  't'},
+        {"num_messages",    required_argument,  0,  'n'},
         {"help",    no_argument,        0,  'h'},
         {0,0,0,0}
     };
     const char* files = nullptr;
     const char* type = nullptr;
+    size_t num_messages = 100;
     bool print_help = false;
 
     while(true){
         int option_index = 0;
-        c = getopt_long(argc,argv,"f:t:h",long_options,&option_index);
+        c = getopt_long(argc,argv,"f:t:n:h",long_options,&option_index);
         if (c == -1) {
             break;
         }
@@ -87,6 +90,9 @@ int main(int argc, char** argv) {
             break;
         case 't':
             type = optarg;
+            break;
+        case 'n':
+            num_messages = std::stol(optarg);
             break;
         case 'h':
             print_help = true;
@@ -106,28 +112,14 @@ int main(int argc, char** argv) {
         const size_t vec_size = vec_photos.size();
         ServiceClientAPI capi;
         // TODO: change this to asynchronous send.
-        for(int i=0;i<100;i++) {
+        for(size_t i=0;i<num_messages;i++) {
             auto ret = capi.template put<VolatileCascadeStoreWithStringKey>(vec_photos.at(i%vec_size), 0, 0);
-
             for (auto& reply_future:ret.get()) {
                 auto reply = reply_future.second.get();
                 std::cout << "node(" << reply_future.first << ") replied with version:" << std::get<0>(reply)
                           << ",ts_us:" << std::get<1>(reply) << std::endl;
             }
         }
-/*
-        // STEP 1: load file
-        auto obj = get_photo_object(type, key, file_name);
-        // STEP 2: send to server
-        ServiceClientAPI capi;
-        // send to the subgroup 0, shard 0
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ret = capi.template put<VolatileCascadeStoreWithStringKey>(obj, 0, 0);
-        for (auto& reply_future:ret.get()) {
-            auto reply = reply_future.second.get();
-            std::cout << "node(" << reply_future.first << ") replied with version:" << std::get<0>(reply)
-                      << ",ts_us:" << std::get<1>(reply) << std::endl;
-        }
-*/
     }
 
     return 0;
