@@ -36,4 +36,13 @@ if (HAS_MXNET_CPP AND OPENCV_CORE_FOUND)
         ${CMAKE_CURRENT_BINARY_DIR}/cnn_classifier_cfg
         COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/download_cnn_classifier_models.sh
         ${CMAKE_CURRENT_BINARY_DIR}/download_cnn_classifier_models.sh)
+
+    add_executable(cnn_classifier_perf cnn_classifier_perf.cpp)
+    target_include_directories(cnn_classifier_perf PRIVATE
+        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<BUILD_INTERFACE:${OpenCV_INCLUDE_DIRS}>
+    )
+    target_link_libraries(cnn_classifier_perf cascade ${OpenCV_LIBS})
 endif()
