@@ -4,6 +4,10 @@
 #include <mxnet-cpp/MxNetCpp.h>
 #include <opencv2/opencv.hpp>
 #include <vector>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include "cnn_classifier_dpl_eval.hpp"
 
 /**
  * This is an example for the filter/trigger data path logic with ML model serving. In this example, we process incoming
@@ -283,7 +287,7 @@ public:
             }
         }
 
-#ifdef ENABLE_EVALUATION
+#ifdef EVALUATION
         uint64_t start_ns = get_time();
 #endif
         // copy to input layer:
@@ -304,7 +308,7 @@ public:
                 idx = static_cast<int>(jj);
             }
         }
-#ifdef ENABLE_EVALUATION
+#ifdef EVALUATION
         uint64_t end_ns = get_time();
         std::cout << "[EVALUATION] inference took " << std::dec << (end_ns-start_ns) << " ns" << std::endl;
 #endif
@@ -317,12 +321,42 @@ class ClassifierTrigger: public OffCriticalDataPathObserver {
 private:
     InferenceEngine flower_ie;
     InferenceEngine pet_ie;
-    std::mutex p2p_send_mutex;
+    mutable std::mutex p2p_send_mutex;
+#ifdef EVALUATION
+    int sock_fd;
+    struct sockaddr_in serveraddr;
+#endif
 public:
     ClassifierTrigger (): 
         OffCriticalDataPathObserver(),
         flower_ie(derecho::getConfString(DPL_CONF_FLOWER_SYNSET),derecho::getConfString(DPL_CONF_FLOWER_SYMBOL),derecho::getConfString(DPL_CONF_FLOWER_PARAMS)),
-        pet_ie(derecho::getConfString(DPL_CONF_PET_SYNSET),derecho::getConfString(DPL_CONF_PET_SYMBOL),derecho::getConfString(DPL_CONF_PET_PARAMS)) {}
+        pet_ie(derecho::getConfString(DPL_CONF_PET_SYNSET),derecho::getConfString(DPL_CONF_PET_SYMBOL),derecho::getConfString(DPL_CONF_PET_PARAMS)) {
+#ifdef EVALUATION
+#define DPL_CONF_REPORT_TO	"report_to"
+            uint16_t port;
+            struct hostent *server;
+            std::string hostname;
+    		std::string report_to = derecho::getConfString(DPL_CONF_REPORT_TO);
+            hostname = report_to.substr(0,report_to.find(":"));
+            port = (uint16_t)std::stoi(report_to.substr(report_to.find(":")+1));
+            sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
+            if (sock_fd < 0) {
+                std::cerr << "Faile to open socket" << std::endl;
+                return;
+            }
+            server = gethostbyname(hostname.c_str());
+            if (server == nullptr) {
+                std::cerr << "Failed to get host:" << hostname << std::endl;
+            }
+
+            bzero((char *) &serveraddr, sizeof(serveraddr));
+            serveraddr.sin_family = AF_INET;
+            bcopy((char *)server->h_addr, 
+              (char *)&serveraddr.sin_addr.s_addr, server->h_length);
+            serveraddr.sin_port = htons(port);
+#endif
+    }
+
     virtual void operator () (Action&& action, ICascadeContext* cascade_ctxt) {
         std::cout << "[cnn_classifier trigger] I received an Action with type=" << std::hex << action.action_type << "; immediate_data=" << action.immediate_data << std::endl;
         if (action.action_type == AT_FLOWER_NAME || action.action_type == AT_PET_BREED) {
@@ -337,14 +371,32 @@ public:
             auto* ctxt = dynamic_cast<CascadeContext<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey>*>(cascade_ctxt);
             PersistentCascadeStoreWithStringKey::ObjectType obj(frame->key,name.c_str(),name.size());
             std::lock_guard<std::mutex> lock(p2p_send_mutex);
+#ifdef EVALUATION
+            CloseLoopReport clr;
+#endif
             auto result = ctxt->get_service_client_ref().template put<PersistentCascadeStoreWithStringKey>(obj);
             for (auto& reply_future:result.get()) {
                 auto reply = reply_future.second.get();
                 dbg_default_debug("node({}) replied with version:({:x},{}us)",reply_future.first,std::get<0>(reply),std::get<1>(reply));
+#ifdef EVALUATION
+                clr.ver = std::get<0>(reply);
+            }
+            clr.key = std::stol(frame->key.substr(frame->key.find("/")+1));
+            int serverlen = sizeof(serveraddr);
+            size_t ns = sendto(sock_fd,(void*)&clr,sizeof(clr),0,(const sockaddr*)&serveraddr,serverlen);
+            if (ns < 0) {
+                std::cerr << "Failed to report error" << std::endl;
+#endif
             }
         } else {
             std::cerr << "WARNING:" << action.action_type << " to be supported yet." << std::endl;
         }
+    }
+
+    virtual ~ClassifierTrigger() {
+#ifdef EVALUATION
+        close(sock_fd);
+#endif
     }
 };
 
