@@ -332,7 +332,7 @@ public:
         flower_ie(derecho::getConfString(DPL_CONF_FLOWER_SYNSET),derecho::getConfString(DPL_CONF_FLOWER_SYMBOL),derecho::getConfString(DPL_CONF_FLOWER_PARAMS)),
         pet_ie(derecho::getConfString(DPL_CONF_PET_SYNSET),derecho::getConfString(DPL_CONF_PET_SYMBOL),derecho::getConfString(DPL_CONF_PET_PARAMS)) {
 #ifdef EVALUATION
-#define DPL_CONF_REPORT_TO	"report_to"
+#define DPL_CONF_REPORT_TO	"CASCADE/report_to"
             uint16_t port;
             struct hostent *server;
             std::string hostname;
@@ -381,7 +381,6 @@ public:
 #ifdef EVALUATION
                 clr.ver = std::get<0>(reply);
             }
-            clr.key = std::stol(frame->key.substr(frame->key.find("/")+1));
             int serverlen = sizeof(serveraddr);
             size_t ns = sendto(sock_fd,(void*)&clr,sizeof(clr),0,(const sockaddr*)&serveraddr,serverlen);
             if (ns < 0) {
