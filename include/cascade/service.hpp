@@ -227,8 +227,10 @@ namespace cascade {
     private:
         // default caller as an external client.
         std::unique_ptr<derecho::ExternalGroup<CascadeTypes...>> external_group_ptr;
+        mutable std::mutex external_group_ptr_mutex;
         // caller as a group member.
         derecho::Group<CascadeTypes...>* group_ptr;
+        mutable std::mutex group_ptr_mutex;
         /**
          * 'member_selection_policies' is a map from derecho shard to its member selection policy.
          * We use a 3-tuple consisting of subgroup type index, subgroup index, and shard index to identify a shard. And
