@@ -63,7 +63,7 @@ auto parse_file_list(const char* type, const char* files) {
 
 #ifdef EVALUATION
 #define BUFSIZE (256)
-void collect_time(uint16_t udp_port, size_t num_photos, size_t num_messages, uint64_t timestamps[]) {
+void collect_time(uint16_t udp_port, size_t num_messages, uint64_t* timestamps) {
     struct sockaddr_in serveraddr,clientaddr;
     char buf[BUFSIZE];
     //STEP 1: start UDP channel
@@ -92,7 +92,7 @@ void collect_time(uint16_t udp_port, size_t num_photos, size_t num_messages, uin
             return;
         }
         CloseLoopReport *clr = reinterpret_cast<CloseLoopReport*>(buf);
-        timestamps[clr->ver*num_photos + clr->key] = get_time();
+        timestamps[clr->ver] = get_time();
         cnt ++;
     }
     //STEP 3: finish 
@@ -106,6 +106,7 @@ void collect_time(uint16_t udp_port, size_t num_photos, size_t num_messages, uin
 int main(int argc, char** argv) {
     const char* HELP_INFO = "--(t)ype <pet|flower> --(f)iles <file1:file2:file3...>\n"
                             "--(n)um_messages <number of messages, default to 100>\n"
+                            "--(i)nterval_ms <message interval in ms, default to 1000>\n"
 #ifdef EVALUATION
                             "--(u)dp_port <UDP port for report server. For evaluation only, default=54321>\n"
 #endif
@@ -115,6 +116,7 @@ int main(int argc, char** argv) {
         {"files",   required_argument,  0,  'f'},
         {"type",    required_argument,  0,  't'},
         {"num_messages",    required_argument,  0,  'n'},
+        {"interval_ms",     required_argument,  0,  'i'},
 #ifdef EVALUATION
         {"udp_port",		required_argument,  0,  'u'},
 #endif
@@ -124,6 +126,7 @@ int main(int argc, char** argv) {
     const char* files = nullptr;
     const char* type = nullptr;
     size_t num_messages = 100;
+    size_t interval_us = 1000000;
 #ifdef EVALUATION
     uint16_t udp_port = 54321;
 #endif
@@ -131,7 +134,7 @@ int main(int argc, char** argv) {
 
     while(true){
         int option_index = 0;
-        c = getopt_long(argc,argv,"f:t:n:h",long_options,&option_index);
+        c = getopt_long(argc,argv,"f:t:n:i:h",long_options,&option_index);
         if (c == -1) {
             break;
         }
@@ -145,6 +148,9 @@ int main(int argc, char** argv) {
             break;
         case 'n':
             num_messages = std::stol(optarg);
+            break;
+        case 'i':
+            interval_us = std::stol(optarg)*1000;
             break;
 #ifdef EVALUATION
         case 'u':
@@ -171,9 +177,17 @@ int main(int argc, char** argv) {
         // TODO: change this to asynchronous send.
 #ifdef EVALUATION
         uint64_t send_message_ts[num_messages];
+        uint64_t before_send_message_ts[num_messages];
+        uint64_t before_query_ts[num_messages];
+        uint64_t after_query_ts[num_messages];
         uint64_t close_loop_ts[num_messages];
+        std::thread cl_thread(collect_time, udp_port, num_messages, (uint64_t*)close_loop_ts);
 #endif
+        uint64_t prev_us = 0, now_us;
         for(size_t i=0;i<num_messages;i++) {
+#ifdef EVALUATION
+            before_send_message_ts[i] = get_time();
+#endif
             /*
              * key = [i%vec_size]
              * version = i/vec_size
@@ -183,16 +197,52 @@ int main(int argc, char** argv) {
 #ifdef EVALUATION
             send_message_ts[i] = get_time();
 #endif
+            now_us = get_time()/1000;
+            if ((now_us - prev_us) < interval_us) {
+                usleep(prev_us+interval_us-now_us);
+            }
+#ifdef EVALUATION
+            before_query_ts[i] = get_time();
+#endif
+            prev_us = get_time()/1000;
             for (auto& reply_future:ret.get()) {
                 auto reply = reply_future.second.get();
                 std::cout << "node(" << reply_future.first << ") replied with version:" << std::get<0>(reply)
                           << ",ts_us:" << std::get<1>(reply) << std::endl;
             }
+#ifdef EVALUATION
+            after_query_ts[i] = get_time();
+#endif
         }
 #ifdef EVALUATION
-        collect_time(udp_port, vec_size, num_messages, close_loop_ts);
+        cl_thread.join();
         // TODO: evaluate using the data
-        std::cout << "Timespan:" << (close_loop_ts - send_message_ts[0]) << "us" << std::endl;
+        uint64_t max_recv_ts = 0;
+        uint64_t latencies[num_messages];
+        double avg_lat = 0.0;
+        for (size_t i=0;i<num_messages;i++) {
+            if (max_recv_ts < close_loop_ts[i]) {
+                max_recv_ts = close_loop_ts[i];
+                latencies[i] = (close_loop_ts[i] - send_message_ts[i]);
+                avg_lat += latencies[i]/num_messages;
+            }
+            std::cout << "[" << i << "] " << (send_message_ts[i] - before_send_message_ts[i])/1000000 << "," 
+                                          << (before_query_ts[i] - send_message_ts[i])/1000000 << "," 
+                                          << (after_query_ts[i]  - before_query_ts[i])/1000000 << " | " 
+                                          << (close_loop_ts[i]   - before_send_message_ts[i])/1000000 << std::endl;
+        }
+        double span_ns = (double)(max_recv_ts - send_message_ts[0]);
+        std::cout << "Timespan:\t" << span_ns/1e6 << " milliseconds." << std::endl;
+        // Thoughput
+        std::cout << "Throughput:\t" << (double)(num_messages*1e9)/span_ns << " ops." << std::endl;
+        // Latency
+        double ssum = 0.0;
+        double std_dev = 0.0;
+        for(size_t i=0;i<num_messages;i++) {
+            ssum += (latencies[i]-avg_lat)*(latencies[i] - avg_lat);
+        }
+        std_dev = sqrt(ssum/(num_messages-1));
+        std::cout << "Latency:\t" << avg_lat/1e6 << " ms, standard deviation: " << std_dev/1e6 << " ms."  << std::endl;
 #endif
     }
 
