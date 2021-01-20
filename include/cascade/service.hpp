@@ -85,6 +85,9 @@ namespace cascade {
      */
     class OffCriticalDataPathObserver: public derecho::DeserializationContext {
     public:
+        /**
+         * This function has to be re-entrant/thread-safe.
+         */ 
         virtual void operator() (Action&&, ICascadeContext*){};
     };
     
