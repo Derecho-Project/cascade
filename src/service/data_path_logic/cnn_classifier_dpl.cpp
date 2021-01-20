@@ -319,8 +319,8 @@ public:
 
 class ClassifierTrigger: public OffCriticalDataPathObserver {
 private:
-    InferenceEngine flower_ie;
-    InferenceEngine pet_ie;
+    // InferenceEngine flower_ie;
+    // InferenceEngine pet_ie;
     mutable std::mutex p2p_send_mutex;
 #ifdef EVALUATION
     int sock_fd;
@@ -328,9 +328,10 @@ private:
 #endif
 public:
     ClassifierTrigger (): 
-        OffCriticalDataPathObserver(),
-        flower_ie(derecho::getConfString(DPL_CONF_FLOWER_SYNSET),derecho::getConfString(DPL_CONF_FLOWER_SYMBOL),derecho::getConfString(DPL_CONF_FLOWER_PARAMS)),
-        pet_ie(derecho::getConfString(DPL_CONF_PET_SYNSET),derecho::getConfString(DPL_CONF_PET_SYMBOL),derecho::getConfString(DPL_CONF_PET_PARAMS)) {
+        OffCriticalDataPathObserver()// ,
+        // flower_ie(derecho::getConfString(DPL_CONF_FLOWER_SYNSET),derecho::getConfString(DPL_CONF_FLOWER_SYMBOL),derecho::getConfString(DPL_CONF_FLOWER_PARAMS)),
+        // pet_ie(derecho::getConfString(DPL_CONF_PET_SYNSET),derecho::getConfString(DPL_CONF_PET_SYMBOL),derecho::getConfString(DPL_CONF_PET_PARAMS))
+        {
 #ifdef EVALUATION
 #define DPL_CONF_REPORT_TO	"CASCADE/report_to"
             uint16_t port;
@@ -358,6 +359,8 @@ public:
     }
 
     virtual void operator () (Action&& action, ICascadeContext* cascade_ctxt) {
+        static thread_local InferenceEngine flower_ie(derecho::getConfString(DPL_CONF_FLOWER_SYNSET),derecho::getConfString(DPL_CONF_FLOWER_SYMBOL),derecho::getConfString(DPL_CONF_FLOWER_PARAMS));
+        static thread_local InferenceEngine pet_ie(derecho::getConfString(DPL_CONF_PET_SYNSET),derecho::getConfString(DPL_CONF_PET_SYMBOL),derecho::getConfString(DPL_CONF_PET_PARAMS));
         std::cout << "[cnn_classifier trigger] I received an Action with type=" << std::hex << action.action_type << "; immediate_data=" << action.immediate_data << std::endl;
         if (action.action_type == AT_FLOWER_NAME || action.action_type == AT_PET_BREED) {
 			ImageFrame* frame = dynamic_cast<ImageFrame*>(action.action_data.get());
