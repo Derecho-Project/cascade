@@ -21,7 +21,7 @@ if (HAS_MXNET_CPP AND OPENCV_CORE_FOUND)
         $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
         $<BUILD_INTERFACE:${OpenCV_INCLUDE_DIRS}>
     )
-    target_link_libraries(cnn_classifier_dpl mxnet cascade ${OpenCV_LIBS})
+    target_link_libraries(cnn_classifier_dpl mxnet cascade)
 
     add_executable(cnn_classifier_client cnn_classifier_client.cpp)
     target_include_directories(cnn_classifier_client PRIVATE
@@ -30,7 +30,7 @@ if (HAS_MXNET_CPP AND OPENCV_CORE_FOUND)
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
         $<BUILD_INTERFACE:${OpenCV_INCLUDE_DIRS}>
     )
-    target_link_libraries(cnn_classifier_client cascade ${OpenCV_LIBS})
+    target_link_libraries(cnn_classifier_client cascade mxnet ${OpenCV_LIBS})
     add_custom_command(TARGET cnn_classifier_client POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/cnn_classifier_cfg
         ${CMAKE_CURRENT_BINARY_DIR}/cnn_classifier_cfg
@@ -44,5 +44,5 @@ if (HAS_MXNET_CPP AND OPENCV_CORE_FOUND)
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
         $<BUILD_INTERFACE:${OpenCV_INCLUDE_DIRS}>
     )
-    target_link_libraries(cnn_classifier_perf cascade ${OpenCV_LIBS})
+    target_link_libraries(cnn_classifier_perf cascade mxnet ${OpenCV_LIBS})
 endif()

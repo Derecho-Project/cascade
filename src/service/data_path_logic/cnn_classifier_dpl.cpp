@@ -2,11 +2,11 @@
 #include <cascade/service_server_api.hpp>
 #include <iostream>
 #include <mxnet-cpp/MxNetCpp.h>
-#include <opencv2/opencv.hpp>
 #include <vector>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
+#include "cnn_classifier_dpl.hpp"
 #include "cnn_classifier_dpl_eval.hpp"
 
 /**
@@ -88,15 +88,6 @@ class ClassifierFilter: public CriticalDataPathObserver<CascadeType> {
                              const uint32_t shidx,
                              const typename CascadeType::KeyType& key,
                              const typename CascadeType::ObjectType& value, ICascadeContext* cascade_ctxt) {
-        std::cout << "[cnn_classifier filter] I saw data: ["
-                  << "KT = " << typeid(typename CascadeType::KeyType).name()
-                  << ", VT = " << typeid(typename CascadeType::ObjectType).name()
-                  << "] in subgroup(" << sgidx
-                  << "), shard(" << shidx
-                  << "). key = " << key
-                  << " and value = " << value
-                  << " . cascade_ctxt = " << cascade_ctxt 
-                  << std::endl;
         auto* ctxt = dynamic_cast<CascadeContext<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey>*>(cascade_ctxt);
 
         // skip non VolatileCascadeStoreWithStringKey subgroups
@@ -268,30 +259,11 @@ public:
 
     std::pair<std::string,double> infer(const ImageFrame& frame) {
         // do the inference.
-        std::vector<unsigned char> decode_buf(frame.size);
-        std::memcpy(static_cast<void*>(decode_buf.data()),
-                    static_cast<const void*>(frame.bytes),
-                    frame.size);
-        cv::Mat mat = cv::imdecode(decode_buf, cv::IMREAD_COLOR);
-        std::vector<mx_float> array;
-        // transform to fit 3x224x224 input layer
-        cv::resize(mat, mat, cv::Size(256, 256));
-        for(int c = 0; c < 3; c++) {            // channels GBR->RGB
-            for(int i = 0; i < 224; i++) {      // height
-                for(int j = 0; j < 224; j++) {  // width
-                    int _i = i + 16;
-                    int _j = j + 16;
-                    array.push_back(
-                            static_cast<float>(mat.data[(_i * 256 + _j) * 3 + (2 - c)]) / 256);
-                }
-            }
-        }
-
 #ifdef EVALUATION
-        uint64_t start_ns = get_time();
+        // uint64_t start_ns = get_time();
 #endif
         // copy to input layer:
-        args_map["data"].SyncCopyFromCPU(array.data(), input_shape.Size());
+        args_map["data"].SyncCopyFromCPU(reinterpret_cast<const mx_float*>(frame.bytes), input_shape.Size());
     
         this->executor_pointer->Forward(false);
         mxnet::cpp::NDArray::WaitAll();
@@ -309,8 +281,7 @@ public:
             }
         }
 #ifdef EVALUATION
-        uint64_t end_ns = get_time();
-        std::cout << "[EVALUATION] inference took " << std::dec << (end_ns-start_ns) << " ns" << std::endl;
+        // uint64_t end_ns = get_time();
 #endif
 
         return {synset_vector[idx],max};
@@ -361,7 +332,6 @@ public:
     virtual void operator () (Action&& action, ICascadeContext* cascade_ctxt) {
         static thread_local InferenceEngine flower_ie(derecho::getConfString(DPL_CONF_FLOWER_SYNSET),derecho::getConfString(DPL_CONF_FLOWER_SYMBOL),derecho::getConfString(DPL_CONF_FLOWER_PARAMS));
         static thread_local InferenceEngine pet_ie(derecho::getConfString(DPL_CONF_PET_SYNSET),derecho::getConfString(DPL_CONF_PET_SYMBOL),derecho::getConfString(DPL_CONF_PET_PARAMS));
-        std::cout << "[cnn_classifier trigger] I received an Action with type=" << std::hex << action.action_type << "; immediate_data=" << action.immediate_data << std::endl;
         if (action.action_type == AT_FLOWER_NAME || action.action_type == AT_PET_BREED) {
 			ImageFrame* frame = dynamic_cast<ImageFrame*>(action.action_data.get());
             std::string name;
