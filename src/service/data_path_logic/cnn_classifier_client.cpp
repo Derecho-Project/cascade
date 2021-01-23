@@ -7,42 +7,9 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include "cnn_classifier_dpl.hpp"
 
 using namespace derecho::cascade;
-
-VolatileCascadeStoreWithStringKey::ObjectType get_photo_object(const char* type, const char* key, const char* photo_file) {
-    int fd;
-    struct stat st;
-    void* file_data;
-
-    // open and map file
-    if(stat(photo_file, &st) || access(photo_file, R_OK)) {
-		std::cerr << "file " << photo_file << " is not readable." << std::endl;
-		return VolatileCascadeStoreWithStringKey::ObjectType::IV;
-    }
-
-    if((S_IFMT & st.st_mode) != S_IFREG) {
-		std::cerr << photo_file << " is not a regular file." << std::endl;
-		return VolatileCascadeStoreWithStringKey::ObjectType::IV;
-    }
-
-    if((fd = open(photo_file, O_RDONLY)) < 0) {
-        std::cerr << "Failed to open file(" << photo_file << ") in readonly mode with "
-                  << "error:" << strerror(errno) << "." << std::endl;
-        return VolatileCascadeStoreWithStringKey::ObjectType::IV;
-    }
-
-    if((file_data = mmap(nullptr, st.st_size, PROT_READ, MAP_PRIVATE | MAP_POPULATE,
-                         fd, 0))
-       == MAP_FAILED) {
-        std::cerr << "Failed to map file(" << photo_file << ") with "
-                  << "error:" << strerror(errno) << "." << std::endl;
-        return VolatileCascadeStoreWithStringKey::ObjectType::IV;
-    }
-    
-    // create Object
-    return VolatileCascadeStoreWithStringKey::ObjectType(std::string(type)+"/"+key,static_cast<const char*>(file_data),st.st_size);
-}
 
 /**
  * The cnn classifier client post photos to cascade to be processed by the cnn classifier data path logic.
