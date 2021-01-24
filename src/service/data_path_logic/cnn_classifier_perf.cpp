@@ -12,7 +12,6 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include "cnn_classifier_dpl.hpp"
-#include "cnn_classifier_dpl_eval.hpp"
 
 using namespace derecho::cascade;
 
@@ -59,7 +58,7 @@ void collect_time(uint16_t udp_port, size_t num_messages, uint64_t* timestamps) 
             return;
         }
         CloseLoopReport *clr = reinterpret_cast<CloseLoopReport*>(buf);
-        timestamps[clr->ver] = get_time();
+        timestamps[clr->photo_id] = get_time();
         cnt ++;
     }
     //STEP 3: finish 
@@ -160,6 +159,8 @@ int main(int argc, char** argv) {
              * version = i/vec_size
              * i = stoi(key) + version*vec_size;
              */
+            FrameData *fd = reinterpret_cast<FrameData*>(vec_photos.at(i%vec_size).blob.bytes);
+            fd->photo_id = i;
             auto ret = capi.template put<VolatileCascadeStoreWithStringKey>(vec_photos.at(i%vec_size), 0, 0);
 #ifdef EVALUATION
             send_message_ts[i] = get_time();
