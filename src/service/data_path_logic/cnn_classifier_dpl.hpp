@@ -42,7 +42,16 @@ inline int preprocess_photo(void* in_buf, size_t in_size, void* out_buf, size_t 
     return 0;
 }
 
-inline VolatileCascadeStoreWithStringKey::ObjectType get_photo_object(const char* type, const char* key, const char* photo_file) {
+typedef struct __attribute__ ((packed)) {
+    uint64_t    photo_id;
+    char        data[PHOTO_OUTPUT_BUFFER_SIZE];
+} FrameData;
+
+typedef struct __attribute__ ((packed)) {
+    uint64_t    photo_id;
+} CloseLoopReport;
+
+inline VolatileCascadeStoreWithStringKey::ObjectType get_photo_object(const char* type, const char* key, const char* photo_file, uint64_t photo_id = 0ul) {
     int fd;
     struct stat st;
     void* file_data;
@@ -73,11 +82,12 @@ inline VolatileCascadeStoreWithStringKey::ObjectType get_photo_object(const char
     }
 
     // load data
-    char out_buf[PHOTO_OUTPUT_BUFFER_SIZE];
-    preprocess_photo(file_data,st.st_size,out_buf,PHOTO_OUTPUT_BUFFER_SIZE);
+    FrameData frame_data;
+    frame_data.photo_id = photo_id;
+    preprocess_photo(file_data,st.st_size,reinterpret_cast<void*>(frame_data.data),PHOTO_OUTPUT_BUFFER_SIZE);
 
     // create Object
-    VolatileCascadeStoreWithStringKey::ObjectType ret(std::string(type)+"/"+key,static_cast<const char*>(out_buf),PHOTO_OUTPUT_BUFFER_SIZE);
+    VolatileCascadeStoreWithStringKey::ObjectType ret(std::string(type)+"/"+key,reinterpret_cast<const char*>(&frame_data),sizeof(frame_data));
 
     // release resources;
     munmap(file_data, st.st_size);

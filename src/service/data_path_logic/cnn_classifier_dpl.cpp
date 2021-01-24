@@ -7,7 +7,6 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include "cnn_classifier_dpl.hpp"
-#include "cnn_classifier_dpl_eval.hpp"
 
 /**
  * This is an example for the filter/trigger data path logic with ML model serving. In this example, we process incoming
@@ -263,7 +262,8 @@ public:
         // uint64_t start_ns = get_time();
 #endif
         // copy to input layer:
-        args_map["data"].SyncCopyFromCPU(reinterpret_cast<const mx_float*>(frame.bytes), input_shape.Size());
+        FrameData *fd = reinterpret_cast<FrameData*>(frame.bytes);
+        args_map["data"].SyncCopyFromCPU(reinterpret_cast<const mx_float*>(fd->data), input_shape.Size());
     
         this->executor_pointer->Forward(false);
         mxnet::cpp::NDArray::WaitAll();
@@ -346,13 +346,14 @@ public:
             std::lock_guard<std::mutex> lock(p2p_send_mutex);
 #ifdef EVALUATION
             CloseLoopReport clr;
+            FrameData* fd = reinterpret_cast<FrameData*>(frame->bytes);
+            clr.photo_id = fd->photo_id;
 #endif
             auto result = ctxt->get_service_client_ref().template put<PersistentCascadeStoreWithStringKey>(obj);
             for (auto& reply_future:result.get()) {
                 auto reply = reply_future.second.get();
                 dbg_default_debug("node({}) replied with version:({:x},{}us)",reply_future.first,std::get<0>(reply),std::get<1>(reply));
 #ifdef EVALUATION
-                clr.ver = std::get<0>(reply);
             }
             int serverlen = sizeof(serveraddr);
             size_t ns = sendto(sock_fd,(void*)&clr,sizeof(clr),0,(const sockaddr*)&serveraddr,serverlen);
