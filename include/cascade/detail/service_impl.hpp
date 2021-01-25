@@ -565,14 +565,14 @@ void CascadeContext<CascadeTypes...>::construct(OffCriticalDataPathObserver* _of
     // 3 - start the working threads
     is_running.store(true);
     for (uint32_t i=0;i<derecho::getConfUInt32(OFF_CRITICAL_DATA_PATH_THREAD_POOL_SIZE);i++) {
-        off_critical_data_path_thread_pool.emplace_back(std::thread(&CascadeContext<CascadeTypes...>::workhorse,this));
+        off_critical_data_path_thread_pool.emplace_back(std::thread(&CascadeContext<CascadeTypes...>::workhorse,this,i));
     }
 }
 
 template <typename... CascadeTypes>
-void CascadeContext<CascadeTypes...>::workhorse() {
-    pthread_setname_np(pthread_self(), "cascade_context");
-    dbg_default_trace("Cascade context workhorse[{}] started", static_cast<uint64_t>(gettid()));
+void CascadeContext<CascadeTypes...>::workhorse(uint32_t task_id) {
+    pthread_setname_np(pthread_self(), ("cascade_context_t" + std::to_string(task_id)).c_str());
+    dbg_default_trace("Cascade context workhorse[{}] started", task_id);
     while(is_running) {
         // waiting for an action
         std::unique_lock<std::mutex> lck(action_queue_mutex);
@@ -583,7 +583,7 @@ void CascadeContext<CascadeTypes...>::workhorse() {
             action_queue.pop_front();
             lck.unlock();
             if (off_critical_data_path_handler) {
-                (*off_critical_data_path_handler)(std::move(a),this);
+                (*off_critical_data_path_handler)(std::move(a),this,task_id);
             }
         }
         if (!is_running) {
@@ -593,7 +593,7 @@ void CascadeContext<CascadeTypes...>::workhorse() {
             }
             while (!action_queue.empty()) {
                 if (off_critical_data_path_handler) {
-                    (*off_critical_data_path_handler)(std::move(action_queue.front()),this);
+                    (*off_critical_data_path_handler)(std::move(action_queue.front()),this,task_id);
                 }
                 action_queue.pop_front();
             }

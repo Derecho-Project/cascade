@@ -329,7 +329,7 @@ public:
 #endif
     }
 
-    virtual void operator () (Action&& action, ICascadeContext* cascade_ctxt) {
+    virtual void operator () (Action&& action, ICascadeContext* cascade_ctxt, uint32_t task_id) {
         static thread_local InferenceEngine flower_ie(derecho::getConfString(DPL_CONF_FLOWER_SYNSET),derecho::getConfString(DPL_CONF_FLOWER_SYMBOL),derecho::getConfString(DPL_CONF_FLOWER_PARAMS));
         static thread_local InferenceEngine pet_ie(derecho::getConfString(DPL_CONF_PET_SYNSET),derecho::getConfString(DPL_CONF_PET_SYMBOL),derecho::getConfString(DPL_CONF_PET_PARAMS));
         if (action.action_type == AT_FLOWER_NAME || action.action_type == AT_PET_BREED) {

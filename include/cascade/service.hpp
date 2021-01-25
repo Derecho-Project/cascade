@@ -87,8 +87,11 @@ namespace cascade {
     public:
         /**
          * This function has to be re-entrant/thread-safe.
+         * @param _1    The action passed from critical data path
+         * @param _2    The CascadeContext
+         * @param _3    The task_id of this off critical data path thread.
          */ 
-        virtual void operator() (Action&&, ICascadeContext*){};
+        virtual void operator() (Action&&, ICascadeContext*, uint32_t){};
     };
     
     #define CONF_ONDATA_LIBRARY     "CASCADE/ondata_library"
@@ -491,8 +494,9 @@ namespace cascade {
         void destroy();
         /**
          * off critical data path workhorse
+         * @param _1 the task id, started from 0 to (OFF_CRITICAL_DATA_PATH_THREAD_POOL_SIZE-1)
          */
-        void workhorse();
+        void workhorse(uint32_t);
         
     public:
         /**
