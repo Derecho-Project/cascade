@@ -564,15 +564,15 @@ void CascadeContext<CascadeTypes...>::construct(OffCriticalDataPathObserver* _of
     service_client = std::make_unique<ServiceClient<CascadeTypes...>>(group_ptr);
     // 3 - start the working threads
     is_running.store(true);
-    for (uint32_t i=0;i<derecho::getConfUInt32(OFF_CRITICAL_DATA_PATH_THREAD_POOL_SIZE);i++) {
+    for (uint32_t i=0;i<derecho::getConfUInt32(CASCADE_CONTEXT_NUM_WORKERS);i++) {
         off_critical_data_path_thread_pool.emplace_back(std::thread(&CascadeContext<CascadeTypes...>::workhorse,this,i));
     }
 }
 
 template <typename... CascadeTypes>
-void CascadeContext<CascadeTypes...>::workhorse(uint32_t task_id) {
-    pthread_setname_np(pthread_self(), ("cascade_context_t" + std::to_string(task_id)).c_str());
-    dbg_default_trace("Cascade context workhorse[{}] started", task_id);
+void CascadeContext<CascadeTypes...>::workhorse(uint32_t worker_id) {
+    pthread_setname_np(pthread_self(), ("cascade_context_t" + std::to_string(worker_id)).c_str());
+    dbg_default_trace("Cascade context workhorse[{}] started", worker_id);
     while(is_running) {
         // waiting for an action
         std::unique_lock<std::mutex> lck(action_queue_mutex);
@@ -583,7 +583,7 @@ void CascadeContext<CascadeTypes...>::workhorse(uint32_t task_id) {
             action_queue.pop_front();
             lck.unlock();
             if (off_critical_data_path_handler) {
-                (*off_critical_data_path_handler)(std::move(a),this,task_id);
+                (*off_critical_data_path_handler)(std::move(a),this,worker_id);
             }
         }
         if (!is_running) {
@@ -593,7 +593,7 @@ void CascadeContext<CascadeTypes...>::workhorse(uint32_t task_id) {
             }
             while (!action_queue.empty()) {
                 if (off_critical_data_path_handler) {
-                    (*off_critical_data_path_handler)(std::move(action_queue.front()),this,task_id);
+                    (*off_critical_data_path_handler)(std::move(action_queue.front()),this,worker_id);
                 }
                 action_queue.pop_front();
             }

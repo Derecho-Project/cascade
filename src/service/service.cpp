@@ -44,5 +44,58 @@ SubgroupAllocationPolicy parse_json_subgroup_policy(const json& jconf) {
     return subgroup_allocation_policy;
 }
 
+/** 
+ * cpu core examples: 
+ * cpu_cores = 0,1,2,3
+ * cpu_cores = 0,1-5,6,8
+ * cpu_cores = 0-15
+ **/
+static std::vector<uint32_t> parse_cpu_cores(const std::string& str) {
+    std::string core_string(str);
+    std::vector<uint32_t> ret;
+    if (core_string.size() == 0) {
+        core_string = "0-";
+        core_string = core_string + std::to_string(std::thread::hardware_concurrency()-1);
+    }
+    std::istringstream in_str(core_string);
+    std::string token;
+    while(std::getline(in_str,token,',')) {
+        std::string::size_type pos = token.find("-");
+        if (pos == std::string::npos) {
+            // a single core
+            ret.emplace_back(std::stoul(token));
+        } else {
+            // a range of cores
+            uint32_t start = std::stoul(token.substr(0,pos));
+            uint32_t end   = std::stoul(token.substr(pos+1));
+            while(start<=end) {
+                ret.emplace_back(start++);
+            }
+        }
+    }
+    return ret;
+}
+
+static std::map<uint32_t,std::vector<uint32_t>> parse_worker_cpu_affinity() {
+    std::map<uint32_t,std::vector<uint32_t>> ret;
+    if (derecho::hasCustomizedConfKey(CASCADE_CONTEXT_WORKER_CPU_AFFINITY)) {
+        auto worker_cpu_affinity = json::parse(derecho::getConfString(CASCADE_CONTEXT_WORKER_CPU_AFFINITY));
+        for(auto affinity:worker_cpu_affinity.items()) {
+            uint32_t worker_id = std::stoul(affinity.key());
+            ret.emplace(worker_id,parse_cpu_cores(affinity.value()));
+        }
+    }
+    return ret;
+}
+
+ResourceDescriptor::ResourceDescriptor():
+    cpu_cores(parse_cpu_cores(derecho::hasCustomizedConfKey(CASCADE_CONTEXT_CPU_CORES)?derecho::getConfString(CASCADE_CONTEXT_CPU_CORES):"")),
+    worker_to_cpu_cores(parse_worker_cpu_affinity()) {
+}
+
+ResourceDescriptor::~ResourceDescriptor() {
+    // destructor
+}
+
 }
 }
