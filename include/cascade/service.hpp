@@ -459,14 +459,26 @@ namespace cascade {
     
     
     /**
-     * TODO: A class describing the resources available in the Cascade context.
-     */
-    class ResourceDescriptor {};
-    
-    /**
      * configuration keys
      */
-    #define OFF_CRITICAL_DATA_PATH_THREAD_POOL_SIZE  "CASCADE/num_off_critical_data_path_threads"
+    #define CASCADE_CONTEXT_NUM_WORKERS         "CASCADE/num_workers"
+    #define CASCADE_CONTEXT_CPU_CORES           "CASCADE/cpu_cores"
+    #define CASCADE_CONTEXT_WORKER_CPU_AFFINITY "CASCADE/worker_cpu_affinity"
+    
+    /**
+     * A class describing the resources available in the Cascade context.
+     */
+    class ResourceDescriptor {
+    public:
+        /** cpu cores, loaded from configuration **/
+        std::vector<uint32_t> cpu_cores;
+        /** worker cpu aworker cpu ffinity, loaded from configuration **/
+        std::map<uint32_t,std::vector<uint32_t>> worker_to_cpu_cores;
+        /** constructor **/
+        ResourceDescriptor();
+        /** destructor **/
+        virtual ~ResourceDescriptor();
+    };
     
     /**
      * The cascade context
@@ -488,7 +500,9 @@ namespace cascade {
         std::vector<std::thread>        off_critical_data_path_thread_pool;
         /** the service client: off critical data path logic use it to send data to a next tier. */
         std::unique_ptr<ServiceClient<CascadeTypes...>> service_client;
-        /** 
+        /** Resources **/
+        ResourceDescriptor resource_descriptor;
+        /**
          * destroy the context, to be called in destructor 
          */
         void destroy();
