@@ -164,36 +164,47 @@ int main(int argc, char** argv) {
              */
             FrameData *fd = reinterpret_cast<FrameData*>(vec_photos.at(i%vec_size).blob.bytes);
             fd->photo_id = i;
-            if (results.size() < window_size) {
-                results.emplace_back(std::move(capi.template put<VolatileCascadeStoreWithStringKey>(vec_photos.at(i%vec_size), 0, 0)));
-                send_message_ts[i] = get_time();
-                now_us = get_time()/1000;
-                if ((now_us - prev_us) < interval_us) {
-                    usleep(prev_us+interval_us-now_us);
-                }
-            } else { // window is full
+
+            if (results.size() >= window_size) {
+                // window_size is full, read one reply first.
+#ifdef EVALUATION
                 before_query_ts[num_replied] = get_time();
+#endif
                 prev_us = get_time()/1000;
                 for (auto& reply_future:results.front().get()) {
                     auto reply = reply_future.second.get();
                     std::cout << "node(" << reply_future.first << ") replied with version:" << std::get<0>(reply)
                               << ",ts_us:" << std::get<1>(reply) << std::endl;
                 }
+#ifdef EVALUATION
                 after_query_ts[num_replied] = get_time();
+#endif
                 results.pop_front();
                 num_replied ++;
             }
+            results.emplace_back(std::move(capi.template put<VolatileCascadeStoreWithStringKey>(vec_photos.at(i%vec_size), 0, 0)));
+#ifdef EVALUATION
+            send_message_ts[i] = get_time();
+#endif
+            now_us = get_time()/1000;
+            if ((now_us - prev_us) < interval_us) {
+                usleep(prev_us+interval_us-now_us);
+            }
         }
 
-        while(num_replied < num_messages) {
+        while(results.size() > 0) {
+#ifdef EVALUATION
             before_query_ts[num_replied] = get_time();
+#endif
             prev_us = get_time()/1000;
             for (auto& reply_future:results.front().get()) {
                 auto reply = reply_future.second.get();
                 std::cout << "node(" << reply_future.first << ") replied with version:" << std::get<0>(reply)
                           << ",ts_us:" << std::get<1>(reply) << std::endl;
             }
+#ifdef EVALUATION
             after_query_ts[num_replied] = get_time();
+#endif
             results.pop_front();
             num_replied ++;
         }
