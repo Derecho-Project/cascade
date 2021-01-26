@@ -137,9 +137,11 @@ int main(int argc, char** argv) {
             return -1;
         }
     } else {
+        size_t window_size = derecho::getConfUInt32(CONF_DERECHO_P2P_WINDOW_SIZE);
         auto vec_photos = parse_file_list(type,files);
         const size_t vec_size = vec_photos.size();
         ServiceClientAPI capi;
+        std::list<derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>>> results;
         // TODO: change this to asynchronous send.
 #ifdef EVALUATION
         uint64_t send_message_ts[num_messages];
@@ -150,6 +152,7 @@ int main(int argc, char** argv) {
         std::thread cl_thread(collect_time, udp_port, num_messages, (uint64_t*)close_loop_ts);
 #endif
         uint64_t prev_us = 0, now_us;
+        size_t num_replied = 0;
         for(size_t i=0;i<num_messages;i++) {
 #ifdef EVALUATION
             before_send_message_ts[i] = get_time();
@@ -161,27 +164,40 @@ int main(int argc, char** argv) {
              */
             FrameData *fd = reinterpret_cast<FrameData*>(vec_photos.at(i%vec_size).blob.bytes);
             fd->photo_id = i;
-            auto ret = capi.template put<VolatileCascadeStoreWithStringKey>(vec_photos.at(i%vec_size), 0, 0);
-#ifdef EVALUATION
-            send_message_ts[i] = get_time();
-#endif
-            now_us = get_time()/1000;
-            if ((now_us - prev_us) < interval_us) {
-                usleep(prev_us+interval_us-now_us);
+            if (results.size() < window_size) {
+                results.emplace_back(std::move(capi.template put<VolatileCascadeStoreWithStringKey>(vec_photos.at(i%vec_size), 0, 0)));
+                send_message_ts[i] = get_time();
+                now_us = get_time()/1000;
+                if ((now_us - prev_us) < interval_us) {
+                    usleep(prev_us+interval_us-now_us);
+                }
+            } else { // window is full
+                before_query_ts[num_replied] = get_time();
+                prev_us = get_time()/1000;
+                for (auto& reply_future:results.front().get()) {
+                    auto reply = reply_future.second.get();
+                    std::cout << "node(" << reply_future.first << ") replied with version:" << std::get<0>(reply)
+                              << ",ts_us:" << std::get<1>(reply) << std::endl;
+                }
+                after_query_ts[num_replied] = get_time();
+                results.pop_front();
+                num_replied ++;
             }
-#ifdef EVALUATION
-            before_query_ts[i] = get_time();
-#endif
+        }
+
+        while(num_replied < num_messages) {
+            before_query_ts[num_replied] = get_time();
             prev_us = get_time()/1000;
-            for (auto& reply_future:ret.get()) {
+            for (auto& reply_future:results.front().get()) {
                 auto reply = reply_future.second.get();
                 std::cout << "node(" << reply_future.first << ") replied with version:" << std::get<0>(reply)
                           << ",ts_us:" << std::get<1>(reply) << std::endl;
             }
-#ifdef EVALUATION
-            after_query_ts[i] = get_time();
-#endif
+            after_query_ts[num_replied] = get_time();
+            results.pop_front();
+            num_replied ++;
         }
+
 #ifdef EVALUATION
         cl_thread.join();
         // TODO: evaluate using the data
