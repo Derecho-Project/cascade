@@ -463,6 +463,7 @@ namespace cascade {
      */
     #define CASCADE_CONTEXT_NUM_WORKERS         "CASCADE/num_workers"
     #define CASCADE_CONTEXT_CPU_CORES           "CASCADE/cpu_cores"
+    #define CASCADE_CONTEXT_GPUS                "CASCADE/gpus"
     #define CASCADE_CONTEXT_WORKER_CPU_AFFINITY "CASCADE/worker_cpu_affinity"
     
     /**
@@ -474,10 +475,14 @@ namespace cascade {
         std::vector<uint32_t> cpu_cores;
         /** worker cpu aworker cpu ffinity, loaded from configuration **/
         std::map<uint32_t,std::vector<uint32_t>> worker_to_cpu_cores;
+        /** gpu list**/
+        std::vector<uint32_t> gpus;
         /** constructor **/
         ResourceDescriptor();
         /** destructor **/
         virtual ~ResourceDescriptor();
+        /** dump **/
+        void dump() const;
     };
     
     /**
@@ -500,8 +505,6 @@ namespace cascade {
         std::vector<std::thread>        off_critical_data_path_thread_pool;
         /** the service client: off critical data path logic use it to send data to a next tier. */
         std::unique_ptr<ServiceClient<CascadeTypes...>> service_client;
-        /** Resources **/
-        ResourceDescriptor resource_descriptor;
         /**
          * destroy the context, to be called in destructor 
          */
@@ -513,6 +516,8 @@ namespace cascade {
         void workhorse(uint32_t);
         
     public:
+        /** Resources **/
+        const ResourceDescriptor resource_descriptor;
         /**
          * Constructor
          */
