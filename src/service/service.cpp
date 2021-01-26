@@ -45,12 +45,13 @@ SubgroupAllocationPolicy parse_json_subgroup_policy(const json& jconf) {
 }
 
 /** 
- * cpu core examples: 
+ * cpu/gpu list examples: 
  * cpu_cores = 0,1,2,3
  * cpu_cores = 0,1-5,6,8
  * cpu_cores = 0-15
+ * gpus = 0,1
  **/
-static std::vector<uint32_t> parse_cpu_cores(const std::string& str) {
+static std::vector<uint32_t> parse_cpu_gpu_list(const std::string& str) {
     std::string core_string(str);
     std::vector<uint32_t> ret;
     if (core_string.size() == 0) {
@@ -82,15 +83,39 @@ static std::map<uint32_t,std::vector<uint32_t>> parse_worker_cpu_affinity() {
         auto worker_cpu_affinity = json::parse(derecho::getConfString(CASCADE_CONTEXT_WORKER_CPU_AFFINITY));
         for(auto affinity:worker_cpu_affinity.items()) {
             uint32_t worker_id = std::stoul(affinity.key());
-            ret.emplace(worker_id,parse_cpu_cores(affinity.value()));
+            ret.emplace(worker_id,parse_cpu_gpu_list(affinity.value()));
         }
     }
     return ret;
 }
 
 ResourceDescriptor::ResourceDescriptor():
-    cpu_cores(parse_cpu_cores(derecho::hasCustomizedConfKey(CASCADE_CONTEXT_CPU_CORES)?derecho::getConfString(CASCADE_CONTEXT_CPU_CORES):"")),
-    worker_to_cpu_cores(parse_worker_cpu_affinity()) {
+    cpu_cores(parse_cpu_gpu_list(derecho::hasCustomizedConfKey(CASCADE_CONTEXT_CPU_CORES)?derecho::getConfString(CASCADE_CONTEXT_CPU_CORES):"")),
+    worker_to_cpu_cores(parse_worker_cpu_affinity()),
+    gpus(parse_cpu_gpu_list(derecho::hasCustomizedConfKey(CASCADE_CONTEXT_GPUS)?derecho::getConfString(CASCADE_CONTEXT_GPUS):"")) {
+}
+
+void ResourceDescriptor::dump() const {
+    dbg_default_info("Cascade Context Resource:");
+    std::ostringstream os_cores;
+    for (auto core: cpu_cores) {
+        os_cores << core << ",";
+    }
+    dbg_default_info("cpu cores={}", os_cores.str());
+    std::ostringstream os_gpus;
+    for (auto gpu: gpus) {
+        os_gpus << gpu << ",";
+    }
+    dbg_default_info("gpus={}", os_gpus.str());
+    std::ostringstream os_affinity;
+    for(auto affinity:worker_to_cpu_cores) {
+        os_affinity << "(worker-" << affinity.first << ":";
+        for (auto core: affinity.second) {
+            os_affinity << core << ",";
+        }
+        os_affinity << "); ";
+    }
+    dbg_default_info("cpu affinity={}", os_affinity.str());
 }
 
 ResourceDescriptor::~ResourceDescriptor() {

@@ -565,7 +565,24 @@ void CascadeContext<CascadeTypes...>::construct(OffCriticalDataPathObserver* _of
     // 3 - start the working threads
     is_running.store(true);
     for (uint32_t i=0;i<derecho::getConfUInt32(CASCADE_CONTEXT_NUM_WORKERS);i++) {
-        off_critical_data_path_thread_pool.emplace_back(std::thread(&CascadeContext<CascadeTypes...>::workhorse,this,i));
+        // off_critical_data_path_thread_pool.emplace_back(std::thread(&CascadeContext<CascadeTypes...>::workhorse,this,i));
+        off_critical_data_path_thread_pool.emplace_back(
+            [this,i](){
+                // set cpu affinity
+                if (this->resource_descriptor.worker_to_cpu_cores.find(i)!=
+                    this->resource_descriptor.worker_to_cpu_cores.end()) {
+                    cpu_set_t cpuset;
+                    CPU_ZERO(&cpuset);
+                    for (auto core: this->resource_descriptor.worker_to_cpu_cores.at(i)) {
+                        CPU_SET(core,&cpuset);
+                    }
+                    if(pthread_setaffinity_np(pthread_self(),sizeof(cpuset),&cpuset)!=0) {
+                        dbg_default_warn("Failed to set affinity for cascade worker-{}", i);
+                    }
+                }
+                // call workhorse
+                this->workhorse(i);
+            });
     }
 }
 
