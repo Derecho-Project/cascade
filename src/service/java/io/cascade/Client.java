@@ -390,4 +390,13 @@ public class Client {
      */
     private native long removeInternal(ServiceType type, long subgroupIndex, long shardIndex, ByteBuffer key);
 
+
+    /********** BELOW ARE ADDITIONAL APIS NOT IMPLEMENTED YET **********/
+    public QueryResults<List<ByteBuffer>> listKeys(ServiceType type, long version, long subgroupIndex, long shardIndex){
+        long res = listKeysInternal(type, version, subgroupIndex, shardIndex);
+        return new QueryResults<List<ByteBuffer>>(res, 2, type);
+    }
+
+    private native long listKeysInternal(ServiceType type, long version, long subgroupIndex, long shardIndex);
+
 }

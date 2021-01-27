@@ -553,6 +553,36 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_removeInternal(JNIEnv *env, jobje
     return -1;
 }
 
+/* Java Stream API Support */
+
+template <typename T>
+jlong list_keys(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong version, jlong subgroup_index, jlong shard_index)
+{
+    // execute list keys
+    derecho::rpc::QueryResults<std::vector<typename T::KeyType>> res = capi->list_keys<T>(version, subgroup_index, shard_index);
+    // store the results in a handle
+    QueryResultHolder<std::vector<typename T::KeyType>> *qrh = new QueryResultHolder<std::vector<typename T::KeyType>>(res);
+    return reinterpret_cast<jlong>(qrh);
+}
+
+/*
+ * Class:     io_cascade_Client
+ * Method:    listKeysInternal
+ * Signature: (Lio/cascade/ServiceType;JJJ)J
+ */
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_listKeysInternal
+  (JNIEnv * env, jobject obj, jobject service_type, jlong version, jlong subgroup_index, jlong shard_index){
+    derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
+    int service_val = get_value(env, service_type);
+
+    on_service_val1(service_val, return list_keys, env, capi, version, subgroup_index, shard_index);
+    on_service_val2(service_val, return list_keys, env, capi, version, subgroup_index, shard_index);
+
+    return -1;
+
+}
+
+
 /**
  * Put objects acquired from the future into a Java hash map.
  * @param env the Java environment
@@ -643,6 +673,12 @@ JNIEXPORT jobject JNICALL Java_io_cascade_QueryResults_getReplyMap(JNIEnv *env, 
         char *data = obj.blob.bytes;
         std::size_t size = obj.blob.size;
 
+        std::cout << "processing at u64 f!" << size << " " << std::endl;
+
+        // jobject direct_buffer_obj = env->NewDirectByteBuffer(data, static_cast<jlong>(size));
+        // return direct_buffer_obj;
+
+
         // initialize the Java byte array
         jbyteArray data_byte_arr = env->NewByteArray(size);
         env->SetByteArrayRegion(data_byte_arr, 0, size, reinterpret_cast<jbyte *>(data));
@@ -664,6 +700,11 @@ JNIEXPORT jobject JNICALL Java_io_cascade_QueryResults_getReplyMap(JNIEnv *env, 
         char *data = obj.blob.bytes;
         std::size_t size = obj.blob.size;
 
+        std::cout << "processing at s f!" << size << " " << std::endl;
+
+        // jobject direct_buffer_obj = env->NewDirectByteBuffer(data, static_cast<jlong>(size));
+        // return direct_buffer_obj;
+
         // initialize the java byte array
         jbyteArray data_byte_arr = env->NewByteArray(size);
 
@@ -677,6 +718,15 @@ JNIEXPORT jobject JNICALL Java_io_cascade_QueryResults_getReplyMap(JNIEnv *env, 
         env->CallObjectMethod(byte_buf_obj, put_mid, data_byte_arr);
         return byte_buf_obj;
     };
+
+        // lambda that translates into byte buffer types and receives objects with uint64 keys.
+    // auto u64_vf = [env](std::vector<uint64_t> obj) {
+    //     return NULL;
+    // };
+
+    // auto s_vf = [env](std::vector<std::string> obj) {
+    //     return NULL;
+    // };
 
     // get different reply maps base on mode
     switch (mode)
@@ -697,6 +747,19 @@ JNIEXPORT jobject JNICALL Java_io_cascade_QueryResults_getReplyMap(JNIEnv *env, 
             break;
         }
         break;
+    // case 2:
+    //     switch (type_val)
+    //     {
+    //     case 0:
+    //     case 1:
+    //         create_object_from_query<std::vector<uint64_t>>(env, handle, hash_map_object, u64_vf);
+    //         break;
+    //     case 2:
+    //     case 3:
+    //         create_object_from_query<std::vector<std::string>>(env, handle, hash_map_object, s_vf);
+    //         break;
+    //     }
+    //     break;
     default:
         break;
     }
