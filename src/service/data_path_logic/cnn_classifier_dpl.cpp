@@ -126,6 +126,7 @@ std::shared_ptr<CriticalDataPathObserver<PersistentCascadeStoreWithStringKey>> g
 #define DPL_CONF_PET_SYNSET  "CASCADE/pet_synset"
 #define DPL_CONF_PET_SYMBOL  "CASCADE/pet_symbol"
 #define DPL_CONF_PET_PARAMS  "CASCADE/pet_params"
+#define DPL_CONF_USE_GPU        "CASCADE/use_gpu"
 
 class InferenceEngine {
 private:
@@ -148,7 +149,7 @@ private:
     /**
      * global ctx
      */
-    mxnet::cpp::Context global_ctx;
+    const mxnet::cpp::Context& global_ctx;
     /**
      * the input shape
      */
@@ -242,14 +243,11 @@ private:
     }
 
 public:
-    InferenceEngine(const std::string& synset_file,
+    InferenceEngine(const mxnet::cpp::Context& ctxt,
+                    const std::string& synset_file,
                     const std::string& symbol_file,
                     const std::string& params_file):
-#ifdef HAS_NVIDIA_GPU
-        global_ctx(mxnet::cpp::DeviceType::kGPU,1), // TODO: get resources from CascadeContext
-#else // use CPU instead.
-        global_ctx(mxnet::cpp::DeviceType::kCPU,0), // TODO: get resources from CascadeContext
-#endif
+        global_ctx(ctxt),
         input_shape(std::vector<mxnet::cpp::index_t>({1, 3, 224, 224})) {
         dbg_default_trace("loading model begin.");
         load_model(synset_file, symbol_file, params_file);
@@ -329,9 +327,28 @@ public:
 #endif
     }
 
-    virtual void operator () (Action&& action, ICascadeContext* cascade_ctxt, uint32_t task_id) {
-        static thread_local InferenceEngine flower_ie(derecho::getConfString(DPL_CONF_FLOWER_SYNSET),derecho::getConfString(DPL_CONF_FLOWER_SYMBOL),derecho::getConfString(DPL_CONF_FLOWER_PARAMS));
-        static thread_local InferenceEngine pet_ie(derecho::getConfString(DPL_CONF_PET_SYNSET),derecho::getConfString(DPL_CONF_PET_SYMBOL),derecho::getConfString(DPL_CONF_PET_PARAMS));
+    virtual void operator () (Action&& action, ICascadeContext* cascade_ctxt, uint32_t worker_id) {
+        auto* ctxt = dynamic_cast<CascadeContext<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey>*>(cascade_ctxt);
+        /* step 1 prepare context */
+        bool use_gpu = derecho::hasCustomizedConfKey(DPL_CONF_USE_GPU)?derecho::getConfBoolean(DPL_CONF_USE_GPU):false;
+        if (use_gpu && ctxt->resource_descriptor.gpus.size()==0) {
+            dbg_default_error("Worker{}: GPU is requested but no GPU found...giving up on processing data.",worker_id);
+            return;
+        }
+        static thread_local const mxnet::cpp::Context mxnet_ctxt(
+            use_gpu? mxnet::cpp::DeviceType::kGPU : mxnet::cpp::DeviceType::kCPU,
+            use_gpu? ctxt->resource_descriptor.gpus[worker_id % ctxt->resource_descriptor.gpus.size()]:0);
+        /* create inference engines */
+        static thread_local InferenceEngine flower_ie(
+                mxnet_ctxt,
+                derecho::getConfString(DPL_CONF_FLOWER_SYNSET),
+                derecho::getConfString(DPL_CONF_FLOWER_SYMBOL),
+                derecho::getConfString(DPL_CONF_FLOWER_PARAMS));
+        static thread_local InferenceEngine pet_ie(
+                mxnet_ctxt,
+                derecho::getConfString(DPL_CONF_PET_SYNSET),
+                derecho::getConfString(DPL_CONF_PET_SYMBOL),
+                derecho::getConfString(DPL_CONF_PET_PARAMS));
         if (action.action_type == AT_FLOWER_NAME || action.action_type == AT_PET_BREED) {
 			ImageFrame* frame = dynamic_cast<ImageFrame*>(action.action_data.get());
             std::string name;
@@ -341,7 +358,6 @@ public:
             } else {
                 std::tie(name,soft_max) = pet_ie.infer(*frame);
             }
-            auto* ctxt = dynamic_cast<CascadeContext<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey>*>(cascade_ctxt);
             PersistentCascadeStoreWithStringKey::ObjectType obj(frame->key,name.c_str(),name.size());
             std::lock_guard<std::mutex> lock(p2p_send_mutex);
 #ifdef EVALUATION
