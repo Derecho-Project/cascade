@@ -113,6 +113,7 @@ public class ClientTest {
                     case "quit":
                     case "exit":
                         System.exit(0);
+                        break;
                     case "list_all_members":
                         // list all members in the group.
                         System.out.println("Top Derecho Group members = " + client.getMembers());

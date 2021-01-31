@@ -393,10 +393,20 @@ public class Client {
 
     /********** BELOW ARE ADDITIONAL APIS NOT IMPLEMENTED YET **********/
     public QueryResults<List<ByteBuffer>> listKeys(ServiceType type, long version, long subgroupIndex, long shardIndex){
+        System.out.println("called list keys!");
         long res = listKeysInternal(type, version, subgroupIndex, shardIndex);
         return new QueryResults<List<ByteBuffer>>(res, 2, type);
     }
 
     private native long listKeysInternal(ServiceType type, long version, long subgroupIndex, long shardIndex);
+
+    public QueryResults<List<ByteBuffer>> listKeysByTime(ServiceType type, long timestamp, long subgroupIndex, long shardIndex){
+        System.out.println("called list keys!");
+        long res = listKeysByTimeInternal(type, timestamp, subgroupIndex, shardIndex);
+        return new QueryResults<List<ByteBuffer>>(res, 2, type);
+    }
+
+    private native long listKeysByTimeInternal(ServiceType type, long timestamp, long subgroupIndex, long shardIndex);
+
 
 }

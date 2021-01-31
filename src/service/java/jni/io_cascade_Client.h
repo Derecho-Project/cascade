@@ -87,6 +87,14 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_removeInternal
 JNIEXPORT jlong JNICALL Java_io_cascade_Client_listKeysInternal
   (JNIEnv *, jobject, jobject, jlong, jlong, jlong);
 
+/*
+ * Class:     io_cascade_Client
+ * Method:    listKeysByTimeInternal
+ * Signature: (Lio/cascade/ServiceType;JJJ)J
+ */
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_listKeysByTimeInternal
+  (JNIEnv *, jobject, jobject, jlong, jlong, jlong);
+
 #ifdef __cplusplus
 }
 #endif

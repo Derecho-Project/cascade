@@ -20,7 +20,7 @@ endif (NOT JNI_FOUND)
 
 include(UseJava)
 
-set(CMAKE_JAVA_COMPILE_FLAGS "-source" "11" "-target" "11" "-h" "${CMAKE_CURRENT_SOURCE_DIR}/jni")
+set(CMAKE_JAVA_COMPILE_FLAGS "-source" "11" "-target" "11" "-h" "${CMAKE_CURRENT_SOURCE_DIR}/jni" "-Xlint")
 
 add_jar(cascade_jar
         io/cascade/Client.java
@@ -28,6 +28,8 @@ add_jar(cascade_jar
         io/cascade/QueryResults.java
         io/cascade/ServiceType.java
         io/cascade/ShardMemberSelectionPolicy.java
+        io/cascade/stream/ShardSupplier.java
+        io/cascade/stream/ShardTimeSupplier.java
     OUTPUT_NAME
         cascade
 )
@@ -50,6 +52,18 @@ add_jar(perf_test
 		io/cascade/test/PerfTestClient
     OUTPUT_NAME
         perf_test
+    MANIFEST
+        Manifest.txt
+    INCLUDE_JARS
+        cascade_jar
+)
+
+add_jar(stream_test
+        io/cascade/test/StreamTest.java
+    ENTRY_POINT
+		io/cascade/test/StreamTest
+    OUTPUT_NAME
+        stream_test
     MANIFEST
         Manifest.txt
     INCLUDE_JARS
