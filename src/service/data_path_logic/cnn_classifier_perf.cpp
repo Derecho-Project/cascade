@@ -226,7 +226,7 @@ int main(int argc, char** argv) {
                                           << (after_query_ts[i]  - before_query_ts[i])/1000000 << " | " 
                                           << (close_loop_ts[i]   - before_send_message_ts[i])/1000000 << std::endl;
         }
-        double span_ns = (double)(max_recv_ts - send_message_ts[0]);
+        double span_ns = (double)(max_recv_ts - before_send_message_ts[0]);
         std::cout << "Timespan:\t" << span_ns/1e6 << " milliseconds." << std::endl;
         // Thoughput
         std::cout << "Throughput:\t" << (double)(num_messages*1e9)/span_ns << " ops." << std::endl;
