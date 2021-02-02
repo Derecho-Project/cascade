@@ -170,7 +170,6 @@ int main(int argc, char** argv) {
 #ifdef EVALUATION
                 before_query_ts[num_replied] = get_time();
 #endif
-                prev_us = get_time()/1000;
                 for (auto& reply_future:results.front().get()) {
                     auto reply = reply_future.second.get();
                     std::cout << "node(" << reply_future.first << ") replied with version:" << std::get<0>(reply)
@@ -182,21 +181,22 @@ int main(int argc, char** argv) {
                 results.pop_front();
                 num_replied ++;
             }
-            results.emplace_back(std::move(capi.template put<VolatileCascadeStoreWithStringKey>(vec_photos.at(i%vec_size), 0, 0)));
-#ifdef EVALUATION
-            send_message_ts[i] = get_time();
-#endif
             now_us = get_time()/1000;
             if ((now_us - prev_us) < interval_us) {
                 usleep(prev_us+interval_us-now_us);
             }
+	    prev_us = get_time()/1000;
+            results.emplace_back(std::move(capi.template put<VolatileCascadeStoreWithStringKey>(vec_photos.at(i%vec_size), 0, 0)));
+#ifdef EVALUATION
+            send_message_ts[i] = get_time();
+	    std::cout << "send_message_ts[" << i << "]=" << send_message_ts[i]/1000000 << std::endl;
+#endif
         }
 
         while(results.size() > 0) {
 #ifdef EVALUATION
             before_query_ts[num_replied] = get_time();
 #endif
-            prev_us = get_time()/1000;
             for (auto& reply_future:results.front().get()) {
                 auto reply = reply_future.second.get();
                 std::cout << "node(" << reply_future.first << ") replied with version:" << std::get<0>(reply)
