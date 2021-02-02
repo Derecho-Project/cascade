@@ -72,7 +72,7 @@ void collect_time(uint16_t udp_port, size_t num_messages, uint64_t* timestamps) 
 int main(int argc, char** argv) {
     const char* HELP_INFO = "--(t)ype <pet|flower> --(f)iles <file1:file2:file3...>\n"
                             "--(n)um_messages <number of messages, default to 100>\n"
-                            "--(i)nterval_ms <message interval in ms, default to 1000>\n"
+                            "--(i)nterval_us <message interval in microseconds, default to 1000000 (1s)>\n"
 #ifdef EVALUATION
                             "--(u)dp_port <UDP port for report server. For evaluation only, default=54321>\n"
 #endif
@@ -82,7 +82,7 @@ int main(int argc, char** argv) {
         {"files",   required_argument,  0,  'f'},
         {"type",    required_argument,  0,  't'},
         {"num_messages",    required_argument,  0,  'n'},
-        {"interval_ms",     required_argument,  0,  'i'},
+        {"interval_us",     required_argument,  0,  'i'},
 #ifdef EVALUATION
         {"udp_port",		required_argument,  0,  'u'},
 #endif
@@ -116,7 +116,7 @@ int main(int argc, char** argv) {
             num_messages = std::stol(optarg);
             break;
         case 'i':
-            interval_us = std::stol(optarg)*1000;
+            interval_us = std::stol(optarg);
             break;
 #ifdef EVALUATION
         case 'u':
