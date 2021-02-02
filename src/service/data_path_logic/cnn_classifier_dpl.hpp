@@ -49,6 +49,8 @@ typedef struct __attribute__ ((packed)) {
 
 typedef struct __attribute__ ((packed)) {
     uint64_t    photo_id;
+    uint64_t    inference_us;
+    uint64_t    put_us;
 } CloseLoopReport;
 
 inline VolatileCascadeStoreWithStringKey::ObjectType get_photo_object(const char* type, const char* key, const char* photo_file, uint64_t photo_id = 0ul) {

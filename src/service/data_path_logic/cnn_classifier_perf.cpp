@@ -29,7 +29,7 @@ auto parse_file_list(const char* type, const char* files) {
 
 #ifdef EVALUATION
 #define BUFSIZE (256)
-void collect_time(uint16_t udp_port, size_t num_messages, uint64_t* timestamps) {
+void collect_time(uint16_t udp_port, size_t num_messages, uint64_t* timestamps, uint64_t* inference_us, uint64_t* put_us) {
     struct sockaddr_in serveraddr,clientaddr;
     char buf[BUFSIZE];
     //STEP 1: start UDP channel
@@ -59,6 +59,8 @@ void collect_time(uint16_t udp_port, size_t num_messages, uint64_t* timestamps) 
         }
         CloseLoopReport *clr = reinterpret_cast<CloseLoopReport*>(buf);
         timestamps[clr->photo_id] = get_time();
+        inference_us[clr->photo_id] = clr->inference_us;
+        put_us[clr->photo_id] = clr->put_us;
         cnt ++;
     }
     //STEP 3: finish 
@@ -149,7 +151,9 @@ int main(int argc, char** argv) {
         uint64_t before_query_ts[num_messages];
         uint64_t after_query_ts[num_messages];
         uint64_t close_loop_ts[num_messages];
-        std::thread cl_thread(collect_time, udp_port, num_messages, (uint64_t*)close_loop_ts);
+        uint64_t inference_us[num_messages]; // inference time cost in microsecond
+        uint64_t put_us[num_messages]; // "put to pers" time cost in microsecond
+        std::thread cl_thread(collect_time, udp_port, num_messages, (uint64_t*)close_loop_ts, (uint64_t*)inference_us, (uint64_t*)put_us);
 #endif
         uint64_t prev_us = 0, now_us;
         size_t num_replied = 0;
@@ -214,11 +218,18 @@ int main(int argc, char** argv) {
         uint64_t max_recv_ts = 0;
         uint64_t latencies[num_messages];
         double avg_lat = 0.0;
+        double lat_std = 0.0;
+        double avg_infer_lat = 0.0;
+        double infer_lat_std = 0.0;
+        double avg_put_lat = 0.0;
+        double put_lat_std = 0.0;
         for (size_t i=0;i<num_messages;i++) {
             if (max_recv_ts < close_loop_ts[i]) {
                 max_recv_ts = close_loop_ts[i];
                 latencies[i] = (close_loop_ts[i] - send_message_ts[i]);
-                avg_lat += latencies[i]/num_messages;
+                avg_lat += (double)latencies[i]/num_messages;
+                avg_infer_lat += (double)inference_us[i]/num_messages;
+                avg_put_lat += (double)put_us[i]/num_messages;
             }
             std::cout << "[" << i << "] " << (send_message_ts[i] - before_send_message_ts[i])/1000000 << "," 
                                           << (before_query_ts[i] - send_message_ts[i])/1000000 << "," 
@@ -230,13 +241,21 @@ int main(int argc, char** argv) {
         // Thoughput
         std::cout << "Throughput:\t" << (double)(num_messages*1e9)/span_ns << " ops." << std::endl;
         // Latency
-        double ssum = 0.0;
-        double std_dev = 0.0;
+        double lat_ssum = 0.0;
+        double ilat_ssum = 0.0;
+        double plat_ssum = 0.0;
         for(size_t i=0;i<num_messages;i++) {
-            ssum += (latencies[i]-avg_lat)*(latencies[i] - avg_lat);
+            lat_ssum += (latencies[i]-avg_lat)*(latencies[i] - avg_lat);
+            ilat_ssum += (inference_us[i]-avg_infer_lat)*(inference_us[i]-avg_infer_lat);
+            plat_ssum += (put_us[i]-avg_put_lat)*(put_us[i]-avg_put_lat);
         }
-        std_dev = sqrt(ssum/(num_messages-1));
-        std::cout << "Latency:\t" << avg_lat/1e6 << " ms, standard deviation: " << std_dev/1e6 << " ms."  << std::endl;
+        lat_std = sqrt(lat_ssum/(num_messages-1));
+        infer_lat_std = sqrt(ilat_ssum/(num_messages-1));
+        put_lat_std = sqrt(plat_ssum/(num_messages-1));
+
+        std::cout << "Latency:\t" << avg_lat/1e6 << " ms, standard deviation: " << lat_std/1e6 << " ms."  << std::endl;
+        std::cout << "Inference Latency:\t" << avg_infer_lat/1e3 << " ms, standard deviation: " << infer_lat_std/1e3 << " ms."  << std::endl;
+        std::cout << "Put Latency:\t" << avg_put_lat/1e3 << " ms, standard deviation: " << put_lat_std/1e3 << " ms."  << std::endl;
 #endif
     }
 

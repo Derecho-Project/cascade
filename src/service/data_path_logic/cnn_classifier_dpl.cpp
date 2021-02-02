@@ -353,17 +353,24 @@ public:
 			ImageFrame* frame = dynamic_cast<ImageFrame*>(action.action_data.get());
             std::string name;
             double soft_max;
+#ifdef EVALUATION
+            uint64_t before_inference_ns = get_time();
+#endif
             if (action.action_type == AT_FLOWER_NAME) {
                 std::tie(name,soft_max) = flower_ie.infer(*frame);
             } else {
                 std::tie(name,soft_max) = pet_ie.infer(*frame);
             }
+#ifdef EVALUATION
+            uint64_t after_inference_ns = get_time();
+#endif
             PersistentCascadeStoreWithStringKey::ObjectType obj(frame->key,name.c_str(),name.size());
             std::lock_guard<std::mutex> lock(p2p_send_mutex);
 #ifdef EVALUATION
             CloseLoopReport clr;
             FrameData* fd = reinterpret_cast<FrameData*>(frame->bytes);
             clr.photo_id = fd->photo_id;
+            clr.inference_us = (after_inference_ns-before_inference_ns)/1000;
 #endif
             auto result = ctxt->get_service_client_ref().template put<PersistentCascadeStoreWithStringKey>(obj);
             for (auto& reply_future:result.get()) {
@@ -371,6 +378,8 @@ public:
                 dbg_default_debug("node({}) replied with version:({:x},{}us)",reply_future.first,std::get<0>(reply),std::get<1>(reply));
 #ifdef EVALUATION
             }
+            uint64_t after_put_ns = get_time();
+            clr.put_us = (after_put_ns-after_inference_ns)/1000;
             int serverlen = sizeof(serveraddr);
             size_t ns = sendto(sock_fd,(void*)&clr,sizeof(clr),0,(const sockaddr*)&serveraddr,serverlen);
             if (ns < 0) {
