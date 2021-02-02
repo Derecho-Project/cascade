@@ -189,7 +189,6 @@ int main(int argc, char** argv) {
             results.emplace_back(std::move(capi.template put<VolatileCascadeStoreWithStringKey>(vec_photos.at(i%vec_size), 0, 0)));
 #ifdef EVALUATION
             send_message_ts[i] = get_time();
-	    std::cout << "send_message_ts[" << i << "]=" << send_message_ts[i]/1000000 << std::endl;
 #endif
         }
 
