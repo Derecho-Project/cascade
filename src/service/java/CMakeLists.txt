@@ -28,8 +28,11 @@ add_jar(cascade_jar
         io/cascade/QueryResults.java
         io/cascade/ServiceType.java
         io/cascade/ShardMemberSelectionPolicy.java
+        io/cascade/CascadeObject.java
         io/cascade/stream/ShardSupplier.java
         io/cascade/stream/ShardTimeSupplier.java
+        io/cascade/stream/VersionSupplier.java
+        io/cascade/stream/SubgroupSupplier.java
     OUTPUT_NAME
         cascade
 )

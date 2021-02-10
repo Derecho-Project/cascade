@@ -178,13 +178,13 @@ public class Client {
      *         subgroup/shard. The byte buffer would be empty if the key has not
      *         been put into cascade.
      */
-    public QueryResults<ByteBuffer> get(ServiceType type, long key, long version, long subgroupIndex, long shardID) {
+    public QueryResults<CascadeObject> get(ServiceType type, long key, long version, long subgroupIndex, long shardID) {
         String str = Long.toString(key);
         byte[] arr = str.getBytes();
         ByteBuffer bbkey = ByteBuffer.allocateDirect(arr.length);
         bbkey.put(arr);
         long res = getInternal(type, subgroupIndex, shardID, bbkey, version);
-        return new QueryResults<ByteBuffer>(res, 1, type);
+        return new QueryResults<CascadeObject>(res, 1, type);
     }
 
     /**
@@ -210,10 +210,10 @@ public class Client {
      *         subgroup/shard. The byte buffer would be empty if the key has not
      *         been put into cascade.
      */
-    public QueryResults<ByteBuffer> get(ServiceType type, ByteBuffer key, long version, long subgroupIndex,
+    public QueryResults<CascadeObject> get(ServiceType type, ByteBuffer key, long version, long subgroupIndex,
             long shardID) {
         long res = getInternal(type, subgroupIndex, shardID, key, version);
-        return new QueryResults<ByteBuffer>(res, 1, type);
+        return new QueryResults<CascadeObject>(res, 1, type);
     }
 
     /**
@@ -235,14 +235,14 @@ public class Client {
      *         subgroup/shard. The byte buffer would be empty if the key has not
      *         been put into cascade.
      */
-    public QueryResults<ByteBuffer> getByTime(ServiceType type, long key, long timestamp, long subgroupIndex,
+    public QueryResults<CascadeObject> getByTime(ServiceType type, long key, long timestamp, long subgroupIndex,
             long shardID) {
         String str = Long.toString(key);
         byte[] arr = str.getBytes();
         ByteBuffer bbkey = ByteBuffer.allocateDirect(arr.length);
         bbkey.put(arr);
         long res = getInternalByTime(type, subgroupIndex, shardID, bbkey, timestamp);
-        return new QueryResults<ByteBuffer>(res, 1, type);
+        return new QueryResults<CascadeObject>(res, 1, type);
     }
 
     /**
@@ -268,10 +268,10 @@ public class Client {
      *         subgroup/shard. The byte buffer would be empty if the key has not
      *         been put into cascade.
      */
-    public QueryResults<ByteBuffer> getByTime(ServiceType type, ByteBuffer key, long timestamp, long subgroupIndex,
+    public QueryResults<CascadeObject> getByTime(ServiceType type, ByteBuffer key, long timestamp, long subgroupIndex,
             long shardID) {
         long res = getInternalByTime(type, subgroupIndex, shardID, key, timestamp);
-        return new QueryResults<ByteBuffer>(res, 1, type);
+        return new QueryResults<CascadeObject>(res, 1, type);
     }
 
     /**
@@ -408,5 +408,5 @@ public class Client {
 
     private native long listKeysByTimeInternal(ServiceType type, long timestamp, long subgroupIndex, long shardIndex);
 
-
+    public native long getNumberOfShards(ServiceType type, long subgroupIndex);
 }
