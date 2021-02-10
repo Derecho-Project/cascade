@@ -27,9 +27,13 @@ public class ShardTimeSupplier extends ShardSupplier implements Supplier<ByteBuf
 
     public ByteBuffer get(){
         if (ptr >= keyList.size()) return null;
-        Map<Integer, ByteBuffer> getResults = client.getByTime(type, keyList.get(ptr++), timestamp, subgroupIndex, shardIndex).get();
+        Map<Integer, CascadeObject> getResults = client.getByTime(type, keyList.get(ptr++), timestamp, subgroupIndex, shardIndex).get();
         System.out.println("reply map:" + getResults);
-        return getResults.values().iterator().next();
+        return getResults.values().iterator().next().object;
+    }
+
+    public long size(){
+        return keyList.size();
     }
 
 }

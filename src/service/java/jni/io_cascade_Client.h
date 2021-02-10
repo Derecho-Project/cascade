@@ -95,6 +95,14 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_listKeysInternal
 JNIEXPORT jlong JNICALL Java_io_cascade_Client_listKeysByTimeInternal
   (JNIEnv *, jobject, jobject, jlong, jlong, jlong);
 
+/*
+ * Class:     io_cascade_Client
+ * Method:    getNumberOfShards
+ * Signature: (Lio/cascade/ServiceType;J)J
+ */
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_getNumberOfShards
+  (JNIEnv *, jobject, jobject, jlong);
+
 #ifdef __cplusplus
 }
 #endif
