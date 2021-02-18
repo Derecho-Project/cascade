@@ -6,11 +6,15 @@
 namespace derecho {
 namespace cascade {
 
+/**
+ * register triggers to cascade
+ */
+void register_triggers(ICascadeContext* ctxt);
 
 /**
  * "on_cascade_initialization" will be called before cascade server joining derecho group.
  */
-void on_cascade_initialization();
+void on_initialization(ICascadeContext* ctxt);
 
 /**
  * "on_cascade_exit" will be called after cascade server leave derecho group.

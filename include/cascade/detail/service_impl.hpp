@@ -62,7 +62,6 @@ derecho::Factory<CascadeType> factory_wrapper(ICascadeContext* context_ptr, dere
 
 template <typename... CascadeTypes>
 Service<CascadeTypes...>::Service(const json& layout,
-                                  OffCriticalDataPathObserver* ocdpo_ptr,
                                   const std::vector<DeserializationContext*>& dsms,
                                   derecho::cascade::Factory<CascadeTypes>... factories) {
     // STEP 1 - load configuration
@@ -81,7 +80,7 @@ Service<CascadeTypes...>::Service(const json& layout,
                 factory_wrapper(context.get(),factories)...);
     dbg_default_trace("joined group.");
     // STEP 4 - construct context
-    context->construct(ocdpo_ptr,group.get());
+    context->construct(group.get());
     // STEP 5 - create service thread
     this->_is_running = true;
     service_thread = std::thread(&Service<CascadeTypes...>::run, this);
@@ -555,11 +554,11 @@ template <typename... CascadeTypes>
 CascadeContext<CascadeTypes...>::CascadeContext() {}
 
 template <typename... CascadeTypes>
-void CascadeContext<CascadeTypes...>::construct(OffCriticalDataPathObserver* _off_critical_data_path_handler,
-                                                derecho::Group<CascadeTypes...>* group_ptr) {
-    // 0 - TODO:load resources configuration here.
-    // 1 - setup off_critical_data_path_handler
-    this->off_critical_data_path_handler = _off_critical_data_path_handler;
+void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeTypes...>* group_ptr) {
+    // 0 - TODO: load resources configuration here.
+    // 1 - create data path logic loader and preregister the prefixes
+    data_path_logic_loader = DataPathLogicLoader<CascadeTypes...>>::create();
+    preregister_prefixes(data_path_logic_loader.get_prefixes());
     // 2 - prepare the service client
     service_client = std::make_unique<ServiceClient<CascadeTypes...>>(group_ptr);
     // 3 - start the working threads
@@ -637,6 +636,37 @@ void CascadeContext<CascadeTypes...>::destroy() {
 template <typename... CascadeTypes>
 ServiceClient<CascadeTypes...>& CascadeContext<CascadeTypes...>::get_service_client_ref() const {
     return *service_client.get();
+}
+
+template <typename... CascadeTypes>
+void CascadeContext<CascadeTypes...>::preregister_prefixes(const std::vector<std::string>& prefixes) {
+    for (auto& prefix: prefixes) {
+        auto result = prefix_registry.emplace(prefix,nullptr);
+        if (!std::get<1>(result)) {
+            // insertion does not happen because some prefixes is already there.
+            // we overwrite it.
+            prefix_registry[prefix] = nullptr;
+            dbg_default_warn("In {}, prefix:'{}' is overwritten.",__PRETTY_FUNCTION__,prefix);
+        }
+    }
+}
+
+template <typename... CascadeTypes>
+void CascadeContext<CascadeTypes...>::register_prefix(const std::string& prefix, const std::shared_ptr<OffCriticalDataPathObserver>& ocdpo_ptr) {
+    auto result = prefix_registry.emplace(prefix,ocdpo_ptr);
+    if (!std::get<1>(result)) {
+        // insertion does not happen because some prefixes is already there.
+        // we overwrite it.
+        prefix_registry[prefix] = ocdpo_ptr;
+        dbg_default_warn("In {}, prefix:'{}' is overwritten.",__PRETTY_FUNCTION__,prefix);
+    }
+}
+
+template <typename... CascadeTypes>
+void CascadeContext<CascadeTypes...>::unregister_prefix(const std::string& prefix) {
+    if (prefix_registry.erase(prefix) == 0) {
+        dbg_default_warn("In {}, erase an unknown prefix:'{}'.",__PRETTY_FUNCTION__,prefix);
+    }
 }
 
 template <typename... CascadeTypes>

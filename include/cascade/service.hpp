@@ -108,12 +108,10 @@ namespace cascade {
          * Constructor
          * The constructor will load the configuration, start the service thread.
          * @param layout TODO: explain layout
-         * @param ocdpo_ptr Off-critical data path observer.
          * @param dsms TODO: explain it here
          * @param factories: explain it here
          */
         Service(const json& layout,
-                OffCriticalDataPathObserver *ocdpo_ptr,
                 const std::vector<DeserializationContext*>& dsms,
                 derecho::cascade::Factory<CascadeTypes>... factories);
         /**
@@ -484,13 +482,16 @@ namespace cascade {
         /** dump **/
         void dump() const;
     };
-    
+   
+
     /**
      * The cascade context
      *
      * The cascade context manages computation resources like CPU cores, GPU, and memory. It works as the container for all
      * "off-critical" path logics. The main components of cascade context includes:
      * 1 - a thread pool for the off-critical path logics.
+     * 2 - a prefix registry.
+     * 3 - a bounded Action buffer.
      */
     template <typename... CascadeTypes>
     class CascadeContext: public ICascadeContext {
@@ -500,8 +501,12 @@ namespace cascade {
         mutable std::mutex      action_queue_mutex;
         std::condition_variable action_queue_cv;
         /** thread pool control */
-        std::atomic<bool>               is_running;
-        OffCriticalDataPathObserver*    off_critical_data_path_handler;
+        std::atomic<bool>       is_running;
+        /** the prefix registry */
+        std::unordered_map<std::string, std::shared_ptr<OffCriticalDataPAthObserver>> prefix_registry;
+        /** the data path logic loader */
+        std::unique_ptr<DataPathLogicLoader<CascadeTypes...>> data_path_logic_loader;
+        /** the off-critical data path worker thread pool */
         std::vector<std::thread>        off_critical_data_path_thread_pool;
         /** the service client: off critical data path logic use it to send data to a next tier. */
         std::unique_ptr<ServiceClient<CascadeTypes...>> service_client;
@@ -532,11 +537,9 @@ namespace cascade {
          * CascadeContext singleton needs to be initialized in main() by calling CascadeContext::initialize(). Moreover, it
          * needs the off critical data path handler from main();
          * 
-         * @param off_critical_data_path_handler    The off critical data path handler
          * @param group_ptr                         The group handle
          */
-        void construct(OffCriticalDataPathObserver* off_critical_data_path_handler,
-                       derecho::Group<CascadeTypes...>* group_ptr);
+        void construct(derecho::Group<CascadeTypes...>* group_ptr);
         /**
          * get the reference to encapsulated service client handle.
          * The reference is valid only after construct() is called.
@@ -544,6 +547,26 @@ namespace cascade {
          * @return a reference to service client.
          */
         ServiceClient<CascadeTypes...>& get_service_client_ref() const;
+        /**
+         * The prefix registry management APIs
+         *
+         * We separate the prefix registration in two stages: preregistration and registration to support lazy loading
+         * of the data path logic packages. During preregistration stage, we create an entry for the corresponding prefix
+         * in the registry with an empty value. During registration stage, the prefix is filled.
+         *
+         * - preregister_prefixes() allows batching preregistration of a set of prefixes, previous registered OCDPO will
+         * be overwritten by the new prefixes.
+         * - register_prefix() setup the OCDPO for the corresponding prefix. If the ocdpo_ptr is nullptr, the prefix is
+         *   "preregister"ed.
+         * - unregister_prefix() deletes a corresponding prefix from registry.
+         *
+         * @param prefixes  a list of vectors to pre-register.
+         * @param prefix    a prefix to register.
+         * @param ocdpo_ptr the data path observer, nullptr for preregistration.
+         */
+        virtual void preregister_prefixes(const std::vector<std::string>& prefixes);
+        virtual void register_prefix(const std::string& prefix, const std::shared_ptr<OffCriticalDataPathObserver>& ocdpo_ptr = nullptr);
+        virtual void unregister_prefix(const std::string& prefix);
         /**
          * post an action to the Context for processing.
          *
