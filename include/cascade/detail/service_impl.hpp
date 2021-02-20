@@ -3,6 +3,9 @@
 #include <typeindex>
 #include <variant>
 #include <derecho/core/derecho.hpp>
+#include <chrono>
+
+using namespace std::chrono_literals;
 
 #if __GLIBC__ == 2 && __GLIBC_MINOR__ < 30
 #include <sys/syscall.h>
@@ -125,9 +128,9 @@ template <typename... CascadeTypes>
 std::unique_ptr<Service<CascadeTypes...>> Service<CascadeTypes...>::service_ptr;
 
 template <typename... CascadeTypes>
-void Service<CascadeTypes...>::start(const json& layout, OffCriticalDataPathObserver* ocdpo_ptr, const std::vector<DeserializationContext*>& dsms, derecho::cascade::Factory<CascadeTypes>... factories) {
+void Service<CascadeTypes...>::start(const json& layout, const std::vector<DeserializationContext*>& dsms, derecho::cascade::Factory<CascadeTypes>... factories) {
     if (!service_ptr) {
-        service_ptr = std::make_unique<Service<CascadeTypes...>>(layout, ocdpo_ptr, dsms, factories...);
+        service_ptr = std::make_unique<Service<CascadeTypes...>>(layout, dsms, factories...);
     } 
 }
 
@@ -551,14 +554,16 @@ derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> ServiceC
 }
 
 template <typename... CascadeTypes>
-CascadeContext<CascadeTypes...>::CascadeContext() {}
+CascadeContext<CascadeTypes...>::CascadeContext():
+    action_buffer_head(0ull),
+    action_buffer_tail(0ull) {}
 
 template <typename... CascadeTypes>
 void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeTypes...>* group_ptr) {
     // 0 - TODO: load resources configuration here.
     // 1 - create data path logic loader and preregister the prefixes
-    data_path_logic_loader = DataPathLogicLoader<CascadeTypes...>>::create();
-    preregister_prefixes(data_path_logic_loader.get_prefixes());
+    data_path_logic_manager = DataPathLogicManager<CascadeTypes...>::create();
+    preregister_prefixes(data_path_logic_manager->get_prefixes());
     // 2 - prepare the service client
     service_client = std::make_unique<ServiceClient<CascadeTypes...>>(group_ptr);
     // 3 - start the working threads
@@ -591,39 +596,66 @@ void CascadeContext<CascadeTypes...>::workhorse(uint32_t worker_id) {
     dbg_default_trace("Cascade context workhorse[{}] started", worker_id);
     while(is_running) {
         // waiting for an action
-        std::unique_lock<std::mutex> lck(action_queue_mutex);
-        action_queue_cv.wait(lck,[this](){return !action_queue.empty() || !is_running;});
-        if (!action_queue.empty()) {
-            // pick an action and process it.
-            Action a = std::move(action_queue.front());
-            action_queue.pop_front();
-            lck.unlock();
-            if (off_critical_data_path_handler) {
-                (*off_critical_data_path_handler)(std::move(a),this,worker_id);
-            }
-        }
+        Action action = std::move(action_buffer_dequeue());
+        // if action_buffer_dequeue return with is_running == false, value_ptr is invalid(nullptr).
+        action.fire(this,worker_id);
+
         if (!is_running) {
-            // processing all existing actions
-            if (!lck) { // regain the lock in case we released it in the above block.
-                lck.lock();
-            }
-            while (!action_queue.empty()) {
-                if (off_critical_data_path_handler) {
-                    (*off_critical_data_path_handler)(std::move(action_queue.front()),this,worker_id);
-                }
-                action_queue.pop_front();
-            }
-            lck.unlock();
+            do {
+                action = std::move(action_buffer_dequeue());
+                if (!action) break; // end of queue
+                action.fire(this,worker_id);
+            } while(true);
         }
     }
     dbg_default_trace("Cascade context workhorse[{}] finished normally.", static_cast<uint64_t>(gettid()));
+}
+
+#define ACTION_BUFFER_IS_FULL   ((action_buffer_head) == ((action_buffer_tail+1)%ACTION_BUFFER_SIZE))
+#define ACTION_BUFFER_IS_EMPTY  ((action_buffer_head) == (action_buffer_tail))
+#define ACTION_BUFFER_DEQUEUE   ((action_buffer_head) = (action_buffer_head+1)%ACTION_BUFFER_SIZE)
+#define ACTION_BUFFER_ENQUEUE   ((action_buffer_tail) = (action_buffer_tail+1)%ACTION_BUFFER_SIZE)
+#define ACTION_BUFFER_HEAD      (action_buffer[action_buffer_head])
+#define ACTION_BUFFER_NEXT_TAIL (action_buffer[(action_buffer_tail+1)%ACTION_BUFFER_SIZE])
+
+/* There is only one thread that enqueues. */
+template <typename... CascadeTypes>
+void CascadeContext<CascadeTypes...>::action_buffer_enqueue(Action&& action) {
+    std::unique_lock<std::mutex> lck(action_buffer_slot_mutex);
+    while (ACTION_BUFFER_IS_FULL) {
+        dbg_default_warn("In {}: Critical data path waits for 10 ms.", __PRETTY_FUNCTION__);
+        action_buffer_slot_cv.wait_for(lck,10ms,[this]{return !ACTION_BUFFER_IS_EMPTY;});
+    }
+
+    ACTION_BUFFER_NEXT_TAIL = std::move(action);
+    ACTION_BUFFER_ENQUEUE;
+    action_buffer_data_cv.notify_one();
+}
+
+/* All worker threads dequeues. */
+template <typename... CascadeTypes>
+Action CascadeContext<CascadeTypes...>::action_buffer_dequeue() {
+    std::unique_lock<std::mutex> lck(action_buffer_data_mutex);
+    while (ACTION_BUFFER_IS_EMPTY) {
+        action_buffer_data_cv.wait_for(lck,10ms,[this]{return (!ACTION_BUFFER_IS_EMPTY) || (!is_running);});
+    }
+
+    Action ret;
+    if (!ACTION_BUFFER_IS_EMPTY) {
+        ret = std::move(ACTION_BUFFER_HEAD);
+        ACTION_BUFFER_DEQUEUE;
+        action_buffer_slot_cv.notify_one();
+    }
+
+    return ret;
 }
 
 template <typename... CascadeTypes>
 void CascadeContext<CascadeTypes...>::destroy() {
     dbg_default_trace("Destroying Cascade context@{:p}.",static_cast<void*>(this));
     is_running.store(false);
-    action_queue_cv.notify_all();
+    action_buffer_data_cv.notify_all();
+    action_buffer_slot_cv.notify_all();
     for (auto& th: off_critical_data_path_thread_pool) {
         if (th.joinable()) {
             th.join();
@@ -670,13 +702,24 @@ void CascadeContext<CascadeTypes...>::unregister_prefix(const std::string& prefi
 }
 
 template <typename... CascadeTypes>
+OffCriticalDataPathObserver* CascadeContext<CascadeTypes...>::get_prefix_handler(const std::string& prefix) {
+    // Since the get_prefix_handler is only called in the critical data path, which is a single thread, we don't need
+    // any lock on the prefix_registry. Please be careful the other thread should not touch the prefix registry.
+    if (prefix_registry.find(prefix)!=prefix_registry.end()) {
+        if (prefix_registry[prefix] == nullptr) {
+            data_path_logic_manager->load_prefix_group_handler(this, prefix);
+        }
+    } else {
+        return nullptr;
+    }
+    return prefix_registry[prefix].get();
+}
+
+template <typename... CascadeTypes>
 bool CascadeContext<CascadeTypes...>::post(Action&& action) {
     dbg_default_trace("Posting an action to Cascade context@{:p}.", static_cast<void*>(this));
     if (is_running) {
-        std::unique_lock<std::mutex> lck(action_queue_mutex);
-        action_queue.emplace_back(std::move(action));
-        lck.unlock();
-        action_queue_cv.notify_one();
+        action_buffer_enqueue(std::move(action));
     } else {
         dbg_default_warn("Failed to post to Cascade context@{:p} because it is not running.", static_cast<void*>(this));
         return false;

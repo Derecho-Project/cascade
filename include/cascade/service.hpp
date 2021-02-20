@@ -11,8 +11,10 @@
 #include <condition_variable>
 #include <thread>
 #include <functional>
+#include <iostream>
 #include <derecho/conf/conf.hpp>
 #include "cascade.hpp"
+#include "data_path_logic_manager.hpp"
 
 using json = nlohmann::json;
 
@@ -40,46 +42,8 @@ namespace cascade {
     template <typename... CascadeTypes>
     class CascadeContext;
 
-    /**
-     * An interface for user-defined action data.
-     */
-    class ActionData {
-    public:
-        virtual ~ActionData(){};
-    };
-    
-    /**
-     * Action is an command passed from the on critical data path logic (cascade watcher) to the off critical data path
-     * logic running in the cascade context thread pool.
-     */
-    struct Action {
-        uint64_t                    action_type;    // Action Type is an uint64_t identifier defined by the user.
-        uint64_t                    immediate_data; // The immediate data provides extra space for action_type.
-        std::unique_ptr<ActionData> action_data;    // In case of big chunk of data, pass it through action_data.
-        /**
-         * Move constructor
-         * @param other     The input Action object
-         */
-        Action(Action&& other):
-            action_type(other.action_type),
-            immediate_data(other.immediate_data),
-            action_data(std::move(other.action_data)) {
-        }
-        /**
-         * Constructor
-         *
-         * @param _action_type      action_type
-         * @param _immediate_data   immediate_data
-         * @param _action_data      raw pointer to action data, whose owner ship is passed to new created Action object.
-         */
-        Action(uint64_t _action_type = 0,uint64_t _immediate_data = 0,ActionData* _action_data = nullptr):
-            action_type(_action_type),
-            immediate_data(_immediate_data),
-            action_data(_action_data) {
-        }
-        Action(const Action&) = delete; // disable copy constructor
-    };
-    
+    /* The Action to be defined later */
+    struct Action;
     /**
      * The off-critical data path handler API
      */
@@ -89,12 +53,99 @@ namespace cascade {
          * This function has to be re-entrant/thread-safe.
          * @param _1    The action passed from critical data path
          * @param _2    The CascadeContext
-         * @param _3    The task_id of this off critical data path thread.
+         * @param _3    Off critical data path worker id.
          */ 
         virtual void operator() (Action&&, ICascadeContext*, uint32_t){};
     };
+    /**
+     * Action is an command passed from the on critical data path logic (cascade watcher) to the off critical data path
+     * logic, a.k.a. workers, running in the cascade context thread pool.
+     *
+     * !!! IMPORTANT NOTES ON "ACTION" DESIGN !!!
+     * Action carries the key string, version, prefix handler (ocdpo_raw_ptr), and the object value so that the prefix
+     * handler have all the information to process in the worker thread. It is important to avoid unnecessary copies
+     * because the object value is big sometime (for example, a high resolution video clip). Currently, we copied the
+     * value data into a new allocated memory buffer pointed by a unique pointer in the critical data path because the
+     * value in critical data path is in Derecho's managed RDMA buffer, which will not last beyond the lifetime of the
+     * critical data path. However, even this copy can be avoided using a lock-less design.
+     *
+     * For example, we can pass the raw pointer to the value in VolatileCascadeStore or PersistentCascadeStore instead of
+     * allocating new memory and copying data. But the critical data path keeps updating the value (actually, the old
+     * value is removed from the map, and a new value is inserted). Dereferencing the raw pointer might crash with a
+     * segmentation fault if the pointed value is reclaimed. Moreover, using lock is not efficient at all because the
+     * off critical data path lock will block the critical data path, slowing down the whole system. An optimal solution
+     * to this issue is to 
+     * 1) keep a short history of all the versions in VolatileCascadeStore or PersistentCascadeStore in std::vector<>;
+     * 2) enable concurrent access to the value. For example, we can allocate a lock for each of the slot of the history
+     * and pass it to the critical data path so that the worker thread can lock the corresponding slot when it is
+     * working on that. The number of slots in history should match the size of action buffer.
+     *
+     * This is a TODO work to be done later. So far, we stick to the extra copy for convenience.
+     *
+     */
+#define ACTION_BUFFER_ENTRY_SIZE    (256)
+#define ACTION_BUFFER_SIZE          (1024)
+    struct Action {
+        std::string                     key_string;
+        persistent::version_t           version;
+        OffCriticalDataPathObserver*    ocdpo_raw_ptr;
+        std::unique_ptr<mutils::ByteRepresentable>     value_ptr;
+        /**
+         * Move constructor
+         * @param other     The input Action object
+         */
+        Action(Action&& other):
+            key_string(other.key_string),
+            version(other.version),
+            ocdpo_raw_ptr(other.ocdpo_raw_ptr),
+            value_ptr(std::move(other.value_ptr)) {
+        }
+        /**
+         * Constructor
+         * @param   _key_string
+         * @param   _version
+         * @param   _ocdpo_raw_ptr
+         * @param   _value_ptr
+         */
+        Action(const std::string& _key_string = 0,
+               const persistent::version_t& _version = CURRENT_VERSION,
+               OffCriticalDataPathObserver* const & _ocdpo_raw_ptr = nullptr,
+               std::unique_ptr<mutils::ByteRepresentable>   _value_ptr = nullptr):
+            key_string(_key_string),
+            version(_version),
+            ocdpo_raw_ptr(_ocdpo_raw_ptr),
+            value_ptr(std::move(_value_ptr)) {
+        }
+        Action(const Action&) = delete; // disable copy constructor
+        /**
+         * Assignment operators
+         */
+        Action& operator = (Action&&) = default;
+        Action& operator = (const Action&) = delete;
+        /**
+         *  fire the action.
+         *  @param ctxt
+         *  @param worker_id
+         */
+        inline void fire(ICascadeContext* ctxt,uint32_t worker_id) {
+            if (value_ptr && ocdpo_raw_ptr) {
+                dbg_default_trace("In {}: action is fired.", __PRETTY_FUNCTION__);
+                (*ocdpo_raw_ptr)(std::move(*this),ctxt,worker_id);
+            }
+        }
+        inline explicit operator bool() const {
+            return (bool)value_ptr;
+        }
+    };
+    inline std::ostream& operator << (std::ostream& out, const Action& action) {
+        out << "Action:\n"
+            << "\tkey = " << action.key_string << "\n"
+            << "\tversion = " << std::hex << action.version << "\n"
+            << "\tocdpo_raw_ptr = " << action.ocdpo_raw_ptr << "\n"
+            << "\tvalue_ptr = " << action.value_ptr.get()
+            << std::endl;
+    }
     
-    #define CONF_ONDATA_LIBRARY     "CASCADE/ondata_library"
     #define CONF_GROUP_LAYOUT       "CASCADE/group_layout"
     #define JSON_CONF_TYPE_ALIAS    "type_alias"
     #define JSON_CONF_LAYOUT        "layout"
@@ -158,12 +209,10 @@ namespace cascade {
          * Please make sure only one thread call start. We do not defense such an incorrect usage.
          *
          * @param layout TODO: explain layout
-         * @param ocdpo_ptr Off-critical data path observer pointer
          * @param dsms
          * @param factories - the factories to create objects.
          */
         static void start(const json& layout,
-                          OffCriticalDataPathObserver *ocdpo_ptr,
                           const std::vector<DeserializationContext*>& dsms,
                           derecho::cascade::Factory<CascadeTypes>... factories);
         /**
@@ -496,16 +545,23 @@ namespace cascade {
     template <typename... CascadeTypes>
     class CascadeContext: public ICascadeContext {
     private:
-        /** action_queue control */
-        std::list<Action>       action_queue;
-        mutable std::mutex      action_queue_mutex;
-        std::condition_variable action_queue_cv;
+        /** action (ring) buffer control */
+        struct Action           action_buffer[ACTION_BUFFER_SIZE];
+        std::atomic<size_t>     action_buffer_head;
+        std::atomic<size_t>     action_buffer_tail;
+        mutable std::mutex      action_buffer_slot_mutex;
+        mutable std::mutex      action_buffer_data_mutex;
+        mutable std::condition_variable action_buffer_slot_cv;
+        mutable std::condition_variable action_buffer_data_cv;
+        inline void action_buffer_enqueue(Action&&);
+        inline Action action_buffer_dequeue();
+
         /** thread pool control */
         std::atomic<bool>       is_running;
         /** the prefix registry */
-        std::unordered_map<std::string, std::shared_ptr<OffCriticalDataPAthObserver>> prefix_registry;
+        std::unordered_map<std::string, std::shared_ptr<OffCriticalDataPathObserver>> prefix_registry;
         /** the data path logic loader */
-        std::unique_ptr<DataPathLogicLoader<CascadeTypes...>> data_path_logic_loader;
+        std::unique_ptr<DataPathLogicManager<CascadeTypes...>> data_path_logic_manager;
         /** the off-critical data path worker thread pool */
         std::vector<std::thread>        off_critical_data_path_thread_pool;
         /** the service client: off critical data path logic use it to send data to a next tier. */
@@ -554,19 +610,28 @@ namespace cascade {
          * of the data path logic packages. During preregistration stage, we create an entry for the corresponding prefix
          * in the registry with an empty value. During registration stage, the prefix is filled.
          *
+         * IMPORTANT: the prefix registry management API are designed for use ONLY in the critical data path. Since the
+         * critical data path is a single thread, we don't use any lock for high performance. Please keep that in mind
+         * and don't touch the following APIs in prefix handlers where you have access to all the CascadeContext APIs.
+         *
          * - preregister_prefixes() allows batching preregistration of a set of prefixes, previous registered OCDPO will
          * be overwritten by the new prefixes.
          * - register_prefix() setup the OCDPO for the corresponding prefix. If the ocdpo_ptr is nullptr, the prefix is
          *   "preregister"ed.
          * - unregister_prefix() deletes a corresponding prefix from registry.
+         * - get_prefix_handler() returns a raw pointer to the handler.
          *
          * @param prefixes  a list of vectors to pre-register.
          * @param prefix    a prefix to register.
          * @param ocdpo_ptr the data path observer, nullptr for preregistration.
+         *
+         * @return get_prefix_handler returns the OffCriticalDataPathObserver it holds for the corresponding prefix. If
+         * the prefix is not registered, it will return nullptr.
          */
         virtual void preregister_prefixes(const std::vector<std::string>& prefixes);
         virtual void register_prefix(const std::string& prefix, const std::shared_ptr<OffCriticalDataPathObserver>& ocdpo_ptr = nullptr);
         virtual void unregister_prefix(const std::string& prefix);
+        virtual OffCriticalDataPathObserver* get_prefix_handler(const std::string& prefix); 
         /**
          * post an action to the Context for processing.
          *
