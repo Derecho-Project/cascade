@@ -103,7 +103,7 @@ public class StreamTest {
         bb.put(arr);
         VersionSupplier supplier = new VersionSupplier(client, ServiceType.PCSU, 1, 0, bb, -1);
         Stream.generate(supplier)
-              .limit(6)
+              .limit(supplier.size())
               .map(StreamTest::byteBufferToString)
               .forEachOrdered(System.out::println);
     }
