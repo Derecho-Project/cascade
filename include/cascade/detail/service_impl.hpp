@@ -554,9 +554,10 @@ derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> ServiceC
 }
 
 template <typename... CascadeTypes>
-CascadeContext<CascadeTypes...>::CascadeContext():
-    action_buffer_head(0ull),
-    action_buffer_tail(0ull) {}
+CascadeContext<CascadeTypes...>::CascadeContext() {
+    action_buffer_head.store(0);
+    action_buffer_tail.store(0);
+}
 
 template <typename... CascadeTypes>
 void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeTypes...>* group_ptr) {

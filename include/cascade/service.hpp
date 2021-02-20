@@ -107,7 +107,7 @@ namespace cascade {
          * @param   _ocdpo_raw_ptr
          * @param   _value_ptr
          */
-        Action(const std::string& _key_string = 0,
+        Action(const std::string& _key_string = "",
                const persistent::version_t& _version = CURRENT_VERSION,
                OffCriticalDataPathObserver* const & _ocdpo_raw_ptr = nullptr,
                std::unique_ptr<mutils::ByteRepresentable>   _value_ptr = nullptr):
@@ -144,6 +144,8 @@ namespace cascade {
             << "\tocdpo_raw_ptr = " << action.ocdpo_raw_ptr << "\n"
             << "\tvalue_ptr = " << action.value_ptr.get()
             << std::endl;
+
+        return out;
     }
     
     #define CONF_GROUP_LAYOUT       "CASCADE/group_layout"
