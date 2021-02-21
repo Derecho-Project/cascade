@@ -637,7 +637,7 @@ void CascadeContext<CascadeTypes...>::action_buffer_enqueue(Action&& action) {
 template <typename... CascadeTypes>
 Action CascadeContext<CascadeTypes...>::action_buffer_dequeue() {
     std::unique_lock<std::mutex> lck(action_buffer_data_mutex);
-    while (ACTION_BUFFER_IS_EMPTY) {
+    while (ACTION_BUFFER_IS_EMPTY && is_running) {
         action_buffer_data_cv.wait_for(lck,10ms,[this]{return (!ACTION_BUFFER_IS_EMPTY) || (!is_running);});
     }
 
