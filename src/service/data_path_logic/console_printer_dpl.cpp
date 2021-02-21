@@ -21,7 +21,7 @@ void register_triggers(ICascadeContext* ctxt) {
     // Please make sure the CascadeContext type matches the CascadeService type, which is defined in server.cpp if you
     // use the default cascade service binary.
     auto* typed_ctxt = dynamic_cast<CascadeContext<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey>*>(ctxt);
-    typed_ctxt->register_prefix("MY_PREFIX",std::make_shared<ConsolePrinterOCDPO>());
+    typed_ctxt->register_prefix(MY_PREFIX,std::make_shared<ConsolePrinterOCDPO>());
 }
 
 void unregister_triggers(ICascadeContext* ctxt) {
