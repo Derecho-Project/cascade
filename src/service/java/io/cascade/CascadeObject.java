@@ -12,7 +12,7 @@ public class CascadeObject {
     public ByteBuffer object;
 
     /**
-     * Constructor of bundle objects.
+     * Constructor of CascadeObject objects.
      * 
      * @param version   The version of the key-value pair, returned by C++ side.
      * @param timestamp The timestamp of the key-value pair, returned by C++ side.
