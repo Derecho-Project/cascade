@@ -55,7 +55,7 @@ namespace cascade {
          * @param _2    The CascadeContext
          * @param _3    Off critical data path worker id.
          */ 
-        virtual void operator() (Action&&, ICascadeContext*, uint32_t){};
+        virtual void operator() (Action&&, ICascadeContext*, uint32_t) = 0;
     };
     /**
      * Action is an command passed from the on critical data path logic (cascade watcher) to the off critical data path
@@ -137,6 +137,7 @@ namespace cascade {
             return (bool)value_ptr;
         }
     };
+
     inline std::ostream& operator << (std::ostream& out, const Action& action) {
         out << "Action:\n"
             << "\tkey = " << action.key_string << "\n"

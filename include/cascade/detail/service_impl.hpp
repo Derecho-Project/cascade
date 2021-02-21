@@ -617,7 +617,7 @@ void CascadeContext<CascadeTypes...>::workhorse(uint32_t worker_id) {
 #define ACTION_BUFFER_DEQUEUE   ((action_buffer_head) = (action_buffer_head+1)%ACTION_BUFFER_SIZE)
 #define ACTION_BUFFER_ENQUEUE   ((action_buffer_tail) = (action_buffer_tail+1)%ACTION_BUFFER_SIZE)
 #define ACTION_BUFFER_HEAD      (action_buffer[action_buffer_head])
-#define ACTION_BUFFER_NEXT_TAIL (action_buffer[(action_buffer_tail+1)%ACTION_BUFFER_SIZE])
+#define ACTION_BUFFER_NEXT_TAIL (action_buffer[(action_buffer_tail)%ACTION_BUFFER_SIZE])
 
 /* There is only one thread that enqueues. */
 template <typename... CascadeTypes>
