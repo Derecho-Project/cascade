@@ -11,9 +11,9 @@ std::vector<std::string> list_prefixes() {
 }
 
 class ConsolePrinterOCDPO: public OffCriticalDataPathObserver {
-    virtual void operator () (Action&& action, ICascadeContext* ctxt) {
+    virtual void operator () (Action&& action, ICascadeContext* ctxt, uint32_t worker_id) override {
         //TODO: print action
-        std::cout << "[console printer ocdpo]: I received an Action" << action << std::endl;
+        std::cout << "[console printer ocdpo]: I(" << worker_id << ") received an Action" << action << std::endl;
     }
 };
 
