@@ -14,10 +14,11 @@ import java.util.Comparator;
 
 
 /**
- * Test the use of client.
+ * Test the use of the Java Stream API with the given suppliers.
  */
 public class StreamTest {
 
+    /** Helper function to convert a byte buffer to a string. */
     public static String byteBufferToString(ByteBuffer bb){
         byte b[] = new byte[bb.capacity()];
         for (int i = 0;i < bb.capacity(); i++){
@@ -29,6 +30,10 @@ public class StreamTest {
         return ret;
     }
 
+    /** Testing the use of ShardSupplier. Will block until the results are ready.
+     *  Users can use Stream.generate(Supplier ss) to create a stream and access 
+     *  the rich functionalities of a stream, as shown here.
+     */
     public static void main1(){
         Client client = new Client();
         ShardSupplier supplier = new ShardSupplier(client, ServiceType.PCSU, 0, 0, -1);
@@ -58,8 +63,6 @@ public class StreamTest {
                               .findFirst()
                               .orElse(null);
         System.out.println("the string we get!" + onestr);
-
-        
     }
 
     /**
@@ -83,6 +86,7 @@ public class StreamTest {
         }
     }
 
+    /** Testing the use of SubgroupSupplier. */
     public static void main2(){
         Client client = new Client();
         SubgroupSupplier supplier = new SubgroupSupplier(client, ServiceType.PCSU, 0, -1);
@@ -95,6 +99,7 @@ public class StreamTest {
         
     }
 
+    /** Testing the use of VersionSupplier. */
     public static void main3(){
         Client client = new Client();
         String str = "34";
@@ -108,6 +113,7 @@ public class StreamTest {
               .forEachOrdered(System.out::println);
     }
 
+    /** Testing the use of ShardTimeSupplier. */
     public static void main4(){
         Client client = new Client();
         ShardTimeSupplier supplier = new ShardTimeSupplier(client, ServiceType.PCSU, 0, 0, 1612579232912819L);
@@ -119,7 +125,6 @@ public class StreamTest {
               .forEachOrdered(System.out::println);
         
     }
-
 
     public static final void main(String[] args) {
         System.out.println("Here is stream test!");

@@ -7,15 +7,32 @@ import java.util.Map;
 import java.nio.ByteBuffer;
 import java.util.function.*;
 
+/**
+ * A supplier to be used to create a Java Stream that can iterate over all values 
+ * in a Cascade subgroup that have smaller versions than the specified version.
+ * Notice: one supplier can only be fed once to any stream.
+ */
 public class SubgroupSupplier implements Supplier<ByteBuffer>{
+
+    /** The client API used by the supplier. */
     private Client client;
+
+    /** The service type of this supplier. */
     private ServiceType type;
+
+    /** The subgroup index of the shard. */
     private long subgroupIndex;
+
+    /** The upper bound of all the versions to explore. */
     private long version;
-    private boolean end = false;
+
+    /** List of all shard suppliers to iterate over. */
     private List<ShardSupplier> shardSupplierList;
-    private int ptr;
+
+    /** The pointer indicating the current position of the supplier. */
+    private int ptr = 0;
     
+    /** Constructor. */
     public SubgroupSupplier(Client client, ServiceType type, long subgroupIndex, long version){
         this.client = client;
         this.type = type;
@@ -25,6 +42,9 @@ public class SubgroupSupplier implements Supplier<ByteBuffer>{
         this.ptr = 0;
     }
 
+    /** Build the supplier. 
+     * Will block until the supplier is successfully built.
+     */
     public void build(){
         long numShards = client.getNumberOfShards(type, subgroupIndex);
         System.out.println("num shards:" + numShards);
@@ -43,6 +63,7 @@ public class SubgroupSupplier implements Supplier<ByteBuffer>{
         
     }
 
+    @Override
     public ByteBuffer get(){
         ShardSupplier ss = null;
         while (ptr < shardSupplierList.size()){
@@ -55,6 +76,7 @@ public class SubgroupSupplier implements Supplier<ByteBuffer>{
         return null;
     }
 
+    /** Get the size of this supplier. */
     public long size(){
         long acc = 0;
         for (ShardSupplier ss: shardSupplierList){

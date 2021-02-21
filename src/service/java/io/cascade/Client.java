@@ -322,6 +322,61 @@ public class Client {
     }
 
     /**
+     * List all keys in the specified shard and subgroup up to a specified persistent 
+     * version.
+     * 
+     * @param type          The type of the subgroup. In Cascade, this would be
+     *                      VCSU, PCSU, VCSS, and PCSS.
+     * @param version       The upper bound persistent version of all keys listed.
+     *                      -1 if you want to list all keys.
+     * @param subgroupIndex The index of the subgroup with type {@code type} to put
+     *                      this key-value pair into.
+     * @param shardIndex    The index of the shard within the subgroup with type
+     *                      {@code type} and subgroup index {@code subgroupIndex} to
+     *                      put this key-value pair into.
+     * @return A Future that stores a handle to a List<ByteBuffer> object that contains 
+     *         all keys included in the operation.
+     */
+    public QueryResults<List<ByteBuffer>> listKeys(ServiceType type, long version, long subgroupIndex, long shardIndex){
+        long res = listKeysInternal(type, version, subgroupIndex, shardIndex);
+        return new QueryResults<List<ByteBuffer>>(res, 2, type);
+    }
+
+    /**
+     * List all keys in the specified shard and subgroup up to a specified timestamp.
+     * 
+     * @param type          The type of the subgroup. In Cascade, this would be
+     *                      VCSU, PCSU, VCSS, and PCSS.
+     * @param timestamp     The upper bound timestamp of all keys listed.
+     * @param subgroupIndex The index of the subgroup with type {@code type} to put
+     *                      this key-value pair into.
+     * @param shardIndex    The index of the shard within the subgroup with type
+     *                      {@code type} and subgroup index {@code subgroupIndex} to
+     *                      put this key-value pair into.
+     * @return A Future that stores a handle to a List<ByteBuffer> object that contains 
+     *         all keys included in the operation.
+     */
+    public QueryResults<List<ByteBuffer>> listKeysByTime(ServiceType type, long timestamp, long subgroupIndex, long shardIndex){
+        long res = listKeysByTimeInternal(type, timestamp, subgroupIndex, shardIndex);
+        return new QueryResults<List<ByteBuffer>>(res, 2, type);
+    }
+
+
+    /**
+     * Get the number of shards within the specified subgroup.
+     * @param type          The type of the subgroup. In Cascade, this would be
+     *                      VCSU, PCSU, VCSS, and PCSS.
+     * @param subgroupIndex The index of the subgroup with type {@code type} to put
+     *                      this key-value pair into.
+     * @return The number of shards within the specified subgroup.
+     */
+    public native long getNumberOfShards(ServiceType type, long subgroupIndex);
+
+
+
+    /**** INTERNAL FUNCTIONS ****/
+
+    /**
      * Internal interface for put operation.
      * 
      * @param type          The type of the subgroup. In Cascade, this would be
@@ -390,23 +445,35 @@ public class Client {
      */
     private native long removeInternal(ServiceType type, long subgroupIndex, long shardIndex, ByteBuffer key);
 
-
-    /********** BELOW ARE ADDITIONAL APIS NOT IMPLEMENTED YET **********/
-    public QueryResults<List<ByteBuffer>> listKeys(ServiceType type, long version, long subgroupIndex, long shardIndex){
-        System.out.println("called list keys!");
-        long res = listKeysInternal(type, version, subgroupIndex, shardIndex);
-        return new QueryResults<List<ByteBuffer>>(res, 2, type);
-    }
-
+    /**
+     * Internal interface for list key operation.
+     * 
+     * @param type          The type of the subgroup. In Cascade, this would be
+     *                      VCSU, PCSU, VCSS, and PCSS.
+     * @param version       The upper bound persistent version of all keys listed.
+     *                      -1 if you want to list all keys.
+     * @param subgroupIndex The index of the subgroup with type {@code type} to
+     *                      remove this key-value pair from.
+     * @param shardIndex    The index of the shard within the subgroup with type
+     *                      {@code type} and subgroup index {@code subgroupIndex} to
+     *                      remove this key-value pair from.
+     * @return A handle of the C++ future that stores a vector with all keys included.
+     */
     private native long listKeysInternal(ServiceType type, long version, long subgroupIndex, long shardIndex);
 
-    public QueryResults<List<ByteBuffer>> listKeysByTime(ServiceType type, long timestamp, long subgroupIndex, long shardIndex){
-        System.out.println("called list keys!");
-        long res = listKeysByTimeInternal(type, timestamp, subgroupIndex, shardIndex);
-        return new QueryResults<List<ByteBuffer>>(res, 2, type);
-    }
-
+    /**
+     * Internal interface for list key by time operation.
+     * 
+     * @param type          The type of the subgroup. In Cascade, this would be
+     *                      VCSU, PCSU, VCSS, and PCSS.
+     * @param timestamp     The upper bound timestamp of all keys listed.
+     * @param subgroupIndex The index of the subgroup with type {@code type} to
+     *                      remove this key-value pair from.
+     * @param shardIndex    The index of the shard within the subgroup with type
+     *                      {@code type} and subgroup index {@code subgroupIndex} to
+     *                      remove this key-value pair from.
+     * @return A handle of the C++ future that stores a vector with all keys included.
+     */
     private native long listKeysByTimeInternal(ServiceType type, long timestamp, long subgroupIndex, long shardIndex);
 
-    public native long getNumberOfShards(ServiceType type, long subgroupIndex);
 }
