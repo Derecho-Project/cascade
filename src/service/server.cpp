@@ -35,7 +35,6 @@ class CascadeServiceCDPO: public CriticalDataPathObserver<CascadeType> {
                              ICascadeContext* cascade_ctxt) {
         if constexpr (std::is_convertible<typename CascadeType::KeyType,std::string>::value) {
             auto* ctxt = dynamic_cast<CascadeContext<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey>*>(cascade_ctxt);
-            OffCriticalDataPathObserver* ocdpo_ptr = nullptr;
             size_t pos = key.rfind('/');
             std::string prefix;
             if (pos != std::string::npos) {

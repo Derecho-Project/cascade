@@ -40,21 +40,22 @@ private:
 
         // load uuid
         std::string (*get_uuid)();
-        *reinterpret_cast<void **>(&get_uuid) = load_symbol("TODO:get_uuid_signature");
+        *reinterpret_cast<void **>(&get_uuid) = load_symbol("_ZN7derecho7cascade8get_uuidB5cxx11Ev");
         if (get_uuid != nullptr) {
             DataPathLogic<CascadeTypes...>::id = get_uuid();
         } else {
             dbg_default_error("Failed to load shared library file:{} because get_uuid is not found.", filename);
+            return;
         }
         std::string (*get_desc)();
-        *reinterpret_cast<void **>(&get_desc) = load_symbol("TODO:get_description_signature");
+        *reinterpret_cast<void **>(&get_desc) = load_symbol("_ZN7derecho7cascade15get_descriptionB5cxx11Ev");
         if (get_desc != nullptr) {
             DataPathLogic<CascadeTypes...>::description = get_desc();
         } else {
             dbg_default_warn("Failed to load description for shared library file:{}", filename);
         }
         std::unordered_set<std::string> (*list_prefixes)(void);
-        *reinterpret_cast<void **>(&list_prefixes) = load_symbol("TODO:list_prefixes_signature");
+        *reinterpret_cast<void **>(&list_prefixes) = load_symbol("_ZN7derecho7cascade13list_prefixesB5cxx11Ev");
         if (list_prefixes != nullptr) {
             prefixes = list_prefixes();
         } else {
@@ -150,8 +151,8 @@ private:
             auto dpl = std::make_unique<DLLDataPathLogic<CascadeTypes...>>(dll_file_path);
             if (dpl->is_valid()) {
                 dpl->initialize(ctxt);
+                dbg_default_trace("Successfully load dll dpl:{}",dll_file_path,dpl->id);
                 dpl_map[dpl->id] = std::move(dpl);
-                dbg_default_trace("Successfully load dll dpl:{}, id:{}.",dll_file_path,dpl->id);
             } else {
                 dbg_default_error("Failed loading dll dpl:{}.", dll_file_path);
             }
