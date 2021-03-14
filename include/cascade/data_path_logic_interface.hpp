@@ -1,7 +1,7 @@
 #pragma once
 #include "service.hpp"
 #include "service_types.hpp"
-#include <vector>
+#include <unordered_set>
 #include <memory>
 #include <string>
 
@@ -26,7 +26,26 @@ namespace cascade {
  *
  * @return the supported prefixes.
  */
-std::vector<std::string> list_prefixes();
+std::unordered_set<std::string> list_prefixes();
+
+/**
+ * Get the UUID of this DPL
+ * @return UUID string like "48e60f7c-8500-11eb-8755-0242ac110002"
+ */
+std::string get_uuid();
+
+/**
+ * Get Description of this DPL
+ * @return description string.
+ */
+std::string get_description();
+
+/**
+ * Initialize the data path logic
+ *
+ * @param ctxt
+ */
+void initialize(ICascadeContext* ctxt);
 
 /**
  * register triggers to cascade
@@ -41,6 +60,13 @@ void register_triggers(ICascadeContext* ctxt);
  * @param   ctxt
  */
 void unregister_triggers(ICascadeContext* ctxt);
+
+/**
+ * Release the data path logic
+ *
+ * @param ctxt
+ */
+void release(ICascadeContext* ctxt);
 
 } // namespace cascade
 } // namespace derecho

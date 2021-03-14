@@ -41,8 +41,10 @@ class CascadeServiceCDPO: public CriticalDataPathObserver<CascadeType> {
             if (pos != std::string::npos) {
                 prefix = key.substr(0,pos);
             }
-            if ((ctxt != nullptr) && (ocdpo_ptr = ctxt->get_prefix_handler(prefix))) {
-                Action action(key,value.get_version(),ocdpo_ptr,std::make_unique<typename CascadeType::ObjectType>(value));
+            auto handlers = ctxt->get_prefix_handlers(prefix);
+            auto value_ptr = std::make_shared<typename CascadeType::ObjectType>(value);
+            for(auto& handler : handlers) {
+                Action action(key,value.get_version(),handler.second,value_ptr);
                 ctxt->post(std::move(action));
             }
         }
