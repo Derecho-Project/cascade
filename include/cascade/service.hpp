@@ -12,6 +12,8 @@
 #include <thread>
 #include <functional>
 #include <iostream>
+#include <unordered_map>
+#include <unordered_set>
 #include <derecho/conf/conf.hpp>
 #include "cascade.hpp"
 #include "data_path_logic_manager.hpp"
@@ -51,11 +53,17 @@ namespace cascade {
     public:
         /**
          * This function has to be re-entrant/thread-safe.
-         * @param _1    The action passed from critical data path
-         * @param _2    The CascadeContext
-         * @param _3    Off critical data path worker id.
+         * @param key_string    The key string
+         * @param version       The version of the key
+         * @param value_ptr     The raw value pointer
+         * @param ctxt          The CascadeContext
+         * @param worker_id     The off critical data path worker id.
          */ 
-        virtual void operator() (Action&&, ICascadeContext*, uint32_t) = 0;
+        virtual void operator() (const std::string& key_string,
+                                 persistent::version_t version,
+                                 const mutils::ByteRepresentable* const value_ptr, 
+                                 ICascadeContext* ctxt, 
+                                 uint32_t worker_id) = 0;
     };
     /**
      * Action is an command passed from the on critical data path logic (cascade watcher) to the off critical data path
@@ -88,8 +96,8 @@ namespace cascade {
     struct Action {
         std::string                     key_string;
         persistent::version_t           version;
-        OffCriticalDataPathObserver*    ocdpo_raw_ptr;
-        std::unique_ptr<mutils::ByteRepresentable>     value_ptr;
+        std::shared_ptr<OffCriticalDataPathObserver>   ocdpo_ptr;
+        std::shared_ptr<mutils::ByteRepresentable>     value_ptr;
         /**
          * Move constructor
          * @param other     The input Action object
@@ -97,24 +105,24 @@ namespace cascade {
         Action(Action&& other):
             key_string(other.key_string),
             version(other.version),
-            ocdpo_raw_ptr(other.ocdpo_raw_ptr),
+            ocdpo_ptr(std::move(other.ocdpo_ptr)),
             value_ptr(std::move(other.value_ptr)) {
         }
         /**
          * Constructor
          * @param   _key_string
          * @param   _version
-         * @param   _ocdpo_raw_ptr
+         * @param   _ocdpo_ptr const reference rvalue
          * @param   _value_ptr
          */
-        Action(const std::string& _key_string = "",
+        Action(const std::string&           _key_string = "",
                const persistent::version_t& _version = CURRENT_VERSION,
-               OffCriticalDataPathObserver* const & _ocdpo_raw_ptr = nullptr,
-               std::unique_ptr<mutils::ByteRepresentable>   _value_ptr = nullptr):
+               const std::shared_ptr<OffCriticalDataPathObserver>&  _ocdpo_ptr = nullptr,
+               const std::shared_ptr<mutils::ByteRepresentable>&    _value_ptr = nullptr):
             key_string(_key_string),
             version(_version),
-            ocdpo_raw_ptr(_ocdpo_raw_ptr),
-            value_ptr(std::move(_value_ptr)) {
+            ocdpo_ptr(_ocdpo_ptr),
+            value_ptr(_value_ptr) {
         }
         Action(const Action&) = delete; // disable copy constructor
         /**
@@ -128,9 +136,9 @@ namespace cascade {
          *  @param worker_id
          */
         inline void fire(ICascadeContext* ctxt,uint32_t worker_id) {
-            if (value_ptr && ocdpo_raw_ptr) {
+            if (value_ptr && ocdpo_ptr) {
                 dbg_default_trace("In {}: action is fired.", __PRETTY_FUNCTION__);
-                (*ocdpo_raw_ptr)(std::move(*this),ctxt,worker_id);
+                (*ocdpo_ptr)(key_string,version,value_ptr.get(),ctxt,worker_id);
             }
         }
         inline explicit operator bool() const {
@@ -142,7 +150,7 @@ namespace cascade {
         out << "Action:\n"
             << "\tkey = " << action.key_string << "\n"
             << "\tversion = " << std::hex << action.version << "\n"
-            << "\tocdpo_raw_ptr = " << action.ocdpo_raw_ptr << "\n"
+            << "\tocdpo_ptr = " << action.ocdpo_ptr.get() << "\n"
             << "\tvalue_ptr = " << action.value_ptr.get()
             << std::endl;
 
@@ -561,8 +569,14 @@ namespace cascade {
 
         /** thread pool control */
         std::atomic<bool>       is_running;
-        /** the prefix registry */
-        std::unordered_map<std::string, std::shared_ptr<OffCriticalDataPathObserver>> prefix_registry;
+        /** the prefix registries, one is active, the other is shadow 
+         * prefix->{dpl_id->ocdpo}
+         */
+        std::shared_ptr<std::unordered_map<std::string, std::unordered_map<std::string,std::shared_ptr<OffCriticalDataPathObserver>>>> prefix_registry_ptr;
+        /** the write lock for prefix_registry_ptr */
+        mutable std::mutex prefix_registry_ptr_mutex;
+        /** a shared lock for writer-reader */
+        mutable std::shared_mutex prefix_registry_ptr_rw_mutex;
         /** the data path logic loader */
         std::unique_ptr<DataPathLogicManager<CascadeTypes...>> data_path_logic_manager;
         /** the off-critical data path worker thread pool */
@@ -607,6 +621,8 @@ namespace cascade {
          */
         ServiceClient<CascadeTypes...>& get_service_client_ref() const;
         /**
+         * We give up the following on-demand loading mechanism:
+         * ==============================================================================================================
          * The prefix registry management APIs
          *
          * We separate the prefix registration in two stages: preregistration and registration to support lazy loading
@@ -630,11 +646,53 @@ namespace cascade {
          *
          * @return get_prefix_handler returns the OffCriticalDataPathObserver it holds for the corresponding prefix. If
          * the prefix is not registered, it will return nullptr.
-         */
+         *
         virtual void preregister_prefixes(const std::vector<std::string>& prefixes);
         virtual void register_prefix(const std::string& prefix, const std::shared_ptr<OffCriticalDataPathObserver>& ocdpo_ptr = nullptr);
         virtual void unregister_prefix(const std::string& prefix);
         virtual OffCriticalDataPathObserver* get_prefix_handler(const std::string& prefix); 
+         * =============================================================================================================
+         * Now we agree on the new design that the prefix is assumed to be registered before the critical data path saw
+         * some data coming. Without a lock guarding prefix registry in the critical data path, it's a little bit tricky
+         * to support runtime update. We introduced two mutex to guard the prefix_registry. One is for excluding concurrent
+         * writers (prefix_registry_ptr_mutex), the other is for synchronization between the critical data path reader
+         * and writers (prefix_registry_ptr_rw_mutex). Updates is applied to a new shadow registry without interfere with 
+         * the critical data path processing. Once update is finished, we flip the pointer atomically, and it's done. 
+         * The critical data path will automatically shift to the new registry with minimum overhead.
+         * 
+         * IMPORTANT: Successful unregistration of a prefix does not guarantee the corresponding DPL is safe to be
+         * released. Because a previous triggered off-critical data path might still working on the unregistered prefix.
+         * TODO: find a mechanism to trigger safe DPL unloading.
+         */
+
+        /**
+         * Register a set of prefixes
+         *
+         * @param prefixes              - the prefixes set
+         * @param data_path_logic_id    - the DPL id, presumably an UUID string
+         * @param ocdpo_ptr             - the data path observer
+         */
+        virtual void register_prefixes(const std::unordered_set<std::string>& prefixes,
+                                       const std::string& data_path_logic_id,
+                                       const std::shared_ptr<OffCriticalDataPathObserver>& ocdpo_ptr = nullptr);
+        /**
+         * Unregister a set of prefixes
+         * 
+         * @param prefixes              - the prefixes set
+         * @param data_path_logic_id    - the DPL id, presumably an UUID string
+         * @param ocdpo_ptr             - the data path observer
+         */
+        virtual void unregister_prefixes(const std::unordered_set<std::string>& prefixes,
+                                         const std::string& data_path_logic_id);
+        /**
+         * Get the prefix handlers registered for a prefix
+         *
+         * @param prefix                - the prefix
+         *
+         * @return the unordered map of observers registered to this prefix.
+         */
+        virtual std::unordered_map<std::string,std::shared_ptr<OffCriticalDataPathObserver>> 
+            get_prefix_handlers(const std::string& prefix); 
         /**
          * post an action to the Context for processing.
          *
