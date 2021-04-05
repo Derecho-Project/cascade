@@ -256,6 +256,20 @@ uint64_t VolatileCascadeStore<KT,VT,IK,IV>::ordered_get_size(const KT& key) {
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
+void VolatileCascadeStore<KT,VT,IK,IV>::trigger_put(const VT& value) const {
+    debug_enter_func_with_args("key={}",value.get_key_ref());
+
+    if (cascade_watcher_ptr) {
+        (*cascade_watcher_ptr)(
+            this->subgroup_index, 
+            group->template get_subgroup<VolatileCascadeStore<KT,VT,IK,IV>>(this->subgroup_index).get_shard_num(),
+            value.get_key_ref(), value, cascade_context_ptr, true);
+    }
+
+    debug_leave_func();
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
 std::unique_ptr<VolatileCascadeStore<KT,VT,IK,IV>> VolatileCascadeStore<KT,VT,IK,IV>::from_bytes(
     mutils::DeserializationManager* dsm, 
     char const* buf) {
@@ -755,6 +769,20 @@ uint64_t PersistentCascadeStore<KT,VT,IK,IV,ST>::ordered_get_size(const KT& key)
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+void PersistentCascadeStore<KT,VT,IK,IV,ST>::trigger_put(const VT& value) const {
+    debug_enter_func_with_args("key={}",value.get_key_ref());
+
+    if (cascade_watcher_ptr) {
+        (*cascade_watcher_ptr)(
+            this->subgroup_index, 
+            group->template get_subgroup<PersistentCascadeStore<KT,VT,IK,IV,ST>>(this->subgroup_index).get_shard_num(),
+            value.get_key_ref(), value, cascade_context_ptr, true);
+    }
+
+    debug_leave_func();
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::ordered_list_keys() {
     debug_enter_func();
 
@@ -801,6 +829,92 @@ PersistentCascadeStore<KT,VT,IK,IV,ST>::PersistentCascadeStore(
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 PersistentCascadeStore<KT,VT,IK,IV,ST>::~PersistentCascadeStore() {}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
+std::tuple<persistent::version_t,uint64_t> TriggerCascadeNoStore<KT,VT,IK,IV>::put(const VT& value) const {
+    dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
+    return {persistent::INVALID_VERSION,0};
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
+std::tuple<persistent::version_t,uint64_t> TriggerCascadeNoStore<KT,VT,IK,IV>::remove(const KT& key) const {
+    dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
+    return {persistent::INVALID_VERSION,0};
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
+const VT TriggerCascadeNoStore<KT,VT,IK,IV>::get(const KT& key, const persistent::version_t& ver, bool) const {
+    dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
+    return *IV;
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
+const VT TriggerCascadeNoStore<KT,VT,IK,IV>::get_by_time(const KT& key, const uint64_t& ts_us) const {
+    dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
+    return *IV;
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
+std::vector<KT> TriggerCascadeNoStore<KT,VT,IK,IV>::list_keys(const persistent::version_t& ver) const {
+    dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
+    return {};
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
+std::vector<KT> TriggerCascadeNoStore<KT,VT,IK,IV>::list_keys_by_time(const uint64_t& ts_us) const {
+    dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
+    return {};
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
+uint64_t TriggerCascadeNoStore<KT,VT,IK,IV>::get_size(const KT& key, const persistent::version_t& ver, bool) const {
+    dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
+    return 0; 
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
+uint64_t TriggerCascadeNoStore<KT,VT,IK,IV>::get_size_by_time(const KT& key, const uint64_t& ts_us) const {
+    dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
+    return 0;
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
+std::vector<KT> TriggerCascadeNoStore<KT,VT,IK,IV>::ordered_list_keys() {
+    dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
+    return {};
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
+void TriggerCascadeNoStore<KT,VT,IK,IV>::trigger_put(const VT& value) const {
+    debug_enter_func_with_args("key={}",value.get_key_ref());
+
+    if (cascade_watcher_ptr) {
+        (*cascade_watcher_ptr)(
+            this->subgroup_index, 
+            group->template get_subgroup<TriggerCascadeNoStore<KT,VT,IK,IV>>(this->subgroup_index).get_shard_num(),
+            value.get_key_ref(), value, cascade_context_ptr, true);
+    }
+
+    debug_leave_func();
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
+std::unique_ptr<TriggerCascadeNoStore<KT,VT,IK,IV>> TriggerCascadeNoStore<KT,VT,IK,IV>::from_bytes(mutils::DeserializationManager* dsm, char const* buf) {
+    return std::make_unique<TriggerCascadeNoStore<KT,VT,IK,IV>>(
+                                                 dsm->registered<CriticalDataPathObserver<TriggerCascadeNoStore<KT,VT,IK,IV>>>()?&(dsm->mgr<CriticalDataPathObserver<TriggerCascadeNoStore<KT,VT,IK,IV>>>()):nullptr,
+                                                 dsm->registered<ICascadeContext>()?&(dsm->mgr<ICascadeContext>()):nullptr);
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
+mutils::context_ptr<TriggerCascadeNoStore<KT,VT,IK,IV>> TriggerCascadeNoStore<KT,VT,IK,IV>::from_bytes_noalloc(mutils::DeserializationManager* dsm, char const* buf) {
+    return mutils::context_ptr<TriggerCascadeNoStore>(from_bytes(dsm,buf));
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
+TriggerCascadeNoStore<KT,VT,IK,IV>::TriggerCascadeNoStore(CriticalDataPathObserver<TriggerCascadeNoStore<KT,VT,IK,IV>>* cw,
+                                            ICascadeContext* cc):
+                                            cascade_watcher_ptr(cw),
+                                            cascade_context_ptr(cc) {}
 
 }//namespace cascade
 }//namespace derecho

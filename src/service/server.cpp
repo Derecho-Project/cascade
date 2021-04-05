@@ -26,25 +26,34 @@ inline void dump_layout(const json& layout) {
 }
 #endif//NDEBUG
 
-template <typename CascadeType>
+/**
+ * Define the CDPO
+ * @tparam CascadeType  the subgroup type
+ * @tparam IS_TRIGGER   If true, this is triggered only on p2p message critical data path, otherwise, on ordered send
+ *                      message critical data path.
+ */
+template <typename CascadeType,bool IS_TRIGGER=false>
 class CascadeServiceCDPO: public CriticalDataPathObserver<CascadeType> {
     virtual void operator() (const uint32_t sgidx,
                              const uint32_t shidx,
                              const typename CascadeType::KeyType& key,
                              const typename CascadeType::ObjectType& value,
-                             ICascadeContext* cascade_ctxt) {
+                             ICascadeContext* cascade_ctxt,
+                             bool is_trigger = false) override {
         if constexpr (std::is_convertible<typename CascadeType::KeyType,std::string>::value) {
-            auto* ctxt = dynamic_cast<CascadeContext<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey>*>(cascade_ctxt);
-            size_t pos = key.rfind('/');
-            std::string prefix;
-            if (pos != std::string::npos) {
-                prefix = key.substr(0,pos);
-            }
-            auto handlers = ctxt->get_prefix_handlers(prefix);
-            auto value_ptr = std::make_shared<typename CascadeType::ObjectType>(value);
-            for(auto& handler : handlers) {
-                Action action(key,value.get_version(),handler.second,value_ptr);
-                ctxt->post(std::move(action));
+            if (is_trigger == IS_TRIGGER) {
+                auto* ctxt = dynamic_cast<CascadeContext<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey>*>(cascade_ctxt);
+                size_t pos = key.rfind('/');
+                std::string prefix;
+                if (pos != std::string::npos) {
+                    prefix = key.substr(0,pos);
+                }
+                auto handlers = ctxt->get_prefix_handlers(prefix);
+                auto value_ptr = std::make_shared<typename CascadeType::ObjectType>(value);
+                for(auto& handler : handlers) {
+                    Action action(key,value.get_version(),handler.second,value_ptr);
+                    ctxt->post(std::move(action));
+                }
             }
         }
     }

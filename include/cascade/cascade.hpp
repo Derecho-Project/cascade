@@ -46,12 +46,14 @@ namespace cascade {
          * @param key
          * @param value
          * @param cascade_ctxt - The cascade context to be used later
+         * @param is_trigger true for critical data path of p2p_send; otherwise, the critical data path of ordered_send.
          */
         virtual void operator () (const uint32_t subgroup_idx,
                                   const uint32_t shard_idx,
                                   const typename CascadeType::KeyType& key,
                                   const typename CascadeType::ObjectType& value,
-                                  ICascadeContext* cascade_ctxt) {}
+                                  ICascadeContext* cascade_ctxt,
+                                  bool is_trigger = false) {}
     };
 
     /**
@@ -191,6 +193,15 @@ namespace cascade {
          * @return the size of serialized value.
          */
         virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us) const = 0;
+        /**
+         * trigger_put(const VT& value)
+         *
+         * Put object as a trigger. This call will not cause a store but only trigger an off-critical data path
+         * computation. Please note that this call should be handled in p2p processing thread.
+         * 
+         * @param value - the object to trig
+         */
+        virtual void trigger_put(const VT& value) const = 0;
 
     protected:
         /**
@@ -253,13 +264,15 @@ namespace cascade {
                                    list_keys,
                                    list_keys_by_time,
                                    get_size,
-                                   get_size_by_time),
+                                   get_size_by_time,
+                                   trigger_put),
                                ORDERED_TARGETS(
                                    ordered_put,
                                    ordered_remove,
                                    ordered_get,
                                    ordered_list_keys,
                                    ordered_get_size));
+        virtual void trigger_put(const VT& value) const;
         virtual std::tuple<persistent::version_t,uint64_t> put(const VT& value) const override;
         virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) const override;
         virtual const VT get(const KT& key, const persistent::version_t& ver, bool exact=false) const override;
@@ -410,13 +423,15 @@ namespace cascade {
                                    list_keys,
                                    list_keys_by_time,
                                    get_size,
-                                   get_size_by_time),
+                                   get_size_by_time,
+                                   trigger_put),
                                ORDERED_TARGETS(
                                    ordered_put,
                                    ordered_remove,
                                    ordered_get,
                                    ordered_list_keys,
                                    ordered_get_size));
+        virtual void trigger_put(const VT& value) const;
         virtual std::tuple<persistent::version_t,uint64_t> put(const VT& value) const override;
         virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) const override;
         virtual const VT get(const KT& key, const persistent::version_t& ver, bool exact=false) const override;
@@ -577,6 +592,58 @@ namespace cascade {
          * @return If 'prev_ver' and 'prev_ver_by_key' are acceptable, it returns True, otherwise, false.
          */
         virtual bool verify_previous_version(persistent::version_t prev_ver, persistent::version_t prev_ver_by_key) const = 0;
+    };
+
+    /**
+     * Template for cascade trigger store
+     *
+     * @tparam KT   key type
+     * @tparam VT   value type
+     * @tparam IK   a pointer to invalid key
+     * @tparam IV   a pointer to invalid value
+     */
+    template <typename KT, typename VT, KT* IK, VT* IV>
+    class TriggerCascadeNoStore : public ICascadeStore<KT,VT,IK,IV>,
+                                  public mutils::ByteRepresentable,
+                                  public derecho::GroupReference {
+    public:
+        using derecho::GroupReference::group;
+        CriticalDataPathObserver<TriggerCascadeNoStore<KT,VT,IK,IV>>* cascade_watcher_ptr;
+        /* cascade context */
+        ICascadeContext* cascade_context_ptr;
+        
+        REGISTER_RPC_FUNCTIONS(TriggerCascadeNoStore,
+                               P2P_TARGETS(trigger_put));
+
+        virtual void trigger_put(const VT& value) const;
+        virtual std::tuple<persistent::version_t,uint64_t> put(const VT& value) const override;
+        virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) const override;
+        virtual const VT get(const KT& key, const persistent::version_t& ver, bool exact=false) const override;
+        virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) const override;
+        virtual std::vector<KT> list_keys(const persistent::version_t& ver) const override;
+        virtual std::vector<KT> list_keys_by_time(const uint64_t& ts_us) const override;
+        virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, bool exact=false) const override;
+        virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us) const override;
+        virtual std::tuple<persistent::version_t,uint64_t> ordered_put(const VT& value) override;
+        virtual std::tuple<persistent::version_t,uint64_t> ordered_remove(const KT& key) override;
+        virtual const VT ordered_get(const KT& key) override;
+        virtual std::vector<KT> ordered_list_keys() override;
+        virtual uint64_t ordered_get_size(const KT& key) override;
+
+        // serialization support
+        virtual std::size_t to_bytes(char* v) const override {return 0;}
+        virtual void post_object(const std::function<void(char const* const, std::size_t)>&) const override {}
+        virtual std::size_t bytes_size() const {return 0;}
+        static std::unique_ptr<TriggerCascadeNoStore<KT,VT,IK,IV>> from_bytes(mutils::DeserializationManager*,const char*);
+        static mutils::context_ptr<TriggerCascadeNoStore<KT,VT,IK,IV>> from_bytes_noalloc(mutils::DeserializationManager*,char const*);
+        void ensure_registered(mutils::DeserializationManager&) {}
+
+        // constructors
+        TriggerCascadeNoStore(CriticalDataPathObserver<TriggerCascadeNoStore<KT,VT,IK,IV>>* cw=nullptr,
+                       ICascadeContext* cc=nullptr);
+
+        // destructor
+        virtual ~TriggerCascadeNoStore();
     };
 
 } // namespace cascade
