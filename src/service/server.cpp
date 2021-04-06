@@ -42,7 +42,12 @@ class CascadeServiceCDPO: public CriticalDataPathObserver<CascadeType> {
                              bool is_trigger = false) override {
         if constexpr (std::is_convertible<typename CascadeType::KeyType,std::string>::value) {
             if (is_trigger == IS_TRIGGER) {
-                auto* ctxt = dynamic_cast<CascadeContext<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey>*>(cascade_ctxt);
+                auto* ctxt = dynamic_cast<
+                    CascadeContext<
+                        VolatileCascadeStoreWithStringKey,
+                        PersistentCascadeStoreWithStringKey,
+                        TriggerCascadeNoStoreWithStringKey>*
+                    >(cascade_ctxt);
                 size_t pos = key.rfind('/');
                 std::string prefix;
                 if (pos != std::string::npos) {
@@ -75,6 +80,7 @@ int main(int argc, char** argv) {
 
     CascadeServiceCDPO<VolatileCascadeStoreWithStringKey> cdpo_vcss;
     CascadeServiceCDPO<PersistentCascadeStoreWithStringKey> cdpo_pcss;
+    CascadeServiceCDPO<TriggerCascadeNoStoreWithStringKey,true> cdpo_tcss;
 
     auto vcss_factory = [&cdpo_vcss](persistent::PersistentRegistry*, derecho::subgroup_id_t, ICascadeContext* context_ptr) {
         return std::make_unique<VolatileCascadeStoreWithStringKey>(&cdpo_vcss,context_ptr);
@@ -82,18 +88,27 @@ int main(int argc, char** argv) {
     auto pcss_factory = [&cdpo_pcss](persistent::PersistentRegistry* pr, derecho::subgroup_id_t, ICascadeContext* context_ptr) {
         return std::make_unique<PersistentCascadeStoreWithStringKey>(pr,&cdpo_pcss,context_ptr);
     };
+    auto tcss_factory = [&cdpo_tcss](persistent::PersistentRegistry*, derecho::subgroup_id_t, ICascadeContext* context_ptr) {
+        return std::make_unique<TriggerCascadeNoStoreWithStringKey>(&cdpo_tcss,context_ptr);
+    };
     dbg_default_trace("starting service...");
-    Service<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey>::start(group_layout,
+    Service<VolatileCascadeStoreWithStringKey,
+            PersistentCascadeStoreWithStringKey,
+            TriggerCascadeNoStoreWithStringKey>::start(group_layout,
             {&cdpo_vcss,&cdpo_pcss},
-            vcss_factory,pcss_factory);
+            vcss_factory,pcss_factory,tcss_factory);
     dbg_default_trace("started service, waiting till it ends.");
     std::cout << "Press Enter to Shutdown." << std::endl;
     std::cin.get();
     // wait for service to quit.
-    Service<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey>::shutdown(false);
+    Service<VolatileCascadeStoreWithStringKey,
+            PersistentCascadeStoreWithStringKey,
+            TriggerCascadeNoStoreWithStringKey>::shutdown(false);
     dbg_default_trace("shutdown service gracefully");
     // you can do something here to parallel the destructing process.
-    Service<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey>::wait();
+    Service<VolatileCascadeStoreWithStringKey,
+            PersistentCascadeStoreWithStringKey,
+            TriggerCascadeNoStoreWithStringKey>::wait();
     dbg_default_trace("Finish shutdown.");
 
     return 0;
