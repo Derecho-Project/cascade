@@ -16,6 +16,7 @@ static void print_help(const char* cmd_str) {
 
 using VCS = VolatileCascadeStore<uint64_t,ObjectWithUInt64Key,&ObjectWithUInt64Key::IK,&ObjectWithUInt64Key::IV>;
 using PCS = PersistentCascadeStore<uint64_t,ObjectWithUInt64Key,&ObjectWithUInt64Key::IK,&ObjectWithUInt64Key::IV,ST_FILE>;
+using TCS = TriggerCascadeNoStore<uint64_t,ObjectWithUInt64Key,&ObjectWithUInt64Key::IK,&ObjectWithUInt64Key::IV>;
 
 static std::vector<std::string> tokenize(std::string& line) {
     std::vector<std::string> tokens;
@@ -31,7 +32,7 @@ static std::vector<std::string> tokenize(std::string& line) {
 
 static void client_help() {
     static const char* HELP_STR = 
-        "(v/p)put <object_id> <contents>\n"
+        "(v/p/t)put <object_id> <contents>\n"
         "    - Put an object\n"
         "(v/p)get <object_id> [-t timestamp_in_us | -v version_number]\n"
         "    - Get the latest version of an object if no '-t' or '-v' is specified.\n"
@@ -53,7 +54,10 @@ static void client_help() {
 }
 
 // put
-static void client_put(derecho::ExternalGroup<VCS,PCS>& group,
+// put_type = 0 : volatile
+// put_type = 1 : persistent
+// put_type = 2 : trigger
+static void client_put(derecho::ExternalGroup<VCS,PCS,TCS>& group,
                        node_id_t member,
                        const std::vector<std::string>& tokens,
                        bool is_persistent) {
@@ -82,8 +86,26 @@ static void client_put(derecho::ExternalGroup<VCS,PCS>& group,
     return;
 }
 
+static void client_trigger_put(derecho::ExternalGroup<VCS,PCS,TCS>& group,
+                               node_id_t member,
+                               const std::vector<std::string>& tokens) {
+    if (tokens.size() != 3) {
+        std::cout << "Invalid format of 'put' command." << std::endl;
+    }
+
+    uint64_t key = std::stoll(tokens[1]);
+    
+    ObjectWithUInt64Key o(key,Blob(tokens[2].c_str(),tokens[2].size()));
+
+    ExternalClientCaller<TCS,std::remove_reference<decltype(group)>::type>& vcs_ec = group.get_subgroup_caller<TCS>();
+    auto result = vcs_ec.p2p_send<RPC_NAME(trigger_put)>(member,o);
+    bool valid = result.get().valid(member);
+    std::cout << "put finished, valid=" << valid << std::endl;
+    return;
+}
+
 // get
-static void client_get(derecho::ExternalGroup<VCS,PCS>& group,
+static void client_get(derecho::ExternalGroup<VCS,PCS,TCS>& group,
                        node_id_t member,
                        const std::vector<std::string>& tokens,
                        bool is_persistent) {
@@ -127,7 +149,7 @@ static void client_get(derecho::ExternalGroup<VCS,PCS>& group,
 }
 
 // list
-static void client_list(derecho::ExternalGroup<VCS,PCS>& group,
+static void client_list(derecho::ExternalGroup<VCS,PCS,TCS>& group,
                         node_id_t member,
                         const std::vector<std::string>& tokens,
                         bool is_persistent) {
@@ -170,7 +192,7 @@ static void client_list(derecho::ExternalGroup<VCS,PCS>& group,
 }
 
 // remove
-static void client_remove(derecho::ExternalGroup<VCS,PCS>& group,
+static void client_remove(derecho::ExternalGroup<VCS,PCS,TCS>& group,
                           node_id_t member,
                           const std::vector<std::string>& tokens,
                           bool is_persistent) {
@@ -198,7 +220,7 @@ static void client_remove(derecho::ExternalGroup<VCS,PCS>& group,
 
 void do_client() {
     /** 1 - create external client group*/
-    derecho::ExternalGroup<VCS,PCS> group;
+    derecho::ExternalGroup<VCS,PCS,TCS> group;
     std::cout << "Finished constructing ExternalGroup." << std::endl;
 
     /** 2 - get members */
@@ -223,6 +245,13 @@ void do_client() {
     }
     std::cout << "]" << std::endl;
 
+    std::vector<node_id_t> tcs_members = group.template get_shard_members<TCS>(0,0);
+    std::cout << "Members in the single shard of Trigger Cascade (NO)Store:[ ";
+    for (auto& nid:tcs_members) {
+        std::cout << nid << " ";
+    }
+    std::cout << "]" << std::endl;
+
     /** 3 - run command line. */
     while(true) {
         std::string cmdline;
@@ -239,6 +268,8 @@ void do_client() {
             client_put(group,vcs_members[0],cmd_tokens,false);
         } else if (cmd_tokens[0].compare("pput") == 0) {
             client_put(group,pcs_members[0],cmd_tokens,true);
+        } else if (cmd_tokens[0].compare("tput") == 0) {
+            client_trigger_put(group,tcs_members[0],cmd_tokens);
         } else if (cmd_tokens[0].compare("vget") == 0) {
             client_get(group,vcs_members[0],cmd_tokens,false);
         } else if (cmd_tokens[0].compare("pget") == 0) {
@@ -269,8 +300,9 @@ public:
                       const uint32_t shidx,
                       const typename CascadeType::KeyType& key,
                       const typename CascadeType::ObjectType& value,
-                      ICascadeContext* cascade_context) {
-        dbg_default_info("CDPO is called with\n\tsubgroup idx = {},\n\tshard idx = {},\n\tkey = {},\n\tvalue = [hidden].", sgidx, shidx, key);
+                      ICascadeContext* cascade_context,
+                      bool is_trigger) {
+        dbg_default_info("CDPO is called with\n\tsubgroup idx = {},\n\tshard idx = {},\n\tkey = {},\n\tvalue = [hidden],\n\tis_trigger = {}", sgidx, shidx, key, is_trigger);
     }
 };
 
@@ -289,21 +321,27 @@ void do_server() {
             {std::type_index(typeid(VCS)),
              derecho::one_subgroup_policy(derecho::flexible_even_shards("VCS"))},
             {std::type_index(typeid(PCS)),
-             derecho::one_subgroup_policy(derecho::flexible_even_shards("PCS"))}
+             derecho::one_subgroup_policy(derecho::flexible_even_shards("PCS"))},
+            {std::type_index(typeid(TCS)),
+             derecho::one_subgroup_policy(derecho::flexible_even_shards("TCS"))},
         })
     };
 	PerfCDPO<VCS> vcs_cdpo;
     PerfCDPO<PCS> pcs_cdpo;
+    PerfCDPO<TCS> tcs_cdpo;
     auto vcs_factory = [&vcs_cdpo](persistent::PersistentRegistry* pr, derecho::subgroup_id_t) {
         return std::make_unique<VCS>(&vcs_cdpo);
     };
     auto pcs_factory = [&pcs_cdpo](persistent::PersistentRegistry* pr, derecho::subgroup_id_t) {
         return std::make_unique<PCS>(pr,&pcs_cdpo);
     };
+    auto tcs_factory = [&tcs_cdpo](persistent::PersistentRegistry* pr, derecho::subgroup_id_t) {
+        return std::make_unique<TCS>(&tcs_cdpo);
+    };
     /** 2 - create group */
-    derecho::Group<VCS,PCS> group(callback_set,si,{&vcs_cdpo,&pcs_cdpo}/*deserialization manager*/,
+    derecho::Group<VCS,PCS,TCS> group(callback_set,si,{&vcs_cdpo,&pcs_cdpo}/*deserialization manager*/,
                                   std::vector<derecho::view_upcall_t>{},
-                                  vcs_factory,pcs_factory);
+                                  vcs_factory,pcs_factory,tcs_factory);
     std::cout << "Cascade Server finished constructing Derecho group." << std::endl;
     std::cout << "Press ENTER to shutdown..." << std::endl;
     std::cin.get();

@@ -885,6 +885,30 @@ std::vector<KT> TriggerCascadeNoStore<KT,VT,IK,IV>::ordered_list_keys() {
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
+std::tuple<persistent::version_t,uint64_t> TriggerCascadeNoStore<KT,VT,IK,IV>::ordered_put(const VT& value) {
+    dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
+    return {};
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
+std::tuple<persistent::version_t,uint64_t> TriggerCascadeNoStore<KT,VT,IK,IV>::ordered_remove(const KT& key) {
+    dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
+    return {};
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
+const VT TriggerCascadeNoStore<KT,VT,IK,IV>::ordered_get(const KT& key) {
+    dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
+    return *IV;
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
+uint64_t TriggerCascadeNoStore<KT,VT,IK,IV>::ordered_get_size(const KT& key) {
+    dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
+    return 0;
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
 void TriggerCascadeNoStore<KT,VT,IK,IV>::trigger_put(const VT& value) const {
     debug_enter_func_with_args("key={}",value.get_key_ref());
 

@@ -613,8 +613,27 @@ namespace cascade {
         ICascadeContext* cascade_context_ptr;
         
         REGISTER_RPC_FUNCTIONS(TriggerCascadeNoStore,
-                               P2P_TARGETS(trigger_put));
-
+                               P2P_TARGETS(
+                                   trigger_put));
+        /**
+        REGISTER_RPC_FUNCTIONS(TriggerCascadeNoStore,
+                               P2P_TARGETS(
+                                   put,
+                                   remove,
+                                   get,
+                                   get_by_time,
+                                   list_keys,
+                                   list_keys_by_time,
+                                   get_size,
+                                   get_size_by_time,
+                                   trigger_put),
+                               ORDERED_TARGETS(
+                                   ordered_put,
+                                   ordered_remove,
+                                   ordered_get,
+                                   ordered_list_keys,
+                                   ordered_get_size));
+        **/
         virtual void trigger_put(const VT& value) const;
         virtual std::tuple<persistent::version_t,uint64_t> put(const VT& value) const override;
         virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) const override;
@@ -641,9 +660,6 @@ namespace cascade {
         // constructors
         TriggerCascadeNoStore(CriticalDataPathObserver<TriggerCascadeNoStore<KT,VT,IK,IV>>* cw=nullptr,
                        ICascadeContext* cc=nullptr);
-
-        // destructor
-        virtual ~TriggerCascadeNoStore();
     };
 
 } // namespace cascade
