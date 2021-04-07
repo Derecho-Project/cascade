@@ -543,7 +543,6 @@ namespace cascade {
         void dump() const;
     };
    
-
     /**
      * The cascade context
      *
@@ -556,16 +555,22 @@ namespace cascade {
     template <typename... CascadeTypes>
     class CascadeContext: public ICascadeContext {
     private:
+        struct action_queue {
+            struct Action           action_buffer[ACTION_BUFFER_SIZE];
+            std::atomic<size_t>     action_buffer_head;
+            std::atomic<size_t>     action_buffer_tail;
+            mutable std::mutex      action_buffer_slot_mutex;
+            mutable std::mutex      action_buffer_data_mutex;
+            mutable std::condition_variable action_buffer_slot_cv;
+            mutable std::condition_variable action_buffer_data_cv;
+            inline void initialize();
+            inline void action_buffer_enqueue(Action&&);
+            inline Action action_buffer_dequeue(std::atomic<bool>& is_running);
+            inline void notify_all();
+        };
         /** action (ring) buffer control */
-        struct Action           action_buffer[ACTION_BUFFER_SIZE];
-        std::atomic<size_t>     action_buffer_head;
-        std::atomic<size_t>     action_buffer_tail;
-        mutable std::mutex      action_buffer_slot_mutex;
-        mutable std::mutex      action_buffer_data_mutex;
-        mutable std::condition_variable action_buffer_slot_cv;
-        mutable std::condition_variable action_buffer_data_cv;
-        inline void action_buffer_enqueue(Action&&);
-        inline Action action_buffer_dequeue();
+        struct action_queue action_queue_for_ordered_send;
+        struct action_queue action_queue_for_p2p_send;
 
         /** thread pool control */
         std::atomic<bool>       is_running;
@@ -580,7 +585,8 @@ namespace cascade {
         /** the data path logic loader */
         std::unique_ptr<DataPathLogicManager<CascadeTypes...>> data_path_logic_manager;
         /** the off-critical data path worker thread pool */
-        std::vector<std::thread>        off_critical_data_path_thread_pool;
+        std::vector<std::thread> workhorses_for_ordered_send;
+        std::vector<std::thread> workhorses_for_p2p_send;
         /** the service client: off critical data path logic use it to send data to a next tier. */
         std::unique_ptr<ServiceClient<CascadeTypes...>> service_client;
         /**
@@ -591,7 +597,7 @@ namespace cascade {
          * off critical data path workhorse
          * @param _1 the task id, started from 0 to (OFF_CRITICAL_DATA_PATH_THREAD_POOL_SIZE-1)
          */
-        void workhorse(uint32_t);
+        void workhorse(uint32_t,struct action_queue&);
         
     public:
         /** Resources **/
@@ -696,12 +702,14 @@ namespace cascade {
         /**
          * post an action to the Context for processing.
          *
-         * @param action    The action
+         * @param action        The action
+         * @param is_trigger    True for trigger, meaning the action will be processed in the workhorses for p2p send
          *
          * @return  true for a successful post, false for failure. The current only reason for failure is to post to a
          *          context already shut down.
          */
-        virtual bool post(Action&& action);
+        virtual bool post(Action&& action, bool is_trigger = false);
+
         /**
          * Destructor
          */
