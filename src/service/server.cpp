@@ -32,7 +32,7 @@ inline void dump_layout(const json& layout) {
  * @tparam IS_TRIGGER   If true, this is triggered only on p2p message critical data path, otherwise, on ordered send
  *                      message critical data path.
  */
-template <typename CascadeType,bool IS_TRIGGER=false>
+template <typename CascadeType>
 class CascadeServiceCDPO: public CriticalDataPathObserver<CascadeType> {
     virtual void operator() (const uint32_t sgidx,
                              const uint32_t shidx,
@@ -41,24 +41,23 @@ class CascadeServiceCDPO: public CriticalDataPathObserver<CascadeType> {
                              ICascadeContext* cascade_ctxt,
                              bool is_trigger = false) override {
         if constexpr (std::is_convertible<typename CascadeType::KeyType,std::string>::value) {
-            if (is_trigger == IS_TRIGGER) {
-                auto* ctxt = dynamic_cast<
-                    CascadeContext<
-                        VolatileCascadeStoreWithStringKey,
-                        PersistentCascadeStoreWithStringKey,
-                        TriggerCascadeNoStoreWithStringKey>*
-                    >(cascade_ctxt);
-                size_t pos = key.rfind('/');
-                std::string prefix;
-                if (pos != std::string::npos) {
-                    prefix = key.substr(0,pos);
-                }
-                auto handlers = ctxt->get_prefix_handlers(prefix);
-                auto value_ptr = std::make_shared<typename CascadeType::ObjectType>(value);
-                for(auto& handler : handlers) {
-                    Action action(key,value.get_version(),handler.second,value_ptr);
-                    ctxt->post(std::move(action));
-                }
+
+            auto* ctxt = dynamic_cast<
+                CascadeContext<
+                    VolatileCascadeStoreWithStringKey,
+                    PersistentCascadeStoreWithStringKey,
+                    TriggerCascadeNoStoreWithStringKey>*
+                >(cascade_ctxt);
+            size_t pos = key.rfind('/');
+            std::string prefix;
+            if (pos != std::string::npos) {
+                prefix = key.substr(0,pos);
+            }
+            auto handlers = ctxt->get_prefix_handlers(prefix);
+            auto value_ptr = std::make_shared<typename CascadeType::ObjectType>(value);
+            for(auto& handler : handlers) {
+                Action action(key,value.get_version(),handler.second,value_ptr);
+                ctxt->post(std::move(action),is_trigger);
             }
         }
     }
@@ -80,7 +79,7 @@ int main(int argc, char** argv) {
 
     CascadeServiceCDPO<VolatileCascadeStoreWithStringKey> cdpo_vcss;
     CascadeServiceCDPO<PersistentCascadeStoreWithStringKey> cdpo_pcss;
-    CascadeServiceCDPO<TriggerCascadeNoStoreWithStringKey,true> cdpo_tcss;
+    CascadeServiceCDPO<TriggerCascadeNoStoreWithStringKey> cdpo_tcss;
 
     auto vcss_factory = [&cdpo_vcss](persistent::PersistentRegistry*, derecho::subgroup_id_t, ICascadeContext* context_ptr) {
         return std::make_unique<VolatileCascadeStoreWithStringKey>(&cdpo_vcss,context_ptr);

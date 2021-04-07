@@ -555,8 +555,8 @@ derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> ServiceC
 
 template <typename... CascadeTypes>
 CascadeContext<CascadeTypes...>::CascadeContext() {
-    action_buffer_head.store(0);
-    action_buffer_tail.store(0);
+    action_queue_for_ordered_send.initialize();
+    action_queue_for_p2p_send.initialize();
     prefix_registry_ptr = std::make_shared<std::unordered_map<std::string, std::unordered_map<std::string,std::shared_ptr<OffCriticalDataPathObserver>>>>();
 }
 
@@ -572,7 +572,7 @@ void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeTypes...>*
     is_running.store(true);
     for (uint32_t i=0;i<derecho::getConfUInt32(CASCADE_CONTEXT_NUM_WORKERS);i++) {
         // off_critical_data_path_thread_pool.emplace_back(std::thread(&CascadeContext<CascadeTypes...>::workhorse,this,i));
-        off_critical_data_path_thread_pool.emplace_back(
+        workhorses_for_ordered_send.emplace_back(
             [this,i](){
                 // set cpu affinity
                 if (this->resource_descriptor.worker_to_cpu_cores.find(i)!=
@@ -587,24 +587,44 @@ void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeTypes...>*
                     }
                 }
                 // call workhorse
-                this->workhorse(i);
+                this->workhorse(i,action_queue_for_ordered_send);
+            });
+    }
+    for (uint32_t i=0;i<derecho::getConfUInt32(CASCADE_CONTEXT_NUM_WORKERS);i++) {
+        // off_critical_data_path_thread_pool.emplace_back(std::thread(&CascadeContext<CascadeTypes...>::workhorse,this,i));
+        workhorses_for_p2p_send.emplace_back(
+            [this,i](){
+                // set cpu affinity
+                if (this->resource_descriptor.worker_to_cpu_cores.find(i)!=
+                    this->resource_descriptor.worker_to_cpu_cores.end()) {
+                    cpu_set_t cpuset;
+                    CPU_ZERO(&cpuset);
+                    for (auto core: this->resource_descriptor.worker_to_cpu_cores.at(i)) {
+                        CPU_SET(core,&cpuset);
+                    }
+                    if(pthread_setaffinity_np(pthread_self(),sizeof(cpuset),&cpuset)!=0) {
+                        dbg_default_warn("Failed to set affinity for cascade worker-{}", i);
+                    }
+                }
+                // call workhorse
+                this->workhorse(i,action_queue_for_p2p_send);
             });
     }
 }
 
 template <typename... CascadeTypes>
-void CascadeContext<CascadeTypes...>::workhorse(uint32_t worker_id) {
+void CascadeContext<CascadeTypes...>::workhorse(uint32_t worker_id, struct action_queue& aq) {
     pthread_setname_np(pthread_self(), ("cascade_context_t" + std::to_string(worker_id)).c_str());
     dbg_default_trace("Cascade context workhorse[{}] started", worker_id);
     while(is_running) {
         // waiting for an action
-        Action action = std::move(action_buffer_dequeue());
+        Action action = std::move(aq.action_buffer_dequeue(is_running));
         // if action_buffer_dequeue return with is_running == false, value_ptr is invalid(nullptr).
         action.fire(this,worker_id);
 
         if (!is_running) {
             do {
-                action = std::move(action_buffer_dequeue());
+                action = std::move(aq.action_buffer_dequeue(is_running));
                 if (!action) break; // end of queue
                 action.fire(this,worker_id);
             } while(true);
@@ -613,6 +633,11 @@ void CascadeContext<CascadeTypes...>::workhorse(uint32_t worker_id) {
     dbg_default_trace("Cascade context workhorse[{}] finished normally.", static_cast<uint64_t>(gettid()));
 }
 
+template <typename... CascadeTypes>
+void CascadeContext<CascadeTypes...>::action_queue::initialize() {
+    action_buffer_head.store(0);
+    action_buffer_tail.store(0);
+}
 #define ACTION_BUFFER_IS_FULL   ((action_buffer_head) == ((action_buffer_tail+1)%ACTION_BUFFER_SIZE))
 #define ACTION_BUFFER_IS_EMPTY  ((action_buffer_head) == (action_buffer_tail))
 #define ACTION_BUFFER_DEQUEUE   ((action_buffer_head) = (action_buffer_head+1)%ACTION_BUFFER_SIZE)
@@ -622,7 +647,7 @@ void CascadeContext<CascadeTypes...>::workhorse(uint32_t worker_id) {
 
 /* There is only one thread that enqueues. */
 template <typename... CascadeTypes>
-void CascadeContext<CascadeTypes...>::action_buffer_enqueue(Action&& action) {
+void CascadeContext<CascadeTypes...>::action_queue::action_buffer_enqueue(Action&& action) {
     std::unique_lock<std::mutex> lck(action_buffer_slot_mutex);
     while (ACTION_BUFFER_IS_FULL) {
         dbg_default_warn("In {}: Critical data path waits for 10 ms.", __PRETTY_FUNCTION__);
@@ -636,10 +661,10 @@ void CascadeContext<CascadeTypes...>::action_buffer_enqueue(Action&& action) {
 
 /* All worker threads dequeues. */
 template <typename... CascadeTypes>
-Action CascadeContext<CascadeTypes...>::action_buffer_dequeue() {
+Action CascadeContext<CascadeTypes...>::action_queue::action_buffer_dequeue(std::atomic<bool>& is_running) {
     std::unique_lock<std::mutex> lck(action_buffer_data_mutex);
     while (ACTION_BUFFER_IS_EMPTY && is_running) {
-        action_buffer_data_cv.wait_for(lck,10ms,[this]{return (!ACTION_BUFFER_IS_EMPTY) || (!is_running);});
+        action_buffer_data_cv.wait_for(lck,10ms,[this,&is_running]{return (!ACTION_BUFFER_IS_EMPTY) || (!is_running);});
     }
 
     Action ret;
@@ -652,18 +677,31 @@ Action CascadeContext<CascadeTypes...>::action_buffer_dequeue() {
     return ret;
 }
 
+/* shutdown the action buffer */ 
+template <typename... CascadeTypes>
+void CascadeContext<CascadeTypes...>::action_queue::notify_all() {
+    action_buffer_data_cv.notify_all();
+    action_buffer_slot_cv.notify_all();
+}
+
 template <typename... CascadeTypes>
 void CascadeContext<CascadeTypes...>::destroy() {
     dbg_default_trace("Destroying Cascade context@{:p}.",static_cast<void*>(this));
     is_running.store(false);
-    action_buffer_data_cv.notify_all();
-    action_buffer_slot_cv.notify_all();
-    for (auto& th: off_critical_data_path_thread_pool) {
+    action_queue_for_ordered_send.notify_all();
+    action_queue_for_p2p_send.notify_all();
+    for (auto& th:workhorses_for_ordered_send) {
         if (th.joinable()) {
             th.join();
         }
     }
-    off_critical_data_path_thread_pool.clear();
+    for (auto& th:workhorses_for_p2p_send) {
+        if (th.joinable()) {
+            th.join();
+        }
+    }
+    workhorses_for_ordered_send.clear();
+    workhorses_for_p2p_send.clear();
     dbg_default_trace("Cascade context@{:p} is destroyed.",static_cast<void*>(this));
 }
 
@@ -742,10 +780,14 @@ std::unordered_map<std::string,std::shared_ptr<OffCriticalDataPathObserver>> Cas
 }
 
 template <typename... CascadeTypes>
-bool CascadeContext<CascadeTypes...>::post(Action&& action) {
+bool CascadeContext<CascadeTypes...>::post(Action&& action, bool is_trigger) {
     dbg_default_trace("Posting an action to Cascade context@{:p}.", static_cast<void*>(this));
     if (is_running) {
-        action_buffer_enqueue(std::move(action));
+        if (is_trigger) {
+            action_queue_for_p2p_send.action_buffer_enqueue(std::move(action));
+        } else {
+            action_queue_for_ordered_send.action_buffer_enqueue(std::move(action));
+        }
     } else {
         dbg_default_warn("Failed to post to Cascade context@{:p} because it is not running.", static_cast<void*>(this));
         return false;
