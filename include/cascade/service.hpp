@@ -519,10 +519,11 @@ namespace cascade {
     /**
      * configuration keys
      */
-    #define CASCADE_CONTEXT_NUM_WORKERS         "CASCADE/num_workers"
-    #define CASCADE_CONTEXT_CPU_CORES           "CASCADE/cpu_cores"
-    #define CASCADE_CONTEXT_GPUS                "CASCADE/gpus"
-    #define CASCADE_CONTEXT_WORKER_CPU_AFFINITY "CASCADE/worker_cpu_affinity"
+    #define CASCADE_CONTEXT_NUM_WORKERS_MULTICAST   "CASCADE/num_workers_for_multicast_odcp"
+    #define CASCADE_CONTEXT_NUM_WORKERS_P2P         "CASCADE/num_workers_for_p2p_ocdp"
+    #define CASCADE_CONTEXT_CPU_CORES               "CASCADE/cpu_cores"
+    #define CASCADE_CONTEXT_GPUS                    "CASCADE/gpus"
+    #define CASCADE_CONTEXT_WORKER_CPU_AFFINITY     "CASCADE/worker_cpu_affinity"
     
     /**
      * A class describing the resources available in the Cascade context.
@@ -532,7 +533,8 @@ namespace cascade {
         /** cpu cores, loaded from configuration **/
         std::vector<uint32_t> cpu_cores;
         /** worker cpu aworker cpu ffinity, loaded from configuration **/
-        std::map<uint32_t,std::vector<uint32_t>> worker_to_cpu_cores;
+        std::map<uint32_t,std::vector<uint32_t>> multicast_ocdp_worker_to_cpu_cores;
+        std::map<uint32_t,std::vector<uint32_t>> p2p_ocdp_worker_to_cpu_cores;
         /** gpu list**/
         std::vector<uint32_t> gpus;
         /** constructor **/
@@ -569,8 +571,8 @@ namespace cascade {
             inline void notify_all();
         };
         /** action (ring) buffer control */
-        struct action_queue action_queue_for_ordered_send;
-        struct action_queue action_queue_for_p2p_send;
+        struct action_queue action_queue_for_multicast;
+        struct action_queue action_queue_for_p2p;
 
         /** thread pool control */
         std::atomic<bool>       is_running;
@@ -584,9 +586,9 @@ namespace cascade {
         mutable std::shared_mutex prefix_registry_ptr_rw_mutex;
         /** the data path logic loader */
         std::unique_ptr<DataPathLogicManager<CascadeTypes...>> data_path_logic_manager;
-        /** the off-critical data path worker thread pool */
-        std::vector<std::thread> workhorses_for_ordered_send;
-        std::vector<std::thread> workhorses_for_p2p_send;
+        /** the off-critical data path worker thread pools */
+        std::vector<std::thread> workhorses_for_multicast;
+        std::vector<std::thread> workhorses_for_p2p;
         /** the service client: off critical data path logic use it to send data to a next tier. */
         std::unique_ptr<ServiceClient<CascadeTypes...>> service_client;
         /**

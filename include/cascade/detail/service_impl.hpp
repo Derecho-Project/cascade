@@ -555,8 +555,8 @@ derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> ServiceC
 
 template <typename... CascadeTypes>
 CascadeContext<CascadeTypes...>::CascadeContext() {
-    action_queue_for_ordered_send.initialize();
-    action_queue_for_p2p_send.initialize();
+    action_queue_for_multicast.initialize();
+    action_queue_for_p2p.initialize();
     prefix_registry_ptr = std::make_shared<std::unordered_map<std::string, std::unordered_map<std::string,std::shared_ptr<OffCriticalDataPathObserver>>>>();
 }
 
@@ -570,16 +570,16 @@ void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeTypes...>*
     data_path_logic_manager->register_all(this);
     // 3 - start the working threads
     is_running.store(true);
-    for (uint32_t i=0;i<derecho::getConfUInt32(CASCADE_CONTEXT_NUM_WORKERS);i++) {
+    for (uint32_t i=0;i<derecho::getConfUInt32(CASCADE_CONTEXT_NUM_WORKERS_MULTICAST);i++) {
         // off_critical_data_path_thread_pool.emplace_back(std::thread(&CascadeContext<CascadeTypes...>::workhorse,this,i));
-        workhorses_for_ordered_send.emplace_back(
+        workhorses_for_multicast.emplace_back(
             [this,i](){
                 // set cpu affinity
-                if (this->resource_descriptor.worker_to_cpu_cores.find(i)!=
-                    this->resource_descriptor.worker_to_cpu_cores.end()) {
+                if (this->resource_descriptor.multicast_ocdp_worker_to_cpu_cores.find(i)!=
+                    this->resource_descriptor.multicast_ocdp_worker_to_cpu_cores.end()) {
                     cpu_set_t cpuset;
                     CPU_ZERO(&cpuset);
-                    for (auto core: this->resource_descriptor.worker_to_cpu_cores.at(i)) {
+                    for (auto core: this->resource_descriptor.multicast_ocdp_worker_to_cpu_cores.at(i)) {
                         CPU_SET(core,&cpuset);
                     }
                     if(pthread_setaffinity_np(pthread_self(),sizeof(cpuset),&cpuset)!=0) {
@@ -587,19 +587,19 @@ void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeTypes...>*
                     }
                 }
                 // call workhorse
-                this->workhorse(i,action_queue_for_ordered_send);
+                this->workhorse(i,action_queue_for_multicast);
             });
     }
-    for (uint32_t i=0;i<derecho::getConfUInt32(CASCADE_CONTEXT_NUM_WORKERS);i++) {
+    for (uint32_t i=0;i<derecho::getConfUInt32(CASCADE_CONTEXT_NUM_WORKERS_P2P);i++) {
         // off_critical_data_path_thread_pool.emplace_back(std::thread(&CascadeContext<CascadeTypes...>::workhorse,this,i));
-        workhorses_for_p2p_send.emplace_back(
+        workhorses_for_p2p.emplace_back(
             [this,i](){
                 // set cpu affinity
-                if (this->resource_descriptor.worker_to_cpu_cores.find(i)!=
-                    this->resource_descriptor.worker_to_cpu_cores.end()) {
+                if (this->resource_descriptor.p2p_ocdp_worker_to_cpu_cores.find(i)!=
+                    this->resource_descriptor.p2p_ocdp_worker_to_cpu_cores.end()) {
                     cpu_set_t cpuset;
                     CPU_ZERO(&cpuset);
-                    for (auto core: this->resource_descriptor.worker_to_cpu_cores.at(i)) {
+                    for (auto core: this->resource_descriptor.p2p_ocdp_worker_to_cpu_cores.at(i)) {
                         CPU_SET(core,&cpuset);
                     }
                     if(pthread_setaffinity_np(pthread_self(),sizeof(cpuset),&cpuset)!=0) {
@@ -607,7 +607,7 @@ void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeTypes...>*
                     }
                 }
                 // call workhorse
-                this->workhorse(i,action_queue_for_p2p_send);
+                this->workhorse(i,action_queue_for_p2p);
             });
     }
 }
@@ -688,20 +688,20 @@ template <typename... CascadeTypes>
 void CascadeContext<CascadeTypes...>::destroy() {
     dbg_default_trace("Destroying Cascade context@{:p}.",static_cast<void*>(this));
     is_running.store(false);
-    action_queue_for_ordered_send.notify_all();
-    action_queue_for_p2p_send.notify_all();
-    for (auto& th:workhorses_for_ordered_send) {
+    action_queue_for_multicast.notify_all();
+    action_queue_for_p2p.notify_all();
+    for (auto& th:workhorses_for_multicast) {
         if (th.joinable()) {
             th.join();
         }
     }
-    for (auto& th:workhorses_for_p2p_send) {
+    for (auto& th:workhorses_for_p2p) {
         if (th.joinable()) {
             th.join();
         }
     }
-    workhorses_for_ordered_send.clear();
-    workhorses_for_p2p_send.clear();
+    workhorses_for_multicast.clear();
+    workhorses_for_p2p.clear();
     dbg_default_trace("Cascade context@{:p} is destroyed.",static_cast<void*>(this));
 }
 
@@ -784,9 +784,9 @@ bool CascadeContext<CascadeTypes...>::post(Action&& action, bool is_trigger) {
     dbg_default_trace("Posting an action to Cascade context@{:p}.", static_cast<void*>(this));
     if (is_running) {
         if (is_trigger) {
-            action_queue_for_p2p_send.action_buffer_enqueue(std::move(action));
+            action_queue_for_p2p.action_buffer_enqueue(std::move(action));
         } else {
-            action_queue_for_ordered_send.action_buffer_enqueue(std::move(action));
+            action_queue_for_multicast.action_buffer_enqueue(std::move(action));
         }
     } else {
         dbg_default_warn("Failed to post to Cascade context@{:p} because it is not running.", static_cast<void*>(this));
