@@ -77,11 +77,16 @@ static std::vector<uint32_t> parse_cpu_gpu_list(const std::string& str) {
     return ret;
 }
 
-static std::map<uint32_t,std::vector<uint32_t>> parse_worker_cpu_affinity() {
+typedef enum {
+    OCDP_MULTICAST,
+    OCDP_P2P
+} ocdp_t;
+
+static std::map<uint32_t,std::vector<uint32_t>> parse_worker_cpu_affinity(const ocdp_t ocdp_type) {
     std::map<uint32_t,std::vector<uint32_t>> ret;
     if (derecho::hasCustomizedConfKey(CASCADE_CONTEXT_WORKER_CPU_AFFINITY)) {
         auto worker_cpu_affinity = json::parse(derecho::getConfString(CASCADE_CONTEXT_WORKER_CPU_AFFINITY));
-        for(auto affinity:worker_cpu_affinity.items()) {
+        for(auto affinity:worker_cpu_affinity[(ocdp_type==OCDP_MULTICAST)?"p2p_ocdp":"multicast_ocdp"].items()) {
             uint32_t worker_id = std::stoul(affinity.key());
             ret.emplace(worker_id,parse_cpu_gpu_list(affinity.value()));
         }
@@ -91,7 +96,8 @@ static std::map<uint32_t,std::vector<uint32_t>> parse_worker_cpu_affinity() {
 
 ResourceDescriptor::ResourceDescriptor():
     cpu_cores(parse_cpu_gpu_list(derecho::hasCustomizedConfKey(CASCADE_CONTEXT_CPU_CORES)?derecho::getConfString(CASCADE_CONTEXT_CPU_CORES):"")),
-    worker_to_cpu_cores(parse_worker_cpu_affinity()),
+    multicast_ocdp_worker_to_cpu_cores(parse_worker_cpu_affinity(OCDP_MULTICAST)),
+    p2p_ocdp_worker_to_cpu_cores(parse_worker_cpu_affinity(OCDP_P2P)),
     gpus(parse_cpu_gpu_list(derecho::hasCustomizedConfKey(CASCADE_CONTEXT_GPUS)?derecho::getConfString(CASCADE_CONTEXT_GPUS):"")) {
 }
 
@@ -108,8 +114,15 @@ void ResourceDescriptor::dump() const {
     }
     dbg_default_info("gpus={}", os_gpus.str());
     std::ostringstream os_affinity;
-    for(auto affinity:worker_to_cpu_cores) {
-        os_affinity << "(worker-" << affinity.first << ":";
+    for(auto affinity:multicast_ocdp_worker_to_cpu_cores) {
+        os_affinity << "(multicast worker-" << affinity.first << ":";
+        for (auto core: affinity.second) {
+            os_affinity << core << ",";
+        }
+        os_affinity << "); ";
+    }
+    for(auto affinity:p2p_ocdp_worker_to_cpu_cores) {
+        os_affinity << "(p2p worker-" << affinity.first << ":";
         for (auto core: affinity.second) {
             os_affinity << core << ",";
         }
