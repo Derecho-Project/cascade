@@ -38,12 +38,12 @@ class ConsolePrinterOCDPO: public OffCriticalDataPathObserver {
 void register_triggers(ICascadeContext* ctxt) {
     // Please make sure the CascadeContext type matches the CascadeService type, which is defined in server.cpp if you
     // use the default cascade service binary.
-    auto* typed_ctxt = dynamic_cast<CascadeContext<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey>*>(ctxt);
+    auto* typed_ctxt = dynamic_cast<CascadeContext<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey,TriggerCascadeNoStoreWithStringKey>*>(ctxt);
     typed_ctxt->register_prefixes({MY_PREFIX},MY_UUID,std::make_shared<ConsolePrinterOCDPO>());
 }
 
 void unregister_triggers(ICascadeContext* ctxt) {
-    auto* typed_ctxt = dynamic_cast<CascadeContext<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey>*>(ctxt);
+    auto* typed_ctxt = dynamic_cast<CascadeContext<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey,TriggerCascadeNoStoreWithStringKey>*>(ctxt);
     typed_ctxt->unregister_prefixes({MY_PREFIX},MY_UUID);
 }
 

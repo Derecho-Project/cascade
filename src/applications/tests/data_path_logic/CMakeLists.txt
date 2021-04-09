@@ -11,6 +11,21 @@ target_include_directories(console_printer_dpl PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
 )
+add_custom_command(TARGET console_printer_dpl POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/console_printer_cfg
+    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/run.sh.tmp
+    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n0/run.sh 
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/run.sh.tmp
+    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n1/run.sh 
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/run.sh.tmp
+    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n2/run.sh 
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/run.sh.tmp
+    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n3/run.sh 
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/run.sh.tmp
+    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n4/run.sh 
+    COMMENT "prepare console_printer configuration"
+)
 
 ##TODO: enable cnn_classifier dpl after data path logic manager is finished.
 ##if (HAS_MXNET_CPP AND OPENCV_CORE_FOUND)

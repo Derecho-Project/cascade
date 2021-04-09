@@ -11,7 +11,7 @@ namespace cascade {
 /**
  * The client API
  */
-using ServiceClientAPI = ServiceClient<VolatileCascadeStoreWithStringKey, PersistentCascadeStoreWithStringKey>;
+using ServiceClientAPI = ServiceClient<VolatileCascadeStoreWithStringKey, PersistentCascadeStoreWithStringKey, TriggerCascadeNoStoreWithStringKey>;
 
 /**
  * Create Linq iterators on keys or versions of keys
