@@ -362,6 +362,27 @@ derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceCl
 
 template <typename... CascadeTypes>
 template <typename SubgroupType>
+derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::trigger_put(
+        const typename SubgroupType::ObjectType& value,
+        uint32_t subgroup_index,
+        uint32_t shard_index) {
+    if (group_ptr != nullptr) {
+        // TODO: can we do p2p_call to myself?
+        std::lock_guard(this->group_ptr_mutex);
+        auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
+        node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
+        return subgroup_handle.template p2p_send<RPC_NAME(trigger_put)>(node_id,value);
+    } else {
+        std::lock_guard(this->external_group_ptr_mutex);
+        // call as an external client (ExternalClientCaller).
+        auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
+        node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
+        return caller.template p2p_send<RPC_NAME(trigger_put)>(node_id,value);
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
 derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::remove(
         const typename SubgroupType::KeyType& key,
         uint32_t subgroup_index,
@@ -570,7 +591,14 @@ void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeTypes...>*
     data_path_logic_manager->register_all(this);
     // 3 - start the working threads
     is_running.store(true);
-    for (uint32_t i=0;i<derecho::getConfUInt32(CASCADE_CONTEXT_NUM_WORKERS_MULTICAST);i++) {
+    uint32_t num_multicast_workers = 0;
+    uint32_t num_p2p_workers = 0;
+    if (derecho::hasCustomizedConfKey(CASCADE_CONTEXT_NUM_WORKERS_MULTICAST) == false) {
+        dbg_default_error("{} is not found, using 0...fix it, or posting to multicast off critical data path causes deadlock.", CASCADE_CONTEXT_NUM_WORKERS_MULTICAST);
+    } else {
+        num_multicast_workers = derecho::getConfUInt32(CASCADE_CONTEXT_NUM_WORKERS_MULTICAST);
+    }
+    for (uint32_t i=0;i<num_multicast_workers;i++) {
         // off_critical_data_path_thread_pool.emplace_back(std::thread(&CascadeContext<CascadeTypes...>::workhorse,this,i));
         workhorses_for_multicast.emplace_back(
             [this,i](){
@@ -590,7 +618,12 @@ void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeTypes...>*
                 this->workhorse(i,action_queue_for_multicast);
             });
     }
-    for (uint32_t i=0;i<derecho::getConfUInt32(CASCADE_CONTEXT_NUM_WORKERS_P2P);i++) {
+    if (derecho::hasCustomizedConfKey(CASCADE_CONTEXT_NUM_WORKERS_P2P) == false) {
+        dbg_default_error("{} is not found, using 0...fix it, or posting to multicast off critical data path causes deadlock.", CASCADE_CONTEXT_NUM_WORKERS_MULTICAST);
+    } else {
+        num_p2p_workers = derecho::getConfUInt32(CASCADE_CONTEXT_NUM_WORKERS_P2P);
+    }
+    for (uint32_t i=0;i<num_p2p_workers;i++) {
         // off_critical_data_path_thread_pool.emplace_back(std::thread(&CascadeContext<CascadeTypes...>::workhorse,this,i));
         workhorses_for_p2p.emplace_back(
             [this,i](){

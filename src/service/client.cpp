@@ -111,6 +111,8 @@ static void print_red(std::string msg) {
         ft <VolatileCascadeStoreWithStringKey>(__VA_ARGS__); \
     } else if ((x) == "PCSS") { \
         ft <PersistentCascadeStoreWithStringKey>(__VA_ARGS__); \
+    } else if ((x) == "TCSS") { \
+        ft <TriggerCascadeNoStoreWithStringKey>(__VA_ARGS__); \
     } else { \
         print_red("unknown subgroup type:" + cmd_tokens[1]); \
     }
@@ -140,6 +142,30 @@ void put(ServiceClientAPI& capi, std::string& key, std::string& value, persisten
     check_put_and_remove_result(result);
 }
 
+template <>
+void put<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, std::string& key, std::string& value, persistent::version_t pver, persistent::version_t pver_bk, uint32_t subgroup_index, uint32_t shard_index) {
+    print_red("TCSS does not support put.");
+}
+
+template <typename SubgroupType>
+void trigger_put(ServiceClientAPI& capi, std::string& key, std::string& value, uint32_t subgroup_index, uint32_t shard_index) {
+    typename SubgroupType::ObjectType obj;
+    if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
+        obj.key = static_cast<uint64_t>(std::stol(key));
+    } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
+        obj.key = key;
+    } else {
+        print_red(std::string("Unhandled KeyType:") + typeid(typename SubgroupType::KeyType).name());
+        return;
+    }
+
+    obj.blob = Blob(value.c_str(),value.length());
+    derecho::rpc::QueryResults<void> result = capi.template trigger_put<SubgroupType>(obj, subgroup_index, shard_index);
+    result.get();
+   
+    std::cout << "trigger_put is done." << std::endl;
+}
+
 template <typename SubgroupType>
 void remove(ServiceClientAPI& capi, std::string& key, uint32_t subgroup_index, uint32_t shard_index) {
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
@@ -152,6 +178,11 @@ void remove(ServiceClientAPI& capi, std::string& key, uint32_t subgroup_index, u
         print_red(std::string("Unhandled KeyType:") + typeid(typename SubgroupType::KeyType).name());
         return;
     }
+}
+
+template <>
+void remove<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, std::string& key, uint32_t subgroup_index, uint32_t shard_index) {
+    print_red("TCSS does not support remove.");
 }
 
 #define check_get_result(result) \
@@ -173,6 +204,11 @@ void get(ServiceClientAPI& capi, std::string& key, persistent::version_t ver, ui
     }
 }
 
+template <>
+void get<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, std::string& key, persistent::version_t ver, uint32_t subgroup_index,uint32_t shard_index) {
+    print_red("TCSS does not support get.");
+}
+
 template <typename SubgroupType>
 void get_by_time(ServiceClientAPI& capi, std::string& key, uint64_t ts_us, uint32_t subgroup_index, uint32_t shard_index) {
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
@@ -184,6 +220,11 @@ void get_by_time(ServiceClientAPI& capi, std::string& key, uint64_t ts_us, uint3
                 key,ts_us,subgroup_index,shard_index);
         check_get_result(result);
     }
+}
+
+template <>
+void get_by_time<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, std::string& key, uint64_t ts_us, uint32_t subgroup_index, uint32_t shard_index) {
+    print_red("TCSS does not support get_by_time.");
 }
 
 template <typename SubgroupType>
@@ -199,6 +240,11 @@ void get_size(ServiceClientAPI& capi, std::string& key, persistent::version_t ve
     }
 }
 
+template<>
+void get_size<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, std::string& key, persistent::version_t ver, uint32_t subgroup_index,uint32_t shard_index) {
+    print_red("TCSS does not support get_size.");
+}
+
 template <typename SubgroupType>
 void get_size_by_time(ServiceClientAPI& capi, std::string& key, uint64_t ts_us, uint32_t subgroup_index, uint32_t shard_index) {
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
@@ -212,6 +258,10 @@ void get_size_by_time(ServiceClientAPI& capi, std::string& key, uint64_t ts_us, 
     }
 }
 
+template <>
+void get_size_by_time<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, std::string& key, uint64_t ts_us, uint32_t subgroup_index, uint32_t shard_index) {
+    print_red("TCSS does not support get_size_by_time.");
+}
 
 #define check_list_keys_result(result) \
     for (auto& reply_future:result.get()) {\
@@ -229,10 +279,20 @@ void list_keys(ServiceClientAPI& capi, persistent::version_t ver, uint32_t subgr
     check_list_keys_result(result);
 }
 
+template <>
+void list_keys<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, persistent::version_t ver, uint32_t subgroup_index, uint32_t shard_index) {
+    print_red("TCSS does not support list_keys.");
+}
+
 template <typename SubgroupType>
 void list_keys_by_time(ServiceClientAPI& capi, uint64_t ts_us, uint32_t subgroup_index, uint32_t shard_index) {
     derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> result = capi.template list_keys_by_time<SubgroupType>(ts_us,subgroup_index,shard_index);
     check_list_keys_result(result);
+}
+
+template <>
+void list_keys_by_time<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, uint64_t ts_us, uint32_t subgroup_index, uint32_t shard_index) {
+    print_red("TCSS does not support list_keys_by_time.");
 }
 
 #ifdef HAS_BOOLINQ
@@ -250,6 +310,12 @@ void list_data_by_prefix(ServiceClientAPI& capi, std::string prefix, persistent:
         std::cout << "Found:" << obj << std::endl;
     }
 }
+
+template <>
+void list_data_by_prefix<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, std::string prefix, persistent::version_t ver, uint32_t subgroup_index, uint32_t shard_index) {
+    print_red("TCSS does not support list_data_by_prefix.");
+}
+
 
 //    "list_data_between_version <type> <key> <subgroup_index> <shard_index> [version_begin] [version_end]\n\t test LINQ api - version_iterator \n"
 template <typename SubgroupType>
@@ -285,6 +351,11 @@ void list_data_between_version(ServiceClientAPI &capi, std::string &key, uint32_
             std::cout << "Found:" << obj << std::endl;
         }
     }
+}
+
+template <>
+void list_data_between_version<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI &capi, std::string &key, uint32_t subgroup_index, uint32_t shard_index, persistent::version_t ver_begin, persistent::version_t ver_end) {
+    print_red("TCSS does not support list_data_between_version.");
 }
 
 //    "list_data_of_key_between_timestamp <type> <key> [ts_begin] [ts_end] [subgroup_index] [shard_index]\n\t test LINQ api - time_iterator \n"
@@ -325,6 +396,11 @@ void list_data_of_key_between_timestamp(ServiceClientAPI &capi, std::string &key
     }
 }
 
+template <>
+void list_data_of_key_between_timestamp<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI &capi, std::string &key, uint64_t ts_begin, uint64_t ts_end, uint32_t subgroup_index, uint32_t shard_index) {
+    print_red("TCSS does not support list_data_of_key_between_timestamp.");
+}
+
 //    "list_data_in_subgroup <type> <subgroup_index> [version]\n\t test LINQ api - subgroup_iterator \n"
 template <typename SubgroupType>
 void list_data_in_subgroup(ServiceClientAPI& capi, uint32_t subgroup_index, persistent::version_t version) {
@@ -337,6 +413,11 @@ void list_data_in_subgroup(ServiceClientAPI& capi, uint32_t subgroup_index, pers
         std::cout << "Found:" << obj << std::endl;
     }
 }
+
+template <>
+void list_data_in_subgroup<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, uint32_t subgroup_index, persistent::version_t version) {
+    print_red("TCSS does not support list_data_in_subgroup.");
+}
 #endif// HAS_BOOLINQ
 
 /* TEST2: put/get/remove tests */
@@ -348,6 +429,7 @@ void interactive_test(ServiceClientAPI& capi) {
     "set_member_selection_policy <type> <subgroup_index> <shard_index> <policy> [user_specified_node_id]\n\tset member selection policy\n"
     "get_member_selection_policy <type> [subgroup_index(0)] [shard_index(0)]\n\tget member selection policy\n"
     "put <type> <key> <value> [pver(-1)] [pver_by_key(-1)] [subgroup_index(0)] [shard_index(0)]\n\tput an object\n"
+    "trigger_put <type> <key> <value> [subgroup_index(0)] [shard_index(0)]\n\ttrigger put an object\n"
     "remove <type> <key> [subgroup_index(0)] [shard_index(0)]\n\tremove an object\n"
     "get <type> <key> [version(-1)] [subgroup_index(0)] [shard_index(0)]\n\tget an object(by version)\n"
     "get_by_time <type> <key> <ts_us> [subgroup_index(0)] [shard_index(0)]\n\tget an object by timestamp\n"
@@ -364,7 +446,7 @@ void interactive_test(ServiceClientAPI& capi) {
     "quit|exit\n\texit the client.\n"
     "help\n\tprint this message.\n"
     "\n"
-    "type:=VCSS|PCSS\n"
+    "type:=VCSS|PCSS|TCSS\n"
     "policy:=FirstMember|LastMember|Random|FixedRandom|RoundRobin|UserSpecified\n"
     ;
     // derecho::subgroup_id_t subgroup_id;
@@ -459,6 +541,16 @@ void interactive_test(ServiceClientAPI& capi) {
             if (cmd_tokens.size() >= 8)
                 shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[7]));
             on_subgroup_type(cmd_tokens[1],put,capi,cmd_tokens[2]/*key*/,cmd_tokens[3]/*value*/,pver,pver_bk,subgroup_index,shard_index);
+        } else if (cmd_tokens[0] == "trigger_put") {
+            if (cmd_tokens.size() < 4) {
+                print_red("Invalid format:" + cmdline);
+                continue;
+            }
+            if (cmd_tokens.size() >= 5)
+                subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
+            if (cmd_tokens.size() >= 6)
+                shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[5]));
+            on_subgroup_type(cmd_tokens[1],trigger_put,capi,cmd_tokens[2]/*key*/,cmd_tokens[3]/*value*/,subgroup_index,shard_index);
         } else if (cmd_tokens[0] == "remove") {
             if (cmd_tokens.size() < 3) {
                 print_red("Invalid format:" + cmdline);

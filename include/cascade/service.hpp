@@ -408,6 +408,28 @@ namespace cascade {
         template <typename SubgroupType>
         derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> put(const typename SubgroupType::ObjectType& object,
                 uint32_t subgroup_index=0, uint32_t shard_index=0);
+
+        /**
+         * "trigger_put" writes an object to a given subgroup/shard.
+         *
+         * @param object            the object to write.
+         *                          User provided SubgroupType::ObjectType must have the following two members:
+         *                          - SubgroupType::ObjectType::key of SubgroupType::KeyType, which must be set to a
+         *                            valid key.
+         *                          - SubgroupType::ObjectType::ver of std::tuple<persistent::version_t, uint64_t>.
+         *                            Similar to the return object, this member is a two tuple with the first member
+         *                            for a version and the second for a timestamp. A caller of put can specify either
+         *                            of the version and timestamp meaning what is the latest version/timestamp the caller
+         *                            has seen. Cascade will reject the write if the corresponding key has been updated
+         *                            already. TODO: should we make it an optional feature?
+         * @subugroup_index         the subgroup index of CascadeType
+         * @shard_index             the shard index.
+         *
+         * @return a void future.
+         */
+        template <typename SubgroupType>
+        derecho::rpc::QueryResults<void> trigger_put(const typename SubgroupType::ObjectType& object,
+                uint32_t subgroup_index=0, uint32_t shard_index=0);
     
         /**
          * "remove" deletes an object with the given key.
@@ -519,7 +541,7 @@ namespace cascade {
     /**
      * configuration keys
      */
-    #define CASCADE_CONTEXT_NUM_WORKERS_MULTICAST   "CASCADE/num_workers_for_multicast_odcp"
+    #define CASCADE_CONTEXT_NUM_WORKERS_MULTICAST   "CASCADE/num_workers_for_multicast_ocdp"
     #define CASCADE_CONTEXT_NUM_WORKERS_P2P         "CASCADE/num_workers_for_p2p_ocdp"
     #define CASCADE_CONTEXT_CPU_CORES               "CASCADE/cpu_cores"
     #define CASCADE_CONTEXT_GPUS                    "CASCADE/gpus"
