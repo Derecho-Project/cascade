@@ -413,15 +413,6 @@ namespace cascade {
          * "trigger_put" writes an object to a given subgroup/shard.
          *
          * @param object            the object to write.
-         *                          User provided SubgroupType::ObjectType must have the following two members:
-         *                          - SubgroupType::ObjectType::key of SubgroupType::KeyType, which must be set to a
-         *                            valid key.
-         *                          - SubgroupType::ObjectType::ver of std::tuple<persistent::version_t, uint64_t>.
-         *                            Similar to the return object, this member is a two tuple with the first member
-         *                            for a version and the second for a timestamp. A caller of put can specify either
-         *                            of the version and timestamp meaning what is the latest version/timestamp the caller
-         *                            has seen. Cascade will reject the write if the corresponding key has been updated
-         *                            already. TODO: should we make it an optional feature?
          * @subugroup_index         the subgroup index of CascadeType
          * @shard_index             the shard index.
          *
@@ -430,6 +421,20 @@ namespace cascade {
         template <typename SubgroupType>
         derecho::rpc::QueryResults<void> trigger_put(const typename SubgroupType::ObjectType& object,
                 uint32_t subgroup_index=0, uint32_t shard_index=0);
+
+        /**
+         * "collective_trigger_put" writes an object to a set of nodes.
+         *
+         * @param object            the object to write.
+         * @subugroup_index         the subgroup index of CascadeType
+         * @param nodes             node ids for the set of nodes.
+         *
+         * @return an array of void futures, which length is nodes.size()
+         */
+        template <typename SubgroupType>
+        void collective_trigger_put(const typename SubgroupType::ObjectType& object,
+                uint32_t subgroup_index,
+                std::unordered_map<node_id_t,std::unique_ptr<derecho::rpc::QueryResults<void>>>& nodes_and_futures);
     
         /**
          * "remove" deletes an object with the given key.

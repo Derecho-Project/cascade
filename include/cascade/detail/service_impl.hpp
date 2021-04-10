@@ -383,6 +383,29 @@ derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::trigger_put(
 
 template <typename... CascadeTypes>
 template <typename SubgroupType>
+void ServiceClient<CascadeTypes...>::collective_trigger_put(
+        const typename SubgroupType::ObjectType& value,
+        uint32_t subgroup_index,
+        std::unordered_map<node_id_t,std::unique_ptr<derecho::rpc::QueryResults<void>>>& nodes_and_futures) {
+    if (group_ptr != nullptr) {
+        std::lock_guard(this->group_ptr_mutex);
+        auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
+        for (auto kv: nodes_and_futures) {
+            nodes_and_futures[kv.first] = std::make_unique<derecho::rpc::QueryResults<void>>(
+                    std::move(subgroup_handle.template p2p_send<RPC_NAME(trigger_put)>(kv.first,value)));
+        }
+    } else {
+        std::lock_guard(this->external_group_ptr_mutex);
+        auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
+        for (auto kv: nodes_and_futures) {
+            nodes_and_futures[kv.first] = std::make_unique<derecho::rpc::QueryResults<void>>(
+                    std::move(caller.template p2p_send<RPC_NAME(trigger_put)>(kv.first,value)));
+        }
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
 derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::remove(
         const typename SubgroupType::KeyType& key,
         uint32_t subgroup_index,
