@@ -390,14 +390,14 @@ void ServiceClient<CascadeTypes...>::collective_trigger_put(
     if (group_ptr != nullptr) {
         std::lock_guard(this->group_ptr_mutex);
         auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
-        for (auto kv: nodes_and_futures) {
+        for (auto& kv: nodes_and_futures) {
             nodes_and_futures[kv.first] = std::make_unique<derecho::rpc::QueryResults<void>>(
                     std::move(subgroup_handle.template p2p_send<RPC_NAME(trigger_put)>(kv.first,value)));
         }
     } else {
         std::lock_guard(this->external_group_ptr_mutex);
         auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
-        for (auto kv: nodes_and_futures) {
+        for (auto& kv: nodes_and_futures) {
             nodes_and_futures[kv.first] = std::make_unique<derecho::rpc::QueryResults<void>>(
                     std::move(caller.template p2p_send<RPC_NAME(trigger_put)>(kv.first,value)));
         }

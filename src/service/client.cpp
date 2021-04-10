@@ -167,6 +167,33 @@ void trigger_put(ServiceClientAPI& capi, std::string& key, std::string& value, u
 }
 
 template <typename SubgroupType>
+void collective_trigger_put(ServiceClientAPI& capi, std::string& key, std::string& value, uint32_t subgroup_index, std::vector<node_id_t> nodes) {
+    typename SubgroupType::ObjectType obj;
+    if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
+        obj.key = static_cast<uint64_t>(std::stol(key));
+    } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
+        obj.key = key;
+    } else {
+        print_red(std::string("Unhandled KeyType:") + typeid(typename SubgroupType::KeyType).name());
+        return;
+    }
+
+    obj.blob = Blob(value.c_str(),value.length());
+    std::unordered_map<node_id_t,std::unique_ptr<derecho::rpc::QueryResults<void>>> nodes_and_futures;
+    for (auto& nid: nodes) {
+        nodes_and_futures.emplace(nid,nullptr);
+    }
+    capi.template collective_trigger_put<SubgroupType>(obj, subgroup_index, nodes_and_futures);
+    for (auto& kv: nodes_and_futures) {
+        kv.second.get();
+        std::cout << "Finish sending to node " << kv.first << std::endl;
+    }
+   
+    std::cout << "collective_trigger_put is done." << std::endl;
+
+}
+
+template <typename SubgroupType>
 void remove(ServiceClientAPI& capi, std::string& key, uint32_t subgroup_index, uint32_t shard_index) {
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
         derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> result = std::move(capi.template remove<SubgroupType>(static_cast<uint64_t>(std::stol(key)), subgroup_index, shard_index));
@@ -430,6 +457,7 @@ void interactive_test(ServiceClientAPI& capi) {
     "get_member_selection_policy <type> [subgroup_index(0)] [shard_index(0)]\n\tget member selection policy\n"
     "put <type> <key> <value> [pver(-1)] [pver_by_key(-1)] [subgroup_index(0)] [shard_index(0)]\n\tput an object\n"
     "trigger_put <type> <key> <value> [subgroup_index(0)] [shard_index(0)]\n\ttrigger put an object\n"
+    "collective_trigger_put <type> <key> <value> <subgroup_index> <node1> [node2 ...]\n\t collectively trigger put an object\n"
     "remove <type> <key> [subgroup_index(0)] [shard_index(0)]\n\tremove an object\n"
     "get <type> <key> [version(-1)] [subgroup_index(0)] [shard_index(0)]\n\tget an object(by version)\n"
     "get_by_time <type> <key> <ts_us> [subgroup_index(0)] [shard_index(0)]\n\tget an object by timestamp\n"
@@ -551,6 +579,22 @@ void interactive_test(ServiceClientAPI& capi) {
             if (cmd_tokens.size() >= 6)
                 shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[5]));
             on_subgroup_type(cmd_tokens[1],trigger_put,capi,cmd_tokens[2]/*key*/,cmd_tokens[3]/*value*/,subgroup_index,shard_index);
+        } else if (cmd_tokens[0] == "collective_trigger_put") {
+            std::vector<node_id_t> nodes;
+            if (cmd_tokens.size() < 4) {
+                print_red("Invalid format:" + cmdline);
+                continue;
+            }
+            if (cmd_tokens.size() >= 5)
+                subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
+            if (cmd_tokens.size() >= 6) {
+                shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[5]));
+                size_t arg_idx = 5;
+                while(arg_idx < cmd_tokens.size()) {
+                    nodes.push_back(static_cast<node_id_t>(std::stoi(cmd_tokens[arg_idx++])));
+                }
+            }
+            on_subgroup_type(cmd_tokens[1],collective_trigger_put,capi,cmd_tokens[2]/*key*/,cmd_tokens[3]/*value*/,subgroup_index,nodes);
         } else if (cmd_tokens[0] == "remove") {
             if (cmd_tokens.size() < 3) {
                 print_red("Invalid format:" + cmdline);
