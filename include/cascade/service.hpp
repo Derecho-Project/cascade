@@ -424,6 +424,11 @@ namespace cascade {
 
         /**
          * "collective_trigger_put" writes an object to a set of nodes.
+         * 
+         * Please notice that returning from QueryResults<void>::get() only means that the message has been sent by the
+         * sender. It does NOT guarantee that the message is/will be successfully processed by the remote side. However,
+         * we agree that QueryResults<void> should reflect exceptions or errors either on local or remote side, which is
+         * not enabled so far. TODO: Track exception in derecho::rpc::QueryResults<void> 
          *
          * @param object            the object to write.
          * @subugroup_index         the subgroup index of CascadeType
