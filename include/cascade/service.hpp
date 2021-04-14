@@ -61,7 +61,8 @@ namespace cascade {
          */ 
         virtual void operator() (const std::string& key_string,
                                  persistent::version_t version,
-                                 const mutils::ByteRepresentable* const value_ptr, 
+                                 const mutils::ByteRepresentable* const value_ptr,
+                                 const std::unordered_map<std::string,bool>& outputs,
                                  ICascadeContext* ctxt, 
                                  uint32_t worker_id) = 0;
     };
@@ -98,6 +99,7 @@ namespace cascade {
         persistent::version_t           version;
         std::shared_ptr<OffCriticalDataPathObserver>   ocdpo_ptr;
         std::shared_ptr<mutils::ByteRepresentable>     value_ptr;
+        std::unordered_map<std::string,bool>           outputs;
         /**
          * Move constructor
          * @param other     The input Action object
@@ -106,8 +108,8 @@ namespace cascade {
             key_string(other.key_string),
             version(other.version),
             ocdpo_ptr(std::move(other.ocdpo_ptr)),
-            value_ptr(std::move(other.value_ptr)) {
-        }
+            value_ptr(std::move(other.value_ptr)),
+            outputs(std::move(other.outputs)) {}
         /**
          * Constructor
          * @param   _key_string
@@ -118,12 +120,13 @@ namespace cascade {
         Action(const std::string&           _key_string = "",
                const persistent::version_t& _version = CURRENT_VERSION,
                const std::shared_ptr<OffCriticalDataPathObserver>&  _ocdpo_ptr = nullptr,
-               const std::shared_ptr<mutils::ByteRepresentable>&    _value_ptr = nullptr):
+               const std::shared_ptr<mutils::ByteRepresentable>&    _value_ptr = nullptr,
+               const std::unordered_map<std::string,bool>           _outputs = {}):
             key_string(_key_string),
             version(_version),
             ocdpo_ptr(_ocdpo_ptr),
-            value_ptr(_value_ptr) {
-        }
+            value_ptr(_value_ptr),
+            outputs(_outputs) {}
         Action(const Action&) = delete; // disable copy constructor
         /**
          * Assignment operators
@@ -138,7 +141,7 @@ namespace cascade {
         inline void fire(ICascadeContext* ctxt,uint32_t worker_id) {
             if (value_ptr && ocdpo_ptr) {
                 dbg_default_trace("In {}: action is fired.", __PRETTY_FUNCTION__);
-                (*ocdpo_ptr)(key_string,version,value_ptr.get(),ctxt,worker_id);
+                (*ocdpo_ptr)(key_string,version,value_ptr.get(),outputs,ctxt,worker_id);
             }
         }
         inline explicit operator bool() const {
@@ -151,8 +154,12 @@ namespace cascade {
             << "\tkey = " << action.key_string << "\n"
             << "\tversion = " << std::hex << action.version << "\n"
             << "\tocdpo_ptr = " << action.ocdpo_ptr.get() << "\n"
-            << "\tvalue_ptr = " << action.value_ptr.get()
-            << std::endl;
+            << "\tvalue_ptr = " << action.value_ptr.get() << "\n"
+            << "\toutput = ";
+        for (auto& output:action.outputs) {
+            out << output.first << (output.second? "[*]":"") << ";";
+        }
+        out << std::endl;
 
         return out;
     }
@@ -609,9 +616,20 @@ namespace cascade {
         /** thread pool control */
         std::atomic<bool>       is_running;
         /** the prefix registries, one is active, the other is shadow 
-         * prefix->{dpl_id->ocdpo}
+         * prefix->{dpl_id->{ocdpo,{prefix->trigger_put/put}}
          */
-        std::shared_ptr<std::unordered_map<std::string, std::unordered_map<std::string,std::shared_ptr<OffCriticalDataPathObserver>>>> prefix_registry_ptr;
+        std::shared_ptr<
+            std::unordered_map<
+                std::string, // prefix
+                std::unordered_map<
+                    std::string, // dpl_id
+                    std::pair<
+                        std::shared_ptr<OffCriticalDataPathObserver>, // ocdpo
+                        std::unordered_map<std::string,bool>          // output map{prefix->bool}
+                    >
+                >
+            >
+        > prefix_registry_ptr;
         /** the write lock for prefix_registry_ptr */
         mutable std::mutex prefix_registry_ptr_mutex;
         /** a shared lock for writer-reader */
@@ -711,10 +729,13 @@ namespace cascade {
          * @param prefixes              - the prefixes set
          * @param data_path_logic_id    - the DPL id, presumably an UUID string
          * @param ocdpo_ptr             - the data path observer
+         * @param outputs               - the outputs are a map from another prefix to put type (true for trigger put,
+         *                                false for put).
          */
         virtual void register_prefixes(const std::unordered_set<std::string>& prefixes,
                                        const std::string& data_path_logic_id,
-                                       const std::shared_ptr<OffCriticalDataPathObserver>& ocdpo_ptr = nullptr);
+                                       const std::shared_ptr<OffCriticalDataPathObserver>& ocdpo_ptr,
+                                       const std::unordered_map<std::string,bool>& outputs);
         /**
          * Unregister a set of prefixes
          * 
@@ -731,7 +752,7 @@ namespace cascade {
          *
          * @return the unordered map of observers registered to this prefix.
          */
-        virtual std::unordered_map<std::string,std::shared_ptr<OffCriticalDataPathObserver>> 
+        virtual std::unordered_map<std::string,std::pair<std::shared_ptr<OffCriticalDataPathObserver>,std::unordered_map<std::string,bool>>> 
             get_prefix_handlers(const std::string& prefix); 
         /**
          * post an action to the Context for processing.

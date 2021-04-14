@@ -22,13 +22,6 @@ namespace derecho {
 namespace cascade {
 
 /**
- * list the prefixes to be fixed.
- *
- * @return the supported prefixes.
- */
-std::unordered_set<std::string> list_prefixes();
-
-/**
  * Get the UUID of this DPL
  * @return UUID string like "48e60f7c-8500-11eb-8755-0242ac110002"
  */
@@ -52,14 +45,7 @@ void initialize(ICascadeContext* ctxt);
  *
  * @param   ctxt
  */
-void register_triggers(ICascadeContext* ctxt);
-
-/**
- * "unregister_triggers" will be called when data path logic loader unload this dll.
- *
- * @param   ctxt
- */
-void unregister_triggers(ICascadeContext* ctxt);
+std::shared_ptr<OffCriticalDataPathObserver> get_observer();
 
 /**
  * Release the data path logic
