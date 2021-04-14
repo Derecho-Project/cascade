@@ -3,6 +3,7 @@
 #include <typeindex>
 #include <variant>
 #include <derecho/core/derecho.hpp>
+#include <cascade/data_flow_graph.hpp>
 #include <chrono>
 
 using namespace std::chrono_literals;
@@ -601,7 +602,18 @@ template <typename... CascadeTypes>
 CascadeContext<CascadeTypes...>::CascadeContext() {
     action_queue_for_multicast.initialize();
     action_queue_for_p2p.initialize();
-    prefix_registry_ptr = std::make_shared<std::unordered_map<std::string, std::unordered_map<std::string,std::shared_ptr<OffCriticalDataPathObserver>>>>();
+    prefix_registry_ptr = std::make_shared<
+                                std::unordered_map<
+                                    std::string, 
+                                    std::unordered_map<
+                                        std::string,
+                                        std::pair<
+                                            std::shared_ptr<OffCriticalDataPathObserver>,
+                                            std::unordered_map<std::string,bool>
+                                        >
+                                    >
+                                >
+                          >();
 }
 
 template <typename... CascadeTypes>
@@ -609,9 +621,18 @@ void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeTypes...>*
     // 0 - TODO: load resources configuration here.
     // 1 - prepare the service client
     service_client = std::make_unique<ServiceClient<CascadeTypes...>>(group_ptr);
-    // 2 - create data path logic loader and register the prefixes
+    // 2 - create data path logic loader and register the prefixes. Ideally, this part should be done in the control
+    // plane, where a centralized controller should issue the control messages to do load/unload.
+    // TODO: implement the control plane.
     data_path_logic_manager = DataPathLogicManager<CascadeTypes...>::create(this);
-    data_path_logic_manager->register_all(this);
+    auto dfgs = DataFlowGraph::get_data_flow_graphs();
+    for (auto& dfg:dfgs) {
+        for (auto& vertex:dfg.vertices) {
+            for (auto& edge:vertex.second.edges) {
+                register_prefixes({vertex.second.object_pool_id},edge.first,data_path_logic_manager->get_observer(edge.first),edge.second);
+            }
+        }
+    }
     // 3 - start the working threads
     is_running.store(true);
     uint32_t num_multicast_workers = 0;
@@ -770,18 +791,23 @@ template <typename... CascadeTypes>
 void CascadeContext<CascadeTypes...>::register_prefixes(
         const std::unordered_set<std::string>& prefixes,
         const std::string& data_path_logic_id,
-        const std::shared_ptr<OffCriticalDataPathObserver>& ocdpo_ptr) {
+        const std::shared_ptr<OffCriticalDataPathObserver>& ocdpo_ptr,
+        const std::unordered_map<std::string,bool>& outputs) {
     // 0 - write lock the prefix_registry_ptr to exclude concurrent writers
     std::unique_lock lck(prefix_registry_ptr_mutex);
     // 1 - copy-construct a new prefix_registry
-    auto new_pr = std::make_shared<std::unordered_map<std::string, std::unordered_map<std::string,std::shared_ptr<OffCriticalDataPathObserver>>>>(*prefix_registry_ptr);
+    auto new_pr = std::make_shared<std::unordered_map<std::string, std::unordered_map<std::string,std::pair<std::shared_ptr<OffCriticalDataPathObserver>,std::unordered_map<std::string,bool>>>>>(*prefix_registry_ptr);
 
     // 2 - insert prefixes
     for (auto& prefix: prefixes) {
         if (new_pr->find(prefix) == new_pr->end()){
-            new_pr->emplace(prefix,std::unordered_map<std::string,std::shared_ptr<OffCriticalDataPathObserver>>{});
+            new_pr->emplace(prefix,
+                            std::unordered_map<std::string,
+                                               std::pair<std::shared_ptr<OffCriticalDataPathObserver>,
+                                                         std::unordered_map<std::string,bool>>
+                                              >{});
         }
-        new_pr->at(prefix).emplace(data_path_logic_id,ocdpo_ptr);
+        new_pr->at(prefix).emplace(data_path_logic_id,std::pair{ocdpo_ptr,outputs});
     }
 
     // 3 - flip the prefix_registry
@@ -798,7 +824,7 @@ void CascadeContext<CascadeTypes...>::unregister_prefixes(const std::unordered_s
                                                           const std::string& data_path_logic_id) {
     std::unique_lock lck(prefix_registry_ptr_mutex);
     // 1 - copy-construct a new prefix_registry
-    auto new_pr = std::make_shared<std::unordered_map<std::string, std::unordered_map<std::string,std::shared_ptr<OffCriticalDataPathObserver>>>>(*prefix_registry_ptr);
+    auto new_pr = std::make_shared<std::unordered_map<std::string, std::unordered_map<std::string,std::pair<std::shared_ptr<OffCriticalDataPathObserver>,std::unordered_map<std::string,bool>>>>>(*prefix_registry_ptr);
 
     // 2 - remove prefixes
     for (auto& prefix: prefixes) {
@@ -819,10 +845,10 @@ void CascadeContext<CascadeTypes...>::unregister_prefixes(const std::unordered_s
 
 /* Note: On the same hardware, copying a shared_ptr spends ~7.4ns, and copying a raw pointer spends ~1.8 ns*/
 template <typename... CascadeTypes>
-std::unordered_map<std::string,std::shared_ptr<OffCriticalDataPathObserver>> CascadeContext<CascadeTypes...>::get_prefix_handlers(const std::string& prefix) {
+std::unordered_map<std::string,std::pair<std::shared_ptr<OffCriticalDataPathObserver>,std::unordered_map<std::string,bool>>> CascadeContext<CascadeTypes...>::get_prefix_handlers(const std::string& prefix) {
     // 1 - copy the shared ptr
     std::shared_lock rlck(prefix_registry_ptr_rw_mutex);
-    std::shared_ptr<std::unordered_map<std::string, std::unordered_map<std::string,std::shared_ptr<OffCriticalDataPathObserver>>>> pr = prefix_registry_ptr;
+    std::shared_ptr<std::unordered_map<std::string, std::unordered_map<std::string,std::pair<std::shared_ptr<OffCriticalDataPathObserver>,std::unordered_map<std::string,bool>>>>> pr = prefix_registry_ptr;
     rlck.unlock();
 
     // 2 - read the shared ptr
@@ -831,7 +857,7 @@ std::unordered_map<std::string,std::shared_ptr<OffCriticalDataPathObserver>> Cas
     }
     return pr->at(prefix);
 
-    // 3 - If the prefix_registry has been changed by the writer after step 1, release of pr destructs the old prefix
+    // 3 - If the prefix_registry has been changed by the writer after step 1, releasing pr destructs the old prefix
     // registry.
 }
 

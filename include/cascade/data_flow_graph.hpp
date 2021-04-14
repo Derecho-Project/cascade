@@ -71,7 +71,7 @@ public:
     struct DataFlowGraphVertex {
         std::string object_pool_id;
         // The edges is a map from DPL uuid string to a vector of destiation object pool ids.
-        // An entry "dpl_uuid->[pool1,pool2,pool3]" means three edges from the current vertex to three destination
+        // An entry "dpl_uuid->[pool1:true,pool2:false,pool3:false]" means three edges from the current vertex to three destination
         // vertices pool1, pool2, and pool3. The input data is processed by DPL specified by dpl_uuid.
         std::unordered_map<std::string,std::unordered_map<std::string,bool>> edges;
         // to string

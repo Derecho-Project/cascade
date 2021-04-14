@@ -56,7 +56,7 @@ class CascadeServiceCDPO: public CriticalDataPathObserver<CascadeType> {
             auto handlers = ctxt->get_prefix_handlers(prefix);
             auto value_ptr = std::make_shared<typename CascadeType::ObjectType>(value);
             for(auto& handler : handlers) {
-                Action action(key,value.get_version(),handler.second,value_ptr);
+                Action action(key,value.get_version(),std::get<0>(handler.second),value_ptr,std::get<1>(handler.second));
                 ctxt->post(std::move(action),is_trigger);
             }
         }
