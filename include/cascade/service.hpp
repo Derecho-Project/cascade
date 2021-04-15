@@ -766,6 +766,14 @@ namespace cascade {
         virtual bool post(Action&& action, bool is_trigger = false);
 
         /**
+         * Get the action queue length
+         *
+         * @return current queue_length
+         */
+        virtual size_t action_queue_length_p2p();
+        virtual size_t action_queue_length_multicast();
+
+        /**
          * Destructor
          */
         virtual ~CascadeContext();
