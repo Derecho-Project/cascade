@@ -879,6 +879,16 @@ bool CascadeContext<CascadeTypes...>::post(Action&& action, bool is_trigger) {
 }
 
 template <typename... CascadeTypes>
+size_t CascadeContext<CascadeTypes...>::action_queue_length_p2p() {
+    return (action_queue_for_p2p.action_buffer_tail - action_queue_for_multicast.action_buffer_head + ACTION_BUFFER_SIZE)%ACTION_BUFFER_SIZE;
+}
+
+template <typename... CascadeTypes>
+size_t CascadeContext<CascadeTypes...>::action_queue_length_multicast() {
+    return (action_queue_for_multicast.action_buffer_tail - action_queue_for_multicast.action_buffer_head + ACTION_BUFFER_SIZE)%ACTION_BUFFER_SIZE;
+}
+
+template <typename... CascadeTypes>
 CascadeContext<CascadeTypes...>::~CascadeContext() {
     destroy();
 }
