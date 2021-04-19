@@ -1,6 +1,7 @@
 #pragma once
 #include <cascade/cascade.hpp>
 #include <cascade/object.hpp>
+#include <cascade/object_pool_metadata.hpp>
 #include <derecho/conf/conf.hpp>
 
 #define CONF_VCS_UINT64KEY_LAYOUT "CASCADE/VOLATILECASCADESTORE/UINT64/layout"
