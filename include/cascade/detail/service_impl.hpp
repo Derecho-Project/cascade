@@ -53,7 +53,7 @@ void populate_policy_by_subgroup_type_map(
 template <typename... CascadeTypes>
 derecho::SubgroupInfo generate_subgroup_info(const json& layout) {
     std::map<std::type_index,std::variant<SubgroupAllocationPolicy, CrossProductPolicy>> dsa_map;
-    populate_policy_by_subgroup_type_map<CascadeTypes...>(dsa_map,layout,0);
+    populate_policy_by_subgroup_type_map<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>(dsa_map,layout,0);
     return derecho::SubgroupInfo(derecho::DefaultSubgroupAllocator(dsa_map));
 }
 
@@ -67,6 +67,7 @@ derecho::Factory<CascadeType> factory_wrapper(ICascadeContext* context_ptr, dere
 template <typename... CascadeTypes>
 Service<CascadeTypes...>::Service(const json& layout,
                                   const std::vector<DeserializationContext*>& dsms,
+                                  derecho::cascade::Factory<CascadeMetadataService<CascadeTypes...>> metadata_service_factory,
                                   derecho::cascade::Factory<CascadeTypes>... factories) {
     // STEP 1 - load configuration
     derecho::SubgroupInfo si = generate_subgroup_info<CascadeTypes...>(layout);
@@ -76,11 +77,12 @@ Service<CascadeTypes...>::Service(const json& layout,
     std::vector<DeserializationContext*> new_dsms(dsms);
     new_dsms.emplace_back(context.get());
     // STEP 3 - create derecho group
-    group = std::make_unique<derecho::Group<CascadeTypes...>>(
+    group = std::make_unique<derecho::Group<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>>(
                 CallbackSet{},
                 si,
                 new_dsms,
                 std::vector<derecho::view_upcall_t>{},
+                factory_wrapper(context.get(),metadata_service_factory),
                 factory_wrapper(context.get(),factories)...);
     dbg_default_trace("joined group.");
     // STEP 4 - construct context
@@ -129,9 +131,11 @@ template <typename... CascadeTypes>
 std::unique_ptr<Service<CascadeTypes...>> Service<CascadeTypes...>::service_ptr;
 
 template <typename... CascadeTypes>
-void Service<CascadeTypes...>::start(const json& layout, const std::vector<DeserializationContext*>& dsms, derecho::cascade::Factory<CascadeTypes>... factories) {
+void Service<CascadeTypes...>::start(const json& layout, const std::vector<DeserializationContext*>& dsms, 
+        derecho::cascade::Factory<CascadeMetadataService<CascadeTypes...>> metadata_factory,
+        derecho::cascade::Factory<CascadeTypes>... factories) {
     if (!service_ptr) {
-        service_ptr = std::make_unique<Service<CascadeTypes...>>(layout, dsms, factories...);
+        service_ptr = std::make_unique<Service<CascadeTypes...>>(layout, dsms, metadata_factory, factories...);
     } 
 }
 
@@ -152,10 +156,10 @@ void Service<CascadeTypes...>::wait() {
 }
 
 template <typename... CascadeTypes>
-ServiceClient<CascadeTypes...>::ServiceClient(derecho::Group<CascadeTypes...>* _group_ptr):
+ServiceClient<CascadeTypes...>::ServiceClient(derecho::Group<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>* _group_ptr):
     group_ptr(_group_ptr) {
     if (group_ptr == nullptr) {
-        this->external_group_ptr = std::make_unique<derecho::ExternalGroup<CascadeTypes...>>();
+        this->external_group_ptr = std::make_unique<derecho::ExternalGroup<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>>();
     } 
 }
 
@@ -597,6 +601,21 @@ derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> ServiceC
         return caller.template p2p_send<RPC_NAME(list_keys_by_time)>(node_id,ts_us);
     }
 }
+/**
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> create_object_pool(
+        const std::string& id, uint32_t subgroup_index,
+        sharding_policy_t sharding_policy, std::unordered_map<std::string,uint32_t>& object_locations) {
+    uint32_t subgroup_type_index = ObjectPoolMetadata<CascadeTypes...>::template get_subgroup_type_index<SubgroupType>();
+    if (subgroup_type_index == ObjectPoolMetadata<Cascadetypes...>::invalid_subgroup_type_index) {
+        dbg_default_crit("Create object pool failed because of invalid SubgroupType:{}", typeid(SubgroupType).name());
+        throw derecho::derecho_exception("Create object pool failed because SubgroupType is invalid." typeid(SubgroupType).name());
+    }
+    ObjectPoolMetadata<CascadeTypes...> opm(id,subgroup_type_index,subgroup_index,sharding_policy,object_locations,false);
+    //TODO: get the object type of the metadata
+}
+**/
 
 template <typename... CascadeTypes>
 CascadeContext<CascadeTypes...>::CascadeContext() {
@@ -617,7 +636,7 @@ CascadeContext<CascadeTypes...>::CascadeContext() {
 }
 
 template <typename... CascadeTypes>
-void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeTypes...>* group_ptr) {
+void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>* group_ptr) {
     // 0 - TODO: load resources configuration here.
     // 1 - prepare the service client
     service_client = std::make_unique<ServiceClient<CascadeTypes...>>(group_ptr);

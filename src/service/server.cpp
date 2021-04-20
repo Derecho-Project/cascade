@@ -63,6 +63,18 @@ class CascadeServiceCDPO: public CriticalDataPathObserver<CascadeType> {
     }
 };
 
+namespace derecho::cascade {
+// specialize create_null_object_cb for Cascade Types...
+using opm_t = ObjectPoolMetadata<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey,TriggerCascadeNoStoreWithStringKey>;
+template<>
+opm_t create_null_object_cb<std::string,opm_t,&opm_t::IK,&opm_t::IV>(const std::string& key) {
+    opm_t opm;
+    opm.id = key;
+    opm.subgroup_type_index = opm_t::invalid_subgroup_type_index;
+    return opm;
+}
+}
+
 int main(int argc, char** argv) {
     // set proc name
     if( prctl(PR_SET_NAME, PROC_NAME, 0, 0, 0) != 0 ) {
@@ -81,6 +93,12 @@ int main(int argc, char** argv) {
     CascadeServiceCDPO<PersistentCascadeStoreWithStringKey> cdpo_pcss;
     CascadeServiceCDPO<TriggerCascadeNoStoreWithStringKey> cdpo_tcss;
 
+    auto meta_factory = [](persistent::PersistentRegistry* pr, derecho::subgroup_id_t, ICascadeContext* context_ptr) {
+        // critical data path for metadata service is currently disabled. But we can leverage it later for object pool
+        // metadata handling.
+        return std::make_unique<CascadeMetadataService<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey,TriggerCascadeNoStoreWithStringKey>>(
+                pr,nullptr,context_ptr);
+    };
     auto vcss_factory = [&cdpo_vcss](persistent::PersistentRegistry*, derecho::subgroup_id_t, ICascadeContext* context_ptr) {
         return std::make_unique<VolatileCascadeStoreWithStringKey>(&cdpo_vcss,context_ptr);
     };
@@ -94,7 +112,8 @@ int main(int argc, char** argv) {
     Service<VolatileCascadeStoreWithStringKey,
             PersistentCascadeStoreWithStringKey,
             TriggerCascadeNoStoreWithStringKey>::start(group_layout,
-            {&cdpo_vcss,&cdpo_pcss},
+            {&cdpo_vcss,&cdpo_pcss,&cdpo_tcss},
+            meta_factory,
             vcss_factory,pcss_factory,tcss_factory);
     dbg_default_trace("started service, waiting till it ends.");
     std::cout << "Press Enter to Shutdown." << std::endl;

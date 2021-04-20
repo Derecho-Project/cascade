@@ -105,7 +105,7 @@ public:
     }
 
     virtual bool is_null() const override {
-        return !this->id.empty();
+        return (subgroup_type_index == invalid_subgroup_type_index);
     }
 
     virtual bool is_valid() const override {
@@ -163,7 +163,17 @@ template<typename... CascadeTypes>
 std::string ObjectPoolMetadata<CascadeTypes...>::IK;
 
 template<typename... CascadeTypes>
-ObjectPoolMetadata<CascadeTypes...> ObjectPoolMetadata<CascadeTypes...>::IV;
+ObjectPoolMetadata<CascadeTypes...> ObjectPoolMetadata<CascadeTypes...>::IV(
+        persistent::INVALID_VERSION, // version
+        0,                           //timestamp_us
+        persistent::INVALID_VERSION, // previous_version
+        persistent::INVALID_VERSION, // previous_version_by_key
+        "",                          // ID
+        invalid_subgroup_type_index, // subgroup_type_index
+        0,                           // subgroup_index
+        HASH,                        // HASH
+        {},                          // object_locations
+        false);                      // deleted
 
 template<typename... CascadeTypes>
 const std::vector<std::type_index> ObjectPoolMetadata<CascadeTypes...>::subgroup_type_order{std::type_index(typeid(CascadeTypes))...};
@@ -206,8 +216,6 @@ inline std::ostream& operator<<(std::ostream& out, const ObjectPoolMetadata<Casc
         std::endl;
     return out;
 }
-
-
 
 }
 }
