@@ -126,7 +126,7 @@ private:
         std::ifstream config(DPL_DLLS_CONFIG);
         //step 1: test if DPL_DLLS_CONFIG exists or not.
         if (!config.good()) {
-            dbg_default_error("{} failed because {} does not exist or is not readable.", __PRETTY_FUNCTION__, DPL_DLLS_CONFIG);
+            dbg_default_warn("{} failed because {} does not exist or is not readable.", __PRETTY_FUNCTION__, DPL_DLLS_CONFIG);
             return;
         }
         //step 2: load .so files one by one.

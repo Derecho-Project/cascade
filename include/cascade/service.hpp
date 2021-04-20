@@ -16,6 +16,7 @@
 #include <unordered_set>
 #include <derecho/conf/conf.hpp>
 #include "cascade.hpp"
+#include "object_pool_metadata.hpp"
 #include "data_path_logic_manager.hpp"
 
 using json = nlohmann::json;
@@ -39,6 +40,16 @@ namespace cascade {
     /* Cascade Factory type*/
     template <typename CascadeType>
     using Factory = std::function<std::unique_ptr<CascadeType>(persistent::PersistentRegistry*, subgroup_id_t subgroup_id, ICascadeContext*)>;
+
+    /* Cascade Metadata Service type*/
+	template<typename...CascadeTypes>
+	using CascadeMetadataService = PersistentCascadeStore<
+    	std::remove_cv_t<std::remove_reference_t<decltype(((ObjectPoolMetadata<CascadeTypes...>*)nullptr)->get_key_ref())>>,
+        ObjectPoolMetadata<CascadeTypes...>,
+        &ObjectPoolMetadata<CascadeTypes...>::IK,
+        &ObjectPoolMetadata<CascadeTypes...>::IV,
+        ST_FILE>;
+
     
     /* The cascade context to be defined later */
     template <typename... CascadeTypes>
@@ -176,12 +187,14 @@ namespace cascade {
         /**
          * Constructor
          * The constructor will load the configuration, start the service thread.
-         * @param layout TODO: explain layout
-         * @param dsms TODO: explain it here
-         * @param factories: explain it here
+         * @param layout the json layout, please find detailed description in the configuration file.
+         * @param dsms deserialization managers
+         * @param metadata_service_factory
+         * @param factories: subgroup factories.
          */
         Service(const json& layout,
                 const std::vector<DeserializationContext*>& dsms,
+                derecho::cascade::Factory<CascadeMetadataService<CascadeTypes...>> metadata_service_factory,
                 derecho::cascade::Factory<CascadeTypes>... factories);
         /**
          * The workhorse
@@ -210,7 +223,7 @@ namespace cascade {
         /**
          * The group
          */
-        std::unique_ptr<derecho::Group<CascadeTypes...>> group;
+        std::unique_ptr<derecho::Group<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>> group;
         /**
          * The CascadeContext
          */
@@ -228,10 +241,12 @@ namespace cascade {
          *
          * @param layout TODO: explain layout
          * @param dsms
+         * @param metadata_factory - factory for the metadata service.
          * @param factories - the factories to create objects.
          */
         static void start(const json& layout,
                           const std::vector<DeserializationContext*>& dsms,
+                          derecho::cascade::Factory<CascadeMetadataService<CascadeTypes...>> metadata_factory,
                           derecho::cascade::Factory<CascadeTypes>... factories);
         /**
          * Check if service is started or not.
@@ -297,10 +312,10 @@ namespace cascade {
     class ServiceClient {
     private:
         // default caller as an external client.
-        std::unique_ptr<derecho::ExternalGroup<CascadeTypes...>> external_group_ptr;
+        std::unique_ptr<derecho::ExternalGroup<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>> external_group_ptr;
         mutable std::mutex external_group_ptr_mutex;
         // caller as a group member.
-        derecho::Group<CascadeTypes...>* group_ptr;
+        derecho::Group<CascadeMetadataService<CascadeTypes...>, CascadeTypes...>* group_ptr;
         mutable std::mutex group_ptr_mutex;
         /**
          * 'member_selection_policies' is a map from derecho shard to its member selection policy.
@@ -352,7 +367,7 @@ namespace cascade {
          *                   valid, the implementation will reply on the group object instead of creating an external
          *                   client to communicate with group members.
          */
-        ServiceClient(derecho::Group<CascadeTypes...>* _group_ptr=nullptr);
+        ServiceClient(derecho::Group<CascadeMetadataService<CascadeTypes...>, CascadeTypes...>* _group_ptr=nullptr);
         /**
          * Derecho group helpers: They derive the API in derecho::ExternalClient.
          * - get_my_id          return my local node id.
@@ -381,8 +396,8 @@ namespace cascade {
          * - get_member_selection_policy read the member selection policies.
          * @param subgroup_index 
          * @param shard_index
-         * @policy
-         * @user_specified_node_id
+         * @param policy
+         * @param user_specified_node_id
          * @return get_member_selection_policy returns a 2-tuple of policy and user_specified_node_id.
          */
         template <typename SubgroupType>
@@ -406,8 +421,8 @@ namespace cascade {
          *                            of the version and timestamp meaning what is the latest version/timestamp the caller
          *                            has seen. Cascade will reject the write if the corresponding key has been updated
          *                            already. TODO: should we make it an optional feature?
-         * @subugroup_index         the subgroup index of CascadeType
-         * @shard_index             the shard index.
+         * @param subugroup_index   the subgroup index of CascadeType
+         * @param shard_index       the shard index.
          *
          * @return a future to the version and timestamp of the put operation.
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
@@ -420,8 +435,8 @@ namespace cascade {
          * "trigger_put" writes an object to a given subgroup/shard.
          *
          * @param object            the object to write.
-         * @subugroup_index         the subgroup index of CascadeType
-         * @shard_index             the shard index.
+         * @param subugroup_index   the subgroup index of CascadeType
+         * @param shard_index       the shard index.
          *
          * @return a void future.
          */
@@ -438,7 +453,7 @@ namespace cascade {
          * not enabled so far. TODO: Track exception in derecho::rpc::QueryResults<void> 
          *
          * @param object            the object to write.
-         * @subugroup_index         the subgroup index of CascadeType
+         * @param subugroup_index   the subgroup index of CascadeType
          * @param nodes             node ids for the set of nodes.
          *
          * @return an array of void futures, which length is nodes.size()
@@ -452,8 +467,8 @@ namespace cascade {
          * "remove" deletes an object with the given key.
          *
          * @param key               the object key
-         * @subugroup_index         the subgroup index of CascadeType
-         * @shard_index             the shard index.
+         * @param subugroup_index   the subgroup index of CascadeType
+         * @param shard_index       the shard index.
          *
          * @return a future to the version and timestamp of the put operation.
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
@@ -468,8 +483,8 @@ namespace cascade {
          * @param key               the object key
          * @param version           if version is CURRENT_VERSION, this "get" will fire a ordered send to get the latest
          *                          state of the key. Otherwise, it will try to read the key's state at version.
-         * @subugroup_index         the subgroup index of CascadeType
-         * @shard_index             the shard index.
+         * @param subugroup_index   the subgroup index of CascadeType
+         * @param shard_index       the shard index.
          *
          * @return a future to the retrieved object.
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
@@ -483,8 +498,8 @@ namespace cascade {
          *
          * @param key               the object key
          * @param ts_us             Wall clock time in microseconds. 
-         * @subugroup_index         the subgroup index of CascadeType
-         * @shard_index             the shard index.
+         * @param subugroup_index   the subgroup index of CascadeType
+         * @param shard_index       the shard index.
          *
          * @return a future to the retrieved object.
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
@@ -499,8 +514,8 @@ namespace cascade {
          * @param key               the object key
          * @param version           if version is CURRENT_VERSION, this "get" will fire a ordered send to get the latest
          *                          state of the key. Otherwise, it will try to read the key's state at version.
-         * @subugroup_index         the subgroup index of CascadeType
-         * @shard_index             the shard index.
+         * @param subugroup_index   the subgroup index of CascadeType
+         * @param shard_index       the shard index.
          *
          * @return a future to the retrieved size.
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
@@ -514,8 +529,8 @@ namespace cascade {
          *
          * @param key               the object key
          * @param ts_us             Wall clock time in microseconds. 
-         * @subugroup_index         the subgroup index of CascadeType
-         * @shard_index             the shard index.
+         * @param subugroup_index   the subgroup index of CascadeType
+         * @param shard_index       the shard index.
          *
          * @return a future to the retrieved size.
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
@@ -529,8 +544,8 @@ namespace cascade {
          *
          * @param version           if version is CURRENT_VERSION, this "get" will fire a ordered send to get the latest
          *                          state of the key. Otherwise, it will try to read the key's state at version.
-         * @subugroup_index         the subgroup index of CascadeType
-         * @shard_index             the shard index.
+         * @param subugroup_index   the subgroup index of CascadeType
+         * @param shard_index       the shard index.
          *
          * @return a future to the retrieved object.
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
@@ -543,8 +558,8 @@ namespace cascade {
          * "list_keys_by_time" retrieve the list of keys in a shard
          *
          * @param ts_us             Wall clock time in microseconds.
-         * @subugroup_index         the subgroup index of CascadeType
-         * @shard_index             the shard index.
+         * @param subugroup_index   the subgroup index of CascadeType
+         * @param shard_index       the shard index.
          *
          * @return a future to the retrieved object.
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
@@ -552,6 +567,44 @@ namespace cascade {
         template <typename SubgroupType>
         derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> list_keys_by_time(const uint64_t& ts_us,
                 uint32_t subgroup_index=0, uint32_t shard_index=0);
+
+//        /**
+//         * Object Pool Management API: create object pool
+//         *
+//         * @tparam SubgroupType     Type of the subgroup for the created object pool
+//         * @param  id               Object pool id
+//         * @param  subgroup_index   Index of the subgroup
+//         * @param  sharding_policy  The default sharding policy for this object pool
+//         * @param  object_locations The set of special object locations.
+//         *
+//         * @return a future to the version and timestamp of the put operation.
+//         */
+//        template <typename SubgroupType>
+//        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> create_object_pool(
+//                const std::string& id, uint32_t subgroup_index,
+//                sharding_policy_t sharding_policy, std::unordered_map<std::string,uint32_t>& object_locations = {});
+//
+//        /**
+//         * ObjectPoolManagement API: remote object pool
+//         *
+//         * @tparam SubgroupType     Type of the subgroup for the created object pool
+//         * @param  id               Object pool id
+//         *
+//         * @return a future to the version and timestamp of the put operation.
+//         */
+//        template <typename SubgroupType>
+//        derecho::rpc::QueryResults<std:tuple<persistent::version_t,uint64_t>> remove_object_pool(const std::string& id);
+//
+//        /**
+//         * ObjectPoolManagement API: find object pool
+//         *
+//         * @tparam SubgroupType     Type of the subgroup for the created object pool
+//         * @param  id               Object pool id
+//         *
+//         * @return the object pool metadata
+//         */
+//        template <typename SubgroupType>
+//        std::unique_ptr<ObjectPoolMetadata<CascadeTypes...>> find_object_pool(const std::string& id);
     };
     
     
@@ -670,7 +723,7 @@ namespace cascade {
          * 
          * @param group_ptr                         The group handle
          */
-        void construct(derecho::Group<CascadeTypes...>* group_ptr);
+        void construct(derecho::Group<CascadeMetadataService<CascadeTypes...>, CascadeTypes...>* group_ptr);
         /**
          * get the reference to encapsulated service client handle.
          * The reference is valid only after construct() is called.
