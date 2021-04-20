@@ -601,21 +601,65 @@ derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> ServiceC
         return caller.template p2p_send<RPC_NAME(list_keys_by_time)>(node_id,ts_us);
     }
 }
-/**
+
 template <typename... CascadeTypes>
 template <typename SubgroupType>
-derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> create_object_pool(
+derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::create_object_pool(
         const std::string& id, uint32_t subgroup_index,
         sharding_policy_t sharding_policy, std::unordered_map<std::string,uint32_t>& object_locations) {
     uint32_t subgroup_type_index = ObjectPoolMetadata<CascadeTypes...>::template get_subgroup_type_index<SubgroupType>();
-    if (subgroup_type_index == ObjectPoolMetadata<Cascadetypes...>::invalid_subgroup_type_index) {
+    if (subgroup_type_index == ObjectPoolMetadata<CascadeTypes...>::invalid_subgroup_type_index) {
         dbg_default_crit("Create object pool failed because of invalid SubgroupType:{}", typeid(SubgroupType).name());
-        throw derecho::derecho_exception("Create object pool failed because SubgroupType is invalid." typeid(SubgroupType).name());
+        throw new derecho::derecho_exception(std::string("Create object pool failed because SubgroupType is invalid:")+typeid(SubgroupType).name());
     }
     ObjectPoolMetadata<CascadeTypes...> opm(id,subgroup_type_index,subgroup_index,sharding_policy,object_locations,false);
-    //TODO: get the object type of the metadata
+    // determine the shard index by hashing
+    uint32_t metadata_service_shard_index = std::hash<std::string>{}(id)%get_number_of_shards<CascadeMetadataService>(METADATA_SERVICE_SUBGROUP_INDEX);
+
+    return this->template put<CascadeMetadataService<CascadeTypes...>>(opm,METADATA_SERVICE_SUBGROUP_INDEX,metadata_service_shard_index);
 }
-**/
+
+template <typename... CascadeTypes>
+derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::remove_object_pool(const std::string& id) {
+    // determine the shard index by hashing
+    uint32_t metadata_service_shard_index = std::hash<std::string>{}(id)%get_number_of_shards<CascadeMetadataService>(METADATA_SERVICE_SUBGROUP_INDEX);
+
+    std::shared_lock<std::shared_mutex> rlck(object_pool_metadata_cache_mutex);
+    if (object_pool_metadata_cache.find(id) == object_pool_metadata_cache.end()) {
+        // no entry in cache
+        rlck.unlock();
+    } else {
+        // remove from cache
+        rlck.unlock();
+        std::unique_lock<std::shared_mutex> wlck(object_pool_metadata_cache_mutex);
+        object_pool_metadata_cache.erase(id);
+        wlck.unlock();
+    }
+
+    return this->template remove<CascadeMetadataService<CascadeTypes...>>(id,METADATA_SERVICE_SUBGROUP_INDEX,metadata_service_shard_index);
+}
+
+template <typename... CascadeTypes>
+ObjectPoolMetadata<CascadeTypes...> ServiceClient<CascadeTypes...>::find_object_pool(const std::string& id) {
+    std::shared_lock<std::shared_mutex> rlck(object_pool_metadata_cache_mutex);
+    if (object_pool_metadata_cache.find(id) == object_pool_metadata_cache.end()) {
+        rlck.unlock();
+        uint32_t metadata_service_shard_index = std::hash<std::string>{}(id)%get_number_of_shards<CascadeMetadataService>(METADATA_SERVICE_SUBGROUP_INDEX);
+        auto result = this->template get<CascadeMetadataService<CascadeTypes...>>(id,CURRENT_VERSION,METADATA_SERVICE_SUBGROUP_INDEX,metadata_service_shard_index);
+        for (auto& reply_future:result.get()) {
+            auto opm = reply_future.second.get();
+            // update the metadata cache.
+            std::unique_lock<std::shared_mutex> wlck(object_pool_metadata_cache_mutex);
+            object_pool_metadata_cache[id] = opm;
+            return opm;
+        }
+        // not found, return an invalid one.
+        return ObjectPoolMetadata<CascadeTypes...>::IV;
+    } else {
+        return object_pool_metadata_cache.at(id);
+    }
+}
+
 
 template <typename... CascadeTypes>
 CascadeContext<CascadeTypes...>::CascadeContext() {
