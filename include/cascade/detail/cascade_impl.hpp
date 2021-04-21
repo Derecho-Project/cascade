@@ -940,5 +940,19 @@ TriggerCascadeNoStore<KT,VT,IK,IV>::TriggerCascadeNoStore(CriticalDataPathObserv
                                             cascade_watcher_ptr(cw),
                                             cascade_context_ptr(cc) {}
 
+template<typename KeyType>
+std::enable_if<std::is_convertible<KeyType,std::string>::value,std::string> get_pathname(const KeyType& key) {
+    const std::string* pstr = dynamic_cast<std::string*>(&key);
+    size_t pos = pstr->rfind('/');
+    if (pos != std::string::npos) {
+        return pstr->substr(0,pos);
+    }
+    return "";
+}
+
+template<typename KeyType>
+std::enable_if<!std::is_convertible<KeyType,std::string>::value,std::string> get_pathname(const KeyType& key) {
+    return "";
+}
 }//namespace cascade
 }//namespace derecho
