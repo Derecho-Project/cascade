@@ -148,6 +148,13 @@ void put<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, std::string
 }
 
 template <typename SubgroupType>
+void create_object_pool(ServiceClientAPI& capi, std::string& id, uint32_t subgroup_index) {
+    auto result = capi.template create_object_pool<SubgroupType>(id,subgroup_index);
+    check_put_and_remove_result(result);
+    std::cout << "create_object_pool is done." << std::endl;
+} 
+
+template <typename SubgroupType>
 void trigger_put(ServiceClientAPI& capi, std::string& key, std::string& value, uint32_t subgroup_index, uint32_t shard_index) {
     typename SubgroupType::ObjectType obj;
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
@@ -455,10 +462,17 @@ void interactive_test(ServiceClientAPI& capi) {
     // "list_subgroup_members [subgroup_id(0)] [shard_index(0)]\n\tlist members in shard by subgroup id.\n"
     "set_member_selection_policy <type> <subgroup_index> <shard_index> <policy> [user_specified_node_id]\n\tset member selection policy\n"
     "get_member_selection_policy <type> [subgroup_index(0)] [shard_index(0)]\n\tget member selection policy\n"
+    "\n"
+    "list_object_pools\n"
+    "create_object_pool <id> <subgroup_type> <subgroup_index>\n"
+    "remove_object_pool <id>\n"
+    "get_object_pool <id>\n"
+    "\n"
     "put <type> <key> <value> [pver(-1)] [pver_by_key(-1)] [subgroup_index(0)] [shard_index(0)]\n\tput an object\n"
     "trigger_put <type> <key> <value> [subgroup_index(0)] [shard_index(0)]\n\ttrigger put an object\n"
     "collective_trigger_put <type> <key> <value> <subgroup_index> <node1> [node2 ...]\n\t collectively trigger put an object\n"
     "remove <type> <key> [subgroup_index(0)] [shard_index(0)]\n\tremove an object\n"
+    "\n"
     "get <type> <key> [version(-1)] [subgroup_index(0)] [shard_index(0)]\n\tget an object(by version)\n"
     "get_by_time <type> <key> <ts_us> [subgroup_index(0)] [shard_index(0)]\n\tget an object by timestamp\n"
     "get_size <type> <key> [version(-1)] [subgroup_index(0)] [shard_index(0)]\n\tget the size of an object(by version)\n"
@@ -471,6 +485,7 @@ void interactive_test(ServiceClientAPI& capi) {
     "list_data_of_key_between_timestamp <type> <key> [ts_begin(MIN)] [ts_end(MAX)] [subgroup_index(0)] [shard_index(0)]\n\t test LINQ api - time_iterator \n"
     "list_data_in_subgroup <type> <subgroup_index> [version(-1)]\n\t test LINQ api - subgroup_iterator \n"
 #endif// HAS_BOOLINQ
+    "\n"
     "quit|exit\n\texit the client.\n"
     "help\n\tprint this message.\n"
     "\n"
@@ -553,6 +568,37 @@ void interactive_test(ServiceClientAPI& capi) {
                 user_specified_node_id = static_cast<node_id_t>(std::stoi(cmd_tokens[5]));
             }
             on_subgroup_type(cmd_tokens[1],set_member_selection_policy,capi,subgroup_index,shard_index,policy,user_specified_node_id);
+        } else if (cmd_tokens[0] == "list_object_pools") {
+            std::cout << "refreshed object pools:" << std::endl;
+            for (std::string& opid: capi.list_object_pool_ids(true)) {
+                std::cout << "\t" << opid << std::endl;
+            }
+            std::cout << "list_object_pools done." << std::endl;
+        } else if (cmd_tokens[0] == "create_object_pool") {
+            if (cmd_tokens.size() < 4) {
+                print_red("Invalid format:" + cmdline);
+                continue;
+            }
+            std::string id = cmd_tokens[1];
+            subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
+            on_subgroup_type(cmd_tokens[2],create_object_pool,capi,id,subgroup_index);
+        } else if (cmd_tokens[0] == "remove_object_pool") {
+            if (cmd_tokens.size() < 2) {
+                print_red("Invalid format:" + cmdline);
+                continue;
+            }
+            std::string id = cmd_tokens[1];
+            auto result = capi.remove_object_pool(id);
+            check_put_and_remove_result(result);
+        } else if (cmd_tokens[0] == "get_object_pool") {
+            if (cmd_tokens.size() < 2) {
+                print_red("Invalid format:" + cmdline);
+                continue;
+            }
+            std::string id = cmd_tokens[1];
+            auto opm = capi.find_object_pool(id);
+            std::cout << "get_object_pool returns:"
+                      << opm << std::endl;
         } else if (cmd_tokens[0] == "put") {
             persistent::version_t pver = persistent::INVALID_VERSION;
             persistent::version_t pver_bk = persistent::INVALID_VERSION;

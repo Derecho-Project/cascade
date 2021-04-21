@@ -578,6 +578,11 @@ namespace cascade {
                 uint32_t subgroup_index=0, uint32_t shard_index=0);
 
         /**
+         * Object Pool Management API: refresh object pool cache
+         */
+        void refresh_object_pool_metadata_cache();
+
+        /**
          * Object Pool Management API: create object pool
          *
          * @tparam SubgroupType     Type of the subgroup for the created object pool
@@ -590,8 +595,8 @@ namespace cascade {
          */
         template <typename SubgroupType>
         derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> create_object_pool(
-                const std::string& id, uint32_t subgroup_index,
-                sharding_policy_t sharding_policy = HASH, std::unordered_map<std::string,uint32_t>& object_locations = {});
+                const std::string& id, const uint32_t subgroup_index,
+                const sharding_policy_t sharding_policy = HASH, const std::unordered_map<std::string,uint32_t>& object_locations = {});
 
         /**
          * ObjectPoolManagement API: remote object pool
@@ -610,6 +615,15 @@ namespace cascade {
          * @return the object pool metadata
          */
         ObjectPoolMetadata<CascadeTypes...> find_object_pool(const std::string& id);
+
+        /**
+         * ObjectPoolManagement API: list all the object pools
+         *
+         * @param refresh           false for cached object ids, true for refreshed ids.
+         *
+         * @return the pool ids.
+         */
+        std::vector<std::string> list_object_pool_ids(bool refresh = false);
     };
     
     
