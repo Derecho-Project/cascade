@@ -74,6 +74,23 @@ public:
         object_locations(_object_locations),
         deleted(_deleted) {}
 
+    ObjectPoolMetadata(const std::string& _id,
+                       uint32_t _subgroup_type_index,
+                       uint32_t _subgroup_index,
+                       sharding_policy_t _sharding_policy,
+                       const std::unordered_map<std::string,uint32_t>& _object_locations,
+                       bool _deleted):
+        version(persistent::INVALID_VERSION),
+        timestamp_us(0),
+        previous_version(persistent::INVALID_VERSION),
+        previous_version_by_key(persistent::INVALID_VERSION),
+        id(_id),
+        subgroup_type_index(_subgroup_type_index),
+        subgroup_index(_subgroup_index),
+        sharding_policy(_sharding_policy),
+        object_locations(_object_locations),
+        deleted(_deleted) {}
+
     // constructor 2: copy constructor
     ObjectPoolMetadata(const ObjectPoolMetadata& other):
         version(other.version),
@@ -99,6 +116,18 @@ public:
         sharding_policy(other.sharding_policy),
         object_locations(std::move(other.object_locations)),
         deleted(other.deleted) {}
+
+    void operator = (const ObjectPoolMetadata& other) {
+        this->version = other.version;
+        this->timestamp_us = other.timestamp_us;
+        this->previous_version = other.previous_version;
+        this->previous_version_by_key = other.previous_version_by_key;
+        this->id = other.id;
+        this->subgroup_type_index = other.subgroup_type_index;
+        this->sharding_policy = other.sharding_policy;
+        this->object_locations = other.object_locations;
+        this->deleted = other.deleted;
+    }
 
     virtual const std::string& get_key_ref() const override {
         return this->id;
@@ -202,18 +231,22 @@ uint32_t ObjectPoolMetadata<CascadeTypes...>::get_subgroup_type_index() {
 
 template<typename... CascadeTypes>
 inline std::ostream& operator<<(std::ostream& out, const ObjectPoolMetadata<CascadeTypes...>& opm) {
-    out << std::string{typeid(opm).name()} << "\n" <<
-        "\tversion:" << opm.version << "\n" <<
-        "\ttimestamp_us:" << opm.timestamp_us << "\n" <<
-        "\tprevious_version:" << opm.previous_version << "\n" <<
-        "\tprevious_version_by_key:" << opm.previous_version_by_key << "\n" <<
-        "\tid:" << opm.id << "\n" <<
-        "\tsubgroup_type:" << std::to_string(opm.subgroup_type_index) << "-->" << ObjectPoolMetadata<CascadeTypes...>::subgroup_type_order[opm.subgroup_type_index].name() << "\n" <<
-        "\tsubgroup_index:" << std::to_string(opm.subgroup_index) << "\n" <<
-        "\tsharding_policy:" << std::to_string(opm.sharding_policy) <<"\n" <<
-        "\tobject_locations:[hidden]" << "\n" <<
-        "\tis_deleted:" << std::to_string(opm.deleted) <<
-        std::endl;
+    out << "object pool metadata@" << &opm << " is " << (opm.is_valid()?"valid":"invalid") << " and "
+        << (opm.is_null()?"null":"not null.") << std::endl;
+    if(opm.is_valid() && !opm.is_null()) {
+        out << std::string{typeid(opm).name()} << "\n" <<
+            "\tversion:" << opm.version << "\n" <<
+            "\ttimestamp_us:" << opm.timestamp_us << "\n" <<
+            "\tprevious_version:" << opm.previous_version << "\n" <<
+            "\tprevious_version_by_key:" << opm.previous_version_by_key << "\n" <<
+            "\tid:" << opm.id << "\n" <<
+            "\tsubgroup_type:" << std::to_string(opm.subgroup_type_index) << "-->" << ObjectPoolMetadata<CascadeTypes...>::subgroup_type_order[opm.subgroup_type_index].name() << "\n" <<
+            "\tsubgroup_index:" << std::to_string(opm.subgroup_index) << "\n" <<
+            "\tsharding_policy:" << std::to_string(opm.sharding_policy) <<"\n" <<
+            "\tobject_locations:[hidden]" << "\n" <<
+            "\tis_deleted:" << std::to_string(opm.deleted) <<
+            std::endl;
+    }
     return out;
 }
 
