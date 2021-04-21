@@ -369,6 +369,15 @@ namespace cascade {
          */
         template <typename SubgroupType>
         void refresh_member_cache_entry(uint32_t subgroup_index, uint32_t shard_index);
+
+        /**
+         * Metadata API Helper: turn a string key to subgroup index and shard index
+         * 
+         */
+        template <typename SubgroupType>
+        std::pair<uint32_t,uint32_t> key_to_subgroup_index_and_shard_index(const typename SubgroupType::KeyType& key,
+                bool check_object_location);
+
     public:
         /**
          * The Constructor
@@ -438,7 +447,13 @@ namespace cascade {
          */
         template <typename SubgroupType>
         derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> put(const typename SubgroupType::ObjectType& object,
-                uint32_t subgroup_index=0, uint32_t shard_index=0);
+                uint32_t subgroup_index, uint32_t shard_index);
+
+        /**
+         * object pool version
+         */
+        template <typename SubgroupType>
+        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> put(const typename SubgroupType::ObjectType& object);
 
         /**
          * "trigger_put" writes an object to a given subgroup/shard.
@@ -451,7 +466,13 @@ namespace cascade {
          */
         template <typename SubgroupType>
         derecho::rpc::QueryResults<void> trigger_put(const typename SubgroupType::ObjectType& object,
-                uint32_t subgroup_index=0, uint32_t shard_index=0);
+                uint32_t subgroup_index, uint32_t shard_index);
+
+        /**
+         * object pool version
+         */
+        template <typename SubgroupType>
+        derecho::rpc::QueryResults<void> trigger_put(const typename SubgroupType::ObjectType& object);
 
         /**
          * "collective_trigger_put" writes an object to a set of nodes.
@@ -484,7 +505,12 @@ namespace cascade {
          */
         template <typename SubgroupType>
         derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> remove(const typename SubgroupType::KeyType& key,
-                uint32_t subgroup_index=0, uint32_t shard_index=0);
+                uint32_t subgroup_index, uint32_t shard_index);
+        /**
+         * object pool version
+         */
+        template <typename SubgroupType>
+        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> remove(const typename SubgroupType::KeyType& key);
     
         /**
          * "get" retrieve the object of a given key
@@ -499,8 +525,13 @@ namespace cascade {
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
          */
         template <typename SubgroupType>
-        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> get(const typename SubgroupType::KeyType& key, const persistent::version_t& version = CURRENT_VERSION,
-                uint32_t subgroup_index=0, uint32_t shard_index=0);
+        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> get(const typename SubgroupType::KeyType& key, const persistent::version_t& version, 
+                uint32_t subgroup_index, uint32_t shard_index);
+        /**
+         * object pool version
+         */
+        template <typename SubgroupType>
+        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> get(const typename SubgroupType::KeyType& key, const persistent::version_t& version = CURRENT_VERSION);
     
         /**
          * "get_by_time" retrieve the object of a given key
@@ -515,7 +546,13 @@ namespace cascade {
          */
         template <typename SubgroupType>
         derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> get_by_time(const typename SubgroupType::KeyType& key, const uint64_t& ts_us,
-                uint32_t subgroup_index=0, uint32_t shard_index=0);
+                uint32_t subgroup_index, uint32_t shard_index);
+
+        /**
+         * object pool version
+         */
+        template <typename SubgroupType>
+        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> get_by_time(const typename SubgroupType::KeyType& key, const uint64_t& ts_us);
     
         /**
          * "get_size" retrieve size of the object of a given key
@@ -530,8 +567,14 @@ namespace cascade {
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
          */
         template <typename SubgroupType>
-        derecho::rpc::QueryResults<uint64_t> get_size(const typename SubgroupType::KeyType& key, const persistent::version_t& version = CURRENT_VERSION,
-                uint32_t subgroup_index=0, uint32_t shard_index=0);
+        derecho::rpc::QueryResults<uint64_t> get_size(const typename SubgroupType::KeyType& key, const persistent::version_t& version,
+                uint32_t subgroup_index, uint32_t shard_index);
+
+        /**
+         * object pool version
+         */
+        template <typename SubgroupType>
+        derecho::rpc::QueryResults<uint64_t> get_size(const typename SubgroupType::KeyType& key, const persistent::version_t& version = CURRENT_VERSION);
     
         /**
          * "get_size_by_time" retrieve size of the object of a given key
@@ -546,7 +589,13 @@ namespace cascade {
          */
         template <typename SubgroupType>
         derecho::rpc::QueryResults<uint64_t> get_size_by_time(const typename SubgroupType::KeyType& key, const uint64_t& ts_us,
-                uint32_t subgroup_index=0, uint32_t shard_index=0);
+                uint32_t subgroup_index, uint32_t shard_index);
+
+        /**
+         * object pool version
+         */
+        template <typename SubgroupType>
+        derecho::rpc::QueryResults<uint64_t> get_size_by_time(const typename SubgroupType::KeyType& key, const uint64_t& ts_us);
     
         /**
          * "list_keys" retrieve the list of keys in a shard
@@ -560,8 +609,15 @@ namespace cascade {
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
          */
         template <typename SubgroupType>
-        derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> list_keys(const persistent::version_t& version = CURRENT_VERSION,
-                uint32_t subgroup_index=0, uint32_t shard_index=0);
+        derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> list_keys(const persistent::version_t& version,
+                uint32_t subgroup_index, uint32_t shard_index);
+
+//        /**
+//         * object pool version
+//         */
+//        template <typename SubgroupType>
+//        derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> list_keys(const persistent::version_t& version,
+//                const std::string& object_pool_id);
     
         /**
          * "list_keys_by_time" retrieve the list of keys in a shard
@@ -575,7 +631,14 @@ namespace cascade {
          */
         template <typename SubgroupType>
         derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> list_keys_by_time(const uint64_t& ts_us,
-                uint32_t subgroup_index=0, uint32_t shard_index=0);
+                uint32_t subgroup_index, uint32_t shard_index);
+
+//        /**
+//         * object pool version
+//         */
+//        template <typename SubgroupType>
+//        derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> list_keys_by_time(const uint64_t& ts_us,
+//                const std::string& object_pool_id);
 
         /**
          * Object Pool Management API: refresh object pool cache

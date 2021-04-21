@@ -285,6 +285,23 @@ void ServiceClient<CascadeTypes...>::refresh_member_cache_entry(uint32_t subgrou
 
 template <typename... CascadeTypes>
 template <typename SubgroupType>
+std::pair<uint32_t,uint32_t> ServiceClient<CascadeTypes...>::key_to_subgroup_index_and_shard_index(
+	const typename SubgroupType::KeyType& key,
+    bool check_object_location) {
+    std::string object_pool_pathname = get_pathname(key);
+    if (object_pool_pathname.empty()) {
+        std::string exp_msg("Key:");
+        throw derecho::derecho_exception(std::string("Key:") + key + " does not belong to any object pool.");
+    }
+
+    auto opm = find_object_pool(object_pool_pathname);
+    uint32_t shard_index = opm.key_to_shard_index(key,get_number_of_shards<SubgroupType>(opm.subgroup_index),check_object_location);
+    return std::pair<uint32_t,uint32_t>{opm.subgroup_index,shard_index};
+}
+
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
 node_id_t ServiceClient<CascadeTypes...>::pick_member_by_policy(uint32_t subgroup_index,
                                                                 uint32_t shard_index,
                                                                 bool retry) {
@@ -367,6 +384,15 @@ derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceCl
 
 template <typename... CascadeTypes>
 template <typename SubgroupType>
+derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::put(
+        const typename SubgroupType::ObjectType& value) {
+    uint32_t subgroup_index,shard_index;
+    std::tie(subgroup_index,shard_index) = this->template key_to_subgroup_and_shard_index<SubgroupType>(value.get_key_ref());
+    return put<SubgroupType>(value,subgroup_index,shard_index);
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
 derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::trigger_put(
         const typename SubgroupType::ObjectType& value,
         uint32_t subgroup_index,
@@ -384,6 +410,15 @@ derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::trigger_put(
         node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
         return caller.template p2p_send<RPC_NAME(trigger_put)>(node_id,value);
     }
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::trigger_put(
+        const typename SubgroupType::ObjectType& value) {
+    uint32_t subgroup_index,shard_index;
+    std::tie(subgroup_index,shard_index) = this->template key_to_subgroup_and_shard_index<SubgroupType>(value.get_key_ref());
+    return trigger_put<SubgroupType>(value,subgroup_index,shard_index);
 }
 
 template <typename... CascadeTypes>
@@ -438,6 +473,15 @@ derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceCl
 
 template <typename... CascadeTypes>
 template <typename SubgroupType>
+derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::remove(
+        const typename SubgroupType::KeyType& key) {
+    uint32_t subgroup_index,shard_index;
+    std::tie(subgroup_index,shard_index) = this->template key_to_subgroup_and_shard_index<SubgroupType>(key);
+    return remove<SubgroupType>(key,subgroup_index,shard_index);
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
 derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> ServiceClient<CascadeTypes...>::get(
         const typename SubgroupType::KeyType& key,
         const persistent::version_t& version,
@@ -462,6 +506,16 @@ derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> ServiceClien
         node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
         return caller.template p2p_send<RPC_NAME(get)>(node_id,key,version,false); 
     }
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> ServiceClient<CascadeTypes...>::get(
+        const typename SubgroupType::KeyType& key,
+        const persistent::version_t& version) {
+    uint32_t subgroup_index,shard_index;
+    std::tie(subgroup_index,shard_index) = this->template key_to_subgroup_and_shard_index<SubgroupType>(key);
+    return get<SubgroupType>(key,version,subgroup_index,shard_index);
 }
 
 template <typename... CascadeTypes>
@@ -494,6 +548,16 @@ derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> ServiceClien
 
 template <typename... CascadeTypes>
 template <typename SubgroupType>
+derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> ServiceClient<CascadeTypes...>::get_by_time(
+        const typename SubgroupType::KeyType& key,
+        const uint64_t& ts_us) {
+    uint32_t subgroup_index,shard_index;
+    std::tie(subgroup_index,shard_index) = this->template key_to_subgroup_and_shard_index<SubgroupType>(key);
+    return get_by_time<SubgroupType>(key,ts_us,subgroup_index,shard_index);
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
 derecho::rpc::QueryResults<uint64_t> ServiceClient<CascadeTypes...>::get_size(
         const typename SubgroupType::KeyType& key,
         const persistent::version_t& version,
@@ -522,6 +586,16 @@ derecho::rpc::QueryResults<uint64_t> ServiceClient<CascadeTypes...>::get_size(
 
 template <typename... CascadeTypes>
 template <typename SubgroupType>
+derecho::rpc::QueryResults<uint64_t> ServiceClient<CascadeTypes...>::get_size(
+        const typename SubgroupType::KeyType& key,
+        const persistent::version_t& version) {
+    uint32_t subgroup_index,shard_index;
+    std::tie(subgroup_index,shard_index) = this->template key_to_subgroup_and_shard_index<SubgroupType>(key);
+    return get_size<SubgroupType>(key,version,subgroup_index,shard_index);
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
 derecho::rpc::QueryResults<uint64_t> ServiceClient<CascadeTypes...>::get_size_by_time(
         const typename SubgroupType::KeyType& key,
         const uint64_t& ts_us,
@@ -546,6 +620,16 @@ derecho::rpc::QueryResults<uint64_t> ServiceClient<CascadeTypes...>::get_size_by
         node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
         return caller.template p2p_send<RPC_NAME(get_size_by_time)>(node_id,key,ts_us);
     }
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+derecho::rpc::QueryResults<uint64_t> ServiceClient<CascadeTypes...>::get_size_by_time(
+        const typename SubgroupType::KeyType& key,
+        const uint64_t& ts_us) {
+    uint32_t subgroup_index,shard_index;
+    std::tie(subgroup_index,shard_index) = this->template key_to_subgroup_and_shard_index<SubgroupType>(key);
+    return get_size_by_time<SubgroupType>(key,ts_us,subgroup_index,shard_index);
 }
 
 template <typename... CascadeTypes>
