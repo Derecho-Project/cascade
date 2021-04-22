@@ -617,7 +617,7 @@ namespace cascade {
 //         */
 //        template <typename SubgroupType>
 //        derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> list_keys(const persistent::version_t& version,
-//                const std::string& object_pool_id);
+//                const std::string& object_pool_pathname);
     
         /**
          * "list_keys_by_time" retrieve the list of keys in a shard
@@ -638,7 +638,7 @@ namespace cascade {
 //         */
 //        template <typename SubgroupType>
 //        derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> list_keys_by_time(const uint64_t& ts_us,
-//                const std::string& object_pool_id);
+//                const std::string& object_pool_pathname);
 
         /**
          * Object Pool Management API: refresh object pool cache
@@ -649,7 +649,7 @@ namespace cascade {
          * Object Pool Management API: create object pool
          *
          * @tparam SubgroupType     Type of the subgroup for the created object pool
-         * @param  id               Object pool id
+         * @param  pathname         Object pool's pathname as identifier.
          * @param  subgroup_index   Index of the subgroup
          * @param  sharding_policy  The default sharding policy for this object pool
          * @param  object_locations The set of special object locations.
@@ -658,35 +658,35 @@ namespace cascade {
          */
         template <typename SubgroupType>
         derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> create_object_pool(
-                const std::string& id, const uint32_t subgroup_index,
+                const std::string& pathname, const uint32_t subgroup_index,
                 const sharding_policy_t sharding_policy = HASH, const std::unordered_map<std::string,uint32_t>& object_locations = {});
 
         /**
          * ObjectPoolManagement API: remote object pool
          *
-         * @param  id               Object pool id
+         * @param  pathname         Object pool pathname
          *
          * @return a future to the version and timestamp of the put operation.
          */
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> remove_object_pool(const std::string& id);
+        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> remove_object_pool(const std::string& pathname);
 
         /**
          * ObjectPoolManagement API: find object pool
          *
-         * @param  id               Object pool id
+         * @param  pathname         Object pool pathname
          *
          * @return the object pool metadata
          */
-        ObjectPoolMetadata<CascadeTypes...> find_object_pool(const std::string& id);
+        ObjectPoolMetadata<CascadeTypes...> find_object_pool(const std::string& pathname);
 
         /**
-         * ObjectPoolManagement API: list all the object pools
+         * ObjectPoolManagement API: list all the object pools by pathnames
          *
          * @param refresh           false for cached object ids, true for refreshed ids.
          *
          * @return the pool ids.
          */
-        std::vector<std::string> list_object_pool_ids(bool refresh = false);
+        std::vector<std::string> list_object_pools(bool refresh = false);
     };
     
     

@@ -4,7 +4,7 @@
         "desc": "console_printer DFG",
         "graph": [
             {
-                "object_pool_id": "/console_printer",
+                "object_pool_pathname": "/console_printer",
                 "data_path_logic_list": ["48e60f7c-8500-11eb-8755-0242ac110002"],
                 "destinations": [{}]
             }

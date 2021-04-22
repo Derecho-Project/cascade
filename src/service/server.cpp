@@ -69,7 +69,7 @@ using opm_t = ObjectPoolMetadata<VolatileCascadeStoreWithStringKey,PersistentCas
 template<>
 opm_t create_null_object_cb<std::string,opm_t,&opm_t::IK,&opm_t::IV>(const std::string& key) {
     opm_t opm;
-    opm.id = key;
+    opm.pathname = key;
     opm.subgroup_type_index = opm_t::invalid_subgroup_type_index;
     return opm;
 }
