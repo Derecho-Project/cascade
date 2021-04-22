@@ -376,7 +376,7 @@ namespace cascade {
          */
         template <typename SubgroupType>
         std::pair<uint32_t,uint32_t> key_to_subgroup_index_and_shard_index(const typename SubgroupType::KeyType& key,
-                bool check_object_location);
+                bool check_object_location = true);
 
     public:
         /**
