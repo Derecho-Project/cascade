@@ -709,7 +709,7 @@ void interactive_test(ServiceClientAPI& capi) {
             on_subgroup_type(cmd_tokens[1],set_member_selection_policy,capi,subgroup_index,shard_index,policy,user_specified_node_id);
         } else if (cmd_tokens[0] == "list_object_pools") {
             std::cout << "refreshed object pools:" << std::endl;
-            for (std::string& opid: capi.list_object_pool_ids(true)) {
+            for (std::string& opid: capi.list_object_pools(true)) {
                 std::cout << "\t" << opid << std::endl;
             }
             std::cout << "list_object_pools done." << std::endl;

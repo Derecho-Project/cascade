@@ -4,7 +4,7 @@
         "desc": "example DFG",
         "graph": [
             {
-                "object_pool_id": "/pool0",
+                "object_pool_pathname": "/pool0",
                 "data_path_logic_list": [
                     "4e4ecc86-9b3c-11eb-b70c-0242ac110002",
                     "4f0373a2-9b3c-11eb-a651-0242ac110002"
@@ -15,7 +15,7 @@
                 ]
             },
             {
-                "object_pool_id": "/pool1.1",
+                "object_pool_pathname": "/pool1.1",
                 "data_path_logic_list": [
                     "43fecc86-9b3c-11eb-b70c-0242ac110002"
                 ],

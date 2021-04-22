@@ -711,47 +711,47 @@ void ServiceClient<CascadeTypes...>::refresh_object_pool_metadata_cache() {
 template <typename... CascadeTypes>
 template <typename SubgroupType>
 derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::create_object_pool(
-        const std::string& id, const uint32_t subgroup_index,
+        const std::string& pathname, const uint32_t subgroup_index,
         const sharding_policy_t sharding_policy, const std::unordered_map<std::string,uint32_t>& object_locations) {
     uint32_t subgroup_type_index = ObjectPoolMetadata<CascadeTypes...>::template get_subgroup_type_index<SubgroupType>();
     if (subgroup_type_index == ObjectPoolMetadata<CascadeTypes...>::invalid_subgroup_type_index) {
         dbg_default_crit("Create object pool failed because of invalid SubgroupType:{}", typeid(SubgroupType).name());
         throw new derecho::derecho_exception(std::string("Create object pool failed because SubgroupType is invalid:")+typeid(SubgroupType).name());
     }
-    ObjectPoolMetadata<CascadeTypes...> opm(id,subgroup_type_index,subgroup_index,sharding_policy,object_locations,false);
+    ObjectPoolMetadata<CascadeTypes...> opm(pathname,subgroup_type_index,subgroup_index,sharding_policy,object_locations,false);
     // clear local cache entry.
     std::shared_lock<std::shared_mutex> rlck(object_pool_metadata_cache_mutex);
-    if (object_pool_metadata_cache.find(id)==object_pool_metadata_cache.end()) {
+    if (object_pool_metadata_cache.find(pathname)==object_pool_metadata_cache.end()) {
         rlck.unlock();
     } else {
         rlck.unlock();
         std::unique_lock<std::shared_mutex> wlck(object_pool_metadata_cache_mutex);
-        object_pool_metadata_cache.erase(id);
+        object_pool_metadata_cache.erase(pathname);
     }
     // determine the shard index by hashing
-    uint32_t metadata_service_shard_index = std::hash<std::string>{}(id) % this->template get_number_of_shards<CascadeMetadataService<CascadeTypes...>>(METADATA_SERVICE_SUBGROUP_INDEX);
+    uint32_t metadata_service_shard_index = std::hash<std::string>{}(pathname) % this->template get_number_of_shards<CascadeMetadataService<CascadeTypes...>>(METADATA_SERVICE_SUBGROUP_INDEX);
 
     return this->template put<CascadeMetadataService<CascadeTypes...>>(opm,METADATA_SERVICE_SUBGROUP_INDEX,metadata_service_shard_index);
 }
 
 template <typename... CascadeTypes>
-derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::remove_object_pool(const std::string& id) {
+derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::remove_object_pool(const std::string& pathname) {
     // determine the shard index by hashing
-    uint32_t metadata_service_shard_index = std::hash<std::string>{}(id) % this->template get_number_of_shards<CascadeMetadataService<CascadeTypes...>>(METADATA_SERVICE_SUBGROUP_INDEX);
+    uint32_t metadata_service_shard_index = std::hash<std::string>{}(pathname) % this->template get_number_of_shards<CascadeMetadataService<CascadeTypes...>>(METADATA_SERVICE_SUBGROUP_INDEX);
 
 
     // check if this object pool exist in metadata service.
-    auto opm = find_object_pool(id);
+    auto opm = find_object_pool(pathname);
     // remove it from local cache.
     std::shared_lock<std::shared_mutex> rlck(object_pool_metadata_cache_mutex);
-    if (object_pool_metadata_cache.find(id) == object_pool_metadata_cache.end()) {
+    if (object_pool_metadata_cache.find(pathname) == object_pool_metadata_cache.end()) {
         // no entry in cache
         rlck.unlock();
     } else {
         // remove from cache
         rlck.unlock();
         std::unique_lock<std::shared_mutex> wlck(object_pool_metadata_cache_mutex);
-        object_pool_metadata_cache.erase(id);
+        object_pool_metadata_cache.erase(pathname);
         wlck.unlock();
     }
     if (opm.is_valid() && !opm.is_null() && !opm.deleted) {
@@ -761,33 +761,33 @@ derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceCl
     }
 
     // we didn't find any entry with "id", but we do the normal 'remove', which has no effect but return a version.
-    dbg_default_warn("deleteing a non-existing objectpool:{}.", id);
-    return this->template remove<CascadeMetadataService<CascadeTypes...>>(id,METADATA_SERVICE_SUBGROUP_INDEX,metadata_service_shard_index);
+    dbg_default_warn("deleteing a non-existing objectpool:{}.", pathname);
+    return this->template remove<CascadeMetadataService<CascadeTypes...>>(pathname,METADATA_SERVICE_SUBGROUP_INDEX,metadata_service_shard_index);
 }
 
 template <typename... CascadeTypes>
-ObjectPoolMetadata<CascadeTypes...> ServiceClient<CascadeTypes...>::find_object_pool(const std::string& id) {
+ObjectPoolMetadata<CascadeTypes...> ServiceClient<CascadeTypes...>::find_object_pool(const std::string& pathname) {
     std::shared_lock<std::shared_mutex> rlck(object_pool_metadata_cache_mutex);
-    if (object_pool_metadata_cache.find(id) == object_pool_metadata_cache.end()) {
+    if (object_pool_metadata_cache.find(pathname) == object_pool_metadata_cache.end()) {
         rlck.unlock();
-        uint32_t metadata_service_shard_index = std::hash<std::string>{}(id) % this->template get_number_of_shards<CascadeMetadataService<CascadeTypes...>>(METADATA_SERVICE_SUBGROUP_INDEX);
-        auto result = this->template get<CascadeMetadataService<CascadeTypes...>>(id,CURRENT_VERSION,METADATA_SERVICE_SUBGROUP_INDEX,metadata_service_shard_index);
+        uint32_t metadata_service_shard_index = std::hash<std::string>{}(pathname) % this->template get_number_of_shards<CascadeMetadataService<CascadeTypes...>>(METADATA_SERVICE_SUBGROUP_INDEX);
+        auto result = this->template get<CascadeMetadataService<CascadeTypes...>>(pathname,CURRENT_VERSION,METADATA_SERVICE_SUBGROUP_INDEX,metadata_service_shard_index);
         for (auto& reply_future:result.get()) {
             auto opm = reply_future.second.get();
             // update the metadata cache.
             std::unique_lock<std::shared_mutex> wlck(object_pool_metadata_cache_mutex);
-            object_pool_metadata_cache[id] = opm;
+            object_pool_metadata_cache[pathname] = opm;
             return opm;
         }
         // not found, return an invalid one.
         return ObjectPoolMetadata<CascadeTypes...>::IV;
     } else {
-        return object_pool_metadata_cache.at(id);
+        return object_pool_metadata_cache.at(pathname);
     }
 }
 
 template <typename... CascadeTypes>
-std::vector<std::string> ServiceClient<CascadeTypes...>::list_object_pool_ids(bool refresh) {
+std::vector<std::string> ServiceClient<CascadeTypes...>::list_object_pools(bool refresh) {
     if (refresh) {
         this->refresh_object_pool_metadata_cache();
     }
@@ -833,7 +833,7 @@ void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeMetadataSe
     for (auto& dfg:dfgs) {
         for (auto& vertex:dfg.vertices) {
             for (auto& edge:vertex.second.edges) {
-                register_prefixes({vertex.second.object_pool_id},edge.first,data_path_logic_manager->get_observer(edge.first),edge.second);
+                register_prefixes({vertex.second.object_pool_pathname},edge.first,data_path_logic_manager->get_observer(edge.first),edge.second);
             }
         }
     }

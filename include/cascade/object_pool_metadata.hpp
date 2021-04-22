@@ -19,7 +19,7 @@ public:
     mutable uint64_t                            timestamp_us;
     mutable persistent::version_t               previous_version;
     mutable persistent::version_t               previous_version_by_key;
-    std::string                                 id; //object pool id
+    std::string                                 pathname; //object pool is identified by a pathname starting with '/', just like an absolute path name in a file system.
     uint32_t                                    subgroup_type_index; // index of subgroup type into subgroup_type_order
     uint32_t                                    subgroup_index; // index of the subgroup of type subgroup_type_order[subgroup_type_index]
     sharding_policy_t                           sharding_policy; // the default sharding policy
@@ -32,7 +32,7 @@ public:
                                   timestamp_us,
                                   previous_version,
                                   previous_version_by_key,
-                                  id,
+                                  pathname,
                                   subgroup_type_index,
                                   subgroup_index,
                                   sharding_policy,
@@ -45,7 +45,7 @@ public:
         timestamp_us(0),
         previous_version(persistent::INVALID_VERSION),
         previous_version_by_key(persistent::INVALID_VERSION),
-        id(""),
+        pathname(""),
         subgroup_type_index(0),
         subgroup_index(0),
         sharding_policy(HASH),
@@ -57,7 +57,7 @@ public:
                        const uint64_t _timestamp_us,
                        const persistent::version_t _previous_version,
                        const persistent::version_t _previous_version_by_key,
-                       const std::string& _id,
+                       const std::string& _pathname,
                        uint32_t _subgroup_type_index,
                        uint32_t _subgroup_index,
                        sharding_policy_t _sharding_policy,
@@ -67,14 +67,14 @@ public:
         timestamp_us(_timestamp_us),
         previous_version(_previous_version),
         previous_version_by_key(_previous_version_by_key),
-        id(_id),
+        pathname(_pathname),
         subgroup_type_index(_subgroup_type_index),
         subgroup_index(_subgroup_index),
         sharding_policy(_sharding_policy),
         object_locations(_object_locations),
         deleted(_deleted) {}
 
-    ObjectPoolMetadata(const std::string& _id,
+    ObjectPoolMetadata(const std::string& _pathname,
                        uint32_t _subgroup_type_index,
                        uint32_t _subgroup_index,
                        sharding_policy_t _sharding_policy,
@@ -84,7 +84,7 @@ public:
         timestamp_us(0),
         previous_version(persistent::INVALID_VERSION),
         previous_version_by_key(persistent::INVALID_VERSION),
-        id(_id),
+        pathname(_pathname),
         subgroup_type_index(_subgroup_type_index),
         subgroup_index(_subgroup_index),
         sharding_policy(_sharding_policy),
@@ -97,7 +97,7 @@ public:
         timestamp_us(other.timestamp_us),
         previous_version(other.previous_version),
         previous_version_by_key(other.previous_version_by_key),
-        id(other.id),
+        pathname(other.pathname),
         subgroup_type_index(other.subgroup_type_index),
         subgroup_index(other.subgroup_index),
         sharding_policy(other.sharding_policy),
@@ -110,7 +110,7 @@ public:
         timestamp_us(other.timestamp_us),
         previous_version(other.previous_version),
         previous_version_by_key(other.previous_version_by_key),
-        id(other.id),
+        pathname(other.pathname),
         subgroup_type_index(other.subgroup_type_index),
         subgroup_index(other.subgroup_index),
         sharding_policy(other.sharding_policy),
@@ -122,7 +122,7 @@ public:
         this->timestamp_us = other.timestamp_us;
         this->previous_version = other.previous_version;
         this->previous_version_by_key = other.previous_version_by_key;
-        this->id = other.id;
+        this->pathname = other.pathname;
         this->subgroup_type_index = other.subgroup_type_index;
         this->sharding_policy = other.sharding_policy;
         this->object_locations = other.object_locations;
@@ -130,7 +130,7 @@ public:
     }
 
     virtual const std::string& get_key_ref() const override {
-        return this->id;
+        return this->pathname;
     }
 
     virtual bool is_null() const override {
@@ -138,7 +138,7 @@ public:
     }
 
     virtual bool is_valid() const override {
-        return !this->id.empty();
+        return !this->pathname.empty() && (this->pathname.at(0) == '/');
     }
 
     virtual void set_version(persistent::version_t ver) const override {
@@ -271,7 +271,7 @@ inline std::ostream& operator<<(std::ostream& out, const ObjectPoolMetadata<Casc
             "\ttimestamp_us:" << opm.timestamp_us << "\n" <<
             "\tprevious_version:" << opm.previous_version << "\n" <<
             "\tprevious_version_by_key:" << opm.previous_version_by_key << "\n" <<
-            "\tid:" << opm.id << "\n" <<
+            "\tpathname:" << opm.pathname << "\n" <<
             "\tsubgroup_type:" << std::to_string(opm.subgroup_type_index) << "-->" << ObjectPoolMetadata<CascadeTypes...>::subgroup_type_order[opm.subgroup_type_index].name() << "\n" <<
             "\tsubgroup_index:" << std::to_string(opm.subgroup_index) << "\n" <<
             "\tsharding_policy:" << std::to_string(opm.sharding_policy) <<"\n" <<

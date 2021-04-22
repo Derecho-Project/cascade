@@ -13,7 +13,7 @@ DataFlowGraph::DataFlowGraph(const json& dfg_conf):
     description(dfg_conf[DFG_JSON_DESCRIPTION]) {
     for(auto it=dfg_conf[DFG_JSON_GRAPH].cbegin();it!=dfg_conf[DFG_JSON_GRAPH].cend();it++) {
         DataFlowGraphVertex dfgv;
-        dfgv.object_pool_id = (*it)[DFG_JSON_OBJECT_POOL_ID];
+        dfgv.object_pool_pathname = (*it)[DFG_JSON_OBJECT_POOL_ID];
         for(size_t i=0;i<(*it)[DFG_JSON_DATA_PATH_LOGIC_LIST].size();i++) {
             std::string dpl_uuid = (*it)[DFG_JSON_DATA_PATH_LOGIC_LIST].at(i);
             std::map<std::string,std::string> dest = 
@@ -27,7 +27,7 @@ DataFlowGraph::DataFlowGraph(const json& dfg_conf):
             }
 
         }
-        vertices.emplace(dfgv.object_pool_id,dfgv);
+        vertices.emplace(dfgv.object_pool_pathname,dfgv);
     }
 }
 
