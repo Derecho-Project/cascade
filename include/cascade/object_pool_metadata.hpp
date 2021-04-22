@@ -124,6 +124,7 @@ public:
         this->previous_version_by_key = other.previous_version_by_key;
         this->pathname = other.pathname;
         this->subgroup_type_index = other.subgroup_type_index;
+        this->subgroup_index = other.subgroup_index;
         this->sharding_policy = other.sharding_policy;
         this->object_locations = other.object_locations;
         this->deleted = other.deleted;
