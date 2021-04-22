@@ -941,8 +941,8 @@ TriggerCascadeNoStore<KT,VT,IK,IV>::TriggerCascadeNoStore(CriticalDataPathObserv
                                             cascade_context_ptr(cc) {}
 
 template<typename KeyType>
-std::enable_if<std::is_convertible<KeyType,std::string>::value,std::string> get_pathname(const KeyType& key) {
-    const std::string* pstr = dynamic_cast<std::string*>(&key);
+std::string get_pathname(const std::enable_if_t<std::is_convertible<KeyType,std::string>::value,std::string>& key) {
+    const std::string* pstr = dynamic_cast<const std::string*>(&key);
     size_t pos = pstr->rfind('/');
     if (pos != std::string::npos) {
         return pstr->substr(0,pos);
@@ -951,7 +951,7 @@ std::enable_if<std::is_convertible<KeyType,std::string>::value,std::string> get_
 }
 
 template<typename KeyType>
-std::enable_if<!std::is_convertible<KeyType,std::string>::value,std::string> get_pathname(const KeyType& key) {
+std::string get_pathname(const std::enable_if_t<!std::is_convertible<KeyType,std::string>::value,std::string>& key) {
     return "";
 }
 }//namespace cascade

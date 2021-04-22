@@ -288,7 +288,7 @@ template <typename SubgroupType>
 std::pair<uint32_t,uint32_t> ServiceClient<CascadeTypes...>::key_to_subgroup_index_and_shard_index(
 	const typename SubgroupType::KeyType& key,
     bool check_object_location) {
-    std::string object_pool_pathname = get_pathname(key);
+    std::string object_pool_pathname = get_pathname<typename SubgroupType::KeyType>(key);
     if (object_pool_pathname.empty()) {
         std::string exp_msg("Key:");
         throw derecho::derecho_exception(std::string("Key:") + key + " does not belong to any object pool.");
@@ -387,8 +387,8 @@ template <typename SubgroupType>
 derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::put(
         const typename SubgroupType::ObjectType& value) {
     uint32_t subgroup_index,shard_index;
-    std::tie(subgroup_index,shard_index) = this->template key_to_subgroup_and_shard_index<SubgroupType>(value.get_key_ref());
-    return put<SubgroupType>(value,subgroup_index,shard_index);
+    std::tie(subgroup_index,shard_index) = this->template key_to_subgroup_index_and_shard_index<SubgroupType>(value.get_key_ref());
+    return this->template put<SubgroupType>(value,subgroup_index,shard_index);
 }
 
 template <typename... CascadeTypes>
@@ -417,7 +417,7 @@ template <typename SubgroupType>
 derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::trigger_put(
         const typename SubgroupType::ObjectType& value) {
     uint32_t subgroup_index,shard_index;
-    std::tie(subgroup_index,shard_index) = this->template key_to_subgroup_and_shard_index<SubgroupType>(value.get_key_ref());
+    std::tie(subgroup_index,shard_index) = this->template key_to_subgroup_index_and_shard_index<SubgroupType>(value.get_key_ref());
     return trigger_put<SubgroupType>(value,subgroup_index,shard_index);
 }
 
@@ -476,7 +476,7 @@ template <typename SubgroupType>
 derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::remove(
         const typename SubgroupType::KeyType& key) {
     uint32_t subgroup_index,shard_index;
-    std::tie(subgroup_index,shard_index) = this->template key_to_subgroup_and_shard_index<SubgroupType>(key);
+    std::tie(subgroup_index,shard_index) = this->template key_to_subgroup_index_and_shard_index<SubgroupType>(key);
     return remove<SubgroupType>(key,subgroup_index,shard_index);
 }
 
@@ -514,7 +514,7 @@ derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> ServiceClien
         const typename SubgroupType::KeyType& key,
         const persistent::version_t& version) {
     uint32_t subgroup_index,shard_index;
-    std::tie(subgroup_index,shard_index) = this->template key_to_subgroup_and_shard_index<SubgroupType>(key);
+    std::tie(subgroup_index,shard_index) = this->template key_to_subgroup_index_and_shard_index<SubgroupType>(key);
     return get<SubgroupType>(key,version,subgroup_index,shard_index);
 }
 
@@ -552,7 +552,7 @@ derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> ServiceClien
         const typename SubgroupType::KeyType& key,
         const uint64_t& ts_us) {
     uint32_t subgroup_index,shard_index;
-    std::tie(subgroup_index,shard_index) = this->template key_to_subgroup_and_shard_index<SubgroupType>(key);
+    std::tie(subgroup_index,shard_index) = this->template key_to_subgroup_index_and_shard_index<SubgroupType>(key);
     return get_by_time<SubgroupType>(key,ts_us,subgroup_index,shard_index);
 }
 
@@ -590,7 +590,7 @@ derecho::rpc::QueryResults<uint64_t> ServiceClient<CascadeTypes...>::get_size(
         const typename SubgroupType::KeyType& key,
         const persistent::version_t& version) {
     uint32_t subgroup_index,shard_index;
-    std::tie(subgroup_index,shard_index) = this->template key_to_subgroup_and_shard_index<SubgroupType>(key);
+    std::tie(subgroup_index,shard_index) = this->template key_to_subgroup_index_and_shard_index<SubgroupType>(key);
     return get_size<SubgroupType>(key,version,subgroup_index,shard_index);
 }
 
@@ -628,7 +628,7 @@ derecho::rpc::QueryResults<uint64_t> ServiceClient<CascadeTypes...>::get_size_by
         const typename SubgroupType::KeyType& key,
         const uint64_t& ts_us) {
     uint32_t subgroup_index,shard_index;
-    std::tie(subgroup_index,shard_index) = this->template key_to_subgroup_and_shard_index<SubgroupType>(key);
+    std::tie(subgroup_index,shard_index) = this->template key_to_subgroup_index_and_shard_index<SubgroupType>(key);
     return get_size_by_time<SubgroupType>(key,ts_us,subgroup_index,shard_index);
 }
 
