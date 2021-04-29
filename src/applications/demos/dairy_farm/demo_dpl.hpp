@@ -41,6 +41,7 @@ inline int preprocess_photo(void* in_buf, size_t in_size, void* out_buf, size_t 
 
 typedef struct __attribute__ ((packed)) {
     uint64_t    photo_id;
+    uint64_t    timestamp;
     char        data[PHOTO_OUTPUT_BUFFER_SIZE];
 } FrameData;
 
@@ -83,10 +84,11 @@ inline TriggerCascadeNoStoreWithStringKey::ObjectType get_photo_object(const cha
     // load data
     FrameData frame_data;
     frame_data.photo_id = photo_id;
+    frame_data.timestamp = get_time();
     preprocess_photo(file_data,st.st_size,reinterpret_cast<void*>(frame_data.data),PHOTO_OUTPUT_BUFFER_SIZE);
     std::string frame_name(key);
     // create Object
-    TriggerCascadeNoStoreWithStringKey::ObjectType ret("/dairy_farm/front_end/"+frame_name+"_"+std::to_string(get_time()), reinterpret_cast<const char*>(&frame_data),sizeof(frame_data));
+    TriggerCascadeNoStoreWithStringKey::ObjectType ret("/dairy_farm/front_end/"+frame_name, reinterpret_cast<const char*>(&frame_data),sizeof(frame_data));
 
     // release resources;
     munmap(file_data, st.st_size);
