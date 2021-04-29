@@ -7,7 +7,7 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include "client.hpp"
+#include "demo_dpl.hpp"
 
 using namespace derecho::cascade;
 

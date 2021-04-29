@@ -6,7 +6,8 @@
 #include <opencv2/opencv.hpp>
 #include <cppflow/cppflow.h>
 #include <torch/script.h>
-#include <ANN/ANN.h>		
+#include <ANN/ANN.h>
+#include "demo_dpl.hpp"		
 
 namespace derecho{
 namespace cascade{
@@ -22,23 +23,15 @@ std::string get_description() {
     return MY_DESC;
 }
 
-/* returns [<frame_idx>, <frame_ts>] */
-std::tuple<std::string,std::string> parse_key(const std::string& obj_key) {
-    std::string delim_bs("/"), delim_us("_");
-    std::string frame_key = obj_key.substr(obj_key.rfind(delim_bs) + 1);
-    size_t pos = frame_key.find(delim_us);
-    return std::make_tuple(frame_key.substr(0,pos),frame_key.substr(pos+1));
-}
-
 #define K                    (5)			// number of nearest neighbors
 #define DIM		             (128)			// dimension
 #define EPS		             (0)			// error bound
 #define MAX_PTS		         (5000)		    // maximum number of data points
 #define COW_ID_IMAGE_WIDTH   (224)
 #define COW_ID_IMAGE_HEIGHT  (224)
-#define DPL_CONF_COWID_MODULE       "CASCADE/cow_id_module"
-#define DPL_CONF_COWID_KNN          "CASCADE/cow_id_knn"
-#define DPL_CONF_COWID_LABEL        "CASCADE/cow_id_label"
+#define CONF_COWID_MODULE       "../../cow-id-model/resnet50_rtl.pt"
+#define CONF_COWID_KNN          "../../cow-id-model/trainedKNN.dmp"
+#define CONF_COWID_LABEL        "../../cow-id-model/synset.txt"
 
 class InferenceEngine {
 private: 
@@ -141,7 +134,7 @@ public:
 };
 
 void infer_cow_id(uint32_t* cow_id, void* img_buf, size_t img_size) {
-    InferenceEngine cow_id_ie(derecho::getConfString(DPL_CONF_COWID_MODULE),derecho::getConfString(DPL_CONF_COWID_KNN),derecho::getConfString(DPL_CONF_COWID_LABEL));
+    InferenceEngine cow_id_ie(CONF_COWID_MODULE, CONF_COWID_KNN, CONF_COWID_LABEL);
     std::vector<unsigned char> out_buf(img_size);
     std::memcpy(static_cast<void*>(out_buf.data()),static_cast<const void*>(img_buf),img_size);
     cv::Mat mat(240,352,CV_32FC3,out_buf.data());
@@ -153,12 +146,11 @@ void infer_cow_id(uint32_t* cow_id, void* img_buf, size_t img_size) {
 #define BCS_IMAGE_HEIGHT           (300)
 #define BCS_IMAGE_WIDTH            (300)
 #define BCS_TENSOR_BUFFER_SIZE     (BCS_IMAGE_HEIGHT*BCS_IMAGE_WIDTH*3)
-#define DPL_CONF_INFER_BCS_MODEL   "CASCADE/bcs_model"
-#define DPL_CONF_INFER_USE_GPU     "CASCADE/infer_use_gpu"
+#define CONF_INFER_BCS_MODEL       "../../model_orig"
 
 void infer_bcs(float* bcs, void* img_buf, size_t img_size) {
     /* step 1: load the model */ 
-    cppflow::model model(derecho::getConfString(DPL_CONF_INFER_BCS_MODEL));
+    cppflow::model model(CONF_INFER_BCS_MODEL);
     
     /* step 2: Load the image & convert to tensor */
     std::vector<unsigned char> out_buf(img_size);
@@ -190,38 +182,43 @@ private:
                               uint32_t worker_id) override {
         // TODO: do inference and put it to the storage object pool specified by outputs.
         auto* typed_ctxt = dynamic_cast<CascadeContext<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey,TriggerCascadeNoStoreWithStringKey>*>(ctxt);
+
+#ifdef ENABLE_GPU
         /* Configure GPU context for tensorflow */
-        bool use_gpu = derecho::hasCustomizedConfKey(DPL_CONF_INFER_USE_GPU) ? derecho::getConfBoolean(DPL_CONF_INFER_USE_GPU) : false;
-        if (use_gpu && typed_ctxt->resource_descriptor.gpus.size()==0) {
+        if (typed_ctxt->resource_descriptor.gpus.size()==0) {
             dbg_default_error("Worker{}: GPU is requested but no GPU found...giving up on processing data.",worker_id);
             return;
         }
-        if (use_gpu) {
-            std::cout << "Configuring tensorflow GPU context" << std::endl;
-            // Serialized config options (example of 30% memory fraction)
-            // TODO: configure gpu settings, link: https://serizba.github.io/cppflow/quickstart.html#gpu-config-options
-            std::vector<uint8_t> config{0x32,0x9,0x9,0x9a,0x99,0x99,0x99,0x99,0x99,0xb9,0x3f};
-            // Create new options with your configuration
-            TFE_ContextOptions* options = TFE_NewContextOptions();
-            TFE_ContextOptionsSetConfig(options, config.data(), config.size(), cppflow::context::get_status());
-            // Replace the global context with your options
-            cppflow::get_global_context() = cppflow::context(options);
-        }
+        std::cout << "Configuring tensorflow GPU context" << std::endl;
+        // Serialized config options (example of 30% memory fraction)
+        // TODO: configure gpu settings, link: https://serizba.github.io/cppflow/quickstart.html#gpu-config-options
+        std::vector<uint8_t> config{0x32,0x9,0x9,0x9a,0x99,0x99,0x99,0x99,0x99,0xb9,0x3f};
+        // Create new options with your configuration
+        TFE_ContextOptions* options = TFE_NewContextOptions();
+        TFE_ContextOptionsSetConfig(options, config.data(), config.size(), cppflow::context::get_status());
+        // Replace the global context with your options
+        cppflow::get_global_context() = cppflow::context(options);
+#endif 
 
         const VolatileCascadeStoreWithStringKey::ObjectType *vcss_value = reinterpret_cast<const VolatileCascadeStoreWithStringKey::ObjectType *>(value_ptr);
+        FrameData *frame = reinterpret_cast<FrameData*>(vcss_value->blob.bytes);
+        dbg_default_trace("frame photoid is: "+std::to_string(frame->photo_id));
+        dbg_default_trace("frame timestamp is: "+std::to_string(frame->timestamp));
+
+        // Inference threads
         uint32_t cow_id;
         float bcs; 
-        std::thread cow_id_inference(infer_cow_id, &cow_id, vcss_value->blob.bytes, vcss_value->blob.size);
-        std::thread bcs_inference(infer_bcs, &bcs, vcss_value->blob.bytes, vcss_value->blob.size);
+        std::thread cow_id_inference(infer_cow_id, &cow_id, frame->data, sizeof(frame->data));
+        std::thread bcs_inference(infer_bcs, &bcs, frame->data, sizeof(frame->data));
         cow_id_inference.join();
         bcs_inference.join();
         
         // put the result to next tier
         std::string delim("/");
-        std::tuple<std::string, std::string> idx_ts = std::move(parse_key(key_string));
-        std::string obj_value = std::to_string(bcs) + "_" + std::get<1>(idx_ts);
+        std::string frame_key = key_string.substr(key_string.rfind(delim));
+        std::string obj_value = std::to_string(bcs) + "_" + std::to_string(frame->timestamp);
         for (auto iter = outputs.begin(); iter != outputs.end(); ++iter) {
-            std::string obj_key = iter->first + delim + std::to_string(cow_id);
+            std::string obj_key = iter->first + frame_key + delim + std::to_string(cow_id);
             PersistentCascadeStoreWithStringKey::ObjectType obj(obj_key,obj_value.c_str(),obj_value.size());
             std::lock_guard<std::mutex> lock(p2p_send_mutex);
 

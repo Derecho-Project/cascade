@@ -3,6 +3,7 @@
 #include <vector>
 #include <opencv2/opencv.hpp>
 #include <cppflow/cppflow.h>
+#include "demo_dpl.hpp"
 
 namespace derecho{
 namespace cascade{
@@ -22,8 +23,7 @@ std::string get_description() {
 #define IMAGE_WIDTH            (352)
 #define IMAGE_HEIGHT           (240)
 #define FILTER_TENSOR_BUFFER_SIZE     (IMAGE_WIDTH*IMAGE_HEIGHT*3)
-#define DPL_CONF_FILTER_MODEL         "CASCADE/filter_model"
-#define DPL_CONF_FILTER_USE_GPU              "CASCADE/filter_use_gpu"
+#define CONF_FILTER_MODEL             "../../model"
 
 class DairyFarmFilterOCDPO: public OffCriticalDataPathObserver {
     std::mutex p2p_send_mutex;
@@ -36,31 +36,34 @@ class DairyFarmFilterOCDPO: public OffCriticalDataPathObserver {
                               uint32_t worker_id) override {
         // TODO: test if there is a cow in the incoming frame.
         auto* typed_ctxt = dynamic_cast<CascadeContext<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey,TriggerCascadeNoStoreWithStringKey>*>(ctxt);
-        /* Initialize GPU context */
-        bool use_gpu = derecho::hasCustomizedConfKey(DPL_CONF_FILTER_USE_GPU) ? derecho::getConfBoolean(DPL_CONF_FILTER_USE_GPU) : false;
-        if (use_gpu && typed_ctxt->resource_descriptor.gpus.size()==0) {
+
+#ifdef ENABLE_GPU
+        /* Configure GPU context for tensorflow */
+        if (typed_ctxt->resource_descriptor.gpus.size()==0) {
             dbg_default_error("Worker{}: GPU is requested but no GPU found...giving up on processing data.",worker_id);
             return;
         }
-        if (use_gpu) {
-            std::cout << "Configuring tensorflow GPU context" << std::endl;
-            // Serialized config options (example of 30% memory fraction)
-            // TODO: configure gpu settings, link: https://serizba.github.io/cppflow/quickstart.html#gpu-config-options
-            std::vector<uint8_t> config{0x32,0x9,0x9,0x9a,0x99,0x99,0x99,0x99,0x99,0xb9,0x3f};
-            // Create new options with your configuration
-            TFE_ContextOptions* options = TFE_NewContextOptions();
-            TFE_ContextOptionsSetConfig(options, config.data(), config.size(), cppflow::context::get_status());
-            // Replace the global context with your options
-            cppflow::get_global_context() = cppflow::context(options);
-        }
+        std::cout << "Configuring tensorflow GPU context" << std::endl;
+        // Serialized config options (example of 30% memory fraction)
+        // TODO: configure gpu settings, link: https://serizba.github.io/cppflow/quickstart.html#gpu-config-options
+        std::vector<uint8_t> config{0x32,0x9,0x9,0x9a,0x99,0x99,0x99,0x99,0x99,0xb9,0x3f};
+        // Create new options with your configuration
+        TFE_ContextOptions* options = TFE_NewContextOptions();
+        TFE_ContextOptionsSetConfig(options, config.data(), config.size(), cppflow::context::get_status());
+        // Replace the global context with your options
+        cppflow::get_global_context() = cppflow::context(options);
+#endif 
         
         /* step 1: load the model */ 
-        static thread_local cppflow::model model(derecho::getConfString(DPL_CONF_FILTER_MODEL));
-        
+        static thread_local cppflow::model model(CONF_FILTER_MODEL);
         /* step 2: Load the image & convert to tensor */
         const TriggerCascadeNoStoreWithStringKey::ObjectType *tcss_value = reinterpret_cast<const TriggerCascadeNoStoreWithStringKey::ObjectType *>(value_ptr);
+        FrameData *frame = reinterpret_cast<FrameData*>(tcss_value->blob.bytes);
+        dbg_default_trace("frame photoid is: "+std::to_string(frame->photo_id));
+        dbg_default_trace("frame timestamp is: "+std::to_string(frame->timestamp));
+    
         std::vector<float> tensor_buf(FILTER_TENSOR_BUFFER_SIZE);
-        std::memcpy(static_cast<void*>(tensor_buf.data()),static_cast<const void*>(tcss_value->blob.bytes), tcss_value->blob.size);
+        std::memcpy(static_cast<void*>(tensor_buf.data()),static_cast<const void*>(frame->data), sizeof(frame->data));
         cppflow::tensor input_tensor(std::move(tensor_buf), {IMAGE_WIDTH,IMAGE_HEIGHT,3});
         input_tensor = cppflow::expand_dims(input_tensor, 0);
         

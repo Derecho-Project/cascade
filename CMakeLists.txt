@@ -56,6 +56,12 @@ CHECK_INCLUDE_FILE_CXX("boolinq/boolinq.h" HAS_BOOLINQ)
 #mxnet
 CHECK_INCLUDE_FILE_CXX("mxnet-cpp/MxNetCpp.h" HAS_MXNET_CPP)
 
+#cuda
+find_package(CUDA)
+if (CUDA_FOUND)
+    set (ENABLE_GPU 1)
+endif()
+
 # enable evaluation
 set (ENABLE_EVALUATION 1)
 
