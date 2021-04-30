@@ -49,7 +49,7 @@ flags = [
 '-Wno-variadic-macros',
 '-fexceptions',
 '-DNDEBUG',
-'-std=c++17'
+'-std=c++17',
 # You 100% do NOT need -DUSE_CLANG_COMPLETER and/or -DYCM_EXPORT in your flags;
 # only the YCM source code needs it.
 '-DUSE_CLANG_COMPLETER',
@@ -65,7 +65,8 @@ get_python_inc(),
 '-isystem',
 'include',
 '-isystem',
-'/root/workspace/derecho/include'
+'/root/workspace/derecho/include',
+'/root/workspace/cascade/include',
 ]
 
 # Set this to the absolute path to the folder (NOT the file!) containing the
