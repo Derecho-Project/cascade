@@ -12,6 +12,22 @@ namespace cascade {
 #define debug_enter_func() dbg_default_debug("Entering {}.")
 #define debug_leave_func() dbg_default_debug("Leaving {}.")
 
+template<typename KeyType>
+std::string get_pathname(const std::enable_if_t<std::is_convertible<KeyType,std::string>::value,std::string>& key) {
+    const std::string* pstr = dynamic_cast<const std::string*>(&key);
+    size_t pos = pstr->rfind('/');
+    if (pos != std::string::npos) {
+        return pstr->substr(0,pos);
+    }
+    return "";
+}
+
+template<typename KeyType>
+std::string get_pathname(const std::enable_if_t<!std::is_convertible<KeyType,std::string>::value,KeyType>& key) {
+    return "";
+}
+
+
 ///////////////////////////////////////////////////////////////////////////////
 // 1 - Volatile Cascade Store Implementation
 ///////////////////////////////////////////////////////////////////////////////
@@ -98,6 +114,33 @@ std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::list_keys_by_time(const uint6
     debug_enter_func_with_args("ts_us=0x{:x}", ts_us);
     debug_leave_func();
     return {};
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
+std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::list_keys_by_objpool(const persistent::version_t& ver, const std::string& op_path) const {
+    debug_enter_func_with_args("ver=0x{:x}",ver);
+    if (ver != CURRENT_VERSION) {
+        debug_leave_func_with_value("Cannot support versioned list_keys, ver=0x{:x}", ver);
+        return {};
+    }
+    derecho::Replicated<VolatileCascadeStore>& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
+    auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_list_keys)>();
+    auto& replies = results.get();
+    std::vector<KT> ret;
+    // TODO: verfity consistency ? 
+    for (auto& reply_pair : replies) {
+        ret = reply_pair.second.get();
+    }
+    ret.erase(
+        std::remove_if(
+            ret.begin(), 
+            ret.end(),
+            [&](const KT key) { return op_path != get_pathname<KT>(key);}
+        ), 
+        ret.end()
+    ); 
+    debug_leave_func();
+    return ret;
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
@@ -697,6 +740,36 @@ std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::list_keys_by_time(const 
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::list_keys_by_objpool(const persistent::version_t& ver, const std::string& op_path) const {
+    debug_enter_func_with_args("ver=0x{:x}.",ver);
+    if (ver != CURRENT_VERSION) {
+        std::vector<KT> key_list;
+        auto kv_map = persistent_core.get(ver)->kv_map;
+        for (auto& kv:kv_map) {
+            key_list.push_back(kv.first);
+        }
+        debug_leave_func();
+        return key_list;
+    }
+    derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
+    auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_list_keys)>();
+    auto& replies = results.get();
+    std::vector<KT> ret;
+    // TODO: verify consistency ?
+    ret = replies.begin()->second.get();
+    ret.erase(
+        std::remove_if(
+            ret.begin(), 
+            ret.end(),
+            [&](const KT key) { return op_path != get_pathname<KT>(key);}
+        ), 
+        ret.end()
+    ); 
+    debug_leave_func();
+    return ret;
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST>::ordered_put(const VT& value) {
     debug_enter_func_with_args("key={}",value.get_key_ref());
     std::tuple<persistent::version_t,uint64_t> version_and_timestamp = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_next_version();
@@ -867,6 +940,12 @@ std::vector<KT> TriggerCascadeNoStore<KT,VT,IK,IV>::list_keys_by_time(const uint
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
+std::vector<KT> TriggerCascadeNoStore<KT,VT,IK,IV>::list_keys_by_objpool(const persistent::version_t& ver, const std::string& op_path) const {
+    dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
+    return {};
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
 uint64_t TriggerCascadeNoStore<KT,VT,IK,IV>::get_size(const KT& key, const persistent::version_t& ver, bool) const {
     dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
     return 0; 
@@ -940,19 +1019,6 @@ TriggerCascadeNoStore<KT,VT,IK,IV>::TriggerCascadeNoStore(CriticalDataPathObserv
                                             cascade_watcher_ptr(cw),
                                             cascade_context_ptr(cc) {}
 
-template<typename KeyType>
-std::string get_pathname(const std::enable_if_t<std::is_convertible<KeyType,std::string>::value,std::string>& key) {
-    const std::string* pstr = dynamic_cast<const std::string*>(&key);
-    size_t pos = pstr->rfind('/');
-    if (pos != std::string::npos) {
-        return pstr->substr(0,pos);
-    }
-    return "";
-}
 
-template<typename KeyType>
-std::string get_pathname(const std::enable_if_t<!std::is_convertible<KeyType,std::string>::value,std::string>& key) {
-    return "";
-}
 }//namespace cascade
 }//namespace derecho
