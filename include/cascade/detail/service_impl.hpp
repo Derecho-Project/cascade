@@ -661,6 +661,58 @@ derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> ServiceC
 
 template <typename... CascadeTypes>
 template <typename SubgroupType>
+std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>> ServiceClient<CascadeTypes...>::list_keys(
+        const persistent::version_t& version,
+        const std::string& object_pool_pathname){
+    auto opm = find_object_pool(object_pool_pathname);
+    uint32_t subgroup_index = opm.subgroup_index;
+    uint32_t shards = get_number_of_shards<SubgroupType>(subgroup_index);
+    std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>> result;
+    for (uint32_t shard_index; shard_index < shards; shard_index ++){
+        if (group_ptr != nullptr) {
+            if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
+                auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
+                auto shard_list_keys_objpool = subgroup_handle.template p2p_send<RPC_NAME(list_keys_by_objpool)>(group_ptr->get_my_id(),version,object_pool_pathname);
+                result.emplace_back(std::move(&shard_list_keys_objpool));
+            } else {
+                auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
+                node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
+                auto shard_list_keys_objpool = subgroup_handle.template p2p_send<RPC_NAME(list_keys_by_objpool)>(node_id,version,object_pool_pathname);
+                result.emplace_back(std::move(&shard_list_keys_objpool));
+            }
+        } else {
+            std::lock_guard(this->external_group_ptr_mutex);
+            auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
+            node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
+            auto shard_list_keys_objpool = caller.template p2p_send<RPC_NAME(list_keys_by_objpool)>(node_id,version,object_pool_pathname);
+            result.emplace_back(std::move(&shard_list_keys_objpool));
+        }
+    }
+    return result;
+}
+
+template <typename ReturnType>  
+ReturnType wait_for_future(derecho::rpc::QueryResults<ReturnType>& result){
+    for (auto& reply_future: result.get()) {
+        ReturnType reply = static_cast<ReturnType>(reply_future.second.get());
+        return reply;
+    }
+};
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+std::vector<typename SubgroupType::KeyType> ServiceClient<CascadeTypes...>::wait_list_keys(
+        std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>> future){
+    std::vector<typename SubgroupType::KeyType> result;
+    for(auto& query_result: future){
+        std::vector<typename SubgroupType::KeyType> reply = wait_for_future<std::vector<typename SubgroupType::KeyType>>(*(query_result.get()));
+        std::move(reply.begin(), reply.end(), std::back_inserter(result));
+    }
+    return result;
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
 derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> ServiceClient<CascadeTypes...>::list_keys_by_time(
         const uint64_t& ts_us,
         uint32_t subgroup_index,

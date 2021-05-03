@@ -438,6 +438,19 @@ void op_get_size_by_time<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& c
         }\
     }
 
+
+// #define check_op_list_keys_result(results)\
+//     for (auto& result: results){\
+//         for (auto& reply_future:result.get()) {\
+//             auto reply = reply_future.second.get();\
+//             std::cout << "Keys:" << std::endl;\
+//             for (auto& key:reply) {\
+//                 std::cout << "    " << key << std::endl;\
+//             }\
+//         }\
+//     }
+    
+
 template <typename SubgroupType>
 void list_keys(ServiceClientAPI& capi, persistent::version_t ver, uint32_t subgroup_index, uint32_t shard_index) {
     std::cout << "list_keys: ver = " << ver << ", subgroup_index = " << subgroup_index << ", shard_index = " << shard_index << std::endl;
@@ -459,6 +472,22 @@ void list_keys_by_time(ServiceClientAPI& capi, uint64_t ts_us, uint32_t subgroup
 template <>
 void list_keys_by_time<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, uint64_t ts_us, uint32_t subgroup_index, uint32_t shard_index) {
     print_red("TCSS does not support list_keys_by_time.");
+}
+
+template <typename SubgroupType>
+void op_list_keys(ServiceClientAPI& capi, persistent::version_t ver, std::string obj_pool) {
+    std::cout << "object pool list_keys: ver = " << ver << ", subgroup_index = " <<  std::endl;
+    std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>> future_results = capi.template list_keys<SubgroupType>(ver, obj_pool);
+    std::vector<typename SubgroupType::KeyType> reply = capi.template wait_list_keys<SubgroupType>(future_results);
+    std::cout << "Keys:" << std::endl;
+    for (auto& key:reply) {
+        std::cout << "    " << key << std::endl;
+    }
+}
+
+template <>
+void op_list_keys<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, persistent::version_t ver, std::string obj_pool) {
+    print_red("TCSS does not support op_list_keys.");
 }
 
 #ifdef HAS_BOOLINQ
@@ -618,6 +647,7 @@ void interactive_test(ServiceClientAPI& capi) {
     "op_get_size_by_time <type> <key> <ts_us>\n\tget the size of an object by timestamp from the object pool specified by key\n"
     "list_keys <type> [version(-1)] [subgroup_index(0)] [shard_index(0)]\n\tlist keys in shard (by version)\n"
     "list_keys_by_time <type> <ts_us> [subgroup_index(0)] [shard_index(0)]\n\tlist keys in shard by time\n"
+    "op_list_keys <type> <op_pathname> [version(-1)] \n\tlist keys in shard (by version)\n"
 #ifdef HAS_BOOLINQ
     "list_data_by_prefix <type> <prefix> [version(-1)] [subgroup_index(0)] [shard_index(0)]\n\t test LINQ api\n"
     "list_data_between_version <type> <key> <subgroup_index> <shard_index> [version_begin(MIN)] [version_end(MAX)]\n\t test LINQ api - version_iterator \n"
@@ -918,6 +948,15 @@ void interactive_test(ServiceClientAPI& capi) {
                 shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
             }
             on_subgroup_type(cmd_tokens[1],list_keys_by_time,capi,ts_us,subgroup_index,shard_index);
+        }else if (cmd_tokens[0] == "op_list_keys") {
+            if (cmd_tokens.size() < 3) {
+                print_red("Invalid format:" + cmdline);
+                continue;
+            }
+            if (cmd_tokens.size() >= 4) {
+                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[3]));
+            }
+            on_subgroup_type(cmd_tokens[1],op_list_keys,capi,version,cmd_tokens[2]);
 #ifdef HAS_BOOLINQ
         } else if (cmd_tokens[0] == "list_data_by_prefix") {
             if (cmd_tokens.size() < 3) {

@@ -161,6 +161,19 @@ namespace cascade {
          */
         virtual std::vector<KT> list_keys_by_time(const uint64_t& ts_us) const = 0;
         /**
+         * list_keys_by_objpool(const persistent::version_t& ver, const std::string& op_path)
+         *
+         * List keys by object pool
+         * @param ver - Version, if version  == CURRENT_VERSION, get the latest list of keys.
+         *              Please note that the current Persistent<T> in derecho will reconstruct the state at 'ver' from
+         *              the beginning of the log entry if 'ver' != CURRENT_VERSION, which is extremely inefficient.
+         *              TODO: use checkpoint cache to accelerate that process.
+         * @param op_path  - object pool pathname
+         *
+         * @return a list of keys.
+         */
+        virtual std::vector<KT> list_keys_by_objpool(const persistent::version_t& ver, const std::string& op_path) const = 0;
+        /**
          * get_size(const KT&,const persistent::version_t&,bool)
          *
          * Get size by version
@@ -263,6 +276,7 @@ namespace cascade {
                                    get_by_time,
                                    list_keys,
                                    list_keys_by_time,
+                                   list_keys_by_objpool,
                                    get_size,
                                    get_size_by_time,
                                    trigger_put),
@@ -278,6 +292,7 @@ namespace cascade {
         virtual const VT get(const KT& key, const persistent::version_t& ver, bool exact=false) const override;
         virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) const override;
         virtual std::vector<KT> list_keys(const persistent::version_t& ver) const override;
+        virtual std::vector<KT> list_keys_by_objpool(const persistent::version_t& ver, const std::string& op_path) const override;
         virtual std::vector<KT> list_keys_by_time(const uint64_t& ts_us) const override;
         virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, bool exact=false) const override;
         virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us) const override;
@@ -422,6 +437,7 @@ namespace cascade {
                                    get_by_time,
                                    list_keys,
                                    list_keys_by_time,
+                                   list_keys_by_objpool,
                                    get_size,
                                    get_size_by_time,
                                    trigger_put),
@@ -438,6 +454,7 @@ namespace cascade {
         virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) const override;
         virtual std::vector<KT> list_keys(const persistent::version_t& ver) const override;
         virtual std::vector<KT> list_keys_by_time(const uint64_t& ts_us) const override;
+        virtual std::vector<KT> list_keys_by_objpool(const persistent::version_t& ver, const std::string& op_path) const override;
         virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, bool exact=false) const override;
         virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us) const override;
         virtual std::tuple<persistent::version_t,uint64_t> ordered_put(const VT& value) override;
@@ -624,6 +641,7 @@ namespace cascade {
                                    get_by_time,
                                    list_keys,
                                    list_keys_by_time,
+                                   list_keys_by_objpool,
                                    get_size,
                                    get_size_by_time,
                                    trigger_put),
@@ -641,6 +659,7 @@ namespace cascade {
         virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) const override;
         virtual std::vector<KT> list_keys(const persistent::version_t& ver) const override;
         virtual std::vector<KT> list_keys_by_time(const uint64_t& ts_us) const override;
+        virtual std::vector<KT> list_keys_by_objpool(const persistent::version_t& ver, const std::string& op_path) const override;
         virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, bool exact=false) const override;
         virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us) const override;
         virtual std::tuple<persistent::version_t,uint64_t> ordered_put(const VT& value) override;
