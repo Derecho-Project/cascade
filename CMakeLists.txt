@@ -22,7 +22,7 @@ if ( NOT DEFINED CMAKE_INSTALL_LIBDIR )
     set( CMAKE_INSTALL_LIBDIR lib )
 endif ()
 
-# mutils_FOUND 
+# mutils_FOUND
 # mutils_INCLUDE_DIRS
 # mutils_LIBRARIES
 find_package(mutils REQUIRED)
@@ -43,7 +43,6 @@ find_package(nlohmann_json 3.2.0 REQUIRED)
 find_package(OpenCV QUIET)
 
 set(CMAKE_REQUIRED_DEFINITIONS -DFUSE_USE_VERSION=30)
-set(CMAKE_REQUIRED_LIBRARIES mxnet)
 include(CheckIncludeFiles)
 include(CheckIncludeFileCXX)
 
@@ -54,7 +53,9 @@ CHECK_INCLUDE_FILES("fuse3/fuse.h;fuse3/fuse_lowlevel.h" HAS_FUSE)
 CHECK_INCLUDE_FILE_CXX("boolinq/boolinq.h" HAS_BOOLINQ)
 
 #mxnet
+set(CMAKE_REQUIRED_LIBRARIES mxnet)
 CHECK_INCLUDE_FILE_CXX("mxnet-cpp/MxNetCpp.h" HAS_MXNET_CPP)
+unset(CMAKE_REQUIRED_LIBRARIES)
 
 #cuda
 find_package(CUDA)
@@ -83,7 +84,7 @@ add_library(cascade SHARED
 
 target_link_libraries(cascade
     ${derecho_LIBRARIES}
-    ${mutils_LIBRARIES} 
+    ${mutils_LIBRARIES}
     ${OPENSSL_LIBRARIES})
 set_target_properties(cascade PROPERTIES
     SOVERSION ${cascade_VERSION}
