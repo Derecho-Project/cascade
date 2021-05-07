@@ -47,6 +47,8 @@ public:
         version(ver) {}
 };
 
+class CascadeObjectPoolLinq
+
 /**
  * Creat a Linq iterating the objects in a shard.
  * @param key_list  This is an output argument to keep the generated key_list. Please keep it alive throughout the life
@@ -145,13 +147,18 @@ public:
 					   const typename CascadeType::KeyType& objkey, 
 					   persistent::version_t ver,
                        std::function<typename CascadeType::ObjectType(persistent::version_t&)> nextFunc) :
-
+    
         boolinq::Linq<persistent::version_t, typename CascadeType::ObjectType>(ver, nextFunc),
         client_api(capi),
 	    subgroup_index(sgidx),
         shard_index(shidx),
         key(objkey),
 	    version(ver) {}
+    /** Object Pool */
+    CascadeVersionLinq(ServiceClientType& capi, 
+					   const typename CascadeType::KeyType& objkey, 
+					   persistent::version_t ver,
+                       std::function<typename CascadeType::ObjectType(persistent::version_t&)> nextFunc) :
 };
 
 /**

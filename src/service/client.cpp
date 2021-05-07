@@ -475,10 +475,10 @@ void list_keys_by_time<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& cap
 }
 
 template <typename SubgroupType>
-void op_list_keys(ServiceClientAPI& capi, persistent::version_t ver, std::string obj_pool) {
+void op_list_keys(ServiceClientAPI& capi, persistent::version_t& ver, std::string& obj_pool) {
     std::cout << "object pool list_keys: ver = " << ver << ", subgroup_index = " <<  std::endl;
     std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>> future_results = capi.template list_keys<SubgroupType>(ver, obj_pool);
-    std::vector<typename SubgroupType::KeyType> reply = capi.template wait_list_keys<SubgroupType>(future_results);
+    std::vector<typename SubgroupType::KeyType> reply = capi.template wait_list_keys<SubgroupType>(std::move(future_results));
     std::cout << "Keys:" << std::endl;
     for (auto& key:reply) {
         std::cout << "    " << key << std::endl;
@@ -486,7 +486,7 @@ void op_list_keys(ServiceClientAPI& capi, persistent::version_t ver, std::string
 }
 
 template <>
-void op_list_keys<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, persistent::version_t ver, std::string obj_pool) {
+void op_list_keys<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, persistent::version_t& ver, std::string& obj_pool) {
     print_red("TCSS does not support op_list_keys.");
 }
 
@@ -948,7 +948,7 @@ void interactive_test(ServiceClientAPI& capi) {
                 shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
             }
             on_subgroup_type(cmd_tokens[1],list_keys_by_time,capi,ts_us,subgroup_index,shard_index);
-        }else if (cmd_tokens[0] == "op_list_keys") {
+        } else if (cmd_tokens[0] == "op_list_keys") {
             if (cmd_tokens.size() < 3) {
                 print_red("Invalid format:" + cmdline);
                 continue;

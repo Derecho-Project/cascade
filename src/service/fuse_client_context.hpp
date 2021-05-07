@@ -349,23 +349,68 @@ public:
 };
 
 // ObjectPool INode
-/** TODO: 1. do I need CascadeType in this constructor? 
-          2. this class also inherents from FuseAdminINode*/
-template <typename CascadeType, typename ServiceClientType>
-class CascadeObjectPoolINode : public FuseClientINode {
+template <typename ServiceClientType>
+class RootObjectPoolINode : public FuseClientINode {
+    const time_t update_interval;
+    std::unique_ptr<ServiceClientType>& capi_ptr;
+    time_t last_update_sec;
+    std::string contents;
+    std::shared_mutex mutex;
+    /**
+     * update the metadata. need write lock.
+     */
+    void update_contents () {
+        auto objectpools = capi_ptr->list_object_pools(true);
+        contents = "number of objectpool in cascade service: " + std::to_string(objectpools.size()) + ".\nObjectpool paths: ";
+        for (auto& objectpool_path : objectpools) {
+            contents += objectpool_path + ",";
+        }
+        contents += "\n";
+    }
 public:
-    CascadeObjectPoolINode() {
+    RootObjectPoolINode (std::unique_ptr<ServiceClientType>& _capi_ptr) :
+        update_interval (2), // membership refreshed in 2 seconds.
+        capi_ptr (_capi_ptr), 
+        last_update_sec(0) {
         this->type = INodeType::CASCADE_OBJECTPOOL;
         this->display_name = "Cascade_ObjectPool";
         this->parent = FUSE_ROOT_ID;
     }
 
-    /** initialize */
-    void initialize(std::unique_ptr<ServiceClientType>& capi_ptr) {
-        // list here using the detault refresh=false 
-        for (std::string object_pool_pathname:capi_ptr->template list_object_pools()) {
-            children.emplace_back(std::make_unique<ObjectPoolPathINode<CascadeType, ServiceClientType>>(object_pool_pathname,reinterpret_cast<fuse_ino_t>(this)));
+    virtual uint64_t get_file_size() override {
+        struct timespec now;
+        std::shared_lock rlck(mutex);
+        clock_gettime(CLOCK_REALTIME, &now);
+        if (now.tv_sec > (last_update_sec + update_interval)){
+            rlck.unlock();
+            std::unique_lock wlck(mutex);
+            clock_gettime(CLOCK_REALTIME, &now);
+            if (now.tv_sec > (last_update_sec + update_interval)){
+                update_contents();
+            }
+            return contents.size();
+        } 
+        return contents.size();
+    }
+
+    virtual uint64_t read_file(FileBytes* file_bytes) override {
+        struct timespec now;
+        std::shared_lock rlck(mutex);
+        clock_gettime(CLOCK_REALTIME, &now);
+        if (now.tv_sec > (last_update_sec + update_interval)){
+            rlck.unlock();
+            std::unique_lock wlck(mutex);
+            clock_gettime(CLOCK_REALTIME, &now);
+            if (now.tv_sec > (last_update_sec + update_interval)){
+                update_contents();
+            }
+            file_bytes->size = contents.size();
+            file_bytes->bytes = strdup(contents.c_str());
+        } else {
+            file_bytes->size = contents.size();
+            file_bytes->bytes = strdup(contents.c_str());
         }
+        return 0;
     }
 };
 
@@ -384,7 +429,7 @@ public:
         this->type = INodeType::OBJECTPOOLPATH;
         this->display_name = "object_pool-" + object_pool_pathname;
         this->parent = pino;
-        CascadeObjectPoolINode<CascadeType,ServiceClientType>* p_objectpool_inode = reinterpret_cast<CascadeObjectPoolINode<CascadeType,ServiceClientType>*>(pino);
+        RootObjectPoolINode<ServiceClientType>* p_objectpool_inode = reinterpret_cast<RootObjectPoolINode<ServiceClientType>*>(pino);
         this->children.emplace_back(std::make_unique<ObjectPoolMetaINode<CascadeType, ServiceClientType>>(op_pathname, capi_ptr));
     }
 
@@ -417,8 +462,6 @@ public:
         dbg_default_trace("[{}]leaving {}.",gettid(),__func__);
         return FuseClientINode::get_dir_entries();
     }
-
-
 };
 
 template <typename CascadeType, typename ServiceClientType>
@@ -508,8 +551,6 @@ public:
 
 
 
-
-
 template <typename CascadeType, typename ServiceClientType>
 class KeyINode : public FuseClientINode {
 public:
@@ -575,7 +616,6 @@ public:
 template <typename... CascadeTypes>
 class FuseClientContext {
     template<typename CascadeType> using _CascadeTypeINode = CascadeTypeINode<CascadeType,ServiceClient<CascadeTypes...>>;
-    template<typename CascadeType> using _CascadeObjectPoolINode = CascadeObjectPoolINode<CascadeType,ServiceClient<CascadeTypes...>>;
 private:
     /** initialization flag */
     std::atomic<bool> is_initialized;
@@ -591,6 +631,9 @@ private:
 
     /** Metadata */
     RootMetaINode<ServiceClient<CascadeTypes...>> metadata_inode;
+
+    /** ObjectPool */
+    RootObjectPoolINode<ServiceClient<CascadeTypes...>> objectpool_inode;
 
     /** fill inodes */
     void populate_inodes(const json& group_layout) {
@@ -614,7 +657,8 @@ private:
 public:
     FuseClientContext() :
         capi_ptr(std::make_unique<ServiceClient<CascadeTypes...>>()),
-        metadata_inode(capi_ptr){}
+        metadata_inode(capi_ptr),
+        objectpool_inode(capi_ptr){}
     /** initialize */
     void initialize(const json& group_layout) {
         dbg_default_debug("[{}]entering {} .", gettid(), __func__);
@@ -635,6 +679,7 @@ public:
                     ret_map.emplace(v.display_name,reinterpret_cast<fuse_ino_t>(&v));
                 });
             ret_map.emplace(metadata_inode.display_name,reinterpret_cast<fuse_ino_t>(&this->metadata_inode));
+            ret_map.emplace(objectpool_inode.display_name,reinterpret_cast<fuse_ino_t>(&this->objectpool_inode));
         } else {
             FuseClientINode* pfci = reinterpret_cast<FuseClientINode*>(ino);
             ret_map = pfci->get_dir_entries(); // RVO
