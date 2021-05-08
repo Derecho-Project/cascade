@@ -623,7 +623,7 @@ namespace cascade {
 
         template <typename SubgroupType>
         std::vector<typename SubgroupType::KeyType> wait_list_keys(
-                                                    std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>> future);
+                                                    std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>>& future);
 
         // template<typename ReturnType, typename FutureType>
         // ReturnType wait_for_future(FutureType& f){}
