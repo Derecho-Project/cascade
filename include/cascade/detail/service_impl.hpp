@@ -673,7 +673,6 @@ std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename Subg
             if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
                 auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
                 auto shard_list_keys_objpool = subgroup_handle.template p2p_send<RPC_NAME(list_keys_by_objpool)>(group_ptr->get_my_id(),version,object_pool_pathname);
-                //  move the object instead of pointer  TODO
                 result.emplace_back(std::make_unique<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>(std::move(shard_list_keys_objpool)));
             } else {
                 auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
@@ -689,17 +688,14 @@ std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename Subg
             result.emplace_back(std::make_unique<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>(std::move(shard_list_keys_objpool)));
         }
     }
-
-
     return result;
 }
 
 template <typename ReturnType>  
 ReturnType wait_for_future(derecho::rpc::QueryResults<ReturnType>& result){
+    // iterate through ReplyMap
     for (auto& reply_future: result.get()) {
-        dbg_default_trace("iterate Future of QueryResults");
         ReturnType reply = static_cast<ReturnType>(reply_future.second.get());
-        dbg_default_trace("Finished reply_future.second.get() ");
         return reply;
     }
     return ReturnType();
@@ -710,37 +706,12 @@ template <typename SubgroupType>
 std::vector<typename SubgroupType::KeyType> ServiceClient<CascadeTypes...>::wait_list_keys(
         std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>>& future){
     std::vector<typename SubgroupType::KeyType> result;
-    
+    // iterate over each shard's Query result
     for(auto& query_result: future){
-        dbg_default_trace("iterate unique_ptr ");
         std::vector<typename SubgroupType::KeyType> reply = wait_for_future<std::vector<typename SubgroupType::KeyType>>(*(query_result.get()));
         std::move(reply.begin(), reply.end(), std::back_inserter(result));
     }
-    
-    
-    // dbg_default_trace("enter wait list keys");   
-    // // iterate on vector of unique_ptr query results 
-    // for (auto& query_result : future){
-    //     // 1. print address of query Results
-    //     dbg_default_trace("moved future");
-    //     // iterate on the node 
-    //     for (auto& reply_future: (query_result)->get()) {
-    //         // print address again of query results
-    //         dbg_default_trace("get from query result"); 
-    //         // if (reply_future.second.valid()) {
-    //         //     dbg_default_trace("is VALID"); 
-    //         // dbg_default_trace("Reply future: {}", reply_future); 
-    //             auto reply = reply_future.second.get();  
-    //             dbg_default_trace("GOT reply");
-    //             std::move(reply.begin(), reply.end(), std::back_inserter(result));
-    //         // }
-    //         // else{
-    //         //     dbg_default_trace("NOT VALIDE");
-    //         // }
-    //     }
-    // }
     return result;
-
 }
 
 template <typename... CascadeTypes>
