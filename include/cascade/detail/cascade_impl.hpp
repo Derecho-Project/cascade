@@ -131,6 +131,11 @@ std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::list_keys_by_objpool(const pe
     for (auto& reply_pair : replies) {
         ret = reply_pair.second.get();
     }
+    debug_enter_func_with_args(  "\n\n ABOUT to print ver=0x{:x}", ver);
+    for (auto key: ret){
+        debug_enter_func_with_args(  "11key:= ver=0x{:x}", ver)  ;
+    }
+    
     ret.erase(
         std::remove_if(
             ret.begin(), 
@@ -139,6 +144,7 @@ std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::list_keys_by_objpool(const pe
         ), 
         ret.end()
     ); 
+
     debug_leave_func();
     return ret;
 }
