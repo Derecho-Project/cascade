@@ -439,18 +439,6 @@ void op_get_size_by_time<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& c
     }
 
 
-// #define check_op_list_keys_result(results)\
-//     for (auto& result: results){\
-//         for (auto& reply_future:result.get()) {\
-//             auto reply = reply_future.second.get();\
-//             std::cout << "Keys:" << std::endl;\
-//             for (auto& key:reply) {\
-//                 std::cout << "    " << key << std::endl;\
-//             }\
-//         }\
-//     }
-    
-
 template <typename SubgroupType>
 void list_keys(ServiceClientAPI& capi, persistent::version_t ver, uint32_t subgroup_index, uint32_t shard_index) {
     std::cout << "list_keys: ver = " << ver << ", subgroup_index = " << subgroup_index << ", shard_index = " << shard_index << std::endl;
@@ -475,10 +463,10 @@ void list_keys_by_time<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& cap
 }
 
 template <typename SubgroupType>
-void op_list_keys(ServiceClientAPI& capi, persistent::version_t& ver, std::string& obj_pool) {
+void op_list_keys(ServiceClientAPI& capi, persistent::version_t& ver, std::string obj_pool) {
     std::cout << "object pool list_keys: ver = " << ver << ", subgroup_index = " <<  std::endl;
     std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>> future_results = capi.template list_keys<SubgroupType>(ver, obj_pool);
-    std::vector<typename SubgroupType::KeyType> reply = capi.template wait_list_keys<SubgroupType>(std::move(future_results));
+    std::vector<typename SubgroupType::KeyType> reply = capi.template wait_list_keys<SubgroupType>(future_results);
     std::cout << "Keys:" << std::endl;
     for (auto& key:reply) {
         std::cout << "    " << key << std::endl;
@@ -486,7 +474,7 @@ void op_list_keys(ServiceClientAPI& capi, persistent::version_t& ver, std::strin
 }
 
 template <>
-void op_list_keys<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, persistent::version_t& ver, std::string& obj_pool) {
+void op_list_keys<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, persistent::version_t& ver, std::string obj_pool) {
     print_red("TCSS does not support op_list_keys.");
 }
 
@@ -612,6 +600,14 @@ void list_data_in_subgroup(ServiceClientAPI& capi, uint32_t subgroup_index, pers
 template <>
 void list_data_in_subgroup<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, uint32_t subgroup_index, persistent::version_t version) {
     print_red("TCSS does not support list_data_in_subgroup.");
+}
+
+template <typename SubgroupType>
+void list_data_in_objectpool(ServiceClientAPI& capi, persistent::version_t version, const std::string& objpool_path) {
+    std::vector<typename SubgroupType::KeyType> keys;
+    for (auto &obj : from_objectpool<SubgroupType, ServiceClientAPI>(capi,keys,version,objpool_path).toStdVector()) {
+        std::cout << "Found:" << obj << std::endl;
+    }
 }
 #endif// HAS_BOOLINQ
 
@@ -956,7 +952,9 @@ void interactive_test(ServiceClientAPI& capi) {
             if (cmd_tokens.size() >= 4) {
                 version = static_cast<persistent::version_t>(std::stol(cmd_tokens[3]));
             }
-            on_subgroup_type(cmd_tokens[1],op_list_keys,capi,version,cmd_tokens[2]);
+            std::string object_pool_pathname = "cows";
+            op_list_keys<VolatileCascadeStoreWithStringKey> (capi, version, object_pool_pathname);
+            // on_subgroup_type(cmd_tokens[1],op_list_keys,capi,version, object_pool_pathname);
 #ifdef HAS_BOOLINQ
         } else if (cmd_tokens[0] == "list_data_by_prefix") {
             if (cmd_tokens.size() < 3) {
@@ -1029,8 +1027,25 @@ void interactive_test(ServiceClientAPI& capi) {
 
 int main(int,char**) {
     std::cout << "This is a Service Client Example." << std::endl;
+    uint32_t subgroup_index,shard_index;
+    persistent::version_t version;
+
+    subgroup_index = 0;
+    shard_index = 0;
+    version = CURRENT_VERSION;
+    std::string object_pool_pathname = "cows";
+    persistent::version_t pver = persistent::INVALID_VERSION;
+    persistent::version_t pver_bk = persistent::INVALID_VERSION;
+    std::string key = "cows/c1";
+    std::string value = "c1";
+
 
     ServiceClientAPI capi;
+    create_object_pool<VolatileCascadeStoreWithStringKey> (capi, object_pool_pathname, 0);
+    op_put<VolatileCascadeStoreWithStringKey> (capi, key, value, pver, pver_bk);
+    op_list_keys<VolatileCascadeStoreWithStringKey> (capi, version, object_pool_pathname);
+    std::vector<std::string> keys;
+    list_data_in_objectpool<VolatileCascadeStoreWithStringKey>(capi, version, object_pool_pathname);
     // TEST 1 
     // member_test(capi);
     // TEST 2
