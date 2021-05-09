@@ -617,24 +617,13 @@ namespace cascade {
         * object pool version
         */
         template <typename SubgroupType>
-        std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>> list_keys(const persistent::version_t& version,
-            const std::string& object_pool_pathname);
+        std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>> 
+            list_keys(const persistent::version_t& version, const std::string& object_pool_pathname);
 
 
         template <typename SubgroupType>
         std::vector<typename SubgroupType::KeyType> wait_list_keys(
-                                                    std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>>& future);
-
-        // template<typename ReturnType, typename FutureType>
-        // ReturnType wait_for_future(FutureType& f){}
-
-        // template <typename ReturnType>
-        // ReturnType wait_for_future<ReturnType, QueryResult<ReturnType>>::wait_for_future(QueryResult<ReturnType>)
-
-        // template <std::vector<std::string>, std::vector<std::unique_ptr<QueryResult<std::vector<std::string>>>>>
-        // ReturnType wait_for_future<>(...)
-
-        // wait_objpool_list_keys(std::vector< derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>>);
+                                std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>>& future);
     
         /**
          * "list_keys_by_time" retrieve the list of keys in a shard
@@ -649,13 +638,15 @@ namespace cascade {
         template <typename SubgroupType>
         derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> list_keys_by_time(const uint64_t& ts_us,
                 uint32_t subgroup_index, uint32_t shard_index);
+        
 
-//        /**
-//         * object pool version
-//         */
-//        template <typename SubgroupType>
-//        derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> list_keys_by_time(const uint64_t& ts_us,
-//                const std::string& object_pool_pathname);
+        /**
+        * object pool version
+        */
+        template <typename SubgroupType>
+        std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>> 
+            list_keys_by_time(const uint64_t& ts_us, const std::string& object_pool_pathname);
+
 
         /**
          * Object Pool Management API: refresh object pool cache
