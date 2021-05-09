@@ -109,15 +109,7 @@ std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::list_keys(const persistent::v
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
-std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::list_keys_by_time(const uint64_t& ts_us) const {
-    // VolatileCascadeStore does not support this.
-    debug_enter_func_with_args("ts_us=0x{:x}", ts_us);
-    debug_leave_func();
-    return {};
-}
-
-template<typename KT, typename VT, KT* IK, VT* IV>
-std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::list_keys_by_objpool(const persistent::version_t& ver, const std::string& op_path) const {
+std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::op_list_keys(const persistent::version_t& ver, const std::string& op_path) const {
     debug_enter_func_with_args("ver=0x{:x}",ver);
     if (ver != CURRENT_VERSION) {
         debug_leave_func_with_value("Cannot support versioned list_keys, ver=0x{:x}", ver);
@@ -147,6 +139,22 @@ std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::list_keys_by_objpool(const pe
 
     debug_leave_func();
     return ret;
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
+std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::list_keys_by_time(const uint64_t& ts_us) const {
+    // VolatileCascadeStore does not support this.
+    debug_enter_func_with_args("ts_us=0x{:x}", ts_us);
+    debug_leave_func();
+    return {};
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
+std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::op_list_keys_by_time(const uint64_t& ts_us, const std::string& op_path) const {
+    // VolatileCascadeStore does not support this.
+    debug_enter_func_with_args("ts_us=0x{:x}", ts_us);
+    debug_leave_func();
+    return {};
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
@@ -725,28 +733,7 @@ std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::list_keys(const persiste
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::list_keys_by_time(const uint64_t& ts_us) const {
-    debug_enter_func_with_args("ts_us={}",ts_us);
-    const HLC hlc(ts_us,0ull);
-    try {
-        auto kv_map = persistent_core.get(hlc)->kv_map;
-        std::vector<KT> key_list;
-        for(auto& kv:kv_map) {
-            key_list.push_back(kv.first);
-        }
-        debug_leave_func();
-        return key_list;
-    } catch (const int64_t& ex) {
-        dbg_default_warn("temporal query throws exception:0x{:x]. ts={}", ex, ts_us);
-    } catch (...) {
-        dbg_default_warn("temporal query throws unknown exception. ts={}",  ts_us);
-    }
-    debug_leave_func();
-    return {};
-}
-
-template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::list_keys_by_objpool(const persistent::version_t& ver, const std::string& op_path) const {
+std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::op_list_keys(const persistent::version_t& ver, const std::string& op_path) const {
     debug_enter_func_with_args("ver=0x{:x}.",ver);
     if (ver != CURRENT_VERSION) {
         std::vector<KT> key_list;
@@ -773,6 +760,50 @@ std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::list_keys_by_objpool(con
     ); 
     debug_leave_func();
     return ret;
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::list_keys_by_time(const uint64_t& ts_us) const {
+    debug_enter_func_with_args("ts_us={}",ts_us);
+    const HLC hlc(ts_us,0ull);
+    try {
+        auto kv_map = persistent_core.get(hlc)->kv_map;
+        std::vector<KT> key_list;
+        for(auto& kv:kv_map) {
+            key_list.push_back(kv.first);
+        }
+        debug_leave_func();
+        return key_list;
+    } catch (const int64_t& ex) {
+        dbg_default_warn("temporal query throws exception:0x{:x]. ts={}", ex, ts_us);
+    } catch (...) {
+        dbg_default_warn("temporal query throws unknown exception. ts={}",  ts_us);
+    }
+    debug_leave_func();
+    return {};
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::op_list_keys_by_time(const uint64_t& ts_us, const std::string& op_path) const {
+    debug_enter_func_with_args("ts_us={}",ts_us);
+    const HLC hlc(ts_us,0ull);
+    try {
+        auto kv_map = persistent_core.get(hlc)->kv_map;
+        std::vector<KT> key_list;
+        for(auto& kv:kv_map) {
+            if (op_path == get_pathname<KT>(kv.first) ){
+                key_list.push_back(kv.first);
+            }
+        }
+        debug_leave_func();
+        return key_list;
+    } catch (const int64_t& ex) {
+        dbg_default_warn("temporal query throws exception:0x{:x]. ts={}", ex, ts_us);
+    } catch (...) {
+        dbg_default_warn("temporal query throws unknown exception. ts={}",  ts_us);
+    }
+    debug_leave_func();
+    return {};
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
@@ -940,16 +971,24 @@ std::vector<KT> TriggerCascadeNoStore<KT,VT,IK,IV>::list_keys(const persistent::
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
+std::vector<KT> TriggerCascadeNoStore<KT,VT,IK,IV>::op_list_keys(const persistent::version_t& ver, const std::string& op_path) const {
+    dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
+    return {};
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
 std::vector<KT> TriggerCascadeNoStore<KT,VT,IK,IV>::list_keys_by_time(const uint64_t& ts_us) const {
     dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
     return {};
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
-std::vector<KT> TriggerCascadeNoStore<KT,VT,IK,IV>::list_keys_by_objpool(const persistent::version_t& ver, const std::string& op_path) const {
+std::vector<KT> TriggerCascadeNoStore<KT,VT,IK,IV>::op_list_keys_by_time(const uint64_t& ts_us, const std::string& op_path) const {
     dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
     return {};
 }
+
+
 
 template<typename KT, typename VT, KT* IK, VT* IV>
 uint64_t TriggerCascadeNoStore<KT,VT,IK,IV>::get_size(const KT& key, const persistent::version_t& ver, bool) const {
