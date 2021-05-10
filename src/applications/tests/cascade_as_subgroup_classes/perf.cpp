@@ -125,10 +125,11 @@ int do_server() {
     dbg_default_info("Starting cascade server.");
 
     /** 1 - group building blocks*/
-    derecho::CallbackSet callback_set {
+    derecho::UserMessageCallbacks callback_set {
         nullptr,    // delivery callback
         nullptr,    // local persistence callback
-        nullptr     // global persistence callback
+        nullptr,    // global persistence callback
+        nullptr     // global verified callback
     };
     derecho::SubgroupInfo si {
         derecho::DefaultSubgroupAllocator({
