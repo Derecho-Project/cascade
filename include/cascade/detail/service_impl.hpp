@@ -78,7 +78,7 @@ Service<CascadeTypes...>::Service(const json& layout,
     new_dsms.emplace_back(context.get());
     // STEP 3 - create derecho group
     group = std::make_unique<derecho::Group<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>>(
-                CallbackSet{},
+                UserMessageCallbacks{},
                 si,
                 new_dsms,
                 std::vector<derecho::view_upcall_t>{},
