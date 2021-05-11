@@ -1,3 +1,4 @@
+#include <derecho/core/detail/derecho_internal.hpp>
 #include <iostream>
 #include <vector>
 #include <memory>
@@ -125,10 +126,11 @@ int do_server() {
     dbg_default_info("Starting cascade server.");
 
     /** 1 - group building blocks*/
-    derecho::CallbackSet callback_set {
+    derecho::UserMessageCallbacks callback_set {
         nullptr,    // delivery callback
         nullptr,    // local persistence callback
-        nullptr     // global persistence callback
+        nullptr,    // global persistence callback
+        nullptr     // global verification callback
     };
     derecho::SubgroupInfo si {
         derecho::DefaultSubgroupAllocator({

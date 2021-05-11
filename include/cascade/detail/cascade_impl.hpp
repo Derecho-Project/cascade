@@ -142,7 +142,7 @@ template<typename KT, typename VT, KT* IK, VT* IV>
 std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::ordered_put(const VT& value) {
     debug_enter_func_with_args("key={}",value.get_key_ref());
 
-    std::tuple<persistent::version_t,uint64_t> version_and_timestamp = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_next_version();
+    std::tuple<persistent::version_t,uint64_t> version_and_timestamp = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
 
     if constexpr (std::is_base_of<IKeepVersion,VT>::value) {
         value.set_version(std::get<0>(version_and_timestamp));
@@ -191,7 +191,7 @@ template<typename KT, typename VT, KT* IK, VT* IV>
 std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::ordered_remove(const KT& key) {
     debug_enter_func_with_args("key={}",key);
 
-    std::tuple<persistent::version_t,uint64_t> version_and_timestamp = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_next_version();
+    std::tuple<persistent::version_t,uint64_t> version_and_timestamp = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
 
     if (this->kv_map.find(key)==this->kv_map.end()) {
         debug_leave_func_with_value("version=0x{:x},timestamp={}",std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp));
@@ -699,7 +699,7 @@ std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::list_keys_by_time(const 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST>::ordered_put(const VT& value) {
     debug_enter_func_with_args("key={}",value.get_key_ref());
-    std::tuple<persistent::version_t,uint64_t> version_and_timestamp = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_next_version();
+    std::tuple<persistent::version_t,uint64_t> version_and_timestamp = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
     if constexpr (std::is_base_of<IKeepVersion,VT>::value) {
         value.set_version(std::get<0>(version_and_timestamp));
     }
@@ -727,7 +727,7 @@ std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST>::ordered_remove(const KT& key) {
     debug_enter_func_with_args("key={}",key);
-    std::tuple<persistent::version_t,uint64_t> version_and_timestamp = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_next_version();
+    std::tuple<persistent::version_t,uint64_t> version_and_timestamp = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
     auto value = create_null_object_cb<KT,VT,IK,IV>(key);
     if constexpr (std::is_base_of<IKeepVersion,VT>::value) {
         value.set_version(std::get<0>(version_and_timestamp));
