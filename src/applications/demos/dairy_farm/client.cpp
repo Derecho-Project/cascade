@@ -15,14 +15,14 @@ using namespace derecho::cascade;
  * parse frames and upload this to Diary Farm front end tier as an external client.
  */
 int main(int argc, char** argv) {
-    const char* HELP_INFO = "--(f)ile <photo>  [--(k)ey <the string key for the file, default value is the filename>]\n"
+    const char* HELP_INFO = "--(f)ile <photo>  --(k)ey <the string key for the file>\n"
                             "--(h)elp";
     int c;
     static struct option long_options[] = {
         {"file",    required_argument,  0,  'f'},
         {"key",     required_argument,  0,  'k'},
         {"help",    no_argument,        0,  'h'},
-        {0,0,0}
+        {0,0,0,0}
     };
     const char* file_name = nullptr;
     const char* key = nullptr;
