@@ -13,11 +13,12 @@
 namespace derecho {
 namespace cascade {
 
-inline uint64_t get_time_us() {
+inline uint64_t get_time_us(bool use_wall_clock = true) {
     struct timespec tv;
-    clock_gettime(CLOCK_MONOTONIC,&tv);
+    clock_gettime(use_wall_clock?CLOCK_REALTIME:CLOCK_MONOTONIC,&tv);
     return (tv.tv_sec*1000000 + tv.tv_nsec/1000);
 }
+
 
 /**
  * the client collect open loop latencies
@@ -29,10 +30,11 @@ public:
      *
      * @param type      The type of event
      * @param id        The event id for corresponding event.
+     * @param use_local_ts  Using loca timestamp.
      *
      * @return          N/A
      */
-    virtual void ack(uint32_t type, uint32_t id) = 0;
+    virtual void ack(uint32_t type, uint32_t id, bool use_local_ts = false) = 0;
 
     /**
      * Create an open loop latency collector client
@@ -77,15 +79,9 @@ public:
     bool wait(uint32_t nsec);
 
     /**
-     * Acknowledge type and id. Please note that this message is not thread safe IF acking events of the same type.
-     * Acking events of different type is thread-safe.
-     *
-     * @param type      The type of event
-     * @param id        The event id for corresponding event.
-     *
-     * @return          N/A
+     * override
      */
-    virtual void ack(uint32_t type, uint32_t id);
+    virtual void ack(uint32_t type, uint32_t id, bool use_local_ts) override;
 
     /**
      * Report the latency statistics. The latecy is calculated between events of 'from_type' to events of 'to_type' for

@@ -123,10 +123,6 @@ std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::op_list_keys(const persistent
     for (auto& reply_pair : replies) {
         ret = reply_pair.second.get();
     }
-    debug_enter_func_with_args(  "\n\n ABOUT to print ver=0x{:x}", ver);
-    for (auto key: ret){
-        debug_enter_func_with_args(  "11key:= ver=0x{:x}", ver)  ;
-    }
     
     ret.erase(
         std::remove_if(
