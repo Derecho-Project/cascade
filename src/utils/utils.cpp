@@ -18,6 +18,7 @@ namespace cascade {
 struct __attribute__((packed)) open_loop_ack_t {
     uint32_t type;
     uint32_t id;
+    uint64_t ts_us;
 };
 
 class OpenLoopLatencyCollectorClientImpl: public OpenLoopLatencyCollectorClient {
@@ -43,8 +44,12 @@ public:
         server_addr.sin_port = htons(udp_port);
     }
 
-    virtual void ack(uint32_t type, uint32_t id) override {
-        const struct open_loop_ack_t ack{type,id};
+    virtual void ack(uint32_t type, uint32_t id, bool use_local_ts) override {
+        struct open_loop_ack_t ack{type,id,0};
+
+        if(use_local_ts) {
+            ack.ts_us = get_time_us(true);
+        }
 
         size_t ns = sendto(client_socket,static_cast<const void*>(&ack),
                            sizeof(open_loop_ack_t),0,reinterpret_cast<const sockaddr*>(&server_addr),sizeof(server_addr));
@@ -107,7 +112,11 @@ OpenLoopLatencyCollector::OpenLoopLatencyCollector(uint32_t max_ids,const std::v
                 std::cerr << "unknown event type:" << ola->type << std::endl;
                 continue;
             }
-            timestamps_in_us.at(ola->type)[ola->id] = get_time_us();
+            if (ola->ts_us == 0) {
+                timestamps_in_us.at(ola->type)[ola->id] = get_time_us(true);
+            } else {
+                timestamps_in_us.at(ola->type)[ola->id] = ola->ts_us;
+            }
             counters.at(ola->type) ++;
 
             if (udp_acks_collected_predicate(counters)) {
@@ -131,12 +140,12 @@ bool OpenLoopLatencyCollector::wait(uint32_t nsec) {
     return stop;
 }
 
-void OpenLoopLatencyCollector::ack(uint32_t type,uint32_t id) {
+void OpenLoopLatencyCollector::ack(uint32_t type,uint32_t id, bool) {
     if (timestamps_in_us.find(type) == timestamps_in_us.end()) {
         std::cerr << "unknown event type:" << type << std::endl;
         return;
     }
-    timestamps_in_us.at(type)[id] = get_time_us();
+    timestamps_in_us.at(type)[id] = get_time_us(true);
     counters.at(type) ++;
 }
 
