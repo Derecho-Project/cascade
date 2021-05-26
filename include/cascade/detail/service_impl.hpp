@@ -897,18 +897,7 @@ template <typename... CascadeTypes>
 CascadeContext<CascadeTypes...>::CascadeContext() {
     action_queue_for_multicast.initialize();
     action_queue_for_p2p.initialize();
-    prefix_registry_ptr = std::make_shared<
-                                std::unordered_map<
-                                    std::string, 
-                                    std::unordered_map<
-                                        std::string,
-                                        std::pair<
-                                            std::shared_ptr<OffCriticalDataPathObserver>,
-                                            std::unordered_map<std::string,bool>
-                                        >
-                                    >
-                                >
-                          >();
+    prefix_registry_ptr = std::make_shared<PrefixRegistry<prefix_entry_t>>();
 }
 
 template <typename... CascadeTypes>
@@ -1088,72 +1077,47 @@ void CascadeContext<CascadeTypes...>::register_prefixes(
         const std::string& data_path_logic_id,
         const std::shared_ptr<OffCriticalDataPathObserver>& ocdpo_ptr,
         const std::unordered_map<std::string,bool>& outputs) {
-    // 0 - write lock the prefix_registry_ptr to exclude concurrent writers
-    std::unique_lock lck(prefix_registry_ptr_mutex);
-    // 1 - copy-construct a new prefix_registry
-    auto new_pr = std::make_shared<std::unordered_map<std::string, std::unordered_map<std::string,std::pair<std::shared_ptr<OffCriticalDataPathObserver>,std::unordered_map<std::string,bool>>>>>(*prefix_registry_ptr);
-
-    // 2 - insert prefixes
-    for (auto& prefix: prefixes) {
-        if (new_pr->find(prefix) == new_pr->end()){
-            new_pr->emplace(prefix,
-                            std::unordered_map<std::string,
-                                               std::pair<std::shared_ptr<OffCriticalDataPathObserver>,
-                                                         std::unordered_map<std::string,bool>>
-                                              >{});
-        }
-        new_pr->at(prefix).emplace(data_path_logic_id,std::pair{ocdpo_ptr,outputs});
+    for (const auto& prefix:prefixes) {
+        prefix_registry_ptr->atomically_modify(prefix,
+            [&prefix,&data_path_logic_id,&ocdpo_ptr,&outputs](const std::shared_ptr<prefix_entry_t>& entry){
+                std::shared_ptr<prefix_entry_t> new_entry = std::make_shared<prefix_entry_t>(*entry);
+                if (new_entry->find(data_path_logic_id) == new_entry->end()) {
+                    new_entry->emplace(data_path_logic_id,std::pair{ocdpo_ptr,outputs});
+                } else {
+                    new_entry->at(data_path_logic_id).second.insert(outputs.cbegin(),outputs.cend());
+                }
+                return new_entry;
+            },true);
     }
-
-    // 3 - flip the prefix_registry
-    // lock on the rw mutex to coordinate with the read.
-    // In C++20, it is possible to define a std::atomic<std::shared_ptr<T>> to allow atomic access to the shared
-    // pointer. However, we support C++17 and use a read-write lock here. 
-    std::unique_lock rwlck(prefix_registry_ptr_rw_mutex);
-    // If the reader does not hold a copy of prefix_registry_ptr, the old prefix_registry is released here.
-    prefix_registry_ptr = new_pr;
 }
 
 template <typename... CascadeTypes>
 void CascadeContext<CascadeTypes...>::unregister_prefixes(const std::unordered_set<std::string>& prefixes,
                                                           const std::string& data_path_logic_id) {
-    std::unique_lock lck(prefix_registry_ptr_mutex);
-    // 1 - copy-construct a new prefix_registry
-    auto new_pr = std::make_shared<std::unordered_map<std::string, std::unordered_map<std::string,std::pair<std::shared_ptr<OffCriticalDataPathObserver>,std::unordered_map<std::string,bool>>>>>(*prefix_registry_ptr);
-
-    // 2 - remove prefixes
-    for (auto& prefix: prefixes) {
-        if (new_pr->find(prefix) == new_pr->end()){
-            dbg_default_warn("In {}, erase an unknown prefix:'{}'.",__PRETTY_FUNCTION__,prefix);
-        }
-        new_pr->at(prefix).erase(data_path_logic_id);
+    for (const auto& prefix:prefixes) {
+        prefix_registry_ptr->atomically_modify(prefix,
+            [&prefix,&data_path_logic_id](const std::shared_ptr<prefix_entry_t>& entry){
+                std::shared_ptr<prefix_entry_t> new_value = std::make_shared<prefix_entry_t>(*entry);
+                new_value->erase(data_path_logic_id);
+                return new_value;
+            }
+        );
     }
-
-    // 3 - flip the prefix_registry
-    // lock on the rw mutex to coordinate with the read.
-    // In C++20, it is possible to define a std::atomic<std::shared_ptr<T>> to allow atomic access to the shared
-    // pointer. However, we support C++17 and use a read-write lock here.
-    std::unique_lock rwlck(prefix_registry_ptr_rw_mutex);
-    // If the reader does not hold a copy of prefix_registry_ptr, the old prefix registry is destructed here.
-    prefix_registry_ptr = new_pr;
 }
 
 /* Note: On the same hardware, copying a shared_ptr spends ~7.4ns, and copying a raw pointer spends ~1.8 ns*/
 template <typename... CascadeTypes>
-std::unordered_map<std::string,std::pair<std::shared_ptr<OffCriticalDataPathObserver>,std::unordered_map<std::string,bool>>> CascadeContext<CascadeTypes...>::get_prefix_handlers(const std::string& prefix) {
-    // 1 - copy the shared ptr
-    std::shared_lock rlck(prefix_registry_ptr_rw_mutex);
-    std::shared_ptr<std::unordered_map<std::string, std::unordered_map<std::string,std::pair<std::shared_ptr<OffCriticalDataPathObserver>,std::unordered_map<std::string,bool>>>>> pr = prefix_registry_ptr;
-    rlck.unlock();
+prefix_entry_t CascadeContext<CascadeTypes...>::get_prefix_handlers(const std::string& path) {
 
-    // 2 - read the shared ptr
-    if (pr->find(prefix)==pr->end()) {
-        return {};
-    }
-    return pr->at(prefix);
+    prefix_entry_t handlers;
 
-    // 3 - If the prefix_registry has been changed by the writer after step 1, releasing pr destructs the old prefix
-    // registry.
+    prefix_registry_ptr->collect_values_for_prefixes(
+            path,
+            [&handlers](const std::string&, const std::shared_ptr<prefix_entry_t>& entry) {
+                handlers.insert(entry->cbegin(),entry->cend());
+            });
+
+    return handlers;
 }
 
 template <typename... CascadeTypes>

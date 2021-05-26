@@ -18,8 +18,7 @@
 #include "cascade.hpp"
 #include "object_pool_metadata.hpp"
 #include "data_path_logic_manager.hpp"
-
-using json = nlohmann::json;
+#include "detail/prefix_registry.hpp"
 
 using json = nlohmann::json; 
 
@@ -736,6 +735,14 @@ namespace cascade {
      * 2 - a prefix registry.
      * 3 - a bounded Action buffer.
      */
+    using prefix_entry_t = 
+                std::unordered_map<
+                    std::string, // dpl_id
+                    std::pair<
+                        std::shared_ptr<OffCriticalDataPathObserver>, // ocdpo
+                        std::unordered_map<std::string,bool>          // output map{prefix->bool}
+                    >
+                >;
     template <typename... CascadeTypes>
     class CascadeContext: public ICascadeContext {
     private:
@@ -761,22 +768,7 @@ namespace cascade {
         /** the prefix registries, one is active, the other is shadow 
          * prefix->{dpl_id->{ocdpo,{prefix->trigger_put/put}}
          */
-        std::shared_ptr<
-            std::unordered_map<
-                std::string, // prefix
-                std::unordered_map<
-                    std::string, // dpl_id
-                    std::pair<
-                        std::shared_ptr<OffCriticalDataPathObserver>, // ocdpo
-                        std::unordered_map<std::string,bool>          // output map{prefix->bool}
-                    >
-                >
-            >
-        > prefix_registry_ptr;
-        /** the write lock for prefix_registry_ptr */
-        mutable std::mutex prefix_registry_ptr_mutex;
-        /** a shared lock for writer-reader */
-        mutable std::shared_mutex prefix_registry_ptr_rw_mutex;
+        std::shared_ptr<PrefixRegistry<prefix_entry_t>> prefix_registry_ptr;
         /** the data path logic loader */
         std::unique_ptr<DataPathLogicManager<CascadeTypes...>> data_path_logic_manager;
         /** the off-critical data path worker thread pools */
@@ -855,11 +847,7 @@ namespace cascade {
          * =============================================================================================================
          * Now we agree on the new design that the prefix is assumed to be registered before the critical data path saw
          * some data coming. Without a lock guarding prefix registry in the critical data path, it's a little bit tricky
-         * to support runtime update. We introduced two mutex to guard the prefix_registry. One is for excluding concurrent
-         * writers (prefix_registry_ptr_mutex), the other is for synchronization between the critical data path reader
-         * and writers (prefix_registry_ptr_rw_mutex). Updates is applied to a new shadow registry without interfere with 
-         * the critical data path processing. Once update is finished, we flip the pointer atomically, and it's done. 
-         * The critical data path will automatically shift to the new registry with minimum overhead.
+         * to support runtime update. 
          * 
          * IMPORTANT: Successful unregistration of a prefix does not guarantee the corresponding DPL is safe to be
          * released. Because a previous triggered off-critical data path might still working on the unregistered prefix.
@@ -895,8 +883,7 @@ namespace cascade {
          *
          * @return the unordered map of observers registered to this prefix.
          */
-        virtual std::unordered_map<std::string,std::pair<std::shared_ptr<OffCriticalDataPathObserver>,std::unordered_map<std::string,bool>>> 
-            get_prefix_handlers(const std::string& prefix); 
+        virtual prefix_entry_t get_prefix_handlers(const std::string& prefix); 
         /**
          * post an action to the Context for processing.
          *
