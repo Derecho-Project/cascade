@@ -897,7 +897,7 @@ template <typename... CascadeTypes>
 CascadeContext<CascadeTypes...>::CascadeContext() {
     action_queue_for_multicast.initialize();
     action_queue_for_p2p.initialize();
-    prefix_registry_ptr = std::make_shared<PrefixRegistry<prefix_entry_t>>();
+    prefix_registry_ptr = std::make_shared<PrefixRegistry<prefix_entry_t,PATH_SEPARATOR>>();
 }
 
 template <typename... CascadeTypes>
@@ -913,7 +913,7 @@ void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeMetadataSe
     for (auto& dfg:dfgs) {
         for (auto& vertex:dfg.vertices) {
             for (auto& edge:vertex.second.edges) {
-                register_prefixes({vertex.second.object_pool_pathname},edge.first,data_path_logic_manager->get_observer(edge.first),edge.second);
+                register_prefixes({vertex.second.pathname},edge.first,data_path_logic_manager->get_observer(edge.first),edge.second);
             }
         }
     }

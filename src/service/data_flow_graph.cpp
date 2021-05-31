@@ -2,6 +2,7 @@
 #include <cascade/data_flow_graph.hpp>
 #include <iostream>
 #include <fstream>
+#include <cascade/service.hpp>
 
 namespace derecho {
 namespace cascade {
@@ -13,7 +14,11 @@ DataFlowGraph::DataFlowGraph(const json& dfg_conf):
     description(dfg_conf[DFG_JSON_DESCRIPTION]) {
     for(auto it=dfg_conf[DFG_JSON_GRAPH].cbegin();it!=dfg_conf[DFG_JSON_GRAPH].cend();it++) {
         DataFlowGraphVertex dfgv;
-        dfgv.object_pool_pathname = (*it)[DFG_JSON_OBJECT_POOL_ID];
+        dfgv.pathname = (*it)[DFG_JSON_PATHNAME];
+        /* fix the pathname if it is not ended by a separator */
+        if(dfgv.pathname.back() != PATH_SEPARATOR) {
+            dfgv.pathname = dfgv.pathname + PATH_SEPARATOR;
+        }
         for(size_t i=0;i<(*it)[DFG_JSON_DATA_PATH_LOGIC_LIST].size();i++) {
             std::string dpl_uuid = (*it)[DFG_JSON_DATA_PATH_LOGIC_LIST].at(i);
             std::map<std::string,std::string> dest = 
@@ -23,11 +28,15 @@ DataFlowGraph::DataFlowGraph(const json& dfg_conf):
                 dfgv.edges.emplace(dpl_uuid,std::unordered_map<std::string,bool>{});
             }
             for(auto& kv:dest) {
-                dfgv.edges[dpl_uuid].emplace(kv.first,(kv.second==DFG_JSON_TRIGGER_PUT)?true:false);
+                if (kv.first.back() == PATH_SEPARATOR) {
+                    dfgv.edges[dpl_uuid].emplace(kv.first,(kv.second==DFG_JSON_TRIGGER_PUT)?true:false);
+                } else {
+                    dfgv.edges[dpl_uuid].emplace(kv.first + PATH_SEPARATOR,(kv.second==DFG_JSON_TRIGGER_PUT)?true:false);
+                }
             }
 
         }
-        vertices.emplace(dfgv.object_pool_pathname,dfgv);
+        vertices.emplace(dfgv.pathname,dfgv);
     }
 }
 
