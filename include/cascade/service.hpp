@@ -22,6 +22,8 @@
 
 using json = nlohmann::json; 
 
+#define PATH_SEPARATOR  '/'
+
 /**
  * The cascade service templates
  * 
@@ -768,7 +770,7 @@ namespace cascade {
         /** the prefix registries, one is active, the other is shadow 
          * prefix->{dpl_id->{ocdpo,{prefix->trigger_put/put}}
          */
-        std::shared_ptr<PrefixRegistry<prefix_entry_t>> prefix_registry_ptr;
+        std::shared_ptr<PrefixRegistry<prefix_entry_t,PATH_SEPARATOR>> prefix_registry_ptr;
         /** the data path logic loader */
         std::unique_ptr<DataPathLogicManager<CascadeTypes...>> data_path_logic_manager;
         /** the off-critical data path worker thread pools */
