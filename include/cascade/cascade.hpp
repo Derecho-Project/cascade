@@ -631,6 +631,20 @@ namespace cascade {
     };
 
     /**
+     * If the VT type for PersistentCascadeStore/VolatileCascadeStore implements IValidator inferface, its 'validate'
+     * method will be called on 'ordered_put' with the current k/v map to verify if the object can be added to the
+     * existing k/v map pool.
+     *
+     * For example, a VT object can override the default 'overwriting' behaviour by refusing an object whose key has
+     * already existed in the kv_map.
+     */
+    template <typename KT, typename VT>
+    class IValidator {
+    public:
+        virtual bool validate(const std::map<KT,VT>& kv_map) const = 0;
+    };
+
+    /**
      * Template for cascade trigger store
      *
      * @tparam KT   key type
