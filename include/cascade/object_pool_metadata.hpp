@@ -17,10 +17,10 @@ using sharding_policy_t = enum sharding_policy_type {
  * - "/Aa/Bb/Cc"
  * - "/A"
  * Invalid object pool pathname:
- * - ""
  * - "Aa"
  * - "/Aa/"
  * - "/Bb/Cc/"
+ * Please note that an empty string "" is allowed to represent an invalid Metadata object.
  */
 template<typename... CascadeTypes>
 class ObjectPoolMetadata : public mutils::ByteRepresentable,
@@ -325,6 +325,9 @@ inline std::ostream& operator<<(std::ostream& out, const ObjectPoolMetadata<Casc
 
 template<typename... CascadeTypes>
 bool ObjectPoolMetadata<CascadeTypes...>::check_pathname_format(const std::string& pathname) {
+    if (pathname.empty()) {
+        return true; // empty string is allowed to represent an invalid Metadata object.
+    }
     if ((pathname.front() != PATH_SEPARATOR) || 
         (pathname.back() != PATH_SEPARATOR) ||
         (pathname.find(' ') != std::string::npos) ||
