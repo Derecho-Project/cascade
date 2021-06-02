@@ -3,3 +3,4 @@
 #cmakedefine HAS_MXNET_CPP
 #cmakedefine ENABLE_GPU
 #cmakedefine ENABLE_EVALUATION
+#define PATH_SEPARATOR '/'
