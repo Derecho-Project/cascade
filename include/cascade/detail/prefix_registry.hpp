@@ -30,7 +30,6 @@ private:
     TreeNode prefix_tree;
     mutable std::mutex prefix_tree_mutex;
 
-    static inline std::vector<std::string> get_components(const std::string& path);
     /**
      * Get the tree node from components. Require lock to be acquired in advance.
      *

@@ -22,8 +22,6 @@
 
 using json = nlohmann::json; 
 
-#define PATH_SEPARATOR  '/'
-
 /**
  * The cascade service templates
  * 

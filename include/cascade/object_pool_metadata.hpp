@@ -1,5 +1,6 @@
 #pragma once
 #include "object.hpp"
+#include "utils.hpp"
 
 namespace derecho {
 namespace cascade {
@@ -13,6 +14,7 @@ template<typename... CascadeTypes>
 class ObjectPoolMetadata : public mutils::ByteRepresentable,
                            public ICascadeObject<std::string>,
                            public IKeepTimestamp,
+                           public IValidator<std::string,ObjectPoolMetadata<CascadeTypes...>>,
                            public IVerifyPreviousVersion {
 public:
     mutable persistent::version_t               version;
@@ -166,6 +168,18 @@ public:
     virtual bool verify_previous_version(persistent::version_t prev_ver,persistent::version_t prev_ver_by_key) const override {
         return ((this->previous_version == persistent::INVALID_VERSION)?true:(this->previous_version >= prev_ver)) &&
                ((this->previous_version_by_key == persistent::INVALID_VERSION)?true:(this->previous_version_by_key >= prev_ver_by_key));
+    }
+
+    virtual bool validate(const std::map<std::string,ObjectPoolMetadata<CascadeTypes...>>& kv_map) const override {
+        auto components = str_tokenizer(pathname,PATH_SEPARATOR);
+        std::string prefix;
+        for (const auto& comp:components) {
+            prefix = prefix + PATH_SEPARATOR + comp;
+            if (kv_map.find(prefix) != kv_map.end()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
