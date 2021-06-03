@@ -199,6 +199,11 @@ public:
                 return false;
             }
         }
+        for (const auto& oppn:kv_map) {
+            if (oppn.first.size() > pathname.size() && (oppn.first.compare(0,pathname.size(),pathname) == 0)) {
+                return false;
+            }
+        }
         return true;
     }
 
@@ -329,7 +334,7 @@ bool ObjectPoolMetadata<CascadeTypes...>::check_pathname_format(const std::strin
         return true; // empty string is allowed to represent an invalid Metadata object.
     }
     if ((pathname.front() != PATH_SEPARATOR) || 
-        (pathname.back() != PATH_SEPARATOR) ||
+        (pathname.back() == PATH_SEPARATOR) ||
         (pathname.find(' ') != std::string::npos) ||
         (pathname.find('\t') != std::string::npos) ||
         (pathname.find('\n') != std::string::npos)){
