@@ -859,22 +859,28 @@ derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceCl
 template <typename... CascadeTypes>
 ObjectPoolMetadata<CascadeTypes...> ServiceClient<CascadeTypes...>::find_object_pool(const std::string& pathname) {
     std::shared_lock<std::shared_mutex> rlck(object_pool_metadata_cache_mutex);
-    if (object_pool_metadata_cache.find(pathname) == object_pool_metadata_cache.end()) {
-        rlck.unlock();
-        uint32_t metadata_service_shard_index = std::hash<std::string>{}(pathname) % this->template get_number_of_shards<CascadeMetadataService<CascadeTypes...>>(METADATA_SERVICE_SUBGROUP_INDEX);
-        auto result = this->template get<CascadeMetadataService<CascadeTypes...>>(pathname,CURRENT_VERSION,METADATA_SERVICE_SUBGROUP_INDEX,metadata_service_shard_index);
-        for (auto& reply_future:result.get()) {
-            auto opm = reply_future.second.get();
-            // update the metadata cache.
-            std::unique_lock<std::shared_mutex> wlck(object_pool_metadata_cache_mutex);
-            object_pool_metadata_cache[pathname] = opm;
-            return opm;
+    
+    auto components = str_tokenizer(pathname);
+    std::string prefix;
+    for (const auto& comp: components) {
+        prefix = prefix + PATH_SEPARATOR + comp;
+        if (object_pool_metadata_cache.find(prefix) != object_pool_metadata_cache.end()) {
+            return object_pool_metadata_cache.at(prefix);
         }
-        // not found, return an invalid one.
-        return ObjectPoolMetadata<CascadeTypes...>::IV;
-    } else {
-        return object_pool_metadata_cache.at(pathname);
     }
+    rlck.unlock();
+
+    // refresh and try again.
+    refresh_object_pool_metadata_cache();
+    prefix = "";
+    rlck.lock();
+    for (const auto& comp: components) {
+        prefix = prefix + PATH_SEPARATOR + comp;
+        if (object_pool_metadata_cache.find(prefix) != object_pool_metadata_cache.end()) {
+            return object_pool_metadata_cache.at(prefix);
+        }
+    }
+    return ObjectPoolMetadata<CascadeTypes...>::IV;
 }
 
 template <typename... CascadeTypes>

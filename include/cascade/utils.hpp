@@ -23,7 +23,7 @@ inline uint64_t get_time_us(bool use_wall_clock = true) {
 /**
  * decompose a string to tokens.
  */
-inline std::vector<std::string> str_tokenizer(const std::string& str, char separator) {
+inline std::vector<std::string> str_tokenizer(const std::string& str, char separator=PATH_SEPARATOR) {
     std::vector<std::string> components;
     std::string::size_type pos=0, spos=0;
     while (pos != std::string::npos) {
