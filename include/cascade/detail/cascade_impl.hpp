@@ -16,7 +16,7 @@ namespace cascade {
 template<typename KeyType>
 std::string get_pathname(const std::enable_if_t<std::is_convertible<KeyType,std::string>::value,std::string>& key) {
     const std::string* pstr = dynamic_cast<const std::string*>(&key);
-    size_t pos = pstr->rfind('/');
+    size_t pos = pstr->rfind(PATH_SEPARATOR);
     if (pos != std::string::npos) {
         return pstr->substr(0,pos);
     }
