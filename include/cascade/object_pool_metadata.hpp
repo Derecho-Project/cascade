@@ -1,5 +1,6 @@
 #pragma once
 #include "object.hpp"
+#include "utils.hpp"
 
 namespace derecho {
 namespace cascade {
@@ -9,10 +10,23 @@ using sharding_policy_t = enum sharding_policy_type {
     RANGE
 };
 
+/**
+ * Important: A valid pathname follows the following format:
+ * [PATH_SEPARATOR<folder_name>]\{1+}
+ * Valid object pool pathname:
+ * - "/Aa/Bb/Cc"
+ * - "/A"
+ * Invalid object pool pathname:
+ * - "Aa"
+ * - "/Aa/"
+ * - "/Bb/Cc/"
+ * Please note that an empty string "" is allowed to represent an invalid Metadata object.
+ */
 template<typename... CascadeTypes>
 class ObjectPoolMetadata : public mutils::ByteRepresentable,
                            public ICascadeObject<std::string>,
                            public IKeepTimestamp,
+                           public IValidator<std::string,ObjectPoolMetadata<CascadeTypes...>>,
                            public IVerifyPreviousVersion {
 public:
     mutable persistent::version_t               version;
@@ -72,7 +86,11 @@ public:
         subgroup_index(_subgroup_index),
         sharding_policy(_sharding_policy),
         object_locations(_object_locations),
-        deleted(_deleted) {}
+        deleted(_deleted) {
+            if (!check_pathname_format(_pathname)) {
+                throw new derecho::derecho_exception("Invalid object pool pathname:" + _pathname);
+            }
+        }
 
     ObjectPoolMetadata(const std::string& _pathname,
                        uint32_t _subgroup_type_index,
@@ -89,7 +107,11 @@ public:
         subgroup_index(_subgroup_index),
         sharding_policy(_sharding_policy),
         object_locations(_object_locations),
-        deleted(_deleted) {}
+        deleted(_deleted) {
+            if (!check_pathname_format(_pathname)) {
+                throw new derecho::derecho_exception("Invalid object pool pathname:" + _pathname);
+            }
+        }
 
     // constructor 2: copy constructor
     ObjectPoolMetadata(const ObjectPoolMetadata& other):
@@ -168,6 +190,23 @@ public:
                ((this->previous_version_by_key == persistent::INVALID_VERSION)?true:(this->previous_version_by_key >= prev_ver_by_key));
     }
 
+    virtual bool validate(const std::map<std::string,ObjectPoolMetadata<CascadeTypes...>>& kv_map) const override {
+        auto components = str_tokenizer(pathname,PATH_SEPARATOR);
+        std::string prefix;
+        for (const auto& comp:components) {
+            prefix = prefix + PATH_SEPARATOR + comp;
+            if (kv_map.find(prefix) != kv_map.end()) {
+                return false;
+            }
+        }
+        for (const auto& oppn:kv_map) {
+            if (oppn.first.size() > pathname.size() && (oppn.first.compare(0,pathname.size(),pathname) == 0)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /**
      * Find the shard for an object: key_to_shard_index
      *
@@ -219,6 +258,12 @@ public:
      */
     template<typename SubgroupType>
     static inline uint32_t get_subgroup_type_index();
+
+    /**
+     * pathname format checker.
+     * @return true for a valid format false for an invalid format.
+     */
+    static inline bool check_pathname_format(const std::string& pathname);
 };
 
 template<typename... CascadeTypes>
@@ -281,6 +326,21 @@ inline std::ostream& operator<<(std::ostream& out, const ObjectPoolMetadata<Casc
             std::endl;
     }
     return out;
+}
+
+template<typename... CascadeTypes>
+bool ObjectPoolMetadata<CascadeTypes...>::check_pathname_format(const std::string& pathname) {
+    if (pathname.empty()) {
+        return true; // empty string is allowed to represent an invalid Metadata object.
+    }
+    if ((pathname.front() != PATH_SEPARATOR) || 
+        (pathname.back() == PATH_SEPARATOR) ||
+        (pathname.find(' ') != std::string::npos) ||
+        (pathname.find('\t') != std::string::npos) ||
+        (pathname.find('\n') != std::string::npos)){
+        return false;
+    }
+    return true;
 }
 
 }

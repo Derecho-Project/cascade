@@ -9,6 +9,7 @@
 #include <condition_variable>
 #include <time.h>
 #include <thread>
+#include <cascade/config.h>
 
 namespace derecho {
 namespace cascade {
@@ -19,6 +20,26 @@ inline uint64_t get_time_us(bool use_wall_clock = true) {
     return (tv.tv_sec*1000000 + tv.tv_nsec/1000);
 }
 
+/**
+ * decompose a string to tokens.
+ */
+inline std::vector<std::string> str_tokenizer(const std::string& str, char separator=PATH_SEPARATOR) {
+    std::vector<std::string> components;
+    std::string::size_type pos=0, spos=0;
+    while (pos != std::string::npos) {
+        pos = str.find(separator,pos);
+        if (pos == std::string::npos) {
+            continue;
+        }
+        // skip leading and consecutive '/'s.
+        if (pos != spos) {
+            components.emplace_back(str.substr(spos,(pos-spos)));
+        }
+        pos = pos + 1;
+        spos = pos;
+    } while (pos != std::string::npos);
+    return components;
+}
 
 /**
  * the client collect open loop latencies
