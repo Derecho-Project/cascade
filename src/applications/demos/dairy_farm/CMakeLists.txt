@@ -10,6 +10,8 @@ find_library(ANN_LIB_FOUND ANN)
 find_package(Torch QUIET)
 
 if (TENSORFLOW_LIB_FOUND AND CPPFLOW_FOUND AND OPENCV_CORE_FOUND AND ANN_LIB_FOUND AND TORCH_FOUND)
+    message(NOTICE "TENSORFLOW_LIB is ${TENSORFLOW_LIB}, TENSORFLOW_LIB_INCLUDE_DIRS is ${TENSORFLOW_LIB_INCLUDE_DIRS}")
+    message(NOTICE "TENSORFLOW_LIB_FOUND is ${TENSORFLOW_LIB_FOUND}")
     # filter_dpl
     add_library(filter_dpl SHARED filter_dpl.cpp)
     target_include_directories(filter_dpl PRIVATE
@@ -20,7 +22,7 @@ if (TENSORFLOW_LIB_FOUND AND CPPFLOW_FOUND AND OPENCV_CORE_FOUND AND ANN_LIB_FOU
         $<BUILD_INTERFACE:${OpenCV_INCLUDE_DIRS}>
         $<BUILD_INTERFACE:${TENSORFLOW_LIB_INCLUDE_DIRS}>
     )
-    target_link_libraries(filter_dpl cascade ${OpenCV_LIBS} ${TENSORFLOW_LIB})
+    target_link_libraries(filter_dpl cascade ${OpenCV_LIBS} ${TENSORFLOW_LIB_FOUND})
     if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/filter-model.tar.gz")
         add_custom_command(TARGET filter_dpl POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/filter-model.tar.gz
@@ -42,7 +44,7 @@ if (TENSORFLOW_LIB_FOUND AND CPPFLOW_FOUND AND OPENCV_CORE_FOUND AND ANN_LIB_FOU
         $<BUILD_INTERFACE:${TENSORFLOW_LIB_INCLUDE_DIRS}>
         $<BUILD_INTERFACE:${OpenCV_INCLUDE_DIRS}>
     )
-    target_link_libraries(infer_dpl cascade ${TENSORFLOW_LIB} ${TORCH_LIBRARIES} ${OpenCV_LIBS} ANN)
+    target_link_libraries(infer_dpl cascade ${TENSORFLOW_LIB_FOUND} ${TORCH_LIBRARIES} ${OpenCV_LIBS} ANN)
     if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/bcs-inference-model.tar.gz" AND
         EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/cow-id-model.tar.gz")
         add_custom_command(TARGET infer_dpl POST_BUILD
