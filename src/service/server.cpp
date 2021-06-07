@@ -48,16 +48,29 @@ class CascadeServiceCDPO: public CriticalDataPathObserver<CascadeType> {
                     PersistentCascadeStoreWithStringKey,
                     TriggerCascadeNoStoreWithStringKey>*
                 >(cascade_ctxt);
-            size_t pos = key.rfind('/');
+            size_t pos = key.rfind(PATH_SEPARATOR);
             std::string prefix;
             if (pos != std::string::npos) {
                 prefix = key.substr(0,pos);
             }
             auto handlers = ctxt->get_prefix_handlers(prefix);
             auto value_ptr = std::make_shared<typename CascadeType::ObjectType>(value);
-            for(auto& handler : handlers) {
-                Action action(key,value.get_version(),std::get<0>(handler.second),value_ptr,std::get<1>(handler.second));
-                ctxt->post(std::move(action),is_trigger);
+            for(auto& per_prefix : handlers) {
+                // per_prefix.first is the matching prefix
+                // per_prefix.second is a set of handlers
+                for (const auto& handler : per_prefix.second) {
+                    // handler.first is handler uuid
+                    // handler.second is the output of the handler
+                    Action action(
+                            key,
+                            per_prefix.first.size(),
+                            value.get_version(),
+                            std::get<0>(handler.second),
+                            value_ptr,
+                            std::get<1>(handler.second)
+                    );
+                    ctxt->post(std::move(action),is_trigger);
+                }
             }
         }
     }

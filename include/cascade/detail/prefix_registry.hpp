@@ -6,6 +6,7 @@
 #include <vector>
 #include <mutex>
 #include <iostream>
+#include <cascade/config.h>
 
 namespace derecho {
 namespace cascade {
@@ -14,7 +15,7 @@ namespace cascade {
  * @tparam T            - the value type
  * @tparam separator    - the prefix separator
  */
-template <typename T, char separator = '/'>
+template <typename T, char separator = PATH_SEPARATOR>
 class PrefixRegistry {
 private:
     class TreeNode {

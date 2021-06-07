@@ -65,12 +65,15 @@ namespace cascade {
         /**
          * This function has to be re-entrant/thread-safe.
          * @param key_string    The key string
+         * @param prefix        The matching prefix length key_string.subtring(0,prefix) returns the prefix.
+         *                      Please note that the trailing '/' is included.
          * @param version       The version of the key
          * @param value_ptr     The raw value pointer
          * @param ctxt          The CascadeContext
          * @param worker_id     The off critical data path worker id.
          */ 
         virtual void operator() (const std::string& key_string,
+                                 const uint32_t prefix_length,
                                  persistent::version_t version,
                                  const mutils::ByteRepresentable* const value_ptr,
                                  const std::unordered_map<std::string,bool>& outputs,
@@ -107,6 +110,7 @@ namespace cascade {
 #define ACTION_BUFFER_SIZE          (1024)
     struct Action {
         std::string                     key_string;
+        uint32_t                        prefix_length;
         persistent::version_t           version;
         std::shared_ptr<OffCriticalDataPathObserver>   ocdpo_ptr;
         std::shared_ptr<mutils::ByteRepresentable>     value_ptr;
@@ -129,11 +133,13 @@ namespace cascade {
          * @param   _value_ptr
          */
         Action(const std::string&           _key_string = "",
+               const uint32_t               _prefix_length = 0,
                const persistent::version_t& _version = CURRENT_VERSION,
                const std::shared_ptr<OffCriticalDataPathObserver>&  _ocdpo_ptr = nullptr,
                const std::shared_ptr<mutils::ByteRepresentable>&    _value_ptr = nullptr,
                const std::unordered_map<std::string,bool>           _outputs = {}):
             key_string(_key_string),
+            prefix_length(_prefix_length),
             version(_version),
             ocdpo_ptr(_ocdpo_ptr),
             value_ptr(_value_ptr),
@@ -152,7 +158,7 @@ namespace cascade {
         inline void fire(ICascadeContext* ctxt,uint32_t worker_id) {
             if (value_ptr && ocdpo_ptr) {
                 dbg_default_trace("In {}: action is fired.", __PRETTY_FUNCTION__);
-                (*ocdpo_ptr)(key_string,version,value_ptr.get(),outputs,ctxt,worker_id);
+                (*ocdpo_ptr)(key_string,prefix_length,version,value_ptr.get(),outputs,ctxt,worker_id);
             }
         }
         inline explicit operator bool() const {
@@ -163,6 +169,7 @@ namespace cascade {
     inline std::ostream& operator << (std::ostream& out, const Action& action) {
         out << "Action:\n"
             << "\tkey = " << action.key_string << "\n"
+            << "\tprefix_length = " << action.prefix_length << "\n"
             << "\tversion = " << std::hex << action.version << "\n"
             << "\tocdpo_ptr = " << action.ocdpo_ptr.get() << "\n"
             << "\tvalue_ptr = " << action.value_ptr.get() << "\n"
@@ -743,6 +750,7 @@ namespace cascade {
                         std::unordered_map<std::string,bool>          // output map{prefix->bool}
                     >
                 >;
+    using match_results_t = std::unordered_map<std::string,prefix_entry_t>;
     template <typename... CascadeTypes>
     class CascadeContext: public ICascadeContext {
     private:
@@ -883,7 +891,7 @@ namespace cascade {
          *
          * @return the unordered map of observers registered to this prefix.
          */
-        virtual prefix_entry_t get_prefix_handlers(const std::string& prefix); 
+        virtual match_results_t get_prefix_handlers(const std::string& prefix); 
         /**
          * post an action to the Context for processing.
          *
