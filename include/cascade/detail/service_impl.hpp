@@ -1122,14 +1122,17 @@ void CascadeContext<CascadeTypes...>::unregister_prefixes(const std::unordered_s
 
 /* Note: On the same hardware, copying a shared_ptr spends ~7.4ns, and copying a raw pointer spends ~1.8 ns*/
 template <typename... CascadeTypes>
-prefix_entry_t CascadeContext<CascadeTypes...>::get_prefix_handlers(const std::string& path) {
+match_results_t CascadeContext<CascadeTypes...>::get_prefix_handlers(const std::string& path) {
 
-    prefix_entry_t handlers;
+    match_results_t handlers;
 
     prefix_registry_ptr->collect_values_for_prefixes(
             path,
-            [&handlers](const std::string&, const std::shared_ptr<prefix_entry_t>& entry) {
-                handlers.insert(entry->cbegin(),entry->cend());
+            [&handlers](const std::string& prefix, const std::shared_ptr<prefix_entry_t>& entry) {
+                // handlers[prefix].insert(entry->cbegin(),entry->cend());
+                if (entry) {
+                    handlers.emplace(prefix,*entry);
+                }
             });
 
     return handlers;
