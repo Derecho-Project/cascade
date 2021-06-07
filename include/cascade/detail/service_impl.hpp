@@ -1086,7 +1086,12 @@ void CascadeContext<CascadeTypes...>::register_prefixes(
     for (const auto& prefix:prefixes) {
         prefix_registry_ptr->atomically_modify(prefix,
             [&prefix,&data_path_logic_id,&ocdpo_ptr,&outputs](const std::shared_ptr<prefix_entry_t>& entry){
-                std::shared_ptr<prefix_entry_t> new_entry = std::make_shared<prefix_entry_t>(*entry);
+                std::shared_ptr<prefix_entry_t> new_entry;
+                if (entry) {
+                    new_entry = std::make_shared<prefix_entry_t>(*entry);
+                } else {
+                    new_entry = std::make_shared<prefix_entry_t>(prefix_entry_t{});
+                }
                 if (new_entry->find(data_path_logic_id) == new_entry->end()) {
                     new_entry->emplace(data_path_logic_id,std::pair{ocdpo_ptr,outputs});
                 } else {
@@ -1103,9 +1108,13 @@ void CascadeContext<CascadeTypes...>::unregister_prefixes(const std::unordered_s
     for (const auto& prefix:prefixes) {
         prefix_registry_ptr->atomically_modify(prefix,
             [&prefix,&data_path_logic_id](const std::shared_ptr<prefix_entry_t>& entry){
-                std::shared_ptr<prefix_entry_t> new_value = std::make_shared<prefix_entry_t>(*entry);
-                new_value->erase(data_path_logic_id);
-                return new_value;
+                if (entry) {
+                    std::shared_ptr<prefix_entry_t> new_value = std::make_shared<prefix_entry_t>(*entry);
+                    new_value->erase(data_path_logic_id);
+                    return new_value;
+                } else {
+                    return entry;
+                }
             }
         );
     }
