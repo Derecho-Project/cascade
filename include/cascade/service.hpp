@@ -121,6 +121,7 @@ namespace cascade {
          */
         Action(Action&& other):
             key_string(other.key_string),
+            prefix_length(other.prefix_length),
             version(other.version),
             ocdpo_ptr(std::move(other.ocdpo_ptr)),
             value_ptr(std::move(other.value_ptr)),
