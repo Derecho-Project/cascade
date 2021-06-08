@@ -51,7 +51,8 @@ class CascadeServiceCDPO: public CriticalDataPathObserver<CascadeType> {
             size_t pos = key.rfind(PATH_SEPARATOR);
             std::string prefix;
             if (pos != std::string::npos) {
-                prefix = key.substr(0,pos);
+                // important: we need to keep the trailing PATH_SEPARATOR
+                prefix = key.substr(0,pos+1);
             }
             auto handlers = ctxt->get_prefix_handlers(prefix);
             auto value_ptr = std::make_shared<typename CascadeType::ObjectType>(value);
