@@ -12,13 +12,14 @@ If an object pool `/A/B/` exists, Cascade will refuse the creation requests for 
 
 # Application components
 <table>
-  <tr>
-    <td><img src="dairy_farm_arch.pdf"></td>
+  <tr align=center>
+    <td><img src="dairy_farm_arch.png"></td>
   </tr>
   <tr>
-    <td>Dairy Farm Demo Architecture</td>
+    <td align=center>Figure 1. Dairy Farm Demo Architecture</td>
   </tr>
 </table>
+
 The above figure shows the architecture of this demo. The core of this architecture consists of three object pools. The `/dairy_farm/front_end` object pool locates in a transient subgroup (`TriggerCascadeNoStore<>`) because it does not store data. We attached a filter UDL to the `/diary_farm/front_end` object pool, which calls the filter model to detect if a cow is possibly in a video frame. If positive, the filter UDL relay the frame object to the computation tier, the `/dairy_farm/compute` object pool. The `/dairy_farm/compute` object pool locates in a volatile subgroup (`VolatileCascadeStore<>`). We attach a computation UDL to the `/dairy_farm/compute` object pool, which calls the cow identification model and a health evaluation model to identify the cow id and give a health score. The computation UDL sends the cow id and health score pair to the storage tier, the `/dairy_farm/storage` object pool, which stores the records in a persisted log.
 
 Each of the object pools is mapped to subgroups sharded for performance and replicated for fault tolerance. Please check the configuration file to see how to configure the subgroup layout.
