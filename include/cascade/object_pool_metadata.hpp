@@ -88,7 +88,7 @@ public:
         object_locations(_object_locations),
         deleted(_deleted) {
             if (!check_pathname_format(_pathname)) {
-                throw new derecho::derecho_exception("Invalid object pool pathname:" + _pathname);
+                throw derecho::derecho_exception("Invalid object pool pathname:" + _pathname);
             }
         }
 
@@ -109,7 +109,7 @@ public:
         object_locations(_object_locations),
         deleted(_deleted) {
             if (!check_pathname_format(_pathname)) {
-                throw new derecho::derecho_exception("Invalid object pool pathname:" + _pathname);
+                throw derecho::derecho_exception("Invalid object pool pathname:" + _pathname);
             }
         }
 
@@ -231,11 +231,11 @@ public:
                 shard_index = std::hash<std::string>{}(key) % num_shards;
                 break;
             default:
-                throw new derecho::derecho_exception(std::string("Unknown sharding_policy:") + std::to_string(sharding_policy));
+                throw derecho::derecho_exception(std::string("Unknown sharding_policy:") + std::to_string(sharding_policy));
             }
             return shard_index;
         } else {
-            throw new derecho::derecho_exception(std::string{__PRETTY_FUNCTION__} + " failed with invalid Key Type:" + typeid(KeyType).name());
+            throw derecho::derecho_exception(std::string{__PRETTY_FUNCTION__} + " failed with invalid Key Type:" + typeid(KeyType).name());
         }
     }
 

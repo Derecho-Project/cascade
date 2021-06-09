@@ -1045,8 +1045,10 @@ void interactive_test(ServiceClientAPI& capi) {
             } else {
                 print_red("command:" + cmd_tokens[0] + " is not implemented or unknown.");
             }
-        } catch (derecho::derecho_exception &ex) {
-            std::cout << "Exception:" << ex.what() << std::endl;
+        } catch (const derecho::derecho_exception &ex) {
+            print_red (std::string("Exception:") + ex.what());
+        } catch (...) {
+            print_red ("Caught unknown exception.");
         }
     }
     std::cout << "Client exits." << std::endl;
