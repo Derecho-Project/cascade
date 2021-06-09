@@ -1,6 +1,7 @@
 #pragma once
 #include <memory>
 #include <map>
+#include <type_traits>
 
 namespace derecho {
 namespace cascade {
@@ -15,7 +16,7 @@ namespace cascade {
 template<typename KeyType>
 std::string get_pathname(const std::enable_if_t<std::is_convertible<KeyType,std::string>::value,std::string>& key) {
     const std::string* pstr = dynamic_cast<const std::string*>(&key);
-    size_t pos = pstr->rfind('/');
+    size_t pos = pstr->rfind(PATH_SEPARATOR);
     if (pos != std::string::npos) {
         return pstr->substr(0,pos);
     }
@@ -196,13 +197,20 @@ std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::or
     debug_enter_func_with_args("key={}",value.get_key_ref());
 
     std::tuple<persistent::version_t,uint64_t> version_and_timestamp = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
-
     if constexpr (std::is_base_of<IKeepVersion,VT>::value) {
         value.set_version(std::get<0>(version_and_timestamp));
     }
     if constexpr (std::is_base_of<IKeepTimestamp,VT>::value) {
         value.set_timestamp(std::get<1>(version_and_timestamp));
     }
+
+    // validator
+    if constexpr (std::is_base_of<IValidator<KT,VT>,VT>::value) {
+        if(!value.validate(this->kv_map)) {
+            return {persistent::INVALID_VERSION,0};
+        }
+    }
+
     // Verify previous version MUST happen before update previous versions.
     if constexpr (std::is_base_of<IVerifyPreviousVersion,VT>::value) {
         bool verify_result;
@@ -476,6 +484,13 @@ std::unique_ptr<DeltaCascadeStoreCore<KT,VT,IK,IV>> DeltaCascadeStoreCore<KT,VT,
 
 template <typename KT, typename VT, KT* IK, VT *IV>
 bool DeltaCascadeStoreCore<KT,VT,IK,IV>::ordered_put(const VT& value, persistent::version_t prev_ver) {
+    // call validator
+    if constexpr (std::is_base_of<IValidator<KT,VT>,VT>::value) {
+        if(!value.validate(this->kv_map)) {
+            return false;
+        }
+    }
+
     // verify version MUST happen before updating it's previous versions (prev_ver,prev_ver_by_key).
     if constexpr (std::is_base_of<IVerifyPreviousVersion,VT>::value) {
         bool verify_result;

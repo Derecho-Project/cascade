@@ -175,6 +175,7 @@ private:
     mutable std::mutex p2p_send_mutex;
 
     virtual void operator () (const std::string& key_string,
+                              const uint32_t prefix_length,
                               persistent::version_t version,
                               const mutils::ByteRepresentable* const value_ptr,
                               const std::unordered_map<std::string,bool>& outputs,
@@ -214,11 +215,10 @@ private:
         bcs_inference.join();
         
         // put the result to next tier
-        std::string delim("/");
-        std::string frame_key = key_string.substr(key_string.rfind(delim));
+        std::string frame_key = key_string.substr(prefix_length);
         std::string obj_value = std::to_string(bcs) + "_" + std::to_string(frame->timestamp);
         for (auto iter = outputs.begin(); iter != outputs.end(); ++iter) {
-            std::string obj_key = iter->first + frame_key + delim + std::to_string(cow_id);
+            std::string obj_key = iter->first + frame_key + PATH_SEPARATOR + std::to_string(cow_id);
             PersistentCascadeStoreWithStringKey::ObjectType obj(obj_key,obj_value.c_str(),obj_value.size());
             std::lock_guard<std::mutex> lock(p2p_send_mutex);
 

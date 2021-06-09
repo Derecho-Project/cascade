@@ -29,6 +29,7 @@ class DairyFarmFilterOCDPO: public OffCriticalDataPathObserver {
     std::mutex p2p_send_mutex;
 
     virtual void operator () (const std::string& key_string,
+                              const uint32_t prefix_length,
                               persistent::version_t version,
                               const mutils::ByteRepresentable* const value_ptr,
                               const std::unordered_map<std::string,bool>& outputs,
@@ -75,10 +76,9 @@ class DairyFarmFilterOCDPO: public OffCriticalDataPathObserver {
         float prediction = output.get_data<float>()[0];
         std::cout << "prediction: " << prediction << std::endl;
         if (prediction < FILTER_THRESHOLD) {
-            std::string delim("/");
-            std::string frame_idx = key_string.substr(key_string.rfind(delim) + 1);
+            std::string frame_idx = key_string.substr(prefix_length);
             for (auto iter = outputs.begin(); iter != outputs.end(); ++iter) {
-                std::string obj_key = iter->first + delim + frame_idx;
+                std::string obj_key = iter->first + frame_idx;
                 VolatileCascadeStoreWithStringKey::ObjectType obj(obj_key,tcss_value->blob.bytes,tcss_value->blob.size);
                 std::lock_guard<std::mutex> lock(p2p_send_mutex);
                 
