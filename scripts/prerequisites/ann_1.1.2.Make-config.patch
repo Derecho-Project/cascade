@@ -1,0 +1,11 @@
+--- ann_1.1.2/Make-config	2010-01-27 23:40:01.000000000 -0500
++++ ann_1.1.2.modified/Make-config	2021-05-04 23:20:25.858788429 -0400
+@@ -72,7 +72,7 @@
+ 	$(MAKE) targets \
+ 	"ANNLIB = libANN.a" \
+ 	"C++ = g++" \
+-	"CFLAGS = -O3" \
++	"CFLAGS = -O3 -fPIC" \
+ 	"MAKELIB = ar ruv" \
+ 	"RANLIB = true"
+ 
