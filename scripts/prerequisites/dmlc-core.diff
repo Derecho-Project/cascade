@@ -1,0 +1,13 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 0b53dd5..45460e7 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -26,7 +26,7 @@ set(DMLC_ENABLED_SANITIZERS "address" "leak" CACHE STRING
+   "Semicolon separated list of sanitizer names. E.g 'address;leak'. Supported sanitizers are
+   address, leak and thread.")
+ 
+-set(dmlccore_LINKER_LIBS "")
++set(dmlccore_LINKER_LIBS "-fopenmp")
+ 
+ # Sanitizer
+ if (DMLC_USE_SANITIZER)
