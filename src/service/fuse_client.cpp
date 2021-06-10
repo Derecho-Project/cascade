@@ -28,7 +28,7 @@
  */
 
 using namespace derecho::cascade;
-using FuseClientContextType = FuseClientContext<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey>;
+using FuseClientContextType = FuseClientContext<VolatileCascadeStoreWithStringKey, PersistentCascadeStoreWithStringKey>;
 
 #define FCC(p) static_cast<FuseClientContextType*>(p)
 #define FCC_REQ(req) FCC(fuse_req_userdata(req))
@@ -157,10 +157,24 @@ static const struct fuse_lowlevel_ops fs_ops = {
     .init       = fs_init,
     .destroy    = fs_destroy,
     .lookup     = fs_lookup,
+    .forget     = NULL,
     .getattr    = fs_getattr,
+    .setattr    = NULL,
+    .readlink   = NULL,
+    .mknod      = NULL,
+    .mkdir      = NULL,
+    .unlink     = NULL,
+    .rmdir      = NULL,
+    .symlink    = NULL,
+    .rename     = NULL,
+    .link       = NULL,
     .open       = fs_open,
     .read       = fs_read,
+    .write      = NULL,
+    .flush      = NULL,
     .release    = fs_release,
+    .fsync      = NULL,
+    .opendir    = NULL,
     .readdir    = fs_readdir,
 };
 

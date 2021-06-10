@@ -316,7 +316,7 @@ void do_server() {
         nullptr,    // delivery callback
         nullptr,    // local persistence callback
         nullptr,    // global persistence callback
-        nullptr     // global verification callback
+        nullptr     // global verify callback
     };
     derecho::SubgroupInfo si {
         derecho::DefaultSubgroupAllocator({
