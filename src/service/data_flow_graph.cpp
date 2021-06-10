@@ -20,18 +20,18 @@ DataFlowGraph::DataFlowGraph(const json& dfg_conf):
             dfgv.pathname = dfgv.pathname + PATH_SEPARATOR;
         }
         for(size_t i=0;i<(*it)[DFG_JSON_DATA_PATH_LOGIC_LIST].size();i++) {
-            std::string dpl_uuid = (*it)[DFG_JSON_DATA_PATH_LOGIC_LIST].at(i);
+            std::string udl_uuid = (*it)[DFG_JSON_DATA_PATH_LOGIC_LIST].at(i);
             std::map<std::string,std::string> dest = 
                 (*it)[DFG_JSON_DESTINATIONS].at(i).get<std::map<std::string,std::string>>();
 
-            if (dfgv.edges.find(dpl_uuid) == dfgv.edges.end()) {
-                dfgv.edges.emplace(dpl_uuid,std::unordered_map<std::string,bool>{});
+            if (dfgv.edges.find(udl_uuid) == dfgv.edges.end()) {
+                dfgv.edges.emplace(udl_uuid,std::unordered_map<std::string,bool>{});
             }
             for(auto& kv:dest) {
                 if (kv.first.back() == PATH_SEPARATOR) {
-                    dfgv.edges[dpl_uuid].emplace(kv.first,(kv.second==DFG_JSON_TRIGGER_PUT)?true:false);
+                    dfgv.edges[udl_uuid].emplace(kv.first,(kv.second==DFG_JSON_TRIGGER_PUT)?true:false);
                 } else {
-                    dfgv.edges[dpl_uuid].emplace(kv.first + PATH_SEPARATOR,(kv.second==DFG_JSON_TRIGGER_PUT)?true:false);
+                    dfgv.edges[udl_uuid].emplace(kv.first + PATH_SEPARATOR,(kv.second==DFG_JSON_TRIGGER_PUT)?true:false);
                 }
             }
 

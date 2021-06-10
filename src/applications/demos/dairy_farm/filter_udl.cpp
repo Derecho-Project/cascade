@@ -1,15 +1,15 @@
-#include <cascade/data_path_logic_interface.hpp>
+#include <cascade/user_defined_logic_interface.hpp>
 #include <iostream>
 #include <vector>
 #include <opencv2/opencv.hpp>
 #include <cppflow/cppflow.h>
-#include "demo_dpl.hpp"
+#include "demo_udl.hpp"
 
 namespace derecho{
 namespace cascade{
 
 #define MY_UUID     "22b86c6e-9d92-11eb-81d0-0242ac110002"
-#define MY_DESC     "The Dairy Farm DEMO: Filter DPL."
+#define MY_DESC     "The Dairy Farm DEMO: Filter UDL."
 
 std::string get_uuid() {
     return MY_UUID;

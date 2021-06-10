@@ -19,7 +19,7 @@ namespace cascade {
  *     "graph": [
  *         {
  *             "pathname": "/pool0/",
- *             "data_path_logic_list": [
+ *             "user_defined_logic_list": [
  *                 "4e4ecc86-9b3c-11eb-b70c-0242ac110002",
  *                 "4f0373a2-9b3c-11eb-a651-0242ac110002"
  *             ],
@@ -30,7 +30,7 @@ namespace cascade {
  *         },
  *         {
  *             "pathname": "/pool1.1/",
- *             "data_path_logic_list": [
+ *             "user_defined_logic_list": [
  *                 "43fecc86-9b3c-11eb-b70c-0242ac110002"
  *             ],
  *             "destinations": [
@@ -41,10 +41,10 @@ namespace cascade {
  * }
  *
  * Each DFG is composed of an ID, which is a UUID string, and a graph. The graph specifies the DFG structure using a
- * list of vertices. Each vertex has three attributes: "pathname", "data_path_logic_list", and "destinations".
- * The "pathname" specifies a folder for this vertex. The "data_path_logic_list" attribute gives a list
- * of DPLs that should be registered for this vertex. And the "destinations" attribute lists where the output of
- * DPLs should go. Please note that the length of "destinations" should match the size of "data_path_logic_list". Also,
+ * list of vertices. Each vertex has three attributes: "pathname", "user_defined_logic_list", and "destinations".
+ * The "pathname" specifies a folder for this vertex. The "user_defined_logic_list" attribute gives a list
+ * of UDLs that should be registered for this vertex. And the "destinations" attribute lists where the output of
+ * UDLs should go. Please note that the length of "destinations" should match the size of "user_defined_logic_list". Also,
  * each element of the "destinations" value is a dictionary specifying the vertex and the method
  * (put/trigger_put).
  */
@@ -53,7 +53,7 @@ namespace cascade {
 #define DFG_JSON_DESCRIPTION            "desc"
 #define DFG_JSON_GRAPH                  "graph"
 #define DFG_JSON_PATHNAME               "pathname"
-#define DFG_JSON_DATA_PATH_LOGIC_LIST   "data_path_logic_list"
+#define DFG_JSON_DATA_PATH_LOGIC_LIST   "user_defined_logic_list"
 #define DFG_JSON_DESTINATIONS           "destinations"
 #define DFG_JSON_PUT                    "put"
 #define DFG_JSON_TRIGGER_PUT            "trigger_put"
@@ -70,9 +70,9 @@ public:
     // to its vertex structure.
     struct DataFlowGraphVertex {
         std::string pathname;
-        // The edges is a map from DPL uuid string to a vector of destiation vertex pathnames.
-        // An entry "dpl_uuid->[pool1:true,pool2:false,pool3:false]" means three edges from the current vertex to three destination
-        // vertices pool1, pool2, and pool3. The input data is processed by DPL specified by dpl_uuid.
+        // The edges is a map from UDL uuid string to a vector of destiation vertex pathnames.
+        // An entry "udl_uuid->[pool1:true,pool2:false,pool3:false]" means three edges from the current vertex to three destination
+        // vertices pool1, pool2, and pool3. The input data is processed by UDL specified by udl_uuid.
         std::unordered_map<std::string,std::unordered_map<std::string,bool>> edges;
         // to string
         inline std::string to_string() const {
@@ -80,7 +80,7 @@ public:
             out << typeid(*this).name() << ":" << pathname << "{\n";
             for (auto& e:edges) {
                 for (auto& pool:e.second){
-                    out << "\t-[dpl:" << e.first << "]-" << (pool.second?'*':'-') << "->" << pool.first <<"\n";
+                    out << "\t-[udl:" << e.first << "]-" << (pool.second?'*':'-') << "->" << pool.first <<"\n";
                 }
             }
             out << "}";

@@ -914,12 +914,12 @@ void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeMetadataSe
     // 2 - create data path logic loader and register the prefixes. Ideally, this part should be done in the control
     // plane, where a centralized controller should issue the control messages to do load/unload.
     // TODO: implement the control plane.
-    data_path_logic_manager = DataPathLogicManager<CascadeTypes...>::create(this);
+    user_defined_logic_manager = UserDefinedLogicManager<CascadeTypes...>::create(this);
     auto dfgs = DataFlowGraph::get_data_flow_graphs();
     for (auto& dfg:dfgs) {
         for (auto& vertex:dfg.vertices) {
             for (auto& edge:vertex.second.edges) {
-                register_prefixes({vertex.second.pathname},edge.first,data_path_logic_manager->get_observer(edge.first),edge.second);
+                register_prefixes({vertex.second.pathname},edge.first,user_defined_logic_manager->get_observer(edge.first),edge.second);
             }
         }
     }
@@ -1080,22 +1080,22 @@ ServiceClient<CascadeTypes...>& CascadeContext<CascadeTypes...>::get_service_cli
 template <typename... CascadeTypes>
 void CascadeContext<CascadeTypes...>::register_prefixes(
         const std::unordered_set<std::string>& prefixes,
-        const std::string& data_path_logic_id,
+        const std::string& user_defined_logic_id,
         const std::shared_ptr<OffCriticalDataPathObserver>& ocdpo_ptr,
         const std::unordered_map<std::string,bool>& outputs) {
     for (const auto& prefix:prefixes) {
         prefix_registry_ptr->atomically_modify(prefix,
-            [&prefix,&data_path_logic_id,&ocdpo_ptr,&outputs](const std::shared_ptr<prefix_entry_t>& entry){
+            [&prefix,&user_defined_logic_id,&ocdpo_ptr,&outputs](const std::shared_ptr<prefix_entry_t>& entry){
                 std::shared_ptr<prefix_entry_t> new_entry;
                 if (entry) {
                     new_entry = std::make_shared<prefix_entry_t>(*entry);
                 } else {
                     new_entry = std::make_shared<prefix_entry_t>(prefix_entry_t{});
                 }
-                if (new_entry->find(data_path_logic_id) == new_entry->end()) {
-                    new_entry->emplace(data_path_logic_id,std::pair{ocdpo_ptr,outputs});
+                if (new_entry->find(user_defined_logic_id) == new_entry->end()) {
+                    new_entry->emplace(user_defined_logic_id,std::pair{ocdpo_ptr,outputs});
                 } else {
-                    new_entry->at(data_path_logic_id).second.insert(outputs.cbegin(),outputs.cend());
+                    new_entry->at(user_defined_logic_id).second.insert(outputs.cbegin(),outputs.cend());
                 }
                 return new_entry;
             },true);
@@ -1104,13 +1104,13 @@ void CascadeContext<CascadeTypes...>::register_prefixes(
 
 template <typename... CascadeTypes>
 void CascadeContext<CascadeTypes...>::unregister_prefixes(const std::unordered_set<std::string>& prefixes,
-                                                          const std::string& data_path_logic_id) {
+                                                          const std::string& user_defined_logic_id) {
     for (const auto& prefix:prefixes) {
         prefix_registry_ptr->atomically_modify(prefix,
-            [&prefix,&data_path_logic_id](const std::shared_ptr<prefix_entry_t>& entry){
+            [&prefix,&user_defined_logic_id](const std::shared_ptr<prefix_entry_t>& entry){
                 if (entry) {
                     std::shared_ptr<prefix_entry_t> new_value = std::make_shared<prefix_entry_t>(*entry);
-                    new_value->erase(data_path_logic_id);
+                    new_value->erase(user_defined_logic_id);
                     return new_value;
                 } else {
                     return entry;

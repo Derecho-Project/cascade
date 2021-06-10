@@ -5,4 +5,4 @@ project(cascade CXX)
 
 add_subdirectory(unit_tests)
 add_subdirectory(cascade_as_subgroup_classes)
-add_subdirectory(data_path_logic)
+add_subdirectory(user_defined_logic)

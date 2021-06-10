@@ -1,4 +1,4 @@
-#include <cascade/data_path_logic_interface.hpp>
+#include <cascade/user_defined_logic_interface.hpp>
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -7,13 +7,13 @@
 #include <cppflow/cppflow.h>
 #include <torch/script.h>
 #include <ANN/ANN.h>
-#include "demo_dpl.hpp"		
+#include "demo_udl.hpp"		
 
 namespace derecho{
 namespace cascade{
 
 #define MY_UUID     "6793c66c-9d92-11eb-9aa9-0242ac110002"
-#define MY_DESC     "The Dairy Farm DEMO inference DPL."
+#define MY_DESC     "The Dairy Farm DEMO inference UDL."
 
 std::string get_uuid() {
     return MY_UUID;

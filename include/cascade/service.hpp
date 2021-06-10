@@ -17,7 +17,7 @@
 #include <derecho/conf/conf.hpp>
 #include "cascade.hpp"
 #include "object_pool_metadata.hpp"
-#include "data_path_logic_manager.hpp"
+#include "user_defined_logic_manager.hpp"
 #include "detail/prefix_registry.hpp"
 
 using json = nlohmann::json; 
@@ -745,7 +745,7 @@ namespace cascade {
      */
     using prefix_entry_t = 
                 std::unordered_map<
-                    std::string, // dpl_id
+                    std::string, // udl_id
                     std::pair<
                         std::shared_ptr<OffCriticalDataPathObserver>, // ocdpo
                         std::unordered_map<std::string,bool>          // output map{prefix->bool}
@@ -775,11 +775,11 @@ namespace cascade {
         /** thread pool control */
         std::atomic<bool>       is_running;
         /** the prefix registries, one is active, the other is shadow 
-         * prefix->{dpl_id->{ocdpo,{prefix->trigger_put/put}}
+         * prefix->{udl_id->{ocdpo,{prefix->trigger_put/put}}
          */
         std::shared_ptr<PrefixRegistry<prefix_entry_t,PATH_SEPARATOR>> prefix_registry_ptr;
         /** the data path logic loader */
-        std::unique_ptr<DataPathLogicManager<CascadeTypes...>> data_path_logic_manager;
+        std::unique_ptr<UserDefinedLogicManager<CascadeTypes...>> user_defined_logic_manager;
         /** the off-critical data path worker thread pools */
         std::vector<std::thread> workhorses_for_multicast;
         std::vector<std::thread> workhorses_for_p2p;
@@ -858,33 +858,33 @@ namespace cascade {
          * some data coming. Without a lock guarding prefix registry in the critical data path, it's a little bit tricky
          * to support runtime update. 
          * 
-         * IMPORTANT: Successful unregistration of a prefix does not guarantee the corresponding DPL is safe to be
+         * IMPORTANT: Successful unregistration of a prefix does not guarantee the corresponding UDL is safe to be
          * released. Because a previous triggered off-critical data path might still working on the unregistered prefix.
-         * TODO: find a mechanism to trigger safe DPL unloading.
+         * TODO: find a mechanism to trigger safe UDL unloading.
          */
 
         /**
          * Register a set of prefixes
          *
          * @param prefixes              - the prefixes set
-         * @param data_path_logic_id    - the DPL id, presumably an UUID string
+         * @param user_defined_logic_id - the UDL id, presumably an UUID string
          * @param ocdpo_ptr             - the data path observer
          * @param outputs               - the outputs are a map from another prefix to put type (true for trigger put,
          *                                false for put).
          */
         virtual void register_prefixes(const std::unordered_set<std::string>& prefixes,
-                                       const std::string& data_path_logic_id,
+                                       const std::string& user_defined_logic_id,
                                        const std::shared_ptr<OffCriticalDataPathObserver>& ocdpo_ptr,
                                        const std::unordered_map<std::string,bool>& outputs);
         /**
          * Unregister a set of prefixes
          * 
          * @param prefixes              - the prefixes set
-         * @param data_path_logic_id    - the DPL id, presumably an UUID string
+         * @param user_defined_logic_id - the UDL id, presumably an UUID string
          * @param ocdpo_ptr             - the data path observer
          */
         virtual void unregister_prefixes(const std::unordered_set<std::string>& prefixes,
-                                         const std::string& data_path_logic_id);
+                                         const std::string& user_defined_logic_id);
         /**
          * Get the prefix handlers registered for a prefix
          *
