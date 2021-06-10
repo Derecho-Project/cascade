@@ -4,14 +4,14 @@ set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 
 CHECK_INCLUDE_FILES("mxnet-cpp/MxNetCpp.h" HAS_MXNET_CPP)
 
-add_library(console_printer_dpl SHARED console_printer_dpl.cpp)
-target_include_directories(console_printer_dpl PRIVATE
+add_library(console_printer_udl SHARED console_printer_udl.cpp)
+target_include_directories(console_printer_udl PRIVATE
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
 )
-add_custom_command(TARGET console_printer_dpl POST_BUILD
+add_custom_command(TARGET console_printer_udl POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/console_printer_cfg
     ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/run.sh.tmp
@@ -34,33 +34,33 @@ add_custom_command(TARGET console_printer_dpl POST_BUILD
     ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n3/dfgs.json 
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/dfgs.json.tmp
     ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n4/dfgs.json 
-    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/dpl_dlls.cfg.tmp
-    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n0/dpl_dlls.cfg 
-    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/dpl_dlls.cfg.tmp
-    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n1/dpl_dlls.cfg 
-    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/dpl_dlls.cfg.tmp
-    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n2/dpl_dlls.cfg 
-    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/dpl_dlls.cfg.tmp
-    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n3/dpl_dlls.cfg 
-    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/dpl_dlls.cfg.tmp
-    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n4/dpl_dlls.cfg 
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/udl_dlls.cfg.tmp
+    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n0/udl_dlls.cfg 
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/udl_dlls.cfg.tmp
+    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n1/udl_dlls.cfg 
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/udl_dlls.cfg.tmp
+    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n2/udl_dlls.cfg 
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/udl_dlls.cfg.tmp
+    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n3/udl_dlls.cfg 
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/udl_dlls.cfg.tmp
+    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n4/udl_dlls.cfg 
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/console_printer_cfg/run.sh.tmp
             ${CMAKE_CURRENT_SOURCE_DIR}/console_printer_cfg/dfgs.json.tmp
-            ${CMAKE_CURRENT_SOURCE_DIR}/console_printer_cfg/dpl_dlls.cfg.tmp
+            ${CMAKE_CURRENT_SOURCE_DIR}/console_printer_cfg/udl_dlls.cfg.tmp
     COMMENT "prepare console_printer configuration"
 )
 
-##TODO: enable cnn_classifier dpl after data path logic manager is finished.
+##TODO: enable cnn_classifier udl after data path logic manager is finished.
 ##if (HAS_MXNET_CPP AND OPENCV_CORE_FOUND)
-##    add_library(cnn_classifier_dpl SHARED cnn_classifier_dpl.cpp)
-##    target_include_directories(cnn_classifier_dpl PRIVATE
+##    add_library(cnn_classifier_udl SHARED cnn_classifier_udl.cpp)
+##    target_include_directories(cnn_classifier_udl PRIVATE
 ##        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
 ##        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
 ##        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 ##        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
 ##        $<BUILD_INTERFACE:${OpenCV_INCLUDE_DIRS}>
 ##    )
-##    target_link_libraries(cnn_classifier_dpl mxnet cascade)
+##    target_link_libraries(cnn_classifier_udl mxnet cascade)
 ##
 ##    add_executable(cnn_classifier_client cnn_classifier_client.cpp)
 ##    target_include_directories(cnn_classifier_client PRIVATE

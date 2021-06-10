@@ -1,11 +1,11 @@
-#include <cascade/data_path_logic_interface.hpp>
+#include <cascade/user_defined_logic_interface.hpp>
 #include <iostream>
 
 namespace derecho{
 namespace cascade{
 
 #define MY_UUID     "48e60f7c-8500-11eb-8755-0242ac110002"
-#define MY_DESC     "Demo DLL DPL that printing what ever received on console."
+#define MY_DESC     "Demo DLL UDL that printing what ever received on console."
 
 std::string get_uuid() {
     return MY_UUID;
