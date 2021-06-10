@@ -16,9 +16,9 @@
 #include <unordered_set>
 #include <derecho/conf/conf.hpp>
 #include "cascade.hpp"
-#include "data_path_logic_manager.hpp"
-
-using json = nlohmann::json;
+#include "object_pool_metadata.hpp"
+#include "user_defined_logic_manager.hpp"
+#include "detail/prefix_registry.hpp"
 
 using json = nlohmann::json; 
 
@@ -39,6 +39,17 @@ namespace cascade {
     /* Cascade Factory type*/
     template <typename CascadeType>
     using Factory = std::function<std::unique_ptr<CascadeType>(persistent::PersistentRegistry*, subgroup_id_t subgroup_id, ICascadeContext*)>;
+
+    /* Cascade Metadata Service type*/
+	template<typename...CascadeTypes>
+	using CascadeMetadataService = PersistentCascadeStore<
+    	std::remove_cv_t<std::remove_reference_t<decltype(((ObjectPoolMetadata<CascadeTypes...>*)nullptr)->get_key_ref())>>,
+        ObjectPoolMetadata<CascadeTypes...>,
+        &ObjectPoolMetadata<CascadeTypes...>::IK,
+        &ObjectPoolMetadata<CascadeTypes...>::IV,
+        ST_FILE>;
+#define METADATA_SERVICE_SUBGROUP_INDEX (0)
+
     
     /* The cascade context to be defined later */
     template <typename... CascadeTypes>
@@ -54,14 +65,18 @@ namespace cascade {
         /**
          * This function has to be re-entrant/thread-safe.
          * @param key_string    The key string
+         * @param prefix        The matching prefix length key_string.subtring(0,prefix) returns the prefix.
+         *                      Please note that the trailing '/' is included.
          * @param version       The version of the key
          * @param value_ptr     The raw value pointer
          * @param ctxt          The CascadeContext
          * @param worker_id     The off critical data path worker id.
          */ 
         virtual void operator() (const std::string& key_string,
+                                 const uint32_t prefix_length,
                                  persistent::version_t version,
-                                 const mutils::ByteRepresentable* const value_ptr, 
+                                 const mutils::ByteRepresentable* const value_ptr,
+                                 const std::unordered_map<std::string,bool>& outputs,
                                  ICascadeContext* ctxt, 
                                  uint32_t worker_id) = 0;
     };
@@ -95,19 +110,22 @@ namespace cascade {
 #define ACTION_BUFFER_SIZE          (1024)
     struct Action {
         std::string                     key_string;
+        uint32_t                        prefix_length;
         persistent::version_t           version;
         std::shared_ptr<OffCriticalDataPathObserver>   ocdpo_ptr;
         std::shared_ptr<mutils::ByteRepresentable>     value_ptr;
+        std::unordered_map<std::string,bool>           outputs;
         /**
          * Move constructor
          * @param other     The input Action object
          */
         Action(Action&& other):
             key_string(other.key_string),
+            prefix_length(other.prefix_length),
             version(other.version),
             ocdpo_ptr(std::move(other.ocdpo_ptr)),
-            value_ptr(std::move(other.value_ptr)) {
-        }
+            value_ptr(std::move(other.value_ptr)),
+            outputs(std::move(other.outputs)) {}
         /**
          * Constructor
          * @param   _key_string
@@ -116,14 +134,17 @@ namespace cascade {
          * @param   _value_ptr
          */
         Action(const std::string&           _key_string = "",
+               const uint32_t               _prefix_length = 0,
                const persistent::version_t& _version = CURRENT_VERSION,
                const std::shared_ptr<OffCriticalDataPathObserver>&  _ocdpo_ptr = nullptr,
-               const std::shared_ptr<mutils::ByteRepresentable>&    _value_ptr = nullptr):
+               const std::shared_ptr<mutils::ByteRepresentable>&    _value_ptr = nullptr,
+               const std::unordered_map<std::string,bool>           _outputs = {}):
             key_string(_key_string),
+            prefix_length(_prefix_length),
             version(_version),
             ocdpo_ptr(_ocdpo_ptr),
-            value_ptr(_value_ptr) {
-        }
+            value_ptr(_value_ptr),
+            outputs(_outputs) {}
         Action(const Action&) = delete; // disable copy constructor
         /**
          * Assignment operators
@@ -138,7 +159,7 @@ namespace cascade {
         inline void fire(ICascadeContext* ctxt,uint32_t worker_id) {
             if (value_ptr && ocdpo_ptr) {
                 dbg_default_trace("In {}: action is fired.", __PRETTY_FUNCTION__);
-                (*ocdpo_ptr)(key_string,version,value_ptr.get(),ctxt,worker_id);
+                (*ocdpo_ptr)(key_string,prefix_length,version,value_ptr.get(),outputs,ctxt,worker_id);
             }
         }
         inline explicit operator bool() const {
@@ -149,10 +170,15 @@ namespace cascade {
     inline std::ostream& operator << (std::ostream& out, const Action& action) {
         out << "Action:\n"
             << "\tkey = " << action.key_string << "\n"
+            << "\tprefix_length = " << action.prefix_length << "\n"
             << "\tversion = " << std::hex << action.version << "\n"
             << "\tocdpo_ptr = " << action.ocdpo_ptr.get() << "\n"
-            << "\tvalue_ptr = " << action.value_ptr.get()
-            << std::endl;
+            << "\tvalue_ptr = " << action.value_ptr.get() << "\n"
+            << "\toutput = ";
+        for (auto& output:action.outputs) {
+            out << output.first << (output.second? "[*]":"") << ";";
+        }
+        out << std::endl;
 
         return out;
     }
@@ -169,12 +195,14 @@ namespace cascade {
         /**
          * Constructor
          * The constructor will load the configuration, start the service thread.
-         * @param layout TODO: explain layout
-         * @param dsms TODO: explain it here
-         * @param factories: explain it here
+         * @param layout the json layout, please find detailed description in the configuration file.
+         * @param dsms deserialization managers
+         * @param metadata_service_factory
+         * @param factories: subgroup factories.
          */
         Service(const json& layout,
                 const std::vector<DeserializationContext*>& dsms,
+                derecho::cascade::Factory<CascadeMetadataService<CascadeTypes...>> metadata_service_factory,
                 derecho::cascade::Factory<CascadeTypes>... factories);
         /**
          * The workhorse
@@ -203,7 +231,7 @@ namespace cascade {
         /**
          * The group
          */
-        std::unique_ptr<derecho::Group<CascadeTypes...>> group;
+        std::unique_ptr<derecho::Group<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>> group;
         /**
          * The CascadeContext
          */
@@ -221,10 +249,12 @@ namespace cascade {
          *
          * @param layout TODO: explain layout
          * @param dsms
+         * @param metadata_factory - factory for the metadata service.
          * @param factories - the factories to create objects.
          */
         static void start(const json& layout,
                           const std::vector<DeserializationContext*>& dsms,
+                          derecho::cascade::Factory<CascadeMetadataService<CascadeTypes...>> metadata_factory,
                           derecho::cascade::Factory<CascadeTypes>... factories);
         /**
          * Check if service is started or not.
@@ -285,15 +315,16 @@ namespace cascade {
             return static_cast<size_t>(std::get<0>(t).hash_code() ^ ((std::get<1>(t)<<16) | std::get<2>(t)));
         }
     };
+
     
     template <typename... CascadeTypes>
     class ServiceClient {
     private:
         // default caller as an external client.
-        std::unique_ptr<derecho::ExternalGroup<CascadeTypes...>> external_group_ptr;
+        std::unique_ptr<derecho::ExternalGroup<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>> external_group_ptr;
         mutable std::mutex external_group_ptr_mutex;
         // caller as a group member.
-        derecho::Group<CascadeTypes...>* group_ptr;
+        derecho::Group<CascadeMetadataService<CascadeTypes...>, CascadeTypes...>* group_ptr;
         mutable std::mutex group_ptr_mutex;
         /**
          * 'member_selection_policies' is a map from derecho shard to its member selection policy.
@@ -319,6 +350,14 @@ namespace cascade {
             std::vector<node_id_t>,
             do_hash<std::tuple<std::type_index,uint32_t,uint32_t>>> member_cache;
         mutable std::shared_mutex member_cache_mutex;
+        /**
+         * 'object_pool_info_cache' is a local cache for object pool metadata. This cache is used to accelerate the
+         * object access process. If an object pool does not exists, it will be loaded from metadata service.
+         */
+        std::unordered_map<
+            std::string,
+            ObjectPoolMetadata<CascadeTypes...>> object_pool_metadata_cache;
+        mutable std::shared_mutex object_pool_metadata_cache_mutex;
     
         /**
          * Pick a member by a given a policy.
@@ -338,6 +377,15 @@ namespace cascade {
          */
         template <typename SubgroupType>
         void refresh_member_cache_entry(uint32_t subgroup_index, uint32_t shard_index);
+
+        /**
+         * Metadata API Helper: turn a string key to subgroup index and shard index
+         * 
+         */
+        template <typename SubgroupType>
+        std::pair<uint32_t,uint32_t> key_to_subgroup_index_and_shard_index(const typename SubgroupType::KeyType& key,
+                bool check_object_location = true);
+
     public:
         /**
          * The Constructor
@@ -345,7 +393,7 @@ namespace cascade {
          *                   valid, the implementation will reply on the group object instead of creating an external
          *                   client to communicate with group members.
          */
-        ServiceClient(derecho::Group<CascadeTypes...>* _group_ptr=nullptr);
+        ServiceClient(derecho::Group<CascadeMetadataService<CascadeTypes...>, CascadeTypes...>* _group_ptr=nullptr);
         /**
          * Derecho group helpers: They derive the API in derecho::ExternalClient.
          * - get_my_id          return my local node id.
@@ -374,8 +422,8 @@ namespace cascade {
          * - get_member_selection_policy read the member selection policies.
          * @param subgroup_index 
          * @param shard_index
-         * @policy
-         * @user_specified_node_id
+         * @param policy
+         * @param user_specified_node_id
          * @return get_member_selection_policy returns a 2-tuple of policy and user_specified_node_id.
          */
         template <typename SubgroupType>
@@ -399,28 +447,40 @@ namespace cascade {
          *                            of the version and timestamp meaning what is the latest version/timestamp the caller
          *                            has seen. Cascade will reject the write if the corresponding key has been updated
          *                            already. TODO: should we make it an optional feature?
-         * @subugroup_index         the subgroup index of CascadeType
-         * @shard_index             the shard index.
+         * @param subugroup_index   the subgroup index of CascadeType
+         * @param shard_index       the shard index.
          *
          * @return a future to the version and timestamp of the put operation.
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
          */
         template <typename SubgroupType>
         derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> put(const typename SubgroupType::ObjectType& object,
-                uint32_t subgroup_index=0, uint32_t shard_index=0);
+                uint32_t subgroup_index, uint32_t shard_index);
+
+        /**
+         * object pool version
+         */
+        template <typename SubgroupType>
+        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> put(const typename SubgroupType::ObjectType& object);
 
         /**
          * "trigger_put" writes an object to a given subgroup/shard.
          *
          * @param object            the object to write.
-         * @subugroup_index         the subgroup index of CascadeType
-         * @shard_index             the shard index.
+         * @param subugroup_index   the subgroup index of CascadeType
+         * @param shard_index       the shard index.
          *
          * @return a void future.
          */
         template <typename SubgroupType>
         derecho::rpc::QueryResults<void> trigger_put(const typename SubgroupType::ObjectType& object,
-                uint32_t subgroup_index=0, uint32_t shard_index=0);
+                uint32_t subgroup_index, uint32_t shard_index);
+
+        /**
+         * object pool version
+         */
+        template <typename SubgroupType>
+        derecho::rpc::QueryResults<void> trigger_put(const typename SubgroupType::ObjectType& object);
 
         /**
          * "collective_trigger_put" writes an object to a set of nodes.
@@ -431,7 +491,7 @@ namespace cascade {
          * not enabled so far. TODO: Track exception in derecho::rpc::QueryResults<void> 
          *
          * @param object            the object to write.
-         * @subugroup_index         the subgroup index of CascadeType
+         * @param subugroup_index   the subgroup index of CascadeType
          * @param nodes             node ids for the set of nodes.
          *
          * @return an array of void futures, which length is nodes.size()
@@ -445,15 +505,20 @@ namespace cascade {
          * "remove" deletes an object with the given key.
          *
          * @param key               the object key
-         * @subugroup_index         the subgroup index of CascadeType
-         * @shard_index             the shard index.
+         * @param subugroup_index   the subgroup index of CascadeType
+         * @param shard_index       the shard index.
          *
          * @return a future to the version and timestamp of the put operation.
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
          */
         template <typename SubgroupType>
         derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> remove(const typename SubgroupType::KeyType& key,
-                uint32_t subgroup_index=0, uint32_t shard_index=0);
+                uint32_t subgroup_index, uint32_t shard_index);
+        /**
+         * object pool version
+         */
+        template <typename SubgroupType>
+        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> remove(const typename SubgroupType::KeyType& key);
     
         /**
          * "get" retrieve the object of a given key
@@ -461,30 +526,41 @@ namespace cascade {
          * @param key               the object key
          * @param version           if version is CURRENT_VERSION, this "get" will fire a ordered send to get the latest
          *                          state of the key. Otherwise, it will try to read the key's state at version.
-         * @subugroup_index         the subgroup index of CascadeType
-         * @shard_index             the shard index.
+         * @param subugroup_index   the subgroup index of CascadeType
+         * @param shard_index       the shard index.
          *
          * @return a future to the retrieved object.
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
          */
         template <typename SubgroupType>
-        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> get(const typename SubgroupType::KeyType& key, const persistent::version_t& version = CURRENT_VERSION,
-                uint32_t subgroup_index=0, uint32_t shard_index=0);
+        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> get(const typename SubgroupType::KeyType& key, const persistent::version_t& version, 
+                uint32_t subgroup_index, uint32_t shard_index);
+        /**
+         * object pool version
+         */
+        template <typename SubgroupType>
+        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> get(const typename SubgroupType::KeyType& key, const persistent::version_t& version = CURRENT_VERSION);
     
         /**
          * "get_by_time" retrieve the object of a given key
          *
          * @param key               the object key
          * @param ts_us             Wall clock time in microseconds. 
-         * @subugroup_index         the subgroup index of CascadeType
-         * @shard_index             the shard index.
+         * @param subugroup_index   the subgroup index of CascadeType
+         * @param shard_index       the shard index.
          *
          * @return a future to the retrieved object.
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
          */
         template <typename SubgroupType>
         derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> get_by_time(const typename SubgroupType::KeyType& key, const uint64_t& ts_us,
-                uint32_t subgroup_index=0, uint32_t shard_index=0);
+                uint32_t subgroup_index, uint32_t shard_index);
+
+        /**
+         * object pool version
+         */
+        template <typename SubgroupType>
+        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> get_by_time(const typename SubgroupType::KeyType& key, const uint64_t& ts_us);
     
         /**
          * "get_size" retrieve size of the object of a given key
@@ -492,59 +568,140 @@ namespace cascade {
          * @param key               the object key
          * @param version           if version is CURRENT_VERSION, this "get" will fire a ordered send to get the latest
          *                          state of the key. Otherwise, it will try to read the key's state at version.
-         * @subugroup_index         the subgroup index of CascadeType
-         * @shard_index             the shard index.
+         * @param subugroup_index   the subgroup index of CascadeType
+         * @param shard_index       the shard index.
          *
          * @return a future to the retrieved size.
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
          */
         template <typename SubgroupType>
-        derecho::rpc::QueryResults<uint64_t> get_size(const typename SubgroupType::KeyType& key, const persistent::version_t& version = CURRENT_VERSION,
-                uint32_t subgroup_index=0, uint32_t shard_index=0);
+        derecho::rpc::QueryResults<uint64_t> get_size(const typename SubgroupType::KeyType& key, const persistent::version_t& version,
+                uint32_t subgroup_index, uint32_t shard_index);
+
+        /**
+         * object pool version
+         */
+        template <typename SubgroupType>
+        derecho::rpc::QueryResults<uint64_t> get_size(const typename SubgroupType::KeyType& key, const persistent::version_t& version = CURRENT_VERSION);
     
         /**
          * "get_size_by_time" retrieve size of the object of a given key
          *
          * @param key               the object key
          * @param ts_us             Wall clock time in microseconds. 
-         * @subugroup_index         the subgroup index of CascadeType
-         * @shard_index             the shard index.
+         * @param subugroup_index   the subgroup index of CascadeType
+         * @param shard_index       the shard index.
          *
          * @return a future to the retrieved size.
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
          */
         template <typename SubgroupType>
         derecho::rpc::QueryResults<uint64_t> get_size_by_time(const typename SubgroupType::KeyType& key, const uint64_t& ts_us,
-                uint32_t subgroup_index=0, uint32_t shard_index=0);
-    
+                uint32_t subgroup_index, uint32_t shard_index);
+
+        /**
+         * object pool version
+         */
+        template <typename SubgroupType>
+        derecho::rpc::QueryResults<uint64_t> get_size_by_time(const typename SubgroupType::KeyType& key, const uint64_t& ts_us);
+
         /**
          * "list_keys" retrieve the list of keys in a shard
          *
          * @param version           if version is CURRENT_VERSION, this "get" will fire a ordered send to get the latest
          *                          state of the key. Otherwise, it will try to read the key's state at version.
-         * @subugroup_index         the subgroup index of CascadeType
-         * @shard_index             the shard index.
+         * @param subugroup_index   the subgroup index of CascadeType
+         * @param shard_index       the shard index.
          *
          * @return a future to the retrieved object.
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
          */
         template <typename SubgroupType>
-        derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> list_keys(const persistent::version_t& version = CURRENT_VERSION,
-                uint32_t subgroup_index=0, uint32_t shard_index=0);
+        derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> list_keys(const persistent::version_t& version,
+                uint32_t subgroup_index, uint32_t shard_index);
+
+        /**
+        * object pool version
+        */
+        template <typename SubgroupType>
+        std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>> 
+            list_keys(const persistent::version_t& version, const std::string& object_pool_pathname);
+
+
+        template <typename SubgroupType>
+        std::vector<typename SubgroupType::KeyType> wait_list_keys(
+                                std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>>& future);
     
         /**
          * "list_keys_by_time" retrieve the list of keys in a shard
          *
          * @param ts_us             Wall clock time in microseconds.
-         * @subugroup_index         the subgroup index of CascadeType
-         * @shard_index             the shard index.
+         * @param subugroup_index   the subgroup index of CascadeType
+         * @param shard_index       the shard index.
          *
          * @return a future to the retrieved object.
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
          */
         template <typename SubgroupType>
         derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> list_keys_by_time(const uint64_t& ts_us,
-                uint32_t subgroup_index=0, uint32_t shard_index=0);
+                uint32_t subgroup_index, uint32_t shard_index);
+        
+
+        /**
+        * object pool version
+        */
+        template <typename SubgroupType>
+        std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>> 
+            list_keys_by_time(const uint64_t& ts_us, const std::string& object_pool_pathname);
+
+
+        /**
+         * Object Pool Management API: refresh object pool cache
+         */
+        void refresh_object_pool_metadata_cache();
+
+        /**
+         * Object Pool Management API: create object pool
+         *
+         * @tparam SubgroupType     Type of the subgroup for the created object pool
+         * @param  pathname         Object pool's pathname as identifier.
+         * @param  subgroup_index   Index of the subgroup
+         * @param  sharding_policy  The default sharding policy for this object pool
+         * @param  object_locations The set of special object locations.
+         *
+         * @return a future to the version and timestamp of the put operation.
+         */
+        template <typename SubgroupType>
+        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> create_object_pool(
+                const std::string& pathname, const uint32_t subgroup_index,
+                const sharding_policy_t sharding_policy = HASH, const std::unordered_map<std::string,uint32_t>& object_locations = {});
+
+        /**
+         * ObjectPoolManagement API: remote object pool
+         *
+         * @param  pathname         Object pool pathname
+         *
+         * @return a future to the version and timestamp of the put operation.
+         */
+        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> remove_object_pool(const std::string& pathname);
+
+        /**
+         * ObjectPoolManagement API: find object pool
+         *
+         * @param  pathname         Object pool pathname
+         *
+         * @return the object pool metadata
+         */
+        ObjectPoolMetadata<CascadeTypes...> find_object_pool(const std::string& pathname);
+
+        /**
+         * ObjectPoolManagement API: list all the object pools by pathnames
+         *
+         * @param refresh           false for cached object ids, true for refreshed ids.
+         *
+         * @return the pool ids.
+         */
+        std::vector<std::string> list_object_pools(bool refresh = false);
     };
     
     
@@ -586,6 +743,15 @@ namespace cascade {
      * 2 - a prefix registry.
      * 3 - a bounded Action buffer.
      */
+    using prefix_entry_t = 
+                std::unordered_map<
+                    std::string, // udl_id
+                    std::pair<
+                        std::shared_ptr<OffCriticalDataPathObserver>, // ocdpo
+                        std::unordered_map<std::string,bool>          // output map{prefix->bool}
+                    >
+                >;
+    using match_results_t = std::unordered_map<std::string,prefix_entry_t>;
     template <typename... CascadeTypes>
     class CascadeContext: public ICascadeContext {
     private:
@@ -609,15 +775,11 @@ namespace cascade {
         /** thread pool control */
         std::atomic<bool>       is_running;
         /** the prefix registries, one is active, the other is shadow 
-         * prefix->{dpl_id->ocdpo}
+         * prefix->{udl_id->{ocdpo,{prefix->trigger_put/put}}
          */
-        std::shared_ptr<std::unordered_map<std::string, std::unordered_map<std::string,std::shared_ptr<OffCriticalDataPathObserver>>>> prefix_registry_ptr;
-        /** the write lock for prefix_registry_ptr */
-        mutable std::mutex prefix_registry_ptr_mutex;
-        /** a shared lock for writer-reader */
-        mutable std::shared_mutex prefix_registry_ptr_rw_mutex;
+        std::shared_ptr<PrefixRegistry<prefix_entry_t,PATH_SEPARATOR>> prefix_registry_ptr;
         /** the data path logic loader */
-        std::unique_ptr<DataPathLogicManager<CascadeTypes...>> data_path_logic_manager;
+        std::unique_ptr<UserDefinedLogicManager<CascadeTypes...>> user_defined_logic_manager;
         /** the off-critical data path worker thread pools */
         std::vector<std::thread> workhorses_for_multicast;
         std::vector<std::thread> workhorses_for_p2p;
@@ -652,7 +814,7 @@ namespace cascade {
          * 
          * @param group_ptr                         The group handle
          */
-        void construct(derecho::Group<CascadeTypes...>* group_ptr);
+        void construct(derecho::Group<CascadeMetadataService<CascadeTypes...>, CascadeTypes...>* group_ptr);
         /**
          * get the reference to encapsulated service client handle.
          * The reference is valid only after construct() is called.
@@ -694,36 +856,35 @@ namespace cascade {
          * =============================================================================================================
          * Now we agree on the new design that the prefix is assumed to be registered before the critical data path saw
          * some data coming. Without a lock guarding prefix registry in the critical data path, it's a little bit tricky
-         * to support runtime update. We introduced two mutex to guard the prefix_registry. One is for excluding concurrent
-         * writers (prefix_registry_ptr_mutex), the other is for synchronization between the critical data path reader
-         * and writers (prefix_registry_ptr_rw_mutex). Updates is applied to a new shadow registry without interfere with 
-         * the critical data path processing. Once update is finished, we flip the pointer atomically, and it's done. 
-         * The critical data path will automatically shift to the new registry with minimum overhead.
+         * to support runtime update. 
          * 
-         * IMPORTANT: Successful unregistration of a prefix does not guarantee the corresponding DPL is safe to be
+         * IMPORTANT: Successful unregistration of a prefix does not guarantee the corresponding UDL is safe to be
          * released. Because a previous triggered off-critical data path might still working on the unregistered prefix.
-         * TODO: find a mechanism to trigger safe DPL unloading.
+         * TODO: find a mechanism to trigger safe UDL unloading.
          */
 
         /**
          * Register a set of prefixes
          *
          * @param prefixes              - the prefixes set
-         * @param data_path_logic_id    - the DPL id, presumably an UUID string
+         * @param user_defined_logic_id - the UDL id, presumably an UUID string
          * @param ocdpo_ptr             - the data path observer
+         * @param outputs               - the outputs are a map from another prefix to put type (true for trigger put,
+         *                                false for put).
          */
         virtual void register_prefixes(const std::unordered_set<std::string>& prefixes,
-                                       const std::string& data_path_logic_id,
-                                       const std::shared_ptr<OffCriticalDataPathObserver>& ocdpo_ptr = nullptr);
+                                       const std::string& user_defined_logic_id,
+                                       const std::shared_ptr<OffCriticalDataPathObserver>& ocdpo_ptr,
+                                       const std::unordered_map<std::string,bool>& outputs);
         /**
          * Unregister a set of prefixes
          * 
          * @param prefixes              - the prefixes set
-         * @param data_path_logic_id    - the DPL id, presumably an UUID string
+         * @param user_defined_logic_id - the UDL id, presumably an UUID string
          * @param ocdpo_ptr             - the data path observer
          */
         virtual void unregister_prefixes(const std::unordered_set<std::string>& prefixes,
-                                         const std::string& data_path_logic_id);
+                                         const std::string& user_defined_logic_id);
         /**
          * Get the prefix handlers registered for a prefix
          *
@@ -731,8 +892,7 @@ namespace cascade {
          *
          * @return the unordered map of observers registered to this prefix.
          */
-        virtual std::unordered_map<std::string,std::shared_ptr<OffCriticalDataPathObserver>> 
-            get_prefix_handlers(const std::string& prefix); 
+        virtual match_results_t get_prefix_handlers(const std::string& prefix); 
         /**
          * post an action to the Context for processing.
          *
@@ -743,6 +903,14 @@ namespace cascade {
          *          context already shut down.
          */
         virtual bool post(Action&& action, bool is_trigger = false);
+
+        /**
+         * Get the action queue length
+         *
+         * @return current queue_length
+         */
+        virtual size_t action_queue_length_p2p();
+        virtual size_t action_queue_length_multicast();
 
         /**
          * Destructor
