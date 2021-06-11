@@ -10,8 +10,6 @@ find_library(ANN_LIB_FOUND ANN)
 find_package(Torch QUIET)
 
 if (TENSORFLOW_LIB_FOUND AND CPPFLOW_FOUND AND OPENCV_CORE_FOUND AND ANN_LIB_FOUND AND TORCH_FOUND)
-    message(NOTICE "TENSORFLOW_LIB is ${TENSORFLOW_LIB}, TENSORFLOW_LIB_INCLUDE_DIRS is ${TENSORFLOW_LIB_INCLUDE_DIRS}")
-    message(NOTICE "TENSORFLOW_LIB_FOUND is ${TENSORFLOW_LIB_FOUND}")
     # filter_udl
     add_library(filter_udl SHARED filter_udl.cpp)
     target_include_directories(filter_udl PRIVATE
