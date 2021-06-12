@@ -163,6 +163,36 @@ auto put(ServiceClientAPI& capi, std::string& key, std::string& value, uint32_t 
 }
 
 /**
+    Trigger put objects into cascade store.
+    Please note that if subgroup_index is not specified, we will use the object_pool API.
+
+    @param capi the service client API for this client.
+    @param key key to put value into
+    @param value value to be put in for coressponding key
+    @param subgroup_index
+    @param shard_index
+    @return QueryResultsStore that handles the tuple of version and ts_us.
+*/
+template <typename SubgroupType>
+void trigger_put(ServiceClientAPI& capi, std::string& key, std::string& value, uint32_t subgroup_index = UINT32_MAX, uint32_t shard_index = 0) {
+    typename SubgroupType::ObjectType obj;
+    if constexpr(std::is_integral<typename SubgroupType::KeyType>::value) {
+        obj.key = static_cast<uint64_t>(std::stol(key));
+    } else if constexpr(std::is_convertible<typename SubgroupType::KeyType, std::string>::value) {
+        obj.key = key;
+    } else {
+        print_red(std::string("Unhandled KeyType:") + typeid(typename SubgroupType::KeyType).name());
+        return;
+    }
+    obj.blob = Blob(value.c_str(), value.length());
+    if (subgroup_index == UINT32_MAX) {
+        capi.template trigger_put<SubgroupType>(obj);
+    } else {
+        capi.template trigger_put<SubgroupType>(obj, subgroup_index, shard_index);
+    }
+}
+
+/**
     Remove objects from cascade store.
     Please note that if subgroup_index is not specified, we will use the object_pool API.
 
@@ -365,7 +395,22 @@ PYBIND11_MODULE(cascade_py, m) {
 
                         return py::cast(NULL);
                     },
-                    "Put a long key and its corresponding value into cascade. The new object would \n replace the old object if a new key-value pair with the same key as one put \n before is put.")
+                    "Put an object. The new object would replace the old object if a new key-value pair with the same\nkey as one put before is put.")
+            .def(
+                    "trigger_put", [](ServiceClientAPI& capi, std::string service_type, std::string& key, py::bytes value, py::kwargs kwargs) {
+                        // Test is subgroup_index and shard_index is specified.
+                        uint32_t subgroup_index = UINT32_MAX;
+                        uint32_t shard_index = 0;
+                        if(kwargs.contains("subgroup_index")) {
+                            subgroup_index = kwargs["subgroup_index"].cast<uint32_t>();
+                        }
+                        if(kwargs.contains("shard_index")) {
+                            shard_index = kwargs["shard_index"].cast<uint32_t>();
+                        }
+                        std::string val = std::string(value);
+                        on_all_subgroup_type(service_type, trigger_put, capi, key, val, subgroup_index, shard_index);
+                    },
+                    "Trigger put an object. The object only trigger an action. The object is not stored.")
             .def(
                     "remove", [](ServiceClientAPI& capi, std::string service_type, std::string& key, py::kwargs kwargs) {
                         // Test if subgroup_index and shard_index is specified.

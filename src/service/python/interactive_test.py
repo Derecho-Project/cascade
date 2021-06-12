@@ -23,6 +23,7 @@ list_subgroup_members [subgroup_id] [shard_index]\n\tlist members in shard by su
 set_member_selection_policy <type> <subgroup_index> <shard_index> <policy> [user_specified_node_id]\n\tset member selection policy\n\
 get_member_selection_policy <type> [subgroup_index] [shard_index]\n\tget member selection policy\n\
 put <type> <key> <value> [subgroup_index] [shard_index]\n\tput an object\n\
+trigger_put <type> <key> <value> [subgroup_index] [shard_index]\n\tput an object\n\
 remove <type> <key> [subgroup_index] [shard_index]\n\tremove an object\n\
 get <type> <key> [version] [subgroup_index] [shard_index]\n\tget an object(by version)\n\
 get_by_time <type> <key> <ts_us> [subgroup_index] [shard_index]\n\tget an object by timestamp\n\
@@ -32,7 +33,9 @@ get_object_pool <pathname>\n\tget object pool by pathname\n\
 quit|exit\n\texit the client.\n\
 help\n\tprint this message.\n\
 \n\
-type:=VCSU|VCSS|PCSU|PCSS\n\
+type:=VolatileCascadeStoreWithStringKey|\n\
+      PersistentCascadeStoreWithStringKey|\n\
+      TriggerCascadeNoStoreWithStringKey\n\
 policy:=FirstMember|LastMember|Random|FixedRandom|RoundRobin|UserSpecified\n\
 "
 
@@ -139,6 +142,22 @@ policy:=FirstMember|LastMember|Random|FixedRandom|RoundRobin|UserSpecified\n\
             b = a.put(sl[1], sl[2], bytes(sl[3],'utf-8'), subgroup_index=subgroup_index, shard_index=shard_index)
             print(b.get_result())
             continue
+
+        if(sl[0] == 'trigger_put'):
+            if(len(sl) < 4):
+                print("Invalid format")
+                continue
+            
+            if(len(sl) >= 5):
+                subgroup_index = int(sl[4])
+
+            if(len(sl) >= 6):
+                shard_index = int(sl[5])
+
+            a.trigger_put(sl[1], sl[2], bytes(sl[3],'utf-8'), subgroup_index=subgroup_index, shard_index=shard_index)
+            print("Trigger put sent.")
+            continue
+            
 
         if(sl[0] == 'get'):
             if(len(sl) < 3):
