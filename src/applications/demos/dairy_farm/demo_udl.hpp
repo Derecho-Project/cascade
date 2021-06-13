@@ -31,7 +31,7 @@ inline int preprocess_photo(void* in_buf, size_t in_size, void* out_buf, size_t 
             for (int j=0; j<PHOTO_WIDTH; j++) { // width
                 int _i = i+16;
                 int _j = j+16;
-                array.push_back(static_cast<float>(mat.data[(_i * 256 + _j) * 3 + (2 - c)]) / 255);
+                array.push_back(static_cast<float>(mat.data[(_i * 272 + _j) * 3 + (2 - c)]) / 255);
             }
         }
     }
