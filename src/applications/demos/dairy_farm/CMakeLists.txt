@@ -69,6 +69,8 @@ if (TENSORFLOW_LIB_FOUND AND CPPFLOW_FOUND AND OPENCV_CORE_FOUND AND ANN_LIB_FOU
     add_custom_command(TARGET dairy_farm_client POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/video_receive.py
         ${CMAKE_CURRENT_BINARY_DIR}/video_receive.py
+        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/simulated_camera.py
+        ${CMAKE_CURRENT_BINARY_DIR}/simulated_camera.py
         COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/extract_model.sh
         ${CMAKE_CURRENT_BINARY_DIR}/extract_model.sh
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/dairy_farm_cfg
@@ -106,6 +108,8 @@ if (TENSORFLOW_LIB_FOUND AND CPPFLOW_FOUND AND OPENCV_CORE_FOUND AND ANN_LIB_FOU
         DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/dairy_farm_cfg/run.sh.tmp
                 ${CMAKE_CURRENT_SOURCE_DIR}/dairy_farm_cfg/dfgs.json.tmp
                 ${CMAKE_CURRENT_SOURCE_DIR}/dairy_farm_cfg/udl_dlls.cfg.tmp
+                ${CMAKE_CURRENT_SOURCE_DIR}/simulated_camera.py
+                ${CMAKE_CURRENT_SOURCE_DIR}/video_receive.py
         COMMENT "prepare dairy farm demo configuration"
     )
 else()
