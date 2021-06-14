@@ -23,7 +23,7 @@ std::string get_description() {
 #define IMAGE_WIDTH            (352)
 #define IMAGE_HEIGHT           (240)
 #define FILTER_TENSOR_BUFFER_SIZE     (IMAGE_WIDTH*IMAGE_HEIGHT*3)
-#define CONF_FILTER_MODEL             "../../model"
+#define CONF_FILTER_MODEL             "filter_model"
 
 class DairyFarmFilterOCDPO: public OffCriticalDataPathObserver {
     std::mutex p2p_send_mutex;
