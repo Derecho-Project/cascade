@@ -184,6 +184,14 @@ private:
         // TODO: do inference and put it to the storage object pool specified by outputs.
         auto* typed_ctxt = dynamic_cast<CascadeContext<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey,TriggerCascadeNoStoreWithStringKey>*>(ctxt);
 
+        // Test if I'm responsible for this message
+        // TODO: we need to let the OCDPO understand which shard it is in... passing more OCDPO arguments???
+        auto members = typed_ctxt->get_service_client_ref().get_shard_members<VolatileCascadeStoreWithStringKey>(0,0);
+        if (members[std::hash<std::string>()(key_string)%members.size()] != typed_ctxt->get_service_client_ref().get_my_id()) {
+            // not my job, skip it.
+            return;
+        }
+
 #ifdef ENABLE_GPU
         /* Configure GPU context for tensorflow */
         if (typed_ctxt->resource_descriptor.gpus.size()==0) {
