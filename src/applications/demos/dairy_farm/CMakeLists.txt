@@ -105,6 +105,26 @@ if (TENSORFLOW_LIB_FOUND AND CPPFLOW_FOUND AND OPENCV_CORE_FOUND AND ANN_LIB_FOU
         ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n3/udl_dlls.cfg 
         COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/udl_dlls.cfg.tmp
         ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n4/udl_dlls.cfg 
+        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/model
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n0/filter_model
+        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/model
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n1/filter_model
+        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/model
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n2/filter_model
+        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/model
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n3/filter_model
+        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/model
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n4/filter_model
+        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/model_orig
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n0/infer_model
+        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/model_orig
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n1/infer_model
+        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/model_orig
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n2/infer_model
+        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/model_orig
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n3/infer_model
+        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/model_orig
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n4/infer_model
         DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/dairy_farm_cfg/run.sh.tmp
                 ${CMAKE_CURRENT_SOURCE_DIR}/dairy_farm_cfg/dfgs.json.tmp
                 ${CMAKE_CURRENT_SOURCE_DIR}/dairy_farm_cfg/udl_dlls.cfg.tmp
