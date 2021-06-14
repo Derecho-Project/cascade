@@ -125,6 +125,16 @@ if (TENSORFLOW_LIB_FOUND AND CPPFLOW_FOUND AND OPENCV_CORE_FOUND AND ANN_LIB_FOU
         ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n3/infer_model
         COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/model_orig
         ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n4/infer_model
+        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cow-id-model
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n0/cow-id-model
+        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cow-id-model
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n1/cow-id-model
+        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cow-id-model
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n2/cow-id-model
+        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cow-id-model
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n3/cow-id-model
+        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cow-id-model
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n4/cow-id-model
         DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/dairy_farm_cfg/run.sh.tmp
                 ${CMAKE_CURRENT_SOURCE_DIR}/dairy_farm_cfg/dfgs.json.tmp
                 ${CMAKE_CURRENT_SOURCE_DIR}/dairy_farm_cfg/udl_dlls.cfg.tmp

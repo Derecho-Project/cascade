@@ -29,9 +29,9 @@ std::string get_description() {
 #define MAX_PTS		         (5000)		    // maximum number of data points
 #define COW_ID_IMAGE_WIDTH   (224)
 #define COW_ID_IMAGE_HEIGHT  (224)
-#define CONF_COWID_MODULE       "../../cow-id-model/resnet50_rtl.pt"
-#define CONF_COWID_KNN          "../../cow-id-model/trainedKNN.dmp"
-#define CONF_COWID_LABEL        "../../cow-id-model/synset.txt"
+#define CONF_COWID_MODULE       "cow-id-model/resnet50_rtl.pt"
+#define CONF_COWID_KNN          "cow-id-model/trainedKNN.dmp"
+#define CONF_COWID_LABEL        "cow-id-model/synset.txt"
 
 class InferenceEngine {
 private: 
