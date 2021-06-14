@@ -21,8 +21,8 @@ parser.add_argument('-s', '--source',
 parser.add_argument('-r', '--rate',
                     metavar="<rate in fps>",
                     required=False,
-                    default=-1.0,
-                    help='throttle the frame rate in fps.')
+                    default=1.0,
+                    help='frame sampling rate in fps.')
 parser.add_argument('-p', '--path',
                     metavar="<object path in cascade filesystem>",
                     required=True,
@@ -58,11 +58,11 @@ if __name__ == '__main__':
         logging.basicConfig(level=getattr(logging,args.logging_level))
     # capture video
     cap = cv2.VideoCapture(args.source)
-    fps = float(args.rate)
-    if fps < 0.0:
-        fps = cap.get(cv2.CAP_PROP_FPS);
-    logging.info("FPS@%f" % fps)
+    fps = cap.get(cv2.CAP_PROP_FPS);
+    sampling_rate = min(float(args.rate), fps)
+    logging.info("FPS %f, Sampling rate=%f" % (fps,sampling_rate))
     interval_sec = 1.0 / fps
+    sampling_interval_sec = 1.0 / sampling_rate
     i = 0
     # frame path
     key = args.path
@@ -83,17 +83,22 @@ if __name__ == '__main__':
     capi = cascade_py.ServiceClientAPI()
     logging.info("Connected to Cascade Service")
     nxt = time.time()
+    nxt_sample = time.time()
     while (cap.isOpened):
         cur = time.time()
         if cur < nxt:
             time.sleep(nxt-cur)
         nxt = time.time() + interval_sec
         ret, frame = cap.read()
+        i = i+1
         if ret == False:
             break
+        cur = time.time()
+        if cur + interval_sec < nxt_sample:
+            continue;
+        nxt_sample = cur + sampling_interval_sec
         logging.info("Write frame %d to %s..." % (i,key))
         capi.trigger_put('TriggerCascadeNoStoreWithStringKey',key,create_payload(frame,i))
         logging.info("frame %d written." % i)
-        i = i+1
     cap.release()
     cv2.destroyAllWindows()
