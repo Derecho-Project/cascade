@@ -148,6 +148,36 @@ void put<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, std::string
 }
 
 template <typename SubgroupType>
+void op_put(ServiceClientAPI& capi, std::string& key, std::string& value, persistent::version_t pver, persistent::version_t pver_bk) {
+    typename SubgroupType::ObjectType obj;
+    if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
+        obj.key = static_cast<uint64_t>(std::stol(key));
+    } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
+        obj.key = key;
+    } else {
+        print_red(std::string("Unhandled KeyType:") + typeid(typename SubgroupType::KeyType).name());
+        return;
+    }
+    obj.previous_version = pver;
+    obj.previous_version_by_key = pver_bk;
+    obj.blob = Blob(value.c_str(),value.length());
+    derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> result = capi.template put<SubgroupType>(obj);
+    check_put_and_remove_result(result);
+}
+
+template <>
+void op_put<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, std::string& key, std::string& value, persistent::version_t pver, persistent::version_t pver_bk) {
+    print_red("TCSS does not support op_put.");
+}
+
+template <typename SubgroupType>
+void create_object_pool(ServiceClientAPI& capi, std::string& id, uint32_t subgroup_index) {
+    auto result = capi.template create_object_pool<SubgroupType>(id,subgroup_index);
+    check_put_and_remove_result(result);
+    std::cout << "create_object_pool is done." << std::endl;
+} 
+
+template <typename SubgroupType>
 void trigger_put(ServiceClientAPI& capi, std::string& key, std::string& value, uint32_t subgroup_index, uint32_t shard_index) {
     typename SubgroupType::ObjectType obj;
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
@@ -164,6 +194,25 @@ void trigger_put(ServiceClientAPI& capi, std::string& key, std::string& value, u
     result.get();
    
     std::cout << "trigger_put is done." << std::endl;
+}
+
+template <typename SubgroupType>
+void op_trigger_put(ServiceClientAPI& capi, std::string& key, std::string& value) {
+    typename SubgroupType::ObjectType obj;
+    if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
+        obj.key = static_cast<uint64_t>(std::stol(key));
+    } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
+        obj.key = key;
+    } else {
+        print_red(std::string("Unhandled KeyType:") + typeid(typename SubgroupType::KeyType).name());
+        return;
+    }
+
+    obj.blob = Blob(value.c_str(),value.length());
+    derecho::rpc::QueryResults<void> result = capi.template trigger_put<SubgroupType>(obj);
+    result.get();
+   
+    std::cout << "op_trigger_put is done." << std::endl;
 }
 
 template <typename SubgroupType>
@@ -212,6 +261,25 @@ void remove<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, std::str
     print_red("TCSS does not support remove.");
 }
 
+template <typename SubgroupType>
+void op_remove(ServiceClientAPI& capi, std::string& key) {
+    if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
+        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> result = std::move(capi.template remove<SubgroupType>(static_cast<uint64_t>(std::stol(key))));
+        check_put_and_remove_result(result);
+    } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
+        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> result = std::move(capi.template remove<SubgroupType>(key));
+        check_put_and_remove_result(result);
+    } else {
+        print_red(std::string("Unhandled KeyType:") + typeid(typename SubgroupType::KeyType).name());
+        return;
+    }
+}
+
+template <>
+void op_remove<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, std::string& key) {
+    print_red("TCSS does not support remove.");
+}
+
 #define check_get_result(result) \
     for (auto& reply_future:result.get()) {\
         auto reply = reply_future.second.get();\
@@ -237,13 +305,30 @@ void get<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, std::string
 }
 
 template <typename SubgroupType>
+void op_get(ServiceClientAPI& capi, std::string& key, persistent::version_t ver) {
+    if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
+        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get<SubgroupType>(
+                static_cast<uint64_t>(std::stol(key)),ver);
+        check_get_result(result);
+    } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
+        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get<SubgroupType>(key,ver);
+        check_get_result(result);
+    }
+}
+
+template <>
+void op_get<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, std::string& key, persistent::version_t ver) {
+    print_red("TCSS does not support get.");
+}
+
+template <typename SubgroupType>
 void get_by_time(ServiceClientAPI& capi, std::string& key, uint64_t ts_us, uint32_t subgroup_index, uint32_t shard_index) {
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
         derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get_by_time<SubgroupType>(
                 static_cast<uint64_t>(std::stol(key)),ts_us,subgroup_index,shard_index);
         check_get_result(result);
     } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
-        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get<SubgroupType>(
+        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get_by_time<SubgroupType>(
                 key,ts_us,subgroup_index,shard_index);
         check_get_result(result);
     }
@@ -251,6 +336,24 @@ void get_by_time(ServiceClientAPI& capi, std::string& key, uint64_t ts_us, uint3
 
 template <>
 void get_by_time<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, std::string& key, uint64_t ts_us, uint32_t subgroup_index, uint32_t shard_index) {
+    print_red("TCSS does not support get_by_time.");
+}
+
+template <typename SubgroupType>
+void op_get_by_time(ServiceClientAPI& capi, std::string& key, uint64_t ts_us) {
+    if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
+        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get_by_time<SubgroupType>(
+                static_cast<uint64_t>(std::stol(key)),ts_us);
+        check_get_result(result);
+    } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
+        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get_by_time<SubgroupType>(
+                key,ts_us);
+        check_get_result(result);
+    }
+}
+
+template <>
+void op_get_by_time<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, std::string& key, uint64_t ts_us) {
     print_red("TCSS does not support get_by_time.");
 }
 
@@ -273,6 +376,24 @@ void get_size<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, std::s
 }
 
 template <typename SubgroupType>
+void op_get_size(ServiceClientAPI& capi, std::string& key, persistent::version_t ver) {
+    if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
+        derecho::rpc::QueryResults<uint64_t> result = capi.template get_size<SubgroupType>(
+                static_cast<uint64_t>(std::stol(key)),ver);
+        check_get_result(result);
+    } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
+        derecho::rpc::QueryResults<uint64_t> result = capi.template get_size<SubgroupType>(
+                key,ver);
+        check_get_result(result);
+    }
+}
+
+template<>
+void op_get_size<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, std::string& key, persistent::version_t ver) {
+    print_red("TCSS does not support get_size.");
+}
+
+template <typename SubgroupType>
 void get_size_by_time(ServiceClientAPI& capi, std::string& key, uint64_t ts_us, uint32_t subgroup_index, uint32_t shard_index) {
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
         derecho::rpc::QueryResults<uint64_t> result = capi.template get_size_by_time<SubgroupType>(
@@ -290,6 +411,24 @@ void get_size_by_time<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi
     print_red("TCSS does not support get_size_by_time.");
 }
 
+template <typename SubgroupType>
+void op_get_size_by_time(ServiceClientAPI& capi, std::string& key, uint64_t ts_us) {
+    if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
+        derecho::rpc::QueryResults<uint64_t> result = capi.template get_size_by_time<SubgroupType>(
+                static_cast<uint64_t>(std::stol(key)),ts_us);
+        check_get_result(result);
+    } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
+        derecho::rpc::QueryResults<uint64_t> result = capi.template get_size_by_time<SubgroupType>(
+                key,ts_us);
+        check_get_result(result);
+    }
+}
+
+template <>
+void op_get_size_by_time<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, std::string& key, uint64_t ts_us) {
+    print_red("TCSS does not support get_size_by_time.");
+}
+
 #define check_list_keys_result(result) \
     for (auto& reply_future:result.get()) {\
         auto reply = reply_future.second.get();\
@@ -298,6 +437,13 @@ void get_size_by_time<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi
             std::cout << "    " << key << std::endl;\
         }\
     }
+
+#define check_op_list_keys_result(result)\
+    std::cout << "Keys:" << std::endl;\
+    for (auto& key:result) {\
+        std::cout << "    " << key << std::endl;\
+    }
+
 
 template <typename SubgroupType>
 void list_keys(ServiceClientAPI& capi, persistent::version_t ver, uint32_t subgroup_index, uint32_t shard_index) {
@@ -312,6 +458,19 @@ void list_keys<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, persi
 }
 
 template <typename SubgroupType>
+void op_list_keys(ServiceClientAPI& capi, persistent::version_t& ver, std::string obj_pool) {
+    std::cout << "object pool list_keys: ver = " << ver << ", subgroup_index = " <<  std::endl;
+    std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>> future_result = capi.template list_keys<SubgroupType>(ver, obj_pool);
+    std::vector<typename SubgroupType::KeyType> result = capi.template wait_list_keys<SubgroupType>(future_result);
+    check_op_list_keys_result(result);
+}
+
+template <>
+void op_list_keys<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, persistent::version_t& ver, std::string obj_pool) {
+    print_red("TCSS does not support op_list_keys.");
+}
+
+template <typename SubgroupType>
 void list_keys_by_time(ServiceClientAPI& capi, uint64_t ts_us, uint32_t subgroup_index, uint32_t shard_index) {
     derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> result = capi.template list_keys_by_time<SubgroupType>(ts_us,subgroup_index,shard_index);
     check_list_keys_result(result);
@@ -321,6 +480,20 @@ template <>
 void list_keys_by_time<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, uint64_t ts_us, uint32_t subgroup_index, uint32_t shard_index) {
     print_red("TCSS does not support list_keys_by_time.");
 }
+
+template <typename SubgroupType>
+void op_list_keys_by_time(ServiceClientAPI& capi, uint64_t ts_us, std::string& object_pool_pathname) {
+    std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>> future_result = capi.template list_keys_by_time<SubgroupType>(ts_us,object_pool_pathname);
+    std::vector<typename SubgroupType::KeyType> result = capi.template wait_list_keys<SubgroupType>(future_result);
+    check_op_list_keys_result(result);
+}
+
+template <>
+void op_list_keys_by_time<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, uint64_t ts_us, std::string& object_pool_path_name) {
+    print_red("TCSS does not support op_list_keys_by_time.");
+}
+
+
 
 #ifdef HAS_BOOLINQ
 //    "list_data_by_prefix <type> <prefix> [version] [subgroup_index] [shard_index\n\t test LINQ api\n]"
@@ -445,6 +618,14 @@ template <>
 void list_data_in_subgroup<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, uint32_t subgroup_index, persistent::version_t version) {
     print_red("TCSS does not support list_data_in_subgroup.");
 }
+
+template <typename SubgroupType>
+void list_data_in_objectpool(ServiceClientAPI& capi, persistent::version_t version, const std::string& objpool_path) {
+    std::vector<typename SubgroupType::KeyType> keys;
+    for (auto &obj : from_objectpool<SubgroupType, ServiceClientAPI>(capi,keys,version,objpool_path).toStdVector()) {
+        std::cout << "Found:" << obj << std::endl;
+    }
+}
 #endif// HAS_BOOLINQ
 
 /* TEST2: put/get/remove tests */
@@ -516,22 +697,39 @@ void interactive_test(ServiceClientAPI& capi) {
     // "list_subgroup_members [subgroup_id(0)] [shard_index(0)]\n\tlist members in shard by subgroup id.\n"
     "set_member_selection_policy <type> <subgroup_index> <shard_index> <policy> [user_specified_node_id]\n\tset member selection policy\n"
     "get_member_selection_policy <type> [subgroup_index(0)] [shard_index(0)]\n\tget member selection policy\n"
+    "\n"
+    "list_object_pools\n\tlist all object pools\n"
+    "create_object_pool <id> <subgroup_type> <subgroup_index>\n\tcreate object pool\n"
+    "remove_object_pool <id>\n\tsoft-remove an object pool\n"
+    "get_object_pool <id>\n\tget details of an object pool\n"
+    "\n"
     "put <type> <key> <value> [pver(-1)] [pver_by_key(-1)] [subgroup_index(0)] [shard_index(0)]\n\tput an object\n"
+    "op_put <type> <key> <value> [pver(-1)] [pver_by_key(-1)]\n\tput an object to the object pool specified by key\n"
     "trigger_put <type> <key> <value> [subgroup_index(0)] [shard_index(0)]\n\ttrigger put an object\n"
+    "op_trigger_put <type> <key> <value>\n\t trigger put an object to the object pool specified by key\n"
     "collective_trigger_put <type> <key> <value> <subgroup_index> <node1> [node2 ...]\n\t collectively trigger put an object\n"
     "remove <type> <key> [subgroup_index(0)] [shard_index(0)]\n\tremove an object\n"
+    "op_remove <type> <key>\n\tremove an object from the object pool specified by key\n"
+    "\n"
     "get <type> <key> [version(-1)] [subgroup_index(0)] [shard_index(0)]\n\tget an object(by version)\n"
+    "op_get <type> <key> [version(-1)]\n\tget an object(by version) from the object pool specified by key\n"
     "get_by_time <type> <key> <ts_us> [subgroup_index(0)] [shard_index(0)]\n\tget an object by timestamp\n"
+    "op_get_by_time <type> <key> <ts_us>\n\tget an object by timestamp from the object pool specified by key\n"
     "get_size <type> <key> [version(-1)] [subgroup_index(0)] [shard_index(0)]\n\tget the size of an object(by version)\n"
+    "op_get_size <type> <key> [version(-1)]\n\tget the size of an object(by version) from the object pool specified by key\n"
     "get_size_by_time <type> <key> <ts_us> [subgroup_index(0)] [shard_index(0)]\n\tget the size of an object by timestamp\n"
+    "op_get_size_by_time <type> <key> <ts_us>\n\tget the size of an object by timestamp from the object pool specified by key\n"
     "list_keys <type> [version(-1)] [subgroup_index(0)] [shard_index(0)]\n\tlist keys in shard (by version)\n"
+    "op_list_keys <type> <op_pathname> [version(-1)] \n\tlist keys in shard (by version)\n"
     "list_keys_by_time <type> <ts_us> [subgroup_index(0)] [shard_index(0)]\n\tlist keys in shard by time\n"
+    "op_list_keys_by_time <type> <ts_us> <op_path_name>\n\tlist keys in shard by time\n"
 #ifdef HAS_BOOLINQ
     "list_data_by_prefix <type> <prefix> [version(-1)] [subgroup_index(0)] [shard_index(0)]\n\t test LINQ api\n"
     "list_data_between_version <type> <key> <subgroup_index> <shard_index> [version_begin(MIN)] [version_end(MAX)]\n\t test LINQ api - version_iterator \n"
     "list_data_of_key_between_timestamp <type> <key> [ts_begin(MIN)] [ts_end(MAX)] [subgroup_index(0)] [shard_index(0)]\n\t test LINQ api - time_iterator \n"
     "list_data_in_subgroup <type> <subgroup_index> [version(-1)]\n\t test LINQ api - subgroup_iterator \n"
 #endif// HAS_BOOLINQ
+    "\n"
     "quit|exit\n\texit the client.\n"
     "help\n\tprint this message.\n"
     "\n"
@@ -562,255 +760,362 @@ void interactive_test(ServiceClientAPI& capi) {
             commands.at(command_index).handler(capi,cmd_tokens);
         }
 
-        if (cmd_tokens[0] == "help") {
-            std::cout << help_info << std::endl;
-        } else if (cmd_tokens[0] == "quit" || cmd_tokens[0] == "exit") {
-            break;
-        } else if (cmd_tokens[0] == "list_all_members") {
-            std::cout << "Top Derecho group members = [";
-            auto members = capi.get_members();
-            for (auto nid: members) {
-                std::cout << nid << "," ;
-            }
-            std::cout << "]" << std::endl;
-        } else if (cmd_tokens[0] == "list_type_members") {
-            if (cmd_tokens.size() < 2) {
-                print_red("Invalid format:" + cmdline);
-                continue;
-            }
-            if (cmd_tokens.size() >= 3) {
-                subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[2]));
-            }
-            if (cmd_tokens.size() >= 4) {
-                shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
-            }
-            on_subgroup_type(cmd_tokens[1],print_shard_member,capi,subgroup_index,shard_index);
-/* disabled exposing subgroup_id
-        } else if (cmd_tokens[0] == "list_subgroup_members") {
-            if (cmd_tokens.size() >= 2)
-                subgroup_id = static_cast<derecho::subgroup_id_t>(std::stoi(cmd_tokens[1]));
-            if (cmd_tokens.size() >= 3)
-                shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[2]));
-            print_shard_member(capi,subgroup_id,shard_index);
-*/
-        } else if (cmd_tokens[0] == "get_member_selection_policy") {
-            if (cmd_tokens.size() < 2) {
-                print_red("Invalid format:" + cmdline);
-                continue;
-            }
-            if (cmd_tokens.size() >= 3)
-                subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[2]));
-            if (cmd_tokens.size() >= 4)
-                shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
-            on_subgroup_type(cmd_tokens[1],print_member_selection_policy,capi,subgroup_index,shard_index);
-        } else if (cmd_tokens[0] == "set_member_selection_policy") {
-            if (cmd_tokens.size() < 5) {
-                print_red("Invalid format:" + cmdline);
-                continue;
-            }
-            subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[2]));
-            shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
-            ShardMemberSelectionPolicy policy = parse_policy_name(cmd_tokens[4]);
-            if (policy == ShardMemberSelectionPolicy::InvalidPolicy) {
-                print_red("Invalid policy name:" + cmd_tokens[4]);
-                continue;
-            }
-            node_id_t user_specified_node_id = INVALID_NODE_ID;
-            if (cmd_tokens.size() >= 6) {
-                user_specified_node_id = static_cast<node_id_t>(std::stoi(cmd_tokens[5]));
-            }
-            on_subgroup_type(cmd_tokens[1],set_member_selection_policy,capi,subgroup_index,shard_index,policy,user_specified_node_id);
-        } else if (cmd_tokens[0] == "put") {
-            persistent::version_t pver = persistent::INVALID_VERSION;
-            persistent::version_t pver_bk = persistent::INVALID_VERSION;
-            if (cmd_tokens.size() < 4) {
-                print_red("Invalid format:" + cmdline);
-                continue;
-            }
-            if (cmd_tokens.size() >= 5)
-                pver = static_cast<persistent::version_t>(std::stol(cmd_tokens[4]));
-            if (cmd_tokens.size() >= 6)
-                pver_bk = static_cast<persistent::version_t>(std::stol(cmd_tokens[5]));
-            if (cmd_tokens.size() >= 7)
-                subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[6]));
-            if (cmd_tokens.size() >= 8)
-                shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[7]));
-            on_subgroup_type(cmd_tokens[1],put,capi,cmd_tokens[2]/*key*/,cmd_tokens[3]/*value*/,pver,pver_bk,subgroup_index,shard_index);
-        } else if (cmd_tokens[0] == "trigger_put") {
-            if (cmd_tokens.size() < 4) {
-                print_red("Invalid format:" + cmdline);
-                continue;
-            }
-            if (cmd_tokens.size() >= 5)
-                subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
-            if (cmd_tokens.size() >= 6)
-                shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[5]));
-            on_subgroup_type(cmd_tokens[1],trigger_put,capi,cmd_tokens[2]/*key*/,cmd_tokens[3]/*value*/,subgroup_index,shard_index);
-        } else if (cmd_tokens[0] == "collective_trigger_put") {
-            std::vector<node_id_t> nodes;
-            if (cmd_tokens.size() < 4) {
-                print_red("Invalid format:" + cmdline);
-                continue;
-            }
-            if (cmd_tokens.size() >= 5)
-                subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
-            if (cmd_tokens.size() >= 6) {
-                shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[5]));
-                size_t arg_idx = 5;
-                while(arg_idx < cmd_tokens.size()) {
-                    nodes.push_back(static_cast<node_id_t>(std::stoi(cmd_tokens[arg_idx++])));
+        try {
+            if (cmd_tokens[0] == "help") {
+                std::cout << help_info << std::endl;
+            } else if (cmd_tokens[0] == "quit" || cmd_tokens[0] == "exit") {
+                break;
+            } else if (cmd_tokens[0] == "list_all_members") {
+                std::cout << "Top Derecho group members = [";
+                auto members = capi.get_members();
+                for (auto nid: members) {
+                    std::cout << nid << "," ;
                 }
-            }
-            on_subgroup_type(cmd_tokens[1],collective_trigger_put,capi,cmd_tokens[2]/*key*/,cmd_tokens[3]/*value*/,subgroup_index,nodes);
-        } else if (cmd_tokens[0] == "remove") {
-            if (cmd_tokens.size() < 3) {
-                print_red("Invalid format:" + cmdline);
-                continue;
-            }
-            if (cmd_tokens.size() >= 4)
+                std::cout << "]" << std::endl;
+            } else if (cmd_tokens[0] == "list_type_members") {
+                if (cmd_tokens.size() < 2) {
+                    print_red("Invalid format:" + cmdline);
+                    continue;
+                }
+                if (cmd_tokens.size() >= 3) {
+                    subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[2]));
+                }
+                if (cmd_tokens.size() >= 4) {
+                    shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
+                }
+                on_subgroup_type(cmd_tokens[1],print_shard_member,capi,subgroup_index,shard_index);
+    /* disabled exposing subgroup_id
+            } else if (cmd_tokens[0] == "list_subgroup_members") {
+                if (cmd_tokens.size() >= 2)
+                    subgroup_id = static_cast<derecho::subgroup_id_t>(std::stoi(cmd_tokens[1]));
+                if (cmd_tokens.size() >= 3)
+                    shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[2]));
+                print_shard_member(capi,subgroup_id,shard_index);
+    */
+            } else if (cmd_tokens[0] == "get_member_selection_policy") {
+                if (cmd_tokens.size() < 2) {
+                    print_red("Invalid format:" + cmdline);
+                    continue;
+                }
+                if (cmd_tokens.size() >= 3)
+                    subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[2]));
+                if (cmd_tokens.size() >= 4)
+                    shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
+                on_subgroup_type(cmd_tokens[1],print_member_selection_policy,capi,subgroup_index,shard_index);
+            } else if (cmd_tokens[0] == "set_member_selection_policy") {
+                if (cmd_tokens.size() < 5) {
+                    print_red("Invalid format:" + cmdline);
+                    continue;
+                }
+                subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[2]));
+                shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
+                ShardMemberSelectionPolicy policy = parse_policy_name(cmd_tokens[4]);
+                if (policy == ShardMemberSelectionPolicy::InvalidPolicy) {
+                    print_red("Invalid policy name:" + cmd_tokens[4]);
+                    continue;
+                }
+                node_id_t user_specified_node_id = INVALID_NODE_ID;
+                if (cmd_tokens.size() >= 6) {
+                    user_specified_node_id = static_cast<node_id_t>(std::stoi(cmd_tokens[5]));
+                }
+                on_subgroup_type(cmd_tokens[1],set_member_selection_policy,capi,subgroup_index,shard_index,policy,user_specified_node_id);
+            } else if (cmd_tokens[0] == "list_object_pools") {
+                std::cout << "refreshed object pools:" << std::endl;
+                for (std::string& opid: capi.list_object_pools(true)) {
+                    std::cout << "\t" << opid << std::endl;
+                }
+                std::cout << "list_object_pools done." << std::endl;
+            } else if (cmd_tokens[0] == "create_object_pool") {
+                if (cmd_tokens.size() < 4) {
+                    print_red("Invalid format:" + cmdline);
+                    continue;
+                }
+                std::string id = cmd_tokens[1];
                 subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
-            if (cmd_tokens.size() >= 5)
-                shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
-            on_subgroup_type(cmd_tokens[1],remove,capi,cmd_tokens[2]/*key*/,subgroup_index,shard_index);
-        } else if (cmd_tokens[0] == "get") {
-            if (cmd_tokens.size() < 3) {
-                print_red("Invalid format:" + cmdline);
-                continue;
+                on_subgroup_type(cmd_tokens[2],create_object_pool,capi,id,subgroup_index);
+            } else if (cmd_tokens[0] == "remove_object_pool") {
+                if (cmd_tokens.size() < 2) {
+                    print_red("Invalid format:" + cmdline);
+                    continue;
+                }
+                std::string id = cmd_tokens[1];
+                auto result = capi.remove_object_pool(id);
+                check_put_and_remove_result(result);
+            } else if (cmd_tokens[0] == "get_object_pool") {
+                if (cmd_tokens.size() < 2) {
+                    print_red("Invalid format:" + cmdline);
+                    continue;
+                }
+                std::string id = cmd_tokens[1];
+                auto opm = capi.find_object_pool(id);
+                std::cout << "get_object_pool returns:"
+                          << opm << std::endl;
+            } else if (cmd_tokens[0] == "put") {
+                persistent::version_t pver = persistent::INVALID_VERSION;
+                persistent::version_t pver_bk = persistent::INVALID_VERSION;
+                if (cmd_tokens.size() < 4) {
+                    print_red("Invalid format:" + cmdline);
+                    continue;
+                }
+                if (cmd_tokens.size() >= 5)
+                    pver = static_cast<persistent::version_t>(std::stol(cmd_tokens[4]));
+                if (cmd_tokens.size() >= 6)
+                    pver_bk = static_cast<persistent::version_t>(std::stol(cmd_tokens[5]));
+                if (cmd_tokens.size() >= 7)
+                    subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[6]));
+                if (cmd_tokens.size() >= 8)
+                    shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[7]));
+                on_subgroup_type(cmd_tokens[1],put,capi,cmd_tokens[2]/*key*/,cmd_tokens[3]/*value*/,pver,pver_bk,subgroup_index,shard_index);
+            } else if (cmd_tokens[0] == "op_put") {
+                persistent::version_t pver = persistent::INVALID_VERSION;
+                persistent::version_t pver_bk = persistent::INVALID_VERSION;
+                if (cmd_tokens.size() < 4) {
+                    print_red("Invalid format:" + cmdline);
+                    continue;
+                }
+                if (cmd_tokens.size() >= 5)
+                    pver = static_cast<persistent::version_t>(std::stol(cmd_tokens[4]));
+                if (cmd_tokens.size() >= 6)
+                    pver_bk = static_cast<persistent::version_t>(std::stol(cmd_tokens[5]));
+                on_subgroup_type(cmd_tokens[1], op_put,capi,cmd_tokens[2]/*key*/,cmd_tokens[3]/*value*/,pver,pver_bk);
+            } else if (cmd_tokens[0] == "trigger_put") {
+                if (cmd_tokens.size() < 4) {
+                    print_red("Invalid format:" + cmdline);
+                    continue;
+                }
+                if (cmd_tokens.size() >= 5)
+                    subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
+                if (cmd_tokens.size() >= 6)
+                    shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[5]));
+                on_subgroup_type(cmd_tokens[1],trigger_put,capi,cmd_tokens[2]/*key*/,cmd_tokens[3]/*value*/,subgroup_index,shard_index);
+            } else if (cmd_tokens[0] == "op_trigger_put") {
+                if (cmd_tokens.size() < 4) {
+                    print_red("Invalid format:" + cmdline);
+                    continue;
+                }
+                on_subgroup_type(cmd_tokens[1],op_trigger_put,capi,cmd_tokens[2]/*key*/,cmd_tokens[3]/*value*/);
+            } else if (cmd_tokens[0] == "collective_trigger_put") {
+                std::vector<node_id_t> nodes;
+                if (cmd_tokens.size() < 4) {
+                    print_red("Invalid format:" + cmdline);
+                    continue;
+                }
+                if (cmd_tokens.size() >= 5)
+                    subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
+                if (cmd_tokens.size() >= 6) {
+                    shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[5]));
+                    size_t arg_idx = 5;
+                    while(arg_idx < cmd_tokens.size()) {
+                        nodes.push_back(static_cast<node_id_t>(std::stoi(cmd_tokens[arg_idx++])));
+                    }
+                }
+                on_subgroup_type(cmd_tokens[1],collective_trigger_put,capi,cmd_tokens[2]/*key*/,cmd_tokens[3]/*value*/,subgroup_index,nodes);
+            } else if (cmd_tokens[0] == "remove") {
+                if (cmd_tokens.size() < 3) {
+                    print_red("Invalid format:" + cmdline);
+                    continue;
+                }
+                if (cmd_tokens.size() >= 4)
+                    subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
+                if (cmd_tokens.size() >= 5)
+                    shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
+                on_subgroup_type(cmd_tokens[1],remove,capi,cmd_tokens[2]/*key*/,subgroup_index,shard_index);
+            } else if (cmd_tokens[0] == "op_remove") {
+                if (cmd_tokens.size() < 3) {
+                    print_red("Invalid format:" + cmdline);
+                    continue;
+                }
+                on_subgroup_type(cmd_tokens[1],op_remove,capi,cmd_tokens[2]/*key*/);
+            } else if (cmd_tokens[0] == "get") {
+                if (cmd_tokens.size() < 3) {
+                    print_red("Invalid format:" + cmdline);
+                    continue;
+                }
+                if (cmd_tokens.size() >= 4)
+                    version = static_cast<persistent::version_t>(std::stol(cmd_tokens[3]));
+                if (cmd_tokens.size() >= 5)
+                    subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
+                if (cmd_tokens.size() >= 6)
+                    shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[5]));
+                on_subgroup_type(cmd_tokens[1],get,capi,cmd_tokens[2],version,subgroup_index,shard_index);
+            } else if (cmd_tokens[0] == "op_get") {
+                if (cmd_tokens.size() < 3) {
+                    print_red("Invalid format:" + cmdline);
+                    continue;
+                }
+                if (cmd_tokens.size() >= 4)
+                    version = static_cast<persistent::version_t>(std::stol(cmd_tokens[3]));
+                on_subgroup_type(cmd_tokens[1],op_get,capi,cmd_tokens[2],version);
+            } else if (cmd_tokens[0] == "get_by_time") {
+                if (cmd_tokens.size() < 4) {
+                    print_red("Invalid format:" + cmdline);
+                    continue;
+                }
+                uint64_t ts_us = static_cast<uint64_t>(std::stol(cmd_tokens[3]));
+                if (cmd_tokens.size() >= 5)
+                    subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
+                if (cmd_tokens.size() >= 6)
+                    shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[5]));
+                on_subgroup_type(cmd_tokens[1],get_by_time,capi,cmd_tokens[2],ts_us,subgroup_index,shard_index);
+            } else if (cmd_tokens[0] == "op_get_by_time") {
+                if (cmd_tokens.size() < 4) {
+                    print_red("Invalid format:" + cmdline);
+                    continue;
+                }
+                uint64_t ts_us = static_cast<uint64_t>(std::stol(cmd_tokens[3]));
+                on_subgroup_type(cmd_tokens[1],op_get_by_time,capi,cmd_tokens[2],ts_us);
+            } else if (cmd_tokens[0] == "get_size") {
+                if (cmd_tokens.size() < 3) {
+                    print_red("Invalid format:" + cmdline);
+                    continue;
+                }
+                if (cmd_tokens.size() >= 4)
+                    version = static_cast<persistent::version_t>(std::stol(cmd_tokens[3]));
+                if (cmd_tokens.size() >= 5)
+                    subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
+                if (cmd_tokens.size() >= 6)
+                    shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[5]));
+                on_subgroup_type(cmd_tokens[1],get_size,capi,cmd_tokens[2],version,subgroup_index,shard_index);
+            } else if (cmd_tokens[0] == "op_get_size") {
+                if (cmd_tokens.size() < 3) {
+                    print_red("Invalid format:" + cmdline);
+                    continue;
+                }
+                if (cmd_tokens.size() >= 4)
+                    version = static_cast<persistent::version_t>(std::stol(cmd_tokens[3]));
+                on_subgroup_type(cmd_tokens[1],op_get_size,capi,cmd_tokens[2],version);
+            } else if (cmd_tokens[0] == "get_size_by_time") {
+                if (cmd_tokens.size() < 4) {
+                    print_red("Invalid format:" + cmdline);
+                    continue;
+                }
+                uint64_t ts_us = static_cast<uint64_t>(std::stol(cmd_tokens[3]));
+                if (cmd_tokens.size() >= 5)
+                    subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
+                if (cmd_tokens.size() >= 6)
+                    shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[5]));
+                on_subgroup_type(cmd_tokens[1],get_size_by_time,capi,cmd_tokens[2],ts_us,subgroup_index,shard_index);
+            } else if (cmd_tokens[0] == "op_get_size_by_time") {
+                if (cmd_tokens.size() < 4) {
+                    print_red("Invalid format:" + cmdline);
+                    continue;
+                }
+                uint64_t ts_us = static_cast<uint64_t>(std::stol(cmd_tokens[3]));
+                on_subgroup_type(cmd_tokens[1],op_get_size_by_time,capi,cmd_tokens[2],ts_us);
+            } else if (cmd_tokens[0] == "list_keys") {
+                if (cmd_tokens.size() < 2) {
+                    print_red("Invalid format:" + cmdline);
+                    continue;
+                }
+                if (cmd_tokens.size() >= 3) {
+                    version = static_cast<persistent::version_t>(std::stol(cmd_tokens[2]));
+                }
+                if (cmd_tokens.size() >= 4) {
+                    subgroup_index = static_cast<uint32_t>(std::stol(cmd_tokens[3]));
+                }
+                if (cmd_tokens.size() >= 5) {
+                    shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
+                }
+                on_subgroup_type(cmd_tokens[1],list_keys,capi,version,subgroup_index,shard_index);
+            } else if (cmd_tokens[0] == "list_keys_by_time") {
+                if (cmd_tokens.size() < 3) {
+                    print_red("Invalid format:" + cmdline);
+                    continue;
+                }
+                uint64_t ts_us = static_cast<uint64_t>(std::stol(cmd_tokens[2]));
+                if (cmd_tokens.size() >= 4) {
+                    subgroup_index = static_cast<uint32_t>(std::stol(cmd_tokens[3]));
+                }
+                if (cmd_tokens.size() >= 5) {
+                    shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
+                }
+                on_subgroup_type(cmd_tokens[1],list_keys_by_time,capi,ts_us,subgroup_index,shard_index);
+            } else if (cmd_tokens[0] == "op_list_keys") {
+                if (cmd_tokens.size() < 3) {
+                    print_red("Invalid format:" + cmdline);
+                    continue;
+                }
+                if (cmd_tokens.size() >= 4) {
+                    version = static_cast<persistent::version_t>(std::stol(cmd_tokens[3]));
+                }
+                on_subgroup_type(cmd_tokens[1],op_list_keys,capi,version, cmd_tokens[2]);
+            } else if (cmd_tokens[0] == "op_list_keys_by_time") {
+                if (cmd_tokens.size() < 4) {
+                    print_red("Invalid format:" + cmdline);
+                    continue;
+                }
+                uint64_t ts_us = static_cast<uint64_t>(std::stol(cmd_tokens[2]));
+                on_subgroup_type(cmd_tokens[1],op_list_keys_by_time,capi,ts_us,cmd_tokens[3]);
+    #ifdef HAS_BOOLINQ
+            } else if (cmd_tokens[0] == "list_data_by_prefix") {
+                if (cmd_tokens.size() < 3) {
+                    print_red("Invalid format:" + cmdline);
+                    continue;
+                }
+                std::string& prefix = cmd_tokens[2];
+                if (cmd_tokens.size() >= 4)
+                    version = static_cast<persistent::version_t>(std::stol(cmd_tokens[3]));
+                if (cmd_tokens.size() >= 5)
+                    subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
+                if (cmd_tokens.size() >= 6)
+                    shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[5]));
+                on_subgroup_type(cmd_tokens[1],list_data_by_prefix,capi,prefix,version,subgroup_index,shard_index);
+            } else if (cmd_tokens[0] == "list_data_between_version") {
+                if (cmd_tokens.size() < 5) {
+                    print_red("Invalid format:" + cmdline);
+                    continue;
+                }
+                uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
+                uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
+    
+                persistent::version_t version_begin = INVALID_VERSION;
+                if (cmd_tokens.size() >= 6) {
+                    version_begin = static_cast<persistent::version_t>(std::stol(cmd_tokens[5]));
+                }
+                if (cmd_tokens.size() >= 7) {
+                    version = static_cast<persistent::version_t>(std::stol(cmd_tokens[6]));
+                }
+                on_subgroup_type(cmd_tokens[1], list_data_between_version, capi, cmd_tokens[2] /*key*/, subgroup_index, shard_index, version_begin, version);
+            } else if (cmd_tokens[0] == "list_data_of_key_between_timestamp") {
+                if (cmd_tokens.size() < 3) {
+                    print_red("Invalid format:" + cmdline);
+                    continue;
+                }
+    
+                uint64_t start = 0;
+                uint64_t end = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+                if (cmd_tokens.size() >= 4) {
+                    start = static_cast<uint64_t>(std::stol(cmd_tokens[3]));
+                }
+                if (cmd_tokens.size() >= 5) {
+                    end = static_cast<uint64_t>(std::stol(cmd_tokens[4]));
+                }
+                if (cmd_tokens.size() >= 6) {
+                    subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[5]));
+                }
+                if (cmd_tokens.size() >= 7) {
+                    shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[6]));
+                }
+                on_subgroup_type(cmd_tokens[1], list_data_of_key_between_timestamp, capi, cmd_tokens[2], start, end, subgroup_index, shard_index);
+            } else if (cmd_tokens[0] == "list_data_in_subgroup") {
+                if (cmd_tokens.size() < 3) {
+                    print_red("Invalid format:" + cmdline);
+                    continue;
+                }
+                uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[2]));
+    
+                if (cmd_tokens.size() >= 4) {
+                    version = static_cast<persistent::version_t>(std::stol(cmd_tokens[3]));
+                }
+                on_subgroup_type(cmd_tokens[1], list_data_in_subgroup, capi, subgroup_index, version);
+    #endif//HAS_BOOLINQ
+            } else {
+                print_red("command:" + cmd_tokens[0] + " is not implemented or unknown.");
             }
-            if (cmd_tokens.size() >= 4)
-                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[3]));
-            if (cmd_tokens.size() >= 5)
-                subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
-            if (cmd_tokens.size() >= 6)
-                shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[5]));
-            on_subgroup_type(cmd_tokens[1],get,capi,cmd_tokens[2],version,subgroup_index,shard_index);
-        } else if (cmd_tokens[0] == "get_by_time") {
-            if (cmd_tokens.size() < 4) {
-                print_red("Invalid format:" + cmdline);
-                continue;
-            }
-            uint64_t ts_us = static_cast<uint64_t>(std::stol(cmd_tokens[3]));
-            if (cmd_tokens.size() >= 5)
-                subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
-            if (cmd_tokens.size() >= 6)
-                shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[5]));
-            on_subgroup_type(cmd_tokens[1],get_by_time,capi,cmd_tokens[2],ts_us,subgroup_index,shard_index);
-        } else if (cmd_tokens[0] == "get_size") {
-            if (cmd_tokens.size() < 3) {
-                print_red("Invalid format:" + cmdline);
-                continue;
-            }
-            if (cmd_tokens.size() >= 4)
-                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[3]));
-            if (cmd_tokens.size() >= 5)
-                subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
-            if (cmd_tokens.size() >= 6)
-                shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[5]));
-            on_subgroup_type(cmd_tokens[1],get_size,capi,cmd_tokens[2],version,subgroup_index,shard_index);
-        } else if (cmd_tokens[0] == "get_size_by_time") {
-            if (cmd_tokens.size() < 4) {
-                print_red("Invalid format:" + cmdline);
-                continue;
-            }
-            uint64_t ts_us = static_cast<uint64_t>(std::stol(cmd_tokens[3]));
-            if (cmd_tokens.size() >= 5)
-                subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
-            if (cmd_tokens.size() >= 6)
-                shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[5]));
-            on_subgroup_type(cmd_tokens[1],get_size_by_time,capi,cmd_tokens[2],ts_us,subgroup_index,shard_index);
-        } else if (cmd_tokens[0] == "list_keys") {
-            if (cmd_tokens.size() < 2) {
-                print_red("Invalid format:" + cmdline);
-                continue;
-            }
-            if (cmd_tokens.size() >= 3) {
-                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[2]));
-            }
-            if (cmd_tokens.size() >= 4) {
-                subgroup_index = static_cast<uint32_t>(std::stol(cmd_tokens[3]));
-            }
-            if (cmd_tokens.size() >= 5) {
-                shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
-            }
-            on_subgroup_type(cmd_tokens[1],list_keys,capi,version,subgroup_index,shard_index);
-        } else if (cmd_tokens[0] == "list_keys_by_time") {
-            if (cmd_tokens.size() < 3) {
-                print_red("Invalid format:" + cmdline);
-                continue;
-            }
-            uint64_t ts_us = static_cast<uint64_t>(std::stol(cmd_tokens[3]));
-            if (cmd_tokens.size() >= 4) {
-                subgroup_index = static_cast<uint32_t>(std::stol(cmd_tokens[3]));
-            }
-            if (cmd_tokens.size() >= 5) {
-                shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
-            }
-            on_subgroup_type(cmd_tokens[1],list_keys_by_time,capi,ts_us,subgroup_index,shard_index);
-#ifdef HAS_BOOLINQ
-        } else if (cmd_tokens[0] == "list_data_by_prefix") {
-            if (cmd_tokens.size() < 3) {
-                print_red("Invalid format:" + cmdline);
-                continue;
-            }
-            std::string& prefix = cmd_tokens[2];
-            if (cmd_tokens.size() >= 4)
-                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[3]));
-            if (cmd_tokens.size() >= 5)
-                subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
-            if (cmd_tokens.size() >= 6)
-                shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[5]));
-            on_subgroup_type(cmd_tokens[1],list_data_by_prefix,capi,prefix,version,subgroup_index,shard_index);
-        } else if (cmd_tokens[0] == "list_data_between_version") {
-            if (cmd_tokens.size() < 5) {
-                print_red("Invalid format:" + cmdline);
-                continue;
-            }
-            uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
-            uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
-
-            persistent::version_t version_begin = INVALID_VERSION;
-            if (cmd_tokens.size() >= 6) {
-                version_begin = static_cast<persistent::version_t>(std::stol(cmd_tokens[5]));
-            }
-            if (cmd_tokens.size() >= 7) {
-                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[6]));
-            }
-            on_subgroup_type(cmd_tokens[1], list_data_between_version, capi, cmd_tokens[2] /*key*/, subgroup_index, shard_index, version_begin, version);
-        } else if (cmd_tokens[0] == "list_data_of_key_between_timestamp") {
-            if (cmd_tokens.size() < 3) {
-                print_red("Invalid format:" + cmdline);
-                continue;
-            }
-
-            uint64_t start = 0;
-            uint64_t end = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-            if (cmd_tokens.size() >= 4) {
-                start = static_cast<uint64_t>(std::stol(cmd_tokens[3]));
-            }
-            if (cmd_tokens.size() >= 5) {
-                end = static_cast<uint64_t>(std::stol(cmd_tokens[4]));
-            }
-            if (cmd_tokens.size() >= 6) {
-                subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[5]));
-            }
-            if (cmd_tokens.size() >= 7) {
-                shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[6]));
-            }
-            on_subgroup_type(cmd_tokens[1], list_data_of_key_between_timestamp, capi, cmd_tokens[2], start, end, subgroup_index, shard_index);
-        } else if (cmd_tokens[0] == "list_data_in_subgroup") {
-            if (cmd_tokens.size() < 3) {
-                print_red("Invalid format:" + cmdline);
-                continue;
-            }
-            uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[2]));
-
-            if (cmd_tokens.size() >= 4) {
-                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[3]));
-            }
-            on_subgroup_type(cmd_tokens[1], list_data_in_subgroup, capi, subgroup_index, version);
-#endif//HAS_BOOLINQ
-        } else {
-            print_red("command:" + cmd_tokens[0] + " is not implemented or unknown.");
+        } catch (const derecho::derecho_exception &ex) {
+            print_red (std::string("Exception:") + ex.what());
+        } catch (...) {
+            print_red ("Caught unknown exception.");
         }
     }
     std::cout << "Client exits." << std::endl;

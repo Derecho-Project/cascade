@@ -65,7 +65,8 @@ get_python_inc(),
 '-isystem',
 'include',
 '-isystem',
-'/root/opt-dev/include'
+'/root/opt-dev/include',
+'/root/workspace/cascade/include',
 ]
 
 # Set this to the absolute path to the folder (NOT the file!) containing the
