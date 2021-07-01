@@ -448,6 +448,67 @@ void list_data_in_subgroup<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI&
 #endif// HAS_BOOLINQ
 
 /* TEST2: put/get/remove tests */
+using command_handler_t = std::function<bool(ServiceClientAPI& capi,std::vector<std::string>& cmd_tokens)>;
+struct command_entry_t {
+    const std::string cmd;              // command name
+    const std::string desc;             // help info
+    const std::string help;             // full help
+    const command_handler_t handler;    // handler
+};
+
+void list_commands(const std::vector<command_entry_t>& command_list) {
+    for (const auto& entry: command_list) {
+        if (entry.handler) {
+            std::cout << std::left << std::setw(16) << entry.cmd << "- " << entry.desc << std::endl;
+        } else {
+            std::cout << "# " << entry.cmd << std::endl;
+        }
+    }
+}
+
+size_t find_command(const std::vector<command_entry_t>& command_list, const std::string& command) {
+    size_t pos = 0;
+    for(;pos < command_list.size();pos++) {
+        if (command_list.at(pos).cmd == command) {
+            break;
+        }
+    }
+    if (pos == command_list.size()) {
+        pos = -1;
+    }
+    return pos;
+}
+
+std::vector<command_entry_t> commands = 
+{
+    {
+        "General Commands","","",command_handler_t()
+    },
+    { // 1 - help command
+        "help",
+        "Print help info",
+        "help [command name]",
+        [](ServiceClientAPI&,std::vector<std::string>& cmd_tokens){
+            if (cmd_tokens[0] != "help") {
+                print_red("help handler get unknown command:'" + cmd_tokens[0] + "', expecting 'help'.");
+                return false;
+            }
+            if (cmd_tokens.size() >= 2) {
+                size_t command_index = find_command(commands,cmd_tokens[1]);
+                if (command_index < 0) {
+                    print_red("unknown command:'"+cmd_tokens[1]+"'.");
+                } else {
+                    std::cout << commands.at(command_index).help << std::endl;
+                }
+                return (command_index>=0);
+            } else {
+                list_commands(commands);
+                return true;
+            }
+        }
+    }
+};
+
 void interactive_test(ServiceClientAPI& capi) {
     const char* help_info =
     "list_all_members\n\tlist all members in top level derecho group.\n"
@@ -495,6 +556,12 @@ void interactive_test(ServiceClientAPI& capi) {
 
         std::string delimiter = " ";
         auto cmd_tokens = tokenize(cmdline, delimiter.c_str());
+
+        size_t command_index = find_command(commands, cmd_tokens[0]);
+        if (command_index>=0) {
+            commands.at(command_index).handler(capi,cmd_tokens);
+        }
+
         if (cmd_tokens[0] == "help") {
             std::cout << help_info << std::endl;
         } else if (cmd_tokens[0] == "quit" || cmd_tokens[0] == "exit") {
