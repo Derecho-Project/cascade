@@ -17,6 +17,7 @@ if (pybind11_FOUND)
     add_custom_command(TARGET cascade_py POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/interactive_test.py ${CMAKE_CURRENT_BINARY_DIR}/interactive_test.py
         COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/perf_test.py ${CMAKE_CURRENT_BINARY_DIR}/perf_test.py
+        DEPENDS interactive_test.py perf_test.py
     )
     install(TARGETS cascade_py EXPORT cascade_py
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})

@@ -48,20 +48,46 @@ class CascadeServiceCDPO: public CriticalDataPathObserver<CascadeType> {
                     PersistentCascadeStoreWithStringKey,
                     TriggerCascadeNoStoreWithStringKey>*
                 >(cascade_ctxt);
-            size_t pos = key.rfind('/');
+            size_t pos = key.rfind(PATH_SEPARATOR);
             std::string prefix;
             if (pos != std::string::npos) {
-                prefix = key.substr(0,pos);
+                // important: we need to keep the trailing PATH_SEPARATOR
+                prefix = key.substr(0,pos+1);
             }
             auto handlers = ctxt->get_prefix_handlers(prefix);
             auto value_ptr = std::make_shared<typename CascadeType::ObjectType>(value);
-            for(auto& handler : handlers) {
-                Action action(key,value.get_version(),handler.second,value_ptr);
-                ctxt->post(std::move(action),is_trigger);
+            for(auto& per_prefix : handlers) {
+                // per_prefix.first is the matching prefix
+                // per_prefix.second is a set of handlers
+                for (const auto& handler : per_prefix.second) {
+                    // handler.first is handler uuid
+                    // handler.second is the output of the handler
+                    Action action(
+                            key,
+                            per_prefix.first.size(),
+                            value.get_version(),
+                            std::get<0>(handler.second),
+                            value_ptr,
+                            std::get<1>(handler.second)
+                    );
+                    ctxt->post(std::move(action),is_trigger);
+                }
             }
         }
     }
 };
+
+namespace derecho::cascade {
+// specialize create_null_object_cb for Cascade Types...
+using opm_t = ObjectPoolMetadata<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey,TriggerCascadeNoStoreWithStringKey>;
+template<>
+opm_t create_null_object_cb<std::string,opm_t,&opm_t::IK,&opm_t::IV>(const std::string& key) {
+    opm_t opm;
+    opm.pathname = key;
+    opm.subgroup_type_index = opm_t::invalid_subgroup_type_index;
+    return opm;
+}
+}
 
 int main(int argc, char** argv) {
     // set proc name
@@ -81,6 +107,12 @@ int main(int argc, char** argv) {
     CascadeServiceCDPO<PersistentCascadeStoreWithStringKey> cdpo_pcss;
     CascadeServiceCDPO<TriggerCascadeNoStoreWithStringKey> cdpo_tcss;
 
+    auto meta_factory = [](persistent::PersistentRegistry* pr, derecho::subgroup_id_t, ICascadeContext* context_ptr) {
+        // critical data path for metadata service is currently disabled. But we can leverage it later for object pool
+        // metadata handling.
+        return std::make_unique<CascadeMetadataService<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey,TriggerCascadeNoStoreWithStringKey>>(
+                pr,nullptr,context_ptr);
+    };
     auto vcss_factory = [&cdpo_vcss](persistent::PersistentRegistry*, derecho::subgroup_id_t, ICascadeContext* context_ptr) {
         return std::make_unique<VolatileCascadeStoreWithStringKey>(&cdpo_vcss,context_ptr);
     };
@@ -94,7 +126,8 @@ int main(int argc, char** argv) {
     Service<VolatileCascadeStoreWithStringKey,
             PersistentCascadeStoreWithStringKey,
             TriggerCascadeNoStoreWithStringKey>::start(group_layout,
-            {&cdpo_vcss,&cdpo_pcss},
+            {&cdpo_vcss,&cdpo_pcss,&cdpo_tcss},
+            meta_factory,
             vcss_factory,pcss_factory,tcss_factory);
     dbg_default_trace("started service, waiting till it ends.");
     std::cout << "Press Enter to Shutdown." << std::endl;

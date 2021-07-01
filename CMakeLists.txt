@@ -10,6 +10,9 @@ set(cascade_build_VERSION 0.9.1)
 # C++ STANDARD
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS "-fPIC")
+if (${USE_VERBS_API})
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUSE_VERBS_API")
+endif()
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -Wall -ggdb -gdwarf-3 -ftemplate-backtrace-limit=0 -DEVALUATION")
 set(CMAKE_CXX_FLAGS_RELEASE "-Wall -DEVALUATION -fcompare-debug-second")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-Wall -ggdb -gdwarf-3")
@@ -22,7 +25,7 @@ if ( NOT DEFINED CMAKE_INSTALL_LIBDIR )
     set( CMAKE_INSTALL_LIBDIR lib )
 endif ()
 
-# mutils_FOUND 
+# mutils_FOUND
 # mutils_INCLUDE_DIRS
 # mutils_LIBRARIES
 find_package(mutils REQUIRED)
@@ -57,6 +60,12 @@ set(CMAKE_REQUIRED_LIBRARIES mxnet)
 CHECK_INCLUDE_FILE_CXX("mxnet-cpp/MxNetCpp.h" HAS_MXNET_CPP)
 unset(CMAKE_REQUIRED_LIBRARIES)
 
+#cuda
+find_package(CUDA)
+if (CUDA_FOUND)
+    set (ENABLE_GPU 1)
+endif()
+
 # enable evaluation
 set (ENABLE_EVALUATION 1)
 
@@ -78,7 +87,7 @@ add_library(cascade SHARED
 
 target_link_libraries(cascade
     ${derecho_LIBRARIES}
-    ${mutils_LIBRARIES} 
+    ${mutils_LIBRARIES}
     ${OPENSSL_LIBRARIES})
 set_target_properties(cascade PROPERTIES
     SOVERSION ${cascade_VERSION}
