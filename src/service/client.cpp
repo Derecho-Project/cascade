@@ -674,10 +674,6 @@ std::vector<command_entry_t> commands =
         "Print help info",
         "help [command name]",
         [](ServiceClientAPI&,std::vector<std::string>& cmd_tokens){
-            if (cmd_tokens[0] != "help") {
-                print_red("help handler get unknown command:'" + cmd_tokens[0] + "', expecting 'help'.");
-                return false;
-            }
             if (cmd_tokens.size() >= 2) {
                 size_t command_index = find_command(commands,cmd_tokens[1]);
                 if (command_index < 0) {
@@ -697,26 +693,18 @@ std::vector<command_entry_t> commands =
         "Exit",
         "quit",
         [](ServiceClientAPI&,std::vector<std::string>& cmd_tokens) {
-            if (cmd_tokens[0] != "quit") {
-                print_red("quit handler gets unknown command:'" + cmd_tokens[0] + "', expecting 'quit'.");
-                return false;
-            }
             shell_is_active = false;
             return true;
         }
     },
     {
-        "Membership commands","","",command_handler_t()
+        "Membership Commands","","",command_handler_t()
     },
     {
         "list_members",
         "List the IDs of all nodes in the Cascade service.",
         "list_members",
         [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
-            if (cmd_tokens[0] != "list_members") {
-                print_red("list_members handler gets unknown command:'" + cmd_tokens[0] + "', expecting 'list_members'.");
-                return false;
-            }
             std::cout << "Cascade service members = [";
             auto members = capi.get_members();
             for (auto nid: members) {
@@ -730,13 +718,9 @@ std::vector<command_entry_t> commands =
         "list_shard_members",
         "List the IDs in a shard specified by type, subgroup index, and shard index.",
         "list_shard_members <type> [subgroup index(default:0)] [shard index(default:0)]\n"
-        "type := " SUBGROUP_TYPE_LIST,
+            "type := " SUBGROUP_TYPE_LIST,
         [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
             uint32_t subgroup_index = 0, shard_index = 0;
-            if (cmd_tokens[0] != "list_shard_members") {
-                print_red("list_shard_members handler gets unknown command:'" + cmd_tokens[0] + "', expecting 'list_shard_members'.");
-                return false;
-            }
             if (cmd_tokens.size() < 2) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
@@ -750,23 +734,117 @@ std::vector<command_entry_t> commands =
             on_subgroup_type(cmd_tokens[1],print_shard_member,capi,subgroup_index,shard_index);
             return true;
         }
+    },
+    {
+        "set_member_selection_policy",
+        "Set the policy for choosing among a set of server members.",
+        "set_member_selection_policy <type> <subgroup_index> <shard_index> <policy> [user specified node id]\n"
+            "type := " SUBGROUP_TYPE_LIST
+            "policy := " SHARD_MEMBER_SELECTION_POLICY_LIST,
+        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+            if (cmd_tokens.size() < 5) {
+                print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
+                return false;
+            }
+            uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[2]));
+            uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
+            ShardMemberSelectionPolicy policy = parse_policy_name(cmd_tokens[4]);
+            if (policy == ShardMemberSelectionPolicy::InvalidPolicy) {
+                print_red("Invalid policy name:" + cmd_tokens[4]);
+                return false;
+            }
+            node_id_t user_specified_node_id = INVALID_NODE_ID;
+            if (cmd_tokens.size() >= 6) {
+                user_specified_node_id = static_cast<node_id_t>(std::stoi(cmd_tokens[5]));
+            }
+            on_subgroup_type(cmd_tokens[1],set_member_selection_policy,capi,subgroup_index,shard_index,policy,user_specified_node_id);
+            return true;
+        }
+    },
+    {
+        "get_member_selection_policy",
+        "Get the policy for choosing among a set of server members.",
+        "get_member_selection_policy <type> <subgroup_index> <shard_index>\n"
+            "type := " SUBGROUP_TYPE_LIST,
+        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+            if (cmd_tokens.size() < 4) {
+                print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
+                return false;
+            }
+            uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[2]));
+            uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
+            on_subgroup_type(cmd_tokens[1],print_member_selection_policy,capi,subgroup_index,shard_index);
+            return true;
+        }
+    },
+    {
+        "Object Pool Manipulation Commands","","",command_handler_t()
+    },
+    {
+        "list_object_pools",
+        "List existing object pools",
+        "list_object_pools",
+        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+            std::cout << "refreshed object pools:" << std::endl;
+            for (std::string& opath: capi.list_object_pools(true)) {
+                std::cout << "\t" << opath << std::endl;
+            }
+            return true;
+        }
+    },
+    {
+        "create_object_pool",
+        "Create an object pool",
+        "create_object_pool <path> <type> <subgroup_index>\n"
+            "type := " SUBGROUP_TYPE_LIST,
+        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+            if (cmd_tokens.size() < 4) {
+                print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
+                return false;
+            }
+            std::string opath = cmd_tokens[1];
+            uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
+            on_subgroup_type(cmd_tokens[2],create_object_pool,capi,opath,subgroup_index);
+            return true;
+        }
+    },
+    {
+        "remove_object_pool",
+        "Soft-Remove an object pool",
+        "remove_object_pool <path>\n",
+        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+            if (cmd_tokens.size() < 2) {
+                print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
+                return false;
+            }
+            auto result = capi.remove_object_pool(cmd_tokens[1]);
+            check_put_and_remove_result(result);
+            return true;
+        }
+    },
+    {
+        "get_object_pool",
+        "Get details of an object pool",
+        "get_object_pool <path>\n",
+        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+            if (cmd_tokens.size() < 2) {
+                print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
+                return false;
+            }
+            auto opm = capi.find_object_pool(cmd_tokens[1]);
+            std::cout << "get_object_pool returns:"
+                      << opm << std::endl;
+            return true;
+        }
+    },
+    {
+        "Object Maniputlation Commands","","",command_handler_t()
     }
 };
 
 void interactive_test(ServiceClientAPI& capi) {
 /*
     const char* help_info =
-    "list_all_members\n\tlist all members in top level derecho group.\n"
-    "list_type_members <type> [subgroup_index(0)] [shard_index(0)]\n\tlist members in shard by subgroup type.\n"
-    // "list_subgroup_members [subgroup_id(0)] [shard_index(0)]\n\tlist members in shard by subgroup id.\n"
-    "set_member_selection_policy <type> <subgroup_index> <shard_index> <policy> [user_specified_node_id]\n\tset member selection policy\n"
-    "get_member_selection_policy <type> [subgroup_index(0)] [shard_index(0)]\n\tget member selection policy\n"
-    "\n"
-    "list_object_pools\n\tlist all object pools\n"
-    "create_object_pool <id> <subgroup_type> <subgroup_index>\n\tcreate object pool\n"
-    "remove_object_pool <id>\n\tsoft-remove an object pool\n"
-    "get_object_pool <id>\n\tget details of an object pool\n"
-    "\n"
     "put <type> <key> <value> [pver(-1)] [pver_by_key(-1)] [subgroup_index(0)] [shard_index(0)]\n\tput an object\n"
     "op_put <type> <key> <value> [pver(-1)] [pver_by_key(-1)]\n\tput an object to the object pool specified by key\n"
     "trigger_put <type> <key> <value> [subgroup_index(0)] [shard_index(0)]\n\ttrigger put an object\n"
@@ -870,19 +948,7 @@ void interactive_test(ServiceClientAPI& capi) {
 //                }
 //                on_subgroup_type(cmd_tokens[1],set_member_selection_policy,capi,subgroup_index,shard_index,policy,user_specified_node_id);
 //            } else if (cmd_tokens[0] == "list_object_pools") {
-//                std::cout << "refreshed object pools:" << std::endl;
-//                for (std::string& opid: capi.list_object_pools(true)) {
-//                    std::cout << "\t" << opid << std::endl;
-//                }
-//                std::cout << "list_object_pools done." << std::endl;
 //            } else if (cmd_tokens[0] == "create_object_pool") {
-//                if (cmd_tokens.size() < 4) {
-//                    print_red("Invalid format:" + cmdline);
-//                    continue;
-//                }
-//                std::string id = cmd_tokens[1];
-//                subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
-//                on_subgroup_type(cmd_tokens[2],create_object_pool,capi,id,subgroup_index);
 //            } else if (cmd_tokens[0] == "remove_object_pool") {
 //                if (cmd_tokens.size() < 2) {
 //                    print_red("Invalid format:" + cmdline);
