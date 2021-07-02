@@ -640,7 +640,7 @@ struct command_entry_t {
 void list_commands(const std::vector<command_entry_t>& command_list) {
     for (const auto& entry: command_list) {
         if (entry.handler) {
-            std::cout << std::left << std::setw(16) << entry.cmd << "- " << entry.desc << std::endl;
+            std::cout << std::left << std::setw(24) << entry.cmd << "- " << entry.desc << std::endl;
         } else {
             std::cout << "# " << entry.cmd << std::endl;
         }
@@ -730,7 +730,7 @@ std::vector<command_entry_t> commands =
         "list_shard_members",
         "List the IDs in a shard specified by type, subgroup index, and shard index.",
         "list_shard_members <type> [subgroup index(default:0)] [shard index(default:0)]\n"
-        "type := " SUBGROUP_TYPE_LIST "\n",
+        "type := " SUBGROUP_TYPE_LIST,
         [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
             uint32_t subgroup_index = 0, shard_index = 0;
             if (cmd_tokens[0] != "list_shard_members") {
@@ -806,7 +806,7 @@ void interactive_test(ServiceClientAPI& capi) {
     persistent::version_t version;
 
     // loop
-    while (true) {
+    while (shell_is_active) {
         // subgroup_id = 0;
         subgroup_index = 0;
         shard_index = 0;
@@ -824,7 +824,11 @@ void interactive_test(ServiceClientAPI& capi) {
         try {
             size_t command_index = find_command(commands, cmd_tokens[0]);
             if (command_index>=0) {
-                commands.at(command_index).handler(capi,cmd_tokens);
+                if (commands.at(command_index).handler(capi,cmd_tokens)) {
+                    std::cout << "Fail" << std::endl;
+                } else {
+                    std::cout << "Succeed" << std::endl;
+                }
             }
 //            if (cmd_tokens[0] == "help") {
 //                std::cout << help_info << std::endl;
