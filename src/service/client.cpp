@@ -106,6 +106,12 @@ static void print_red(std::string msg) {
               << "\033[0m" << std::endl;
 }
 
+static void print_cyan(std::string msg) {
+    std::cout << "\033[1;36m"
+              << msg
+              << "\033[0m" << std::endl;
+}
+
 #define on_subgroup_type(x, ft, ...) \
     if ((x) == "VCSS") { \
         ft <VolatileCascadeStoreWithStringKey>(__VA_ARGS__); \
@@ -641,7 +647,7 @@ void list_commands(const std::vector<command_entry_t>& command_list) {
         if (entry.handler) {
             std::cout << std::left << std::setw(32) << entry.cmd << "- " << entry.desc << std::endl;
         } else {
-            std::cout << "# " << entry.cmd << std::endl;
+            print_cyan("# " + entry.cmd + " #");
         }
     }
 }
@@ -1274,6 +1280,9 @@ std::vector<command_entry_t> commands =
         }
     },
 #endif// HAS_BOOLINQ
+    {
+        "Performance Test Commands","","",command_handler_t()
+    },
 };
 
 void interactive_test(ServiceClientAPI& capi) {
