@@ -647,8 +647,8 @@ void list_commands(const std::vector<command_entry_t>& command_list) {
     }
 }
 
-size_t find_command(const std::vector<command_entry_t>& command_list, const std::string& command) {
-    size_t pos = 0;
+ssize_t find_command(const std::vector<command_entry_t>& command_list, const std::string& command) {
+    ssize_t pos = 0;
     for(;pos < command_list.size();pos++) {
         if (command_list.at(pos).cmd == command) {
             break;
@@ -675,7 +675,7 @@ std::vector<command_entry_t> commands =
         "help [command name]",
         [](ServiceClientAPI&,std::vector<std::string>& cmd_tokens){
             if (cmd_tokens.size() >= 2) {
-                size_t command_index = find_command(commands,cmd_tokens[1]);
+                ssize_t command_index = find_command(commands,cmd_tokens[1]);
                 if (command_index < 0) {
                     print_red("unknown command:'"+cmd_tokens[1]+"'.");
                 } else {
@@ -900,12 +900,12 @@ void interactive_test(ServiceClientAPI& capi) {
 
 
         try {
-            size_t command_index = find_command(commands, cmd_tokens[0]);
+            ssize_t command_index = find_command(commands, cmd_tokens[0]);
             if (command_index>=0) {
                 if (commands.at(command_index).handler(capi,cmd_tokens)) {
-                    std::cout << "Fail" << std::endl;
+                    std::cout << "-> Succeeded." << std::endl;
                 } else {
-                    std::cout << "Succeed" << std::endl;
+                    std::cout << "-> Failed." << std::endl;
                 }
             }
 //            if (cmd_tokens[0] == "help") {
