@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <readline/readline.h>
 #include <readline/history.h>
+#include "perftest.hpp"
 
 using namespace derecho::cascade;
 
@@ -632,6 +633,29 @@ void list_data_in_objectpool(ServiceClientAPI& capi, persistent::version_t versi
     }
 }
 #endif// HAS_BOOLINQ
+
+template <typename SubgroupType>
+void perftest(PerfTestClient& ptc,
+              const std::string& object_pool_pathname,
+              ExternalClientToCascadeServerMapping ec2cs,
+              double read_write_ratio,
+              uint64_t ops_threashold,
+              uint64_t duration_secs,
+              const std::string& output_file) {
+    ptc.template perf<SubgroupType>(object_pool_pathname,ec2cs,read_write_ratio,ops_threashold,duration_secs,output_file);
+}
+
+template <>
+void perftest<TriggerCascadeNoStoreWithStringKey>(PerfTestClient& ptc,
+              const std::string& object_pool_pathname,
+              ExternalClientToCascadeServerMapping ec2cs,
+              double read_write_ratio,
+              uint64_t ops_threashold,
+              uint64_t duration_secs,
+              const std::string& output_file) {
+    print_red("TCSS does not support list_data_in_subgroup.");
+}
+
 
 /* TEST2: put/get/remove tests */
 using command_handler_t = std::function<bool(ServiceClientAPI& capi,std::vector<std::string>& cmd_tokens)>;
@@ -1282,6 +1306,51 @@ std::vector<command_entry_t> commands =
 #endif// HAS_BOOLINQ
     {
         "Performance Test Commands","","",command_handler_t()
+    },
+    {
+        "perftest",
+        "Performance Tester for put and get.",
+        "perftest <type> <object pool pathname> <member selection policy> <r/w ratio> <max rate> <duration in sec> <client1> [<client2>, ...] \n"
+            "type := " SUBGROUP_TYPE_LIST "\n"
+            "'r/w ratio' is the ratio of get vs put operations, INF for all put test; \n"
+            "'member selection policy' refers how the external clients pick a member in a shard;\n"
+            "    Available options: FIXED|RANDOM|ROUNDROBIN;\n"
+            "'max rate' is the maximum number of operations in Operations per Second; \n"
+            "'duration' is the span of the whole experiments; \n"
+            "'clientn' is a host[:port] pair representing the parallel clients. The port is default to " + std::to_string(PERFTEST_PORT),
+        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+            if (cmd_tokens.size() < 8) {
+                print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
+                return false;
+            }
+
+            uint32_t type_index;
+            on_subgroup_type(cmd_tokens[1]/*type*/, type_index = capi.template get_subgroup_type_index);
+            std::string object_pool_pathname = cmd_tokens[2];
+            ExternalClientToCascadeServerMapping member_selection_policy = FIXED;
+            if (cmd_tokens[3] == "RANDOM") {
+                member_selection_policy = ExternalClientToCascadeServerMapping::RANDOM;
+            } else if (cmd_tokens[3] == "ROUNDROBIN") {
+                member_selection_policy = ExternalClientToCascadeServerMapping::ROUNDROBIN;
+            }
+            double read_write_ratio = std::stod(cmd_tokens[4]);
+            uint64_t max_rate = std::stoul(cmd_tokens[5]);
+            uint64_t duration_sec = std::stoul(cmd_tokens[6]);
+
+            PerfTestClient ptc{capi};
+            uint32_t pos = 7;
+            while (pos < cmd_tokens.size()) {
+                std::string::size_type colon_pos = cmd_tokens[pos].find(':');
+                if (colon_pos == std::string::npos) {
+                    ptc.add_or_update_server(cmd_tokens[pos],PERFTEST_PORT);
+                } else {
+                    ptc.add_or_update_server(cmd_tokens[pos].substr(0,colon_pos),
+                                             static_cast<uint16_t>(std::stoul(cmd_tokens[pos].substr(colon_pos+1))));
+                }
+            }
+            on_subgroup_type(cmd_tokens[1], perftest, ptc, object_pool_pathname, member_selection_policy,read_write_ratio,max_rate,duration_sec,"output.log");
+            return false;
+        }
     },
 };
 
