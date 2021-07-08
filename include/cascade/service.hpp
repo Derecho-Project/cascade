@@ -702,6 +702,15 @@ namespace cascade {
          * @return the pool ids.
          */
         std::vector<std::string> list_object_pools(bool refresh = false);
+
+        const static std::vector<std::type_index> subgroup_type_order;
+        const static uint32_t invalid_subgroup_type_index;
+        /**
+         * Get type index
+         * @return the the subgroup type index
+         */
+        template <typename SubgroupType>
+        inline static uint32_t get_subgroup_type_index();
     };
     
     

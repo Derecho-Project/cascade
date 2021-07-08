@@ -898,6 +898,24 @@ std::vector<std::string> ServiceClient<CascadeTypes...>::list_object_pools(bool 
     return ret;
 }
 
+template <typename... CascadeTypes>
+const std::vector<std::type_index> ServiceClient<CascadeTypes...>::subgroup_type_order{typeid(CascadeTypes)...};
+
+template <typename... CascadeTypes>
+const uint32_t ServiceClient<CascadeTypes...>::invalid_subgroup_type_index = 0xffffffff;
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+uint32_t ServiceClient<CascadeTypes...>::get_subgroup_type_index() {
+    uint32_t index = 0;
+    while (index < subgroup_type_order.size()) {
+        if ( std::type_index(typeid(SubgroupType)) == subgroup_type_order.at(index)) {
+            return index;
+        }
+        index ++;
+    }
+    return invalid_subgroup_type_index;
+}
 
 template <typename... CascadeTypes>
 CascadeContext<CascadeTypes...>::CascadeContext() {
@@ -1169,6 +1187,7 @@ template <typename... CascadeTypes>
 CascadeContext<CascadeTypes...>::~CascadeContext() {
     destroy();
 }
+
 
 }
 }
