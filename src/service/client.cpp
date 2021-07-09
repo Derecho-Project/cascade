@@ -1316,9 +1316,9 @@ std::vector<command_entry_t> commands =
         "Performance Tester for put and get.",
         "perftest <type> <object pool pathname> <member selection policy> <r/w ratio> <max rate> <duration in sec> <client1> [<client2>, ...] \n"
             "type := " SUBGROUP_TYPE_LIST "\n"
-            "'r/w ratio' is the ratio of get vs put operations, INF for all put test; \n"
             "'member selection policy' refers how the external clients pick a member in a shard;\n"
             "    Available options: FIXED|RANDOM|ROUNDROBIN;\n"
+            "'r/w ratio' is the ratio of get vs put operations, INF for all put test; \n"
             "'max rate' is the maximum number of operations in Operations per Second; \n"
             "'duration' is the span of the whole experiments; \n"
             "'clientn' is a host[:port] pair representing the parallel clients. The port is default to " + std::to_string(PERFTEST_PORT),
