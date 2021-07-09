@@ -14,6 +14,13 @@
 namespace derecho {
 namespace cascade {
 
+#define debug_enter_func_with_args(format,...) \
+    dbg_default_debug("Entering {} with parameter:" #format ".", __func__, __VA_ARGS__)
+#define debug_leave_func_with_value(format,...) \
+    dbg_default_debug("Leaving {} with " #format "." , __func__, __VA_ARGS__)
+#define debug_enter_func() dbg_default_debug("Entering {}.", __func__)
+#define debug_leave_func() dbg_default_debug("Leaving {}.", __func__)
+
 inline uint64_t get_time_us(bool use_wall_clock = true) {
     struct timespec tv;
     clock_gettime(use_wall_clock?CLOCK_REALTIME:CLOCK_MONOTONIC,&tv);

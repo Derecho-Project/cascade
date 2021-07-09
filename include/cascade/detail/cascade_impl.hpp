@@ -2,16 +2,10 @@
 #include <memory>
 #include <map>
 #include <type_traits>
+#include <cascade/utils.hpp>
 
 namespace derecho {
 namespace cascade {
-
-#define debug_enter_func_with_args(format,...) \
-    dbg_default_debug("Entering {} with parameter:" #format ".", __func__, __VA_ARGS__)
-#define debug_leave_func_with_value(format,...) \
-    dbg_default_debug("Leaving {} with " #format "." , __func__, __VA_ARGS__)
-#define debug_enter_func() dbg_default_debug("Entering {}.")
-#define debug_leave_func() dbg_default_debug("Leaving {}.")
 
 template<typename KeyType>
 std::string get_pathname(const std::enable_if_t<std::is_convertible<KeyType,std::string>::value,std::string>& key) {
