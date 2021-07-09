@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <readline/readline.h>
 #include <readline/history.h>
+#include <cascade/utils.hpp>
 #include "perftest.hpp"
 
 using namespace derecho::cascade;
@@ -639,10 +640,13 @@ void perftest(PerfTestClient& ptc,
               const std::string& object_pool_pathname,
               ExternalClientToCascadeServerMapping ec2cs,
               double read_write_ratio,
-              uint64_t ops_threashold,
+              uint64_t ops_threshold,
               uint64_t duration_secs,
               const std::string& output_file) {
-    ptc.template perf<SubgroupType>(object_pool_pathname,ec2cs,read_write_ratio,ops_threashold,duration_secs,output_file);
+    debug_enter_func_with_args("object_pool_pathname={},ec2cs={},read_write_ratio={},ops_threshold={},duration_secs={},output_file={}",
+                               object_pool_pathname,static_cast<uint32_t>(ec2cs),read_write_ratio,ops_threshold,duration_secs,output_file);
+    ptc.template perf<SubgroupType>(object_pool_pathname,ec2cs,read_write_ratio,ops_threshold,duration_secs,output_file);
+    debug_leave_func();
 }
 
 template <>
