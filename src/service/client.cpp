@@ -1352,7 +1352,7 @@ std::vector<command_entry_t> commands =
                 pos ++;
             }
             on_subgroup_type(cmd_tokens[1], perftest, ptc, object_pool_pathname, member_selection_policy,read_write_ratio,max_rate,duration_sec,"output.log");
-            return false;
+            return true;
         }
     },
 };
