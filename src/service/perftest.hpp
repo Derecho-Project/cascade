@@ -125,6 +125,9 @@ void PerfTestClient::perf(const std::string&    object_pool_pathname,
     // 1 - decides on shard membership policy for the "policy" and "user_specified_node_ids" argument for rpc calls.
     ShardMemberSelectionPolicy policy;
     auto object_pool = capi.find_object_pool(object_pool_pathname);
+    if (!object_pool.is_valid() || object_pool.is_null()) {
+        throw derecho::derecho_exception("Cannot find object pool:" + object_pool_pathname);
+    }
     uint32_t number_of_shards = capi.get_number_of_shards<SubgroupType>(object_pool.subgroup_index);
     std::map<std::pair<std::string,uint16_t>,std::vector<node_id_t>> user_specified_node_ids;
     for (const auto& kv:connections) {
