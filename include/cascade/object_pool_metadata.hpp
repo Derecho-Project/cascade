@@ -191,7 +191,7 @@ public:
     }
 
     virtual bool validate(const std::map<std::string,ObjectPoolMetadata<CascadeTypes...>>& kv_map) const override {
-        auto components = str_tokenizer(pathname,PATH_SEPARATOR);
+        auto components = str_tokenizer(pathname,true,PATH_SEPARATOR); // only check prefixes. It is valid to overwrite an existing one.
         std::string prefix;
         for (const auto& comp:components) {
             prefix = prefix + PATH_SEPARATOR + comp;
