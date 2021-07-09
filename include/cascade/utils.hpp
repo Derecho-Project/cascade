@@ -49,11 +49,10 @@ inline std::vector<std::string> str_tokenizer(const std::string& str, bool prefi
     while (pos != std::string::npos) {
         pos = str.find(separator,pos);
         if (pos == std::string::npos) {
-            if (prefix_only) {
-                continue;
-            } else if (spos < str.length()) {
+            if (!prefix_only && (spos < str.length())) {
                 components.emplace_back(str.substr(spos));
             }
+            continue;
         }
         // skip leading and consecutive '/'s.
         if (pos != spos) {
