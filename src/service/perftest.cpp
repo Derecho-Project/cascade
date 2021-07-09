@@ -59,12 +59,6 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
     capi(capi),
     server(port) {
     // Initialize objects
-    const uint32_t buf_size = derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE) - 256;
-    char *buf = (char*)malloc(buf_size);
-    memset(buf,'A',buf_size);
-    for (uint32_t i=0;i<NUMBER_OF_DISTINCT_OBJECTS;i++) {
-        objects.emplace_back("key_"+std::to_string(i),buf,buf_size);
-    }
     // API: run perf
     server.bind("perf",[this](
         const std::string&  object_pool_pathname,
@@ -88,7 +82,15 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
             on_subgroup_type_index_no_trigger(std::decay_t<decltype(capi)>::subgroup_type_order.at(object_pool.subgroup_type_index),
                 this->capi.template set_member_selection_policy, object_pool.subgroup_index, shard_index, static_cast<ShardMemberSelectionPolicy>(policy), user_specified_node_ids.at(shard_index));
         }
-        // STEP 2 - workload and log
+        // STEP 2 - prepare workload
+        const uint32_t buf_size = derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE) - 256;
+        char *buf = (char*)malloc(buf_size);
+        memset(buf,'A',buf_size);
+        for (uint32_t i=0;i<NUMBER_OF_DISTINCT_OBJECTS;i++) {
+            objects.emplace_back(object_pool_pathname+"/key_"+std::to_string(i),buf,buf_size);
+        }
+        free(buf);
+        // STEP 3 - start experiment and log
         std::vector<std::tuple<uint64_t,uint64_t,uint64_t>> timestamp_log; // version,send_timestamp_ns,reply_timestamp_ns
         uint32_t window_size = derecho::getConfUInt32(CONF_DERECHO_P2P_WINDOW_SIZE);
         // std::queue<std::optional<derecho::QueryResults<std::tuple<persistent::version_t,uint64_t>>>> futures;
