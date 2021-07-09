@@ -1324,8 +1324,6 @@ std::vector<command_entry_t> commands =
                 return false;
             }
 
-            uint32_t type_index;
-            on_subgroup_type(cmd_tokens[1]/*type*/, type_index = capi.template get_subgroup_type_index);
             std::string object_pool_pathname = cmd_tokens[2];
             ExternalClientToCascadeServerMapping member_selection_policy = FIXED;
             if (cmd_tokens[3] == "RANDOM") {
@@ -1355,6 +1353,9 @@ std::vector<command_entry_t> commands =
 };
 
 void interactive_test(ServiceClientAPI& capi) {
+    // start working thread.
+    PerfTestServer pts(capi);
+
     // loop
     while (shell_is_active) {
         char* malloced_cmd = readline("cmd> ");

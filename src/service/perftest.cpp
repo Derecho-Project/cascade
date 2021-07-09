@@ -164,6 +164,8 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         outfile.close();
         return true;
     });
+    // start the worker thread asynchronously
+    server.async_run(1);
 }
 
 PerfTestServer::~PerfTestServer() {
