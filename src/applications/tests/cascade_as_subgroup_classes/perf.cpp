@@ -23,12 +23,6 @@ using VCS = VolatileCascadeStore<uint64_t,ObjectWithUInt64Key,&ObjectWithUInt64K
 using PCS = PersistentCascadeStore<uint64_t,ObjectWithUInt64Key,&ObjectWithUInt64Key::IK,&ObjectWithUInt64Key::IV,ST_FILE>;
 
 #define SHUTDOWN_SERVER_PORT (2300)
-// timing unit.
-inline uint64_t get_time_us() {
-    struct timespec ts;
-    clock_gettime(CLOCK_REALTIME,&ts);
-    return ts.tv_sec*1000000+ts.tv_nsec/1000;
-}
 
 /* telnet server for server remote shutdown */
 void wait_for_shutdown(int port) {

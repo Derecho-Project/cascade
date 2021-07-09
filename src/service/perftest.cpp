@@ -186,7 +186,7 @@ void PerfTestClient::add_or_update_server(const std::string& host, uint16_t port
     connections.emplace(key,std::make_unique<::rpc::client>(host,port));
 }
 
-std::vector<std::pair<std::string,uint16_t>> PerfTestClient::get_servers() {
+std::vector<std::pair<std::string,uint16_t>> PerfTestClient::get_connections() {
     std::vector<std::pair<std::string,uint16_t>> result;
     for (auto& kv:connections) {
         result.emplace_back(kv.first);
