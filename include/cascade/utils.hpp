@@ -28,15 +28,32 @@ inline uint64_t get_time_us(bool use_wall_clock = true) {
 }
 
 /**
- * decompose a string to tokens.
+ * decompose the prefix into tokens. Please note that the token after the last separator is not considered a part of
+ * the prefix and hence dropped if the "prefix_only" is true
+ * For example, if prefix_only == true:
+ * A/B/C  --> A,B
+ * A/B/C/ --> A,B,C
+ * Other wise;
+ * A/B/C  --> A,B,C
+ * A/B/C/ --> A,B,C
+ *
+ * @param str
+ * @param prefix_only   - the flag controlling if the component after the last separator is included.
+ * @param separator
+ *
+ * @return tokens
  */
-inline std::vector<std::string> str_tokenizer(const std::string& str, char separator=PATH_SEPARATOR) {
+inline std::vector<std::string> str_tokenizer(const std::string& str, bool prefix_only=false, char separator=PATH_SEPARATOR) {
     std::vector<std::string> components;
     std::string::size_type pos=0, spos=0;
     while (pos != std::string::npos) {
         pos = str.find(separator,pos);
         if (pos == std::string::npos) {
-            continue;
+            if (prefix_only) {
+                continue;
+            } else if (spos < str.length()) {
+                components.emplace_back(str.substr(spos));
+            }
         }
         // skip leading and consecutive '/'s.
         if (pos != spos) {

@@ -75,13 +75,13 @@ bool PrefixRegistry<T, separator>::_register_prefix(const std::vector<std::strin
 
 template <typename T, char separator>
 bool PrefixRegistry<T,separator>::register_prefix(const std::string &prefix, const T &value) {
-    return _register_prefix(str_tokenizer(prefix, separator),value);
+    return _register_prefix(str_tokenizer(prefix,true,separator),value);
 }
 
 template <typename T, char separator>
 bool PrefixRegistry<T, separator>::remove_prefix(const std::string& prefix) {
     std::lock_guard<std::mutex> lck(prefix_tree_mutex);
-    auto ptn = get_tree_node(str_tokenizer(prefix, separator));
+    auto ptn = get_tree_node(str_tokenizer(prefix,true,separator));
     if (ptn == nullptr || !ptn->value) {
         return false;
     }
@@ -92,7 +92,7 @@ bool PrefixRegistry<T, separator>::remove_prefix(const std::string& prefix) {
 template <typename T, char separator>
 void PrefixRegistry<T, separator>::atomically_modify(const std::string& prefix, const std::function<std::shared_ptr<T>(const std::shared_ptr<T>& value)>& modifier, bool create) {
 
-    auto components = str_tokenizer(prefix, separator);
+    auto components = str_tokenizer(prefix,true,separator);
     std::lock_guard<std::mutex> lck(prefix_tree_mutex);
     
     TreeNode* ptn = &prefix_tree;
@@ -113,7 +113,7 @@ void PrefixRegistry<T, separator>::atomically_modify(const std::string& prefix, 
 
 template <typename T, char separator>
 bool PrefixRegistry<T, separator>::is_registered(const std::string& prefix) {
-    const auto ptr = get_tree_node_const(str_tokenizer(prefix,separator));
+    const auto ptr = get_tree_node_const(str_tokenizer(prefix,true,separator));
     return ((ptr!=nullptr) && ptr->value);
 }
 
@@ -166,7 +166,7 @@ std::string PrefixRegistry<T, separator>::pick_random_prefix() const {
 template <typename T, char separator>
 std::shared_ptr<T> PrefixRegistry<T, separator>::get_value(const std::string& prefix) const {
     std::lock_guard<std::mutex> lck(prefix_tree_mutex);
-    const auto ptn = get_tree_node_const(str_tokenizer(prefix,separator));
+    const auto ptn = get_tree_node_const(str_tokenizer(prefix,true,separator));
     if (ptn) {
         return ptn->value;
     }
@@ -177,7 +177,7 @@ template <typename T, char separator>
 void PrefixRegistry<T, separator>::collect_values_for_prefixes(
         const std::string& path,
         const std::function<void(const std::string& prefix,const std::shared_ptr<T>& value)>& collector) const {
-    auto components = str_tokenizer(path,separator);
+    auto components = str_tokenizer(path,true,separator);
     const TreeNode* ptn = &prefix_tree;
     std::lock_guard<std::mutex> lck(prefix_tree_mutex);
     std::string prefix(1,separator);
