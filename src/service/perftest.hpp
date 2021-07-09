@@ -120,7 +120,8 @@ void PerfTestClient::perf(const std::string&    object_pool_pathname,
                           uint64_t              ops_threshold,
                           uint64_t              duration_secs,
                           const std::string&    output_filename) {
-    debug_enter_func_with_args(object_pool_pathname,static_cast<uint32_t>(ec2cs),read_write_ratio,ops_threshold,duration_secs,output_filename);
+    debug_enter_func_with_args("object_pool_pathname={},ec2cs={},read_write_ratio={},ops_threshold={},duration_secs={},output_filename={}",
+                               object_pool_pathname,static_cast<uint32_t>(ec2cs),read_write_ratio,ops_threshold,duration_secs,output_filename);
     // 1 - decides on shard membership policy for the "policy" and "user_specified_node_ids" argument for rpc calls.
     ShardMemberSelectionPolicy policy;
     auto object_pool = capi.find_object_pool(object_pool_pathname);
