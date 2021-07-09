@@ -1349,6 +1349,7 @@ std::vector<command_entry_t> commands =
                     ptc.add_or_update_server(cmd_tokens[pos].substr(0,colon_pos),
                                              static_cast<uint16_t>(std::stoul(cmd_tokens[pos].substr(colon_pos+1))));
                 }
+                pos ++;
             }
             on_subgroup_type(cmd_tokens[1], perftest, ptc, object_pool_pathname, member_selection_policy,read_write_ratio,max_rate,duration_sec,"output.log");
             return false;
