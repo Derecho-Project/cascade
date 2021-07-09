@@ -1375,6 +1375,8 @@ void interactive_test(ServiceClientAPI& capi) {
                 } else {
                     std::cout << "-> Failed." << std::endl;
                 }
+            } else {
+                print_red("unknown command:" + cmd_tokens[0]);
             }
         } catch (const derecho::derecho_exception &ex) {
             print_red (std::string("Exception:") + ex.what());
