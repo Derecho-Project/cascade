@@ -2,6 +2,7 @@
 #include <cascade/service_client_api.hpp>
 #include <rpc/server.h>
 #include <rpc/client.h>
+#include <rpc/rpc_error.h>
 #include <vector>
 #include <derecho/utils/logger.hpp>
 
@@ -79,9 +80,10 @@ public:
      * @param duration_secs
      * @param output_file
      *        The log in "message id, version, send_ts_us, acked_ts_us" will be written in the output file.
+     * @return true for a successful run, false for a failed run.
      */
     template<typename SubgroupType>
-    void perf(const std::string&    object_pool_pathname,
+    bool perf(const std::string&    object_pool_pathname,
               ExternalClientToCascadeServerMapping ec2cs,
               double                read_write_ratio,
               uint64_t              ops_threshold,
@@ -114,7 +116,7 @@ public:
 };
 
 template<typename SubgroupType>
-void PerfTestClient::perf(const std::string&    object_pool_pathname,
+bool PerfTestClient::perf(const std::string&    object_pool_pathname,
                           ExternalClientToCascadeServerMapping ec2cs,
                           double                read_write_ratio,
                           uint64_t              ops_threshold,
@@ -122,6 +124,7 @@ void PerfTestClient::perf(const std::string&    object_pool_pathname,
                           const std::string&    output_filename) {
     debug_enter_func_with_args("object_pool_pathname={},ec2cs={},read_write_ratio={},ops_threshold={},duration_secs={},output_filename={}",
                                object_pool_pathname,static_cast<uint32_t>(ec2cs),read_write_ratio,ops_threshold,duration_secs,output_filename);
+    bool ret = true;
     // 1 - decides on shard membership policy for the "policy" and "user_specified_node_ids" argument for rpc calls.
     ShardMemberSelectionPolicy policy;
     auto object_pool = capi.find_object_pool(object_pool_pathname);
@@ -160,10 +163,24 @@ void PerfTestClient::perf(const std::string&    object_pool_pathname,
     }
 
     for(auto& kv:futures) {
-        bool result = kv.second.get().as<bool>();
-        dbg_default_info("perfserver {}:{} finished with {}.",kv.first.first,kv.first.second,result);
+        try {
+            bool result = kv.second.get().as<bool>();
+            dbg_default_info("perfserver {}:{} finished with {}.",kv.first.first,kv.first.second,result);
+        } catch (::rpc::rpc_error& rpce) {
+            dbg_default_warn("perfserver {}:{} throws an exception. Function:{}, error:{}",
+                             kv.first.first,
+                             kv.first.second,
+                             rpce.get_function_name(),
+                             rpce.get_error().as<std::string>());
+            ret = false;
+        } catch (...) {
+            dbg_default_warn("perfserver {}:{} throws unknown exception.",
+                             kv.first.first, kv.first.second);
+            ret = false;
+        }
     }
     debug_leave_func();
+    return ret;
 }
 
 template <typename SubgroupType>

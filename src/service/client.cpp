@@ -636,7 +636,7 @@ void list_data_in_objectpool(ServiceClientAPI& capi, persistent::version_t versi
 #endif// HAS_BOOLINQ
 
 template <typename SubgroupType>
-void perftest(PerfTestClient& ptc,
+bool perftest(PerfTestClient& ptc,
               const std::string& object_pool_pathname,
               ExternalClientToCascadeServerMapping ec2cs,
               double read_write_ratio,
@@ -645,12 +645,13 @@ void perftest(PerfTestClient& ptc,
               const std::string& output_file) {
     debug_enter_func_with_args("object_pool_pathname={},ec2cs={},read_write_ratio={},ops_threshold={},duration_secs={},output_file={}",
                                object_pool_pathname,static_cast<uint32_t>(ec2cs),read_write_ratio,ops_threshold,duration_secs,output_file);
-    ptc.template perf<SubgroupType>(object_pool_pathname,ec2cs,read_write_ratio,ops_threshold,duration_secs,output_file);
+    bool ret = ptc.template perf<SubgroupType>(object_pool_pathname,ec2cs,read_write_ratio,ops_threshold,duration_secs,output_file);
     debug_leave_func();
+    return ret;
 }
 
 template <>
-void perftest<TriggerCascadeNoStoreWithStringKey>(PerfTestClient& ptc,
+bool perftest<TriggerCascadeNoStoreWithStringKey>(PerfTestClient& ptc,
               const std::string& object_pool_pathname,
               ExternalClientToCascadeServerMapping ec2cs,
               double read_write_ratio,
@@ -658,6 +659,7 @@ void perftest<TriggerCascadeNoStoreWithStringKey>(PerfTestClient& ptc,
               uint64_t duration_secs,
               const std::string& output_file) {
     print_red("TCSS does not support list_data_in_subgroup.");
+    return false;
 }
 
 
@@ -1351,8 +1353,9 @@ std::vector<command_entry_t> commands =
                 }
                 pos ++;
             }
-            on_subgroup_type(cmd_tokens[1], perftest, ptc, object_pool_pathname, member_selection_policy,read_write_ratio,max_rate,duration_sec,"output.log");
-            return true;
+            bool ret;
+            on_subgroup_type(cmd_tokens[1], ret = perftest, ptc, object_pool_pathname, member_selection_policy,read_write_ratio,max_rate,duration_sec,"output.log");
+            return ret;
         }
     },
 };
