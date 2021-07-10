@@ -7,7 +7,9 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <cascade/utils.hpp>
+#ifdef ENABLE_EVALUATION
 #include "perftest.hpp"
+#endif//ENABLE_EVALUATION
 
 using namespace derecho::cascade;
 
@@ -635,6 +637,7 @@ void list_data_in_objectpool(ServiceClientAPI& capi, persistent::version_t versi
 }
 #endif// HAS_BOOLINQ
 
+#ifdef ENABLE_EVALUATION
 template <typename SubgroupType>
 bool perftest(PerfTestClient& ptc,
               const std::string& object_pool_pathname,
@@ -661,6 +664,7 @@ bool perftest<TriggerCascadeNoStoreWithStringKey>(PerfTestClient& ptc,
     print_red("TCSS does not support list_data_in_subgroup.");
     return false;
 }
+#endif // ENABLE_EVALUATION
 
 
 /* TEST2: put/get/remove tests */
@@ -1310,6 +1314,7 @@ std::vector<command_entry_t> commands =
         }
     },
 #endif// HAS_BOOLINQ
+#ifdef ENABLE_EVALUATION
     {
         "Performance Test Commands","","",command_handler_t()
     },
@@ -1358,12 +1363,14 @@ std::vector<command_entry_t> commands =
             return ret;
         }
     },
+#endif
 };
 
 void interactive_test(ServiceClientAPI& capi) {
+#ifdef ENABLE_EVALUATION
     // start working thread.
     PerfTestServer pts(capi);
-
+#endif 
     // loop
     while (shell_is_active) {
         char* malloced_cmd = readline("cmd> ");

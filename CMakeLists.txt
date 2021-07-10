@@ -69,6 +69,10 @@ endif()
 # enable evaluation
 set (ENABLE_EVALUATION 1)
 
+if (ENABLE_EVALUATION)
+    find_package(rpclib 2.3.0 REQUIRED)
+endif()
+
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/cascade/config.h)
 
 add_subdirectory(src/core)
