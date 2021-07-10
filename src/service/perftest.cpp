@@ -93,7 +93,6 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         // STEP 3 - start experiment and log
         std::vector<std::tuple<uint64_t,uint64_t,uint64_t>> timestamp_log; // version,send_timestamp_ns,reply_timestamp_ns
         uint32_t window_size = derecho::getConfUInt32(CONF_DERECHO_P2P_WINDOW_SIZE);
-        // std::queue<std::optional<derecho::QueryResults<std::tuple<persistent::version_t,uint64_t>>>> futures;
         std::queue<std::pair<uint64_t,derecho::QueryResults<std::tuple<persistent::version_t,uint64_t>>>> futures;
         //TODO: control read_write_ratio
         uint64_t interval_ns = static_cast<uint64_t>(1e9/max_operation_per_second);
