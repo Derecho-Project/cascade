@@ -1,3 +1,5 @@
+#include <cascade/config.h>
+#ifdef ENABLE_EVALUATION
 #include "perftest.hpp"
 #include <derecho/conf/conf.hpp>
 #include <derecho/core/detail/rpc_utils.hpp>
@@ -206,3 +208,5 @@ PerfTestClient::~PerfTestClient() {}
 
 }
 }
+
+#endif//ENABLE_EVALUATION
