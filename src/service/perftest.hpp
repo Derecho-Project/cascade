@@ -165,9 +165,9 @@ bool PerfTestClient::perf(const std::string&    object_pool_pathname,
     for(auto& kv:futures) {
         try {
             bool result = kv.second.get().as<bool>();
-            dbg_default_info("perfserver {}:{} finished with {}.",kv.first.first,kv.first.second,result);
+            dbg_default_trace("perfserver {}:{} finished with {}.",kv.first.first,kv.first.second,result);
         } catch (::rpc::rpc_error& rpce) {
-            dbg_default_warn("perfserver {}:{} throws an exception. Function:{}, error:{}",
+            dbg_default_warn("perfserver {}:{} throws an exception. function:{}, error:{}",
                              kv.first.first,
                              kv.first.second,
                              rpce.get_function_name(),
@@ -177,6 +177,28 @@ bool PerfTestClient::perf(const std::string&    object_pool_pathname,
             dbg_default_warn("perfserver {}:{} throws unknown exception.",
                              kv.first.first, kv.first.second);
             ret = false;
+        }
+    }
+
+    // download
+    if (ret) {
+        for(auto& kv:connections) {
+            try {
+                auto output = kv.second->call("download",output_filename);
+                std::ofstream outfile{output_filename+"-"+kv.first.first+":"+std::to_string(kv.first.second)};
+                outfile << output.as<std::string>();
+            } catch (::rpc::rpc_error& rpce) {
+                dbg_default_warn("perfserver {}:{} throws an exception. function:{}, error:{}",
+                                 kv.first.first,
+                                 kv.first.second,
+                                 rpce.get_function_name(),
+                                 rpce.get_error().as<std::string>());
+                ret = false;
+            } catch (...) {
+                dbg_default_warn("perfserver {}:{} throws unknown exception.",
+                                 kv.first.first, kv.first.second);
+                ret = false;
+            }
         }
     }
     debug_leave_func();
