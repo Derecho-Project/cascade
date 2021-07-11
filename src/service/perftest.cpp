@@ -61,7 +61,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
     capi(capi),
     server(port) {
     // Initialize objects
-    // API: run perf
+    // API 1 : run perf
     server.bind("perf",[this](
         const std::string&  object_pool_pathname,
         uint32_t            policy,
@@ -188,6 +188,17 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         }
         outfile.close();
         return true;
+    });
+    // API 2: read file
+    server.bind("download",[](const std::string& filename){
+        char buf[1024];
+        std::stringstream ss;
+        std::ifstream infile(filename);
+        while(infile.getline(buf,1024)) {
+            ss << buf << '\n';
+        }
+        infile.close();
+        return ss.str();
     });
     // start the worker thread asynchronously
     server.async_run(1);
