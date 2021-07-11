@@ -155,8 +155,9 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
                 all_sent.store(true);
                 break;
             }
-            if (now_ns + 1000 < next_ns) {
-                usleep((now_ns - next_ns + 1000)/1000); // sleep in microseconds.
+            // we leave 500 ns for loop overhead.
+            if (now_ns + 500 < next_ns) {
+                usleep((next_ns - now_ns - 500)/1000); // sleep in microseconds.
             }
             {
                 std::unique_lock<std::mutex> window_slots_lock{window_slots_mutex};
