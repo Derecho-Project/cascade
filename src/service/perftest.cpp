@@ -155,7 +155,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
                 all_sent.store(true);
                 break;
             }
-            if (now_ns + 1000 > next_ns) {
+            if (now_ns + 1000 < next_ns) {
                 usleep((now_ns - next_ns + 1000)/1000); // sleep in microseconds.
             }
             {
@@ -166,8 +166,8 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
             next_ns += interval_ns;
             std::function<void(QueryResults<std::tuple<persistent::version_t,uint64_t>>)> future_appender = 
                 [&futures,&futures_mutex,&futures_cv](QueryResults<std::tuple<persistent::version_t,uint64_t>>&& query_results){
-                    uint64_t timestamp_ns = get_walltime();
                     std::unique_lock<std::mutex> lock{futures_mutex};
+                    uint64_t timestamp_ns = get_walltime();
                     futures.emplace(timestamp_ns,std::move(query_results));
                     lock.unlock();
                     futures_cv.notify_one();
