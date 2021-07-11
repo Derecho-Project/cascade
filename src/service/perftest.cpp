@@ -126,7 +126,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
                         for (auto& reply: replies) {
                             auto version = std::get<0>(reply.second.get());
                             uint64_t reply_timestamp_ns = get_walltime();
-                            uint64_t send_timestamp_ns = futures.front().first;
+                            uint64_t send_timestamp_ns = pending_futures.front().first;
                             timestamp_log.emplace_back(version, send_timestamp_ns, reply_timestamp_ns);
                             break;
                         }
