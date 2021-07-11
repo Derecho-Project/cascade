@@ -106,7 +106,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
                 break;
             }
             if (now_ns + 1000 > next_ns) {
-                usleep(now_ns - next_ns + 1000);
+                usleep((now_ns - next_ns + 1000)/1000); // sleep in microseconds.
             }
             if (futures.size() >= window_size) {
                 auto& replies = futures.front().second.get();
