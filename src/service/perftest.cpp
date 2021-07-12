@@ -184,7 +184,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         std::ofstream outfile(output_filename);
         outfile << "#version,send_ts_us,acked_ts_us" << std::endl;
         for (const auto& le:timestamp_log) {
-            outfile << std::get<0>(le) << "," << (std::get<1>(le)/1000) << "," << (std::get<2>(le)/1000) << std::endl;
+            outfile << std::get<0>(le) << " " << (std::get<1>(le)/1000) << " " << (std::get<2>(le)/1000) << std::endl;
         }
         outfile.close();
         return true;
