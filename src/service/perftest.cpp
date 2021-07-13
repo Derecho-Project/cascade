@@ -146,7 +146,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         );
 
         //TODO: control read_write_ratio
-        uint64_t interval_ns = static_cast<uint64_t>(1e9/max_operation_per_second);
+        uint64_t interval_ns = (max_operation_per_second==0)?0:static_cast<uint64_t>(1e9/max_operation_per_second);
         uint64_t next_ns = get_walltime();
         uint64_t end_ns = next_ns + duration_secs*1000000000;
         while(true) {
@@ -176,7 +176,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
             on_subgroup_type_index_with_return_no_trigger(
                 std::decay_t<decltype(capi)>::subgroup_type_order.at(object_pool.subgroup_type_index),
                 future_appender,
-                this->capi.template put, objects.at(get_walltime()%NUMBER_OF_DISTINCT_OBJECTS));
+                this->capi.template put, objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS));
         }
         // wait for all pending futures.
         query_thread.join();

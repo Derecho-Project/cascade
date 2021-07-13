@@ -1326,7 +1326,7 @@ std::vector<command_entry_t> commands =
             "'member selection policy' refers how the external clients pick a member in a shard;\n"
             "    Available options: FIXED|RANDOM|ROUNDROBIN;\n"
             "'r/w ratio' is the ratio of get vs put operations, INF for all put test; \n"
-            "'max rate' is the maximum number of operations in Operations per Second; \n"
+            "'max rate' is the maximum number of operations in Operations per Second, 0 for best effort; \n"
             "'duration' is the span of the whole experiments; \n"
             "'clientn' is a host[:port] pair representing the parallel clients. The port is default to " + std::to_string(PERFTEST_PORT),
         [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
