@@ -703,6 +703,31 @@ namespace cascade {
          */
         std::vector<std::string> list_object_pools(bool refresh = false);
 
+#ifdef ENABLE_EVALUATION
+        /**
+         * Dump the timestamp log entries into a file on each of the nodes in a subgroup.
+         *
+         * @param filename         - the output filename
+         * @param subgroup_index   - the subgroup index
+         * @param shard_index      - the shard index
+         *
+         * @return a vector of query results.
+         */
+        template <typename SubgroupType>
+        derecho::rpc::QueryResults<void> dump_timestamp(const std::string& filename, const uint32_t subgroup_index, const uint32_t shard_index);
+
+        /**
+         * The object store version:
+         *
+         * @param filename             -   the filename version
+         * @param object_pool_pathname -   the object pool version
+         *
+         * @return query results
+         */
+        template <typename SubgroupType>
+        std::vector<std::unique_ptr<derecho::rpc::QueryResults<void>>> dump_timestamp(const std::string& filename, const std::string& object_pool_pathname);
+#endif//ENABLE_EVALUATION
+
         const static std::vector<std::type_index> subgroup_type_order;
         const static uint32_t invalid_subgroup_type_index;
         /**
