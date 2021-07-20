@@ -2,6 +2,7 @@
 #include <memory>
 #include <map>
 #include <type_traits>
+#include <fstream>
 #include <cascade/utils.hpp>
 
 namespace derecho {
@@ -30,6 +31,7 @@ std::string get_pathname(const std::enable_if_t<!std::is_convertible<KeyType,std
 template<typename KT, typename VT, KT* IK, VT* IV>
 std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::put(const VT& value) const {
     debug_enter_func_with_args("value.get_key_ref={}",value.get_key_ref());
+    uint64_t s1 = get_walltime();
     derecho::Replicated<VolatileCascadeStore>& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put)>(value);
     auto& replies = results.get();
@@ -38,6 +40,8 @@ std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::pu
     for (auto& reply_pair : replies) {
         ret = reply_pair.second.get();
     }
+    uint64_t s2 = get_walltime();
+    this->timestamp_log.emplace_back(std::get<0>(ret),s1,s2);
     debug_leave_func_with_value("version=0x{:x},timestamp={}",std::get<0>(ret),std::get<1>(ret));
     return ret;
 }
@@ -325,6 +329,46 @@ void VolatileCascadeStore<KT,VT,IK,IV>::trigger_put(const VT& value) const {
     debug_leave_func();
 }
 
+#ifdef ENABLE_EVALUATION
+template<typename KT, typename VT, KT* IK, VT* IV>
+void VolatileCascadeStore<KT,VT,IK,IV>::dump_timestamp_log(const std::string& filename) const {
+    derecho::Replicated<VolatileCascadeStore>& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
+    auto result = subgroup_handle.template ordered_send<RPC_NAME(ordered_dump_timestamp_log)>(filename);
+    auto& replies = result.get();
+    for (auto r:replies) {
+        volatile uint32_t _ = r;
+        _ = _;
+    }
+    return;
+}
+
+/**
+ * _dump_timestamp_log() dump the server timestamps to a text file.
+ *
+ * @param timestamps    - the timestamp log. Each log entry is a 3-tuple of version, ts1, ts2.
+ *                        'ts1': a put request is received from an external client
+ *                        'ts2': a response is sent to an external client
+ * @param filename      - the output filename
+ *
+ */
+inline void _dump_timestamp_log(const std::vector<std::tuple<uint64_t,uint64_t,uint64_t>>& timestamps, const std::string& filename) {
+    std::ofstream outfile(filename);
+    outfile << "# 'ts1': a put request is received from an external client." << std::endl;
+    outfile << "# 'ts2': a response is sent to an external client." << std::endl;
+    outfile << "# version, ts1, ts2" << std::endl;
+    for (const auto& le: timestamps) {
+        outfile << std::get<0>(le) << " " << (std::get<1>(le)/1000) << " " << (std::get<2>(le)/1000) << std::endl;
+    }
+    outfile.close();
+    return;
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
+void VolatileCascadeStore<KT,VT,IK,IV>::ordered_dump_timestamp_log(const std::string& filename) {
+    _dump_timestamp_log(timestamp_log,filename);
+}
+#endif//ENABLE_EVALUATION
+
 template<typename KT, typename VT, KT* IK, VT* IV>
 std::unique_ptr<VolatileCascadeStore<KT,VT,IK,IV>> VolatileCascadeStore<KT,VT,IK,IV>::from_bytes(
     mutils::DeserializationManager* dsm, 
@@ -343,6 +387,9 @@ template<typename KT, typename VT, KT* IK, VT* IV>
 VolatileCascadeStore<KT,VT,IK,IV>::VolatileCascadeStore(
     CriticalDataPathObserver<VolatileCascadeStore<KT,VT,IK,IV>>* cw,
     ICascadeContext* cc):
+#ifdef ENABLE_EVALUATION
+    timestamp_log(65536),
+#endif
     update_version(persistent::INVALID_VERSION),
     cascade_watcher_ptr(cw),
     cascade_context_ptr(cc) {
@@ -356,6 +403,9 @@ VolatileCascadeStore<KT,VT,IK,IV>::VolatileCascadeStore(
     persistent::version_t _uv,
     CriticalDataPathObserver<VolatileCascadeStore<KT,VT,IK,IV>>* cw,
     ICascadeContext* cc):
+#ifdef ENABLE_EVALUATION
+    timestamp_log(65536),
+#endif
     kv_map(_kvm),
     update_version(_uv),
     cascade_watcher_ptr(cw),
@@ -370,6 +420,9 @@ VolatileCascadeStore<KT,VT,IK,IV>::VolatileCascadeStore(
     persistent::version_t _uv,
     CriticalDataPathObserver<VolatileCascadeStore<KT,VT,IK,IV>>* cw,
     ICascadeContext* cc):
+#ifdef ENABLE_EVALUATION
+    timestamp_log(65536),
+#endif
     kv_map(std::move(_kvm)),
     update_version(_uv),
     cascade_watcher_ptr(cw),
@@ -898,6 +951,25 @@ void PersistentCascadeStore<KT,VT,IK,IV,ST>::trigger_put(const VT& value) const 
     debug_leave_func();
 }
 
+#ifdef ENABLE_EVALUATION
+template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+void PersistentCascadeStore<KT,VT,IK,IV,ST>::dump_timestamp_log(const std::string& filename) const {
+    derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
+    auto result = subgroup_handle.template ordered_send<RPC_NAME(ordered_dump_timestamp_log)>(filename);
+    auto& replies = result.get();
+    for (auto r:replies) {
+        volatile uint32_t _ = r;
+        _ = _;
+    }
+    return;
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+void PersistentCascadeStore<KT,VT,IK,IV,ST>::ordered_dump_timestamp_log(const std::string& filename) {
+    _dump_timestamp_log(timestamp_log,filename);
+}
+#endif//ENABLE_EVALUATION
+
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::ordered_list_keys() {
     debug_enter_func();
@@ -923,6 +995,9 @@ PersistentCascadeStore<KT,VT,IK,IV,ST>::PersistentCascadeStore(
                                                persistent::PersistentRegistry* pr,
                                                CriticalDataPathObserver<PersistentCascadeStore<KT,VT,IK,IV>>* cw,
                                                ICascadeContext* cc):
+#ifdef ENABLE_EVALUATION
+                                               timestamp_log(65536),
+#endif//ENABLE_EVALUATION
                                                persistent_core(
                                                    [](){
                                                        return std::make_unique<DeltaCascadeStoreCore<KT,VT,IK,IV>>();
@@ -932,13 +1007,15 @@ PersistentCascadeStore<KT,VT,IK,IV,ST>::PersistentCascadeStore(
                                                cascade_watcher_ptr(cw),
                                                cascade_context_ptr(cc) {}
 
-
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 PersistentCascadeStore<KT,VT,IK,IV,ST>::PersistentCascadeStore(
                                                persistent::Persistent<DeltaCascadeStoreCore<KT,VT,IK,IV>,ST>&&
                                                _persistent_core,
                                                CriticalDataPathObserver<PersistentCascadeStore<KT,VT,IK,IV>>* cw,
                                                ICascadeContext* cc):
+#ifdef ENABLE_EVALUATION
+                                               timestamp_log(65536),
+#endif//ENABLE_EVALUATION
                                                persistent_core(std::move(_persistent_core)),
                                                cascade_watcher_ptr(cw),
                                                cascade_context_ptr(cc) {}
@@ -1051,6 +1128,19 @@ void TriggerCascadeNoStore<KT,VT,IK,IV>::trigger_put(const VT& value) const {
 
     debug_leave_func();
 }
+
+#ifdef ENABLE_EVALUATION
+
+template<typename KT, typename VT, KT* IK, VT* IV>
+void TriggerCascadeNoStore<KT,VT,IK,IV>::dump_timestamp_log(const std::string& filename) const {
+    dbg_default_warn("To be implemented.");
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
+void TriggerCascadeNoStore<KT,VT,IK,IV>::ordered_dump_timestamp_log(const std::string& filename) {
+    dbg_default_warn("To be implemented.");
+}
+#endif//ENABLE_EVALUATION
 
 template<typename KT, typename VT, KT* IK, VT* IV>
 std::unique_ptr<TriggerCascadeNoStore<KT,VT,IK,IV>> TriggerCascadeNoStore<KT,VT,IK,IV>::from_bytes(mutils::DeserializationManager* dsm, char const* buf) {

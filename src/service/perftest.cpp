@@ -95,7 +95,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         // STEP 3 - start experiment and log
         // synchronization data structures
         // 1 - version,send_timestamp_ns,reply_timestamp_ns
-        std::vector<std::tuple<uint64_t,uint64_t,uint64_t>> timestamp_log;
+        std::vector<std::tuple<uint64_t,uint64_t,uint64_t>> timestamp_log(65536);
         // 2 - sending window and future queue
         uint32_t                window_size = derecho::getConfUInt32(CONF_DERECHO_P2P_WINDOW_SIZE);
         uint32_t                window_slots = window_size;
@@ -165,7 +165,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
                 window_slots --;
             }
             next_ns += interval_ns;
-            std::function<void(QueryResults<std::tuple<persistent::version_t,uint64_t>>)> future_appender = 
+            std::function<void(QueryResults<std::tuple<persistent::version_t,uint64_t>>&&)> future_appender = 
                 [&futures,&futures_mutex,&futures_cv](QueryResults<std::tuple<persistent::version_t,uint64_t>>&& query_results){
                     std::unique_lock<std::mutex> lock{futures_mutex};
                     uint64_t timestamp_ns = get_walltime();
@@ -180,13 +180,23 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         }
         // wait for all pending futures.
         query_thread.join();
-        // write output to file
+        // write client-side timestamp log to file
         std::ofstream outfile(output_filename);
         outfile << "#version send_ts_us acked_ts_us" << std::endl;
         for (const auto& le:timestamp_log) {
             outfile << std::get<0>(le) << " " << (std::get<1>(le)/1000) << " " << (std::get<2>(le)/1000) << std::endl;
         }
         outfile.close();
+        // flush server_side timestamp log to file
+        std::function<void(std::vector<std::unique_ptr<QueryResults<void>>>&&)> future_handler = [](std::vector<std::unique_ptr<QueryResults<void>>>&& qrs) {
+            for (auto& qr:qrs){
+                qr.get();
+            }
+        };
+        on_subgroup_type_index_with_return_no_trigger(
+            std::decay_t<decltype(capi)>::subgroup_type_order.at(object_pool.subgroup_type_index),
+            future_handler,
+            this->capi.template dump_timestamp, output_filename, object_pool_pathname);
         return true;
     });
     // API 2: read file

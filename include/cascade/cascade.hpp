@@ -230,6 +230,16 @@ namespace cascade {
          * @param value - the object to trig
          */
         virtual void trigger_put(const VT& value) const = 0;
+#ifdef ENABLE_EVALUATION
+        /**
+         * dump_timestamp_log(const std::string& filename)
+         *
+         * Dump the timestamp log to a local file specified by "filename"
+         *
+         * @param filename - the name of the timestamp log.
+         */
+        virtual void dump_timestamp_log(const std::string& filename) const = 0;
+#endif//ENABLE_EVALUATION
 
     protected:
         /**
@@ -259,6 +269,16 @@ namespace cascade {
          * ordered_get_size
          */
         virtual uint64_t ordered_get_size(const KT& key) = 0;
+#ifdef ENABLE_EVALUATION
+        /**
+         * ordered_dump_timestamp_log(const std::string& filename)
+         *
+         * Dump the timestamp log to a local file specified by "filename"
+         *
+         * @param filename - the name of the timestamp log.
+         */
+        virtual void ordered_dump_timestamp_log(const std::string& filename) = 0;
+#endif//ENABLE_EVALUATION
     };
 
     /**
@@ -271,6 +291,11 @@ namespace cascade {
     class VolatileCascadeStore : public ICascadeStore<KT, VT, IK, IV>,
                                  public mutils::ByteRepresentable,
                                  public derecho::GroupReference {
+    private:
+#ifdef ENABLE_EVALUATION
+        /* timestamp logger */
+        mutable std::vector<std::tuple<uint64_t,uint64_t,uint64_t>> timestamp_log;
+#endif//ENABLE_EVALUATION
     public:
         /* group reference */
         using derecho::GroupReference::group;
@@ -295,14 +320,25 @@ namespace cascade {
                                    op_list_keys_by_time,
                                    get_size,
                                    get_size_by_time,
-                                   trigger_put),
+                                   trigger_put
+#ifdef ENABLE_EVALUATION
+                                   ,dump_timestamp_log
+#endif//ENABLE_EVALUATION
+                               ),
                                ORDERED_TARGETS(
                                    ordered_put,
                                    ordered_remove,
                                    ordered_get,
                                    ordered_list_keys,
-                                   ordered_get_size));
-        virtual void trigger_put(const VT& value) const;
+                                   ordered_get_size
+#ifdef ENABLE_EVALUATION
+                                   ,ordered_dump_timestamp_log
+#endif//ENABLE_EVALUATION
+                               ));
+#ifdef ENABLE_EVALUATION
+        virtual void dump_timestamp_log(const std::string& filename) const override;
+#endif//ENABLE_EVALUATION
+        virtual void trigger_put(const VT& value) const override;
         virtual std::tuple<persistent::version_t,uint64_t> put(const VT& value) const override;
         virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) const override;
         virtual const VT get(const KT& key, const persistent::version_t& ver, bool exact=false) const override;
@@ -318,6 +354,9 @@ namespace cascade {
         virtual const VT ordered_get(const KT& key) override;
         virtual std::vector<KT> ordered_list_keys() override;
         virtual uint64_t ordered_get_size(const KT& key) override;
+#ifdef ENABLE_EVALUATION
+        virtual void ordered_dump_timestamp_log(const std::string& filename) override;
+#endif//ENABLE_EVALUATION
 
         // serialization support
         DEFAULT_SERIALIZE(kv_map,update_version);
@@ -439,6 +478,11 @@ namespace cascade {
                                    public mutils::ByteRepresentable,
                                    public derecho::PersistsFields,
                                    public derecho::GroupReference {
+    private:
+#ifdef ENABLE_EVALUATION
+        /* timestamp logger */
+        mutable std::vector<std::tuple<uint64_t,uint64_t,uint64_t>> timestamp_log;
+#endif//ENABLE_EVALUATION
     public:
         using derecho::GroupReference::group;
         persistent::Persistent<DeltaCascadeStoreCore<KT,VT,IK,IV>,ST> persistent_core;
@@ -458,13 +502,24 @@ namespace cascade {
                                    op_list_keys_by_time,
                                    get_size,
                                    get_size_by_time,
-                                   trigger_put),
+                                   trigger_put
+#ifdef ENABLE_EVALUATION
+                                   ,dump_timestamp_log
+#endif//ENABLE_EVALUATION
+                               ),
                                ORDERED_TARGETS(
                                    ordered_put,
                                    ordered_remove,
                                    ordered_get,
                                    ordered_list_keys,
-                                   ordered_get_size));
+                                   ordered_get_size
+#ifdef ENABLE_EVALUATION
+                                   ,ordered_dump_timestamp_log
+#endif//ENABLE_EVALUATION
+                                   ));
+#ifdef ENABLE_EVALUATION
+        virtual void dump_timestamp_log(const std::string& filename) const override;
+#endif//ENABLE_EVALUATION
         virtual void trigger_put(const VT& value) const;
         virtual std::tuple<persistent::version_t,uint64_t> put(const VT& value) const override;
         virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) const override;
@@ -481,6 +536,9 @@ namespace cascade {
         virtual const VT ordered_get(const KT& key) override;
         virtual std::vector<KT> ordered_list_keys() override;
         virtual uint64_t ordered_get_size(const KT& key) override;
+#ifdef ENABLE_EVALUATION
+        virtual void ordered_dump_timestamp_log(const std::string& filename) override;
+#endif//ENABLE_EVALUATION
 
         // serialization support
         DEFAULT_SERIALIZE(persistent_core);
@@ -686,6 +744,9 @@ namespace cascade {
                                    ordered_list_keys,
                                    ordered_get_size));
         **/
+#ifdef ENABLE_EVALUATION
+        virtual void dump_timestamp_log(const std::string& filename) const override;
+#endif//ENABLE_EVALUATION
         virtual void trigger_put(const VT& value) const;
         virtual std::tuple<persistent::version_t,uint64_t> put(const VT& value) const override;
         virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) const override;
@@ -702,6 +763,9 @@ namespace cascade {
         virtual const VT ordered_get(const KT& key) override;
         virtual std::vector<KT> ordered_list_keys() override;
         virtual uint64_t ordered_get_size(const KT& key) override;
+#ifdef ENABLE_EVALUATION
+        virtual void ordered_dump_timestamp_log(const std::string& filename) override;
+#endif//ENABLE_EVALUATION
 
         // serialization support
         virtual std::size_t to_bytes(char* v) const override {return 0;}
