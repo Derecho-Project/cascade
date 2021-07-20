@@ -31,7 +31,9 @@ std::string get_pathname(const std::enable_if_t<!std::is_convertible<KeyType,std
 template<typename KT, typename VT, KT* IK, VT* IV>
 std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::put(const VT& value) const {
     debug_enter_func_with_args("value.get_key_ref={}",value.get_key_ref());
+#ifdef ENABLE_EVALUATION
     uint64_t s1 = get_walltime();
+#endif//ENABLE_EVALUATION
     derecho::Replicated<VolatileCascadeStore>& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put)>(value);
     auto& replies = results.get();
@@ -40,8 +42,10 @@ std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::pu
     for (auto& reply_pair : replies) {
         ret = reply_pair.second.get();
     }
+#ifdef ENABLE_EVALUATION
     uint64_t s2 = get_walltime();
     this->timestamp_log.emplace_back(std::get<0>(ret),s1,s2);
+#endif//ENABLE_EVALUATION
     debug_leave_func_with_value("version=0x{:x},timestamp={}",std::get<0>(ret),std::get<1>(ret));
     return ret;
 }
@@ -646,6 +650,9 @@ DeltaCascadeStoreCore<KT,VT,IK,IV>::~DeltaCascadeStoreCore() {
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST>::put(const VT& value) const {
     debug_enter_func_with_args("value.get_key_ref()={}",value.get_key_ref());
+#ifdef ENABLE_EVALUATION
+    uint64_t s1 = get_walltime();
+#endif//ENABLE_EVALUATION
     derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put)>(value);
     auto& replies = results.get();
@@ -654,6 +661,10 @@ std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST
     for (auto& reply_pair : replies) {
         ret = reply_pair.second.get();
     }
+#ifdef ENABLE_EVALUATION
+    uint64_t s2 = get_walltime();
+    this->timestamp_log.emplace_back(std::get<0>(ret),s1,s2);
+#endif//ENABLE_EVALUATION
     debug_leave_func_with_value("version=0x{:x},timestamp={}",std::get<0>(ret),std::get<1>(ret));
     return ret;
 }
