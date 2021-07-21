@@ -391,13 +391,13 @@ template<typename KT, typename VT, KT* IK, VT* IV>
 VolatileCascadeStore<KT,VT,IK,IV>::VolatileCascadeStore(
     CriticalDataPathObserver<VolatileCascadeStore<KT,VT,IK,IV>>* cw,
     ICascadeContext* cc):
-#ifdef ENABLE_EVALUATION
-    timestamp_log(65536),
-#endif
     update_version(persistent::INVALID_VERSION),
     cascade_watcher_ptr(cw),
     cascade_context_ptr(cc) {
     debug_enter_func();
+#ifdef ENABLE_EVALUATION
+    timestamp_log.reserve(65536),
+#endif
     debug_leave_func();
 }
 
@@ -407,14 +407,14 @@ VolatileCascadeStore<KT,VT,IK,IV>::VolatileCascadeStore(
     persistent::version_t _uv,
     CriticalDataPathObserver<VolatileCascadeStore<KT,VT,IK,IV>>* cw,
     ICascadeContext* cc):
-#ifdef ENABLE_EVALUATION
-    timestamp_log(65536),
-#endif
     kv_map(_kvm),
     update_version(_uv),
     cascade_watcher_ptr(cw),
     cascade_context_ptr(cc) {
     debug_enter_func_with_args("copy to kv_map, size={}",kv_map.size());
+#ifdef ENABLE_EVALUATION
+    timestamp_log.reserve(65536),
+#endif
     debug_leave_func();
 }
 
@@ -424,14 +424,14 @@ VolatileCascadeStore<KT,VT,IK,IV>::VolatileCascadeStore(
     persistent::version_t _uv,
     CriticalDataPathObserver<VolatileCascadeStore<KT,VT,IK,IV>>* cw,
     ICascadeContext* cc):
-#ifdef ENABLE_EVALUATION
-    timestamp_log(65536),
-#endif
     kv_map(std::move(_kvm)),
     update_version(_uv),
     cascade_watcher_ptr(cw),
     cascade_context_ptr(cc) {
     debug_enter_func_with_args("move to kv_map, size={}",kv_map.size());
+#ifdef ENABLE_EVALUATION
+    timestamp_log.reserve(65536),
+#endif
     debug_leave_func();
 }
 
@@ -1006,9 +1006,6 @@ PersistentCascadeStore<KT,VT,IK,IV,ST>::PersistentCascadeStore(
                                                persistent::PersistentRegistry* pr,
                                                CriticalDataPathObserver<PersistentCascadeStore<KT,VT,IK,IV>>* cw,
                                                ICascadeContext* cc):
-#ifdef ENABLE_EVALUATION
-                                               timestamp_log(65536),
-#endif//ENABLE_EVALUATION
                                                persistent_core(
                                                    [](){
                                                        return std::make_unique<DeltaCascadeStoreCore<KT,VT,IK,IV>>();
@@ -1016,7 +1013,11 @@ PersistentCascadeStore<KT,VT,IK,IV,ST>::PersistentCascadeStore(
                                                    nullptr,
                                                    pr),
                                                cascade_watcher_ptr(cw),
-                                               cascade_context_ptr(cc) {}
+                                               cascade_context_ptr(cc) {
+#ifdef ENABLE_EVALUATION
+    timestamp_log.reserve(65536),
+#endif//ENABLE_EVALUATION
+}
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 PersistentCascadeStore<KT,VT,IK,IV,ST>::PersistentCascadeStore(
@@ -1024,12 +1025,13 @@ PersistentCascadeStore<KT,VT,IK,IV,ST>::PersistentCascadeStore(
                                                _persistent_core,
                                                CriticalDataPathObserver<PersistentCascadeStore<KT,VT,IK,IV>>* cw,
                                                ICascadeContext* cc):
-#ifdef ENABLE_EVALUATION
-                                               timestamp_log(65536),
-#endif//ENABLE_EVALUATION
                                                persistent_core(std::move(_persistent_core)),
                                                cascade_watcher_ptr(cw),
-                                               cascade_context_ptr(cc) {}
+                                               cascade_context_ptr(cc) {
+#ifdef ENABLE_EVALUATION
+    timestamp_log.reserve(65536),
+#endif//ENABLE_EVALUATION
+}
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 PersistentCascadeStore<KT,VT,IK,IV,ST>::~PersistentCascadeStore() {}
