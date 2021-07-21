@@ -396,7 +396,7 @@ VolatileCascadeStore<KT,VT,IK,IV>::VolatileCascadeStore(
     cascade_context_ptr(cc) {
     debug_enter_func();
 #ifdef ENABLE_EVALUATION
-    timestamp_log.reserve(65536),
+    timestamp_log.reserve(65536);
 #endif
     debug_leave_func();
 }
@@ -413,7 +413,7 @@ VolatileCascadeStore<KT,VT,IK,IV>::VolatileCascadeStore(
     cascade_context_ptr(cc) {
     debug_enter_func_with_args("copy to kv_map, size={}",kv_map.size());
 #ifdef ENABLE_EVALUATION
-    timestamp_log.reserve(65536),
+    timestamp_log.reserve(65536);
 #endif
     debug_leave_func();
 }
@@ -430,7 +430,7 @@ VolatileCascadeStore<KT,VT,IK,IV>::VolatileCascadeStore(
     cascade_context_ptr(cc) {
     debug_enter_func_with_args("move to kv_map, size={}",kv_map.size());
 #ifdef ENABLE_EVALUATION
-    timestamp_log.reserve(65536),
+    timestamp_log.reserve(65536);
 #endif
     debug_leave_func();
 }
@@ -1015,7 +1015,7 @@ PersistentCascadeStore<KT,VT,IK,IV,ST>::PersistentCascadeStore(
                                                cascade_watcher_ptr(cw),
                                                cascade_context_ptr(cc) {
 #ifdef ENABLE_EVALUATION
-    timestamp_log.reserve(65536),
+    timestamp_log.reserve(65536);
 #endif//ENABLE_EVALUATION
 }
 
@@ -1029,7 +1029,7 @@ PersistentCascadeStore<KT,VT,IK,IV,ST>::PersistentCascadeStore(
                                                cascade_watcher_ptr(cw),
                                                cascade_context_ptr(cc) {
 #ifdef ENABLE_EVALUATION
-    timestamp_log.reserve(65536),
+    timestamp_log.reserve(65536);
 #endif//ENABLE_EVALUATION
 }
 
