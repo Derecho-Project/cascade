@@ -6,7 +6,6 @@
 #include <typeinfo>
 #include <tuple>
 #include <derecho/utils/time.h>
-#include <nlohmann/json.hpp>
 #include <list>
 #include <condition_variable>
 #include <thread>
@@ -19,8 +18,6 @@
 #include "object_pool_metadata.hpp"
 #include "user_defined_logic_manager.hpp"
 #include "detail/prefix_registry.hpp"
-
-using json = nlohmann::json; 
 
 /**
  * The cascade service templates
@@ -183,9 +180,6 @@ namespace cascade {
         return out;
     }
     
-    #define CONF_GROUP_LAYOUT       "CASCADE/group_layout"
-    #define JSON_CONF_TYPE_ALIAS    "type_alias"
-    #define JSON_CONF_LAYOUT        "layout"
     /**
      * The service will start a cascade service node to serve the client.
      */
@@ -195,13 +189,11 @@ namespace cascade {
         /**
          * Constructor
          * The constructor will load the configuration, start the service thread.
-         * @param layout the json layout, please find detailed description in the configuration file.
          * @param dsms deserialization managers
          * @param metadata_service_factory
          * @param factories: subgroup factories.
          */
-        Service(const json& layout,
-                const std::vector<DeserializationContext*>& dsms,
+        Service(const std::vector<DeserializationContext*>& dsms,
                 derecho::cascade::Factory<CascadeMetadataService<CascadeTypes...>> metadata_service_factory,
                 derecho::cascade::Factory<CascadeTypes>... factories);
         /**
@@ -247,13 +239,11 @@ namespace cascade {
          * Start the singleton service
          * Please make sure only one thread call start. We do not defense such an incorrect usage.
          *
-         * @param layout TODO: explain layout
          * @param dsms
          * @param metadata_factory - factory for the metadata service.
          * @param factories - the factories to create objects.
          */
-        static void start(const json& layout,
-                          const std::vector<DeserializationContext*>& dsms,
+        static void start(const std::vector<DeserializationContext*>& dsms,
                           derecho::cascade::Factory<CascadeMetadataService<CascadeTypes...>> metadata_factory,
                           derecho::cascade::Factory<CascadeTypes>... factories);
         /**

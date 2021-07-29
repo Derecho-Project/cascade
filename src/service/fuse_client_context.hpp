@@ -116,10 +116,10 @@ public:
 
     /** initialize */
     void initialize(const json& group_layout, std::unique_ptr<ServiceClientType>& capi_ptr) {
-        this->display_name = group_layout["type_alias"];
+        this->display_name = group_layout[derecho::json_type_alias_field];
 
         uint32_t sidx=0;
-        for (auto subgroup_it:group_layout[JSON_CONF_LAYOUT]) {
+        for (auto subgroup_it:group_layout[derecho::json_layout_field]) {
             // TODO: add metadata file/key file for each folder here.
             children.emplace_back(std::make_unique<SubgroupINode<CascadeType, ServiceClientType>>(sidx,reinterpret_cast<fuse_ino_t>(this)));
             size_t num_shards = subgroup_it[MIN_NODES_BY_SHARD].size();
