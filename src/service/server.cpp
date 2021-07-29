@@ -95,13 +95,6 @@ int main(int argc, char** argv) {
         dbg_default_warn("Cannot set proc name to {}.", PROC_NAME);
     }
     dbg_default_trace("set proc name to {}", PROC_NAME);
-    // load configuration
-    auto group_layout = json::parse(derecho::getConfString(CONF_GROUP_LAYOUT));
-
-#ifndef NDEBUG
-    dbg_default_trace("load layout:");
-    dump_layout(group_layout);
-#endif//NDEBUG
 
     CascadeServiceCDPO<VolatileCascadeStoreWithStringKey> cdpo_vcss;
     CascadeServiceCDPO<PersistentCascadeStoreWithStringKey> cdpo_pcss;
@@ -125,7 +118,7 @@ int main(int argc, char** argv) {
     dbg_default_trace("starting service...");
     Service<VolatileCascadeStoreWithStringKey,
             PersistentCascadeStoreWithStringKey,
-            TriggerCascadeNoStoreWithStringKey>::start(group_layout,
+            TriggerCascadeNoStoreWithStringKey>::start(
             {&cdpo_vcss,&cdpo_pcss,&cdpo_tcss},
             meta_factory,
             vcss_factory,pcss_factory,tcss_factory);

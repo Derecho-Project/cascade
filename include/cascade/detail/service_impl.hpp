@@ -20,43 +20,6 @@ using derecho::SubgroupAllocationPolicy;
 using derecho::CrossProductPolicy;
 using derecho::ShardAllocationPolicy;
 
-/**
- * parse_json_subgroup_policy()
- *
- * Generate a single-type subgroup allocation policy from json string
- * @param json_config subgroup configuration represented in json format.
- * @return SubgroupAllocationPolicy
- */
-SubgroupAllocationPolicy parse_json_subgroup_policy(const json&);
-
-template <typename CascadeType>
-void populate_policy_by_subgroup_type_map(
-        std::map<std::type_index,std::variant<SubgroupAllocationPolicy, CrossProductPolicy>> &dsa_map,
-        const json& layout, int type_idx) {
-    dsa_map.emplace(std::type_index(typeid(CascadeType)),parse_json_subgroup_policy(layout[type_idx]));
-}
-
-template <typename FirstCascadeType, typename SecondCascadeType, typename... RestCascadeTypes>
-void populate_policy_by_subgroup_type_map(
-        std::map<std::type_index,std::variant<SubgroupAllocationPolicy, CrossProductPolicy>> &dsa_map,
-        const json& layout, int type_idx) {
-    dsa_map.emplace(std::type_index(typeid(FirstCascadeType)),parse_json_subgroup_policy(layout[type_idx]));
-    populate_policy_by_subgroup_type_map<SecondCascadeType, RestCascadeTypes...>(dsa_map,layout,type_idx+1);
-}
-
-/**
- * Generate a derecho::SubgroupInfo object from layout
- *
- * @param layout - user provided layout in json format
- * @return derecho::SbugroupInfo object for Group constructor.
- */
-template <typename... CascadeTypes>
-derecho::SubgroupInfo generate_subgroup_info(const json& layout) {
-    std::map<std::type_index,std::variant<SubgroupAllocationPolicy, CrossProductPolicy>> dsa_map;
-    populate_policy_by_subgroup_type_map<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>(dsa_map,layout,0);
-    return derecho::SubgroupInfo(derecho::DefaultSubgroupAllocator(dsa_map));
-}
-
 template <typename CascadeType>
 derecho::Factory<CascadeType> factory_wrapper(ICascadeContext* context_ptr, derecho::cascade::Factory<CascadeType> cascade_factory) {
     return [context_ptr,cascade_factory](persistent::PersistentRegistry *pr, subgroup_id_t subgroup_id) {
@@ -65,14 +28,11 @@ derecho::Factory<CascadeType> factory_wrapper(ICascadeContext* context_ptr, dere
 }
 
 template <typename... CascadeTypes>
-Service<CascadeTypes...>::Service(const json& layout,
-                                  const std::vector<DeserializationContext*>& dsms,
+Service<CascadeTypes...>::Service(const std::vector<DeserializationContext*>& dsms,
                                   derecho::cascade::Factory<CascadeMetadataService<CascadeTypes...>> metadata_service_factory,
                                   derecho::cascade::Factory<CascadeTypes>... factories) {
     // STEP 1 - load configuration
-    // derecho::SubgroupInfo si = generate_subgroup_info<CascadeTypes...>(layout);
     derecho::SubgroupInfo si{derecho::make_subgroup_allocator<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>()};
-    dbg_default_trace("subgroups info created from layout.");
     // STEP 2 - setup cascade context
     context = std::make_unique<CascadeContext<CascadeTypes...>>();
     std::vector<DeserializationContext*> new_dsms(dsms);
@@ -132,11 +92,11 @@ template <typename... CascadeTypes>
 std::unique_ptr<Service<CascadeTypes...>> Service<CascadeTypes...>::service_ptr;
 
 template <typename... CascadeTypes>
-void Service<CascadeTypes...>::start(const json& layout, const std::vector<DeserializationContext*>& dsms, 
+void Service<CascadeTypes...>::start(const std::vector<DeserializationContext*>& dsms, 
         derecho::cascade::Factory<CascadeMetadataService<CascadeTypes...>> metadata_factory,
         derecho::cascade::Factory<CascadeTypes>... factories) {
     if (!service_ptr) {
-        service_ptr = std::make_unique<Service<CascadeTypes...>>(layout, dsms, metadata_factory, factories...);
+        service_ptr = std::make_unique<Service<CascadeTypes...>>(dsms, metadata_factory, factories...);
     } 
 }
 
