@@ -70,7 +70,8 @@ Service<CascadeTypes...>::Service(const json& layout,
                                   derecho::cascade::Factory<CascadeMetadataService<CascadeTypes...>> metadata_service_factory,
                                   derecho::cascade::Factory<CascadeTypes>... factories) {
     // STEP 1 - load configuration
-    derecho::SubgroupInfo si = generate_subgroup_info<CascadeTypes...>(layout);
+    // derecho::SubgroupInfo si = generate_subgroup_info<CascadeTypes...>(layout);
+    derecho::SubgroupInfo si{derecho::make_subgroup_allocator<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>()};
     dbg_default_trace("subgroups info created from layout.");
     // STEP 2 - setup cascade context
     context = std::make_unique<CascadeContext<CascadeTypes...>>();
