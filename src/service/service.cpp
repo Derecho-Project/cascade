@@ -44,11 +44,18 @@ typedef enum {
 
 static std::map<uint32_t,std::vector<uint32_t>> parse_worker_cpu_affinity(const ocdp_t ocdp_type) {
     std::map<uint32_t,std::vector<uint32_t>> ret;
-    if (derecho::hasCustomizedConfKey(CASCADE_CONTEXT_WORKER_CPU_AFFINITY)) {
-        auto worker_cpu_affinity = json::parse(derecho::getConfString(CASCADE_CONTEXT_WORKER_CPU_AFFINITY));
-        for(auto affinity:worker_cpu_affinity[(ocdp_type==OCDP_MULTICAST)?"p2p_ocdp":"multicast_ocdp"].items()) {
-            uint32_t worker_id = std::stoul(affinity.key());
-            ret.emplace(worker_id,parse_cpu_gpu_list(affinity.value()));
+    if (derecho::hasCustomizedConfKey(CASCADE_CONTEXT_WORKER_CPU_AFFINITY) &&
+        !derecho::getConfString(CASCADE_CONTEXT_WORKER_CPU_AFFINITY).empty()) {
+        try {
+            auto worker_cpu_affinity = json::parse(derecho::getConfString(CASCADE_CONTEXT_WORKER_CPU_AFFINITY));
+            for(auto affinity:worker_cpu_affinity[(ocdp_type==OCDP_MULTICAST)?"p2p_ocdp":"multicast_ocdp"].items()) {
+                uint32_t worker_id = std::stoul(affinity.key());
+                ret.emplace(worker_id,parse_cpu_gpu_list(affinity.value()));
+            }
+        } catch(json::exception& jsone) {
+            dbg_default_error("Failed to parse {}:{}, execption:{}",
+                CASCADE_CONTEXT_WORKER_CPU_AFFINITY,derecho::getConfString(CASCADE_CONTEXT_WORKER_CPU_AFFINITY),
+                jsone.what());
         }
     }
     return ret;
