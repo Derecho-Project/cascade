@@ -47,7 +47,7 @@ static const char* policy_names[] = {
     nullptr
 };
 
-inline ShardMemberSelectionPolicy parse_policy_name(std::string& policy_name) {
+inline ShardMemberSelectionPolicy parse_policy_name(const std::string& policy_name) {
     ShardMemberSelectionPolicy policy = ShardMemberSelectionPolicy::FirstMember;
     int i=1;
     while(policy_names[i]){
@@ -135,7 +135,7 @@ static void print_cyan(std::string msg) {
     }
 
 template <typename SubgroupType>
-void put(ServiceClientAPI& capi, std::string& key, std::string& value, persistent::version_t pver, persistent::version_t pver_bk, uint32_t subgroup_index, uint32_t shard_index) {
+void put(ServiceClientAPI& capi, const std::string& key, const std::string& value, persistent::version_t pver, persistent::version_t pver_bk, uint32_t subgroup_index, uint32_t shard_index) {
     typename SubgroupType::ObjectType obj;
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
         obj.key = static_cast<uint64_t>(std::stol(key));
@@ -153,12 +153,12 @@ void put(ServiceClientAPI& capi, std::string& key, std::string& value, persisten
 }
 
 template <>
-void put<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, std::string& key, std::string& value, persistent::version_t pver, persistent::version_t pver_bk, uint32_t subgroup_index, uint32_t shard_index) {
+void put<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, const std::string& key, const std::string& value, persistent::version_t pver, persistent::version_t pver_bk, uint32_t subgroup_index, uint32_t shard_index) {
     print_red("TCSS does not support put.");
 }
 
 template <typename SubgroupType>
-void op_put(ServiceClientAPI& capi, std::string& key, std::string& value, persistent::version_t pver, persistent::version_t pver_bk) {
+void op_put(ServiceClientAPI& capi, const std::string& key, const std::string& value, persistent::version_t pver, persistent::version_t pver_bk) {
     typename SubgroupType::ObjectType obj;
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
         obj.key = static_cast<uint64_t>(std::stol(key));
@@ -176,19 +176,19 @@ void op_put(ServiceClientAPI& capi, std::string& key, std::string& value, persis
 }
 
 template <>
-void op_put<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, std::string& key, std::string& value, persistent::version_t pver, persistent::version_t pver_bk) {
+void op_put<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, const std::string& key, const std::string& value, persistent::version_t pver, persistent::version_t pver_bk) {
     print_red("TCSS does not support op_put.");
 }
 
 template <typename SubgroupType>
-void create_object_pool(ServiceClientAPI& capi, std::string& id, uint32_t subgroup_index) {
+void create_object_pool(ServiceClientAPI& capi, const std::string& id, uint32_t subgroup_index) {
     auto result = capi.template create_object_pool<SubgroupType>(id,subgroup_index);
     check_put_and_remove_result(result);
     std::cout << "create_object_pool is done." << std::endl;
 } 
 
 template <typename SubgroupType>
-void trigger_put(ServiceClientAPI& capi, std::string& key, std::string& value, uint32_t subgroup_index, uint32_t shard_index) {
+void trigger_put(ServiceClientAPI& capi, const std::string& key, const std::string& value, uint32_t subgroup_index, uint32_t shard_index) {
     typename SubgroupType::ObjectType obj;
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
         obj.key = static_cast<uint64_t>(std::stol(key));
@@ -207,7 +207,7 @@ void trigger_put(ServiceClientAPI& capi, std::string& key, std::string& value, u
 }
 
 template <typename SubgroupType>
-void op_trigger_put(ServiceClientAPI& capi, std::string& key, std::string& value) {
+void op_trigger_put(ServiceClientAPI& capi, const std::string& key, const std::string& value) {
     typename SubgroupType::ObjectType obj;
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
         obj.key = static_cast<uint64_t>(std::stol(key));
@@ -226,7 +226,7 @@ void op_trigger_put(ServiceClientAPI& capi, std::string& key, std::string& value
 }
 
 template <typename SubgroupType>
-void collective_trigger_put(ServiceClientAPI& capi, std::string& key, std::string& value, uint32_t subgroup_index, std::vector<node_id_t> nodes) {
+void collective_trigger_put(ServiceClientAPI& capi, const std::string& key, const std::string& value, uint32_t subgroup_index, std::vector<node_id_t> nodes) {
     typename SubgroupType::ObjectType obj;
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
         obj.key = static_cast<uint64_t>(std::stol(key));
@@ -253,7 +253,7 @@ void collective_trigger_put(ServiceClientAPI& capi, std::string& key, std::strin
 }
 
 template <typename SubgroupType>
-void remove(ServiceClientAPI& capi, std::string& key, uint32_t subgroup_index, uint32_t shard_index) {
+void remove(ServiceClientAPI& capi, const std::string& key, uint32_t subgroup_index, uint32_t shard_index) {
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
         derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> result = std::move(capi.template remove<SubgroupType>(static_cast<uint64_t>(std::stol(key)), subgroup_index, shard_index));
         check_put_and_remove_result(result);
@@ -267,12 +267,12 @@ void remove(ServiceClientAPI& capi, std::string& key, uint32_t subgroup_index, u
 }
 
 template <>
-void remove<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, std::string& key, uint32_t subgroup_index, uint32_t shard_index) {
+void remove<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, const std::string& key, uint32_t subgroup_index, uint32_t shard_index) {
     print_red("TCSS does not support remove.");
 }
 
 template <typename SubgroupType>
-void op_remove(ServiceClientAPI& capi, std::string& key) {
+void op_remove(ServiceClientAPI& capi, const std::string& key) {
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
         derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> result = std::move(capi.template remove<SubgroupType>(static_cast<uint64_t>(std::stol(key))));
         check_put_and_remove_result(result);
@@ -286,7 +286,7 @@ void op_remove(ServiceClientAPI& capi, std::string& key) {
 }
 
 template <>
-void op_remove<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, std::string& key) {
+void op_remove<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, const std::string& key) {
     print_red("TCSS does not support remove.");
 }
 
@@ -297,7 +297,7 @@ void op_remove<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, std::
     }
 
 template <typename SubgroupType>
-void get(ServiceClientAPI& capi, std::string& key, persistent::version_t ver, uint32_t subgroup_index,uint32_t shard_index) {
+void get(ServiceClientAPI& capi, const std::string& key, persistent::version_t ver, uint32_t subgroup_index,uint32_t shard_index) {
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
         derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get<SubgroupType>(
                 static_cast<uint64_t>(std::stol(key)),ver,subgroup_index,shard_index);
@@ -310,12 +310,12 @@ void get(ServiceClientAPI& capi, std::string& key, persistent::version_t ver, ui
 }
 
 template <>
-void get<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, std::string& key, persistent::version_t ver, uint32_t subgroup_index,uint32_t shard_index) {
+void get<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, const std::string& key, persistent::version_t ver, uint32_t subgroup_index,uint32_t shard_index) {
     print_red("TCSS does not support get.");
 }
 
 template <typename SubgroupType>
-void op_get(ServiceClientAPI& capi, std::string& key, persistent::version_t ver) {
+void op_get(ServiceClientAPI& capi, const std::string& key, persistent::version_t ver) {
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
         derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get<SubgroupType>(
                 static_cast<uint64_t>(std::stol(key)),ver);
@@ -327,12 +327,12 @@ void op_get(ServiceClientAPI& capi, std::string& key, persistent::version_t ver)
 }
 
 template <>
-void op_get<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, std::string& key, persistent::version_t ver) {
+void op_get<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, const std::string& key, persistent::version_t ver) {
     print_red("TCSS does not support get.");
 }
 
 template <typename SubgroupType>
-void get_by_time(ServiceClientAPI& capi, std::string& key, uint64_t ts_us, uint32_t subgroup_index, uint32_t shard_index) {
+void get_by_time(ServiceClientAPI& capi, const std::string& key, uint64_t ts_us, uint32_t subgroup_index, uint32_t shard_index) {
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
         derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get_by_time<SubgroupType>(
                 static_cast<uint64_t>(std::stol(key)),ts_us,subgroup_index,shard_index);
@@ -345,12 +345,12 @@ void get_by_time(ServiceClientAPI& capi, std::string& key, uint64_t ts_us, uint3
 }
 
 template <>
-void get_by_time<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, std::string& key, uint64_t ts_us, uint32_t subgroup_index, uint32_t shard_index) {
+void get_by_time<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, const std::string& key, uint64_t ts_us, uint32_t subgroup_index, uint32_t shard_index) {
     print_red("TCSS does not support get_by_time.");
 }
 
 template <typename SubgroupType>
-void op_get_by_time(ServiceClientAPI& capi, std::string& key, uint64_t ts_us) {
+void op_get_by_time(ServiceClientAPI& capi, const std::string& key, uint64_t ts_us) {
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
         derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get_by_time<SubgroupType>(
                 static_cast<uint64_t>(std::stol(key)),ts_us);
@@ -363,12 +363,12 @@ void op_get_by_time(ServiceClientAPI& capi, std::string& key, uint64_t ts_us) {
 }
 
 template <>
-void op_get_by_time<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, std::string& key, uint64_t ts_us) {
+void op_get_by_time<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, const std::string& key, uint64_t ts_us) {
     print_red("TCSS does not support get_by_time.");
 }
 
 template <typename SubgroupType>
-void get_size(ServiceClientAPI& capi, std::string& key, persistent::version_t ver, uint32_t subgroup_index,uint32_t shard_index) {
+void get_size(ServiceClientAPI& capi, const std::string& key, persistent::version_t ver, uint32_t subgroup_index,uint32_t shard_index) {
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
         derecho::rpc::QueryResults<uint64_t> result = capi.template get_size<SubgroupType>(
                 static_cast<uint64_t>(std::stol(key)),ver,subgroup_index,shard_index);
@@ -381,12 +381,12 @@ void get_size(ServiceClientAPI& capi, std::string& key, persistent::version_t ve
 }
 
 template<>
-void get_size<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, std::string& key, persistent::version_t ver, uint32_t subgroup_index,uint32_t shard_index) {
+void get_size<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, const std::string& key, persistent::version_t ver, uint32_t subgroup_index,uint32_t shard_index) {
     print_red("TCSS does not support get_size.");
 }
 
 template <typename SubgroupType>
-void op_get_size(ServiceClientAPI& capi, std::string& key, persistent::version_t ver) {
+void op_get_size(ServiceClientAPI& capi, const std::string& key, persistent::version_t ver) {
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
         derecho::rpc::QueryResults<uint64_t> result = capi.template get_size<SubgroupType>(
                 static_cast<uint64_t>(std::stol(key)),ver);
@@ -399,12 +399,12 @@ void op_get_size(ServiceClientAPI& capi, std::string& key, persistent::version_t
 }
 
 template<>
-void op_get_size<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, std::string& key, persistent::version_t ver) {
+void op_get_size<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, const std::string& key, persistent::version_t ver) {
     print_red("TCSS does not support get_size.");
 }
 
 template <typename SubgroupType>
-void get_size_by_time(ServiceClientAPI& capi, std::string& key, uint64_t ts_us, uint32_t subgroup_index, uint32_t shard_index) {
+void get_size_by_time(ServiceClientAPI& capi, const std::string& key, uint64_t ts_us, uint32_t subgroup_index, uint32_t shard_index) {
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
         derecho::rpc::QueryResults<uint64_t> result = capi.template get_size_by_time<SubgroupType>(
                 static_cast<uint64_t>(std::stol(key)),ts_us,subgroup_index,shard_index);
@@ -417,12 +417,12 @@ void get_size_by_time(ServiceClientAPI& capi, std::string& key, uint64_t ts_us, 
 }
 
 template <>
-void get_size_by_time<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, std::string& key, uint64_t ts_us, uint32_t subgroup_index, uint32_t shard_index) {
+void get_size_by_time<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, const std::string& key, uint64_t ts_us, uint32_t subgroup_index, uint32_t shard_index) {
     print_red("TCSS does not support get_size_by_time.");
 }
 
 template <typename SubgroupType>
-void op_get_size_by_time(ServiceClientAPI& capi, std::string& key, uint64_t ts_us) {
+void op_get_size_by_time(ServiceClientAPI& capi, const std::string& key, uint64_t ts_us) {
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
         derecho::rpc::QueryResults<uint64_t> result = capi.template get_size_by_time<SubgroupType>(
                 static_cast<uint64_t>(std::stol(key)),ts_us);
@@ -435,7 +435,7 @@ void op_get_size_by_time(ServiceClientAPI& capi, std::string& key, uint64_t ts_u
 }
 
 template <>
-void op_get_size_by_time<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, std::string& key, uint64_t ts_us) {
+void op_get_size_by_time<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, const std::string& key, uint64_t ts_us) {
     print_red("TCSS does not support get_size_by_time.");
 }
 
@@ -492,14 +492,14 @@ void list_keys_by_time<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& cap
 }
 
 template <typename SubgroupType>
-void op_list_keys_by_time(ServiceClientAPI& capi, uint64_t ts_us, std::string& object_pool_pathname) {
+void op_list_keys_by_time(ServiceClientAPI& capi, uint64_t ts_us, const std::string& object_pool_pathname) {
     std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>> future_result = capi.template list_keys_by_time<SubgroupType>(ts_us,object_pool_pathname);
     std::vector<typename SubgroupType::KeyType> result = capi.template wait_list_keys<SubgroupType>(future_result);
     check_op_list_keys_result(result);
 }
 
 template <>
-void op_list_keys_by_time<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, uint64_t ts_us, std::string& object_pool_path_name) {
+void op_list_keys_by_time<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, uint64_t ts_us, const std::string& object_pool_path_name) {
     print_red("TCSS does not support op_list_keys_by_time.");
 }
 
@@ -529,7 +529,7 @@ void list_data_by_prefix<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& c
 
 //    "list_data_between_versions <type> <key> <subgroup_index> <shard_index> [version_begin] [version_end]\n\t test LINQ api - version_iterator \n"
 template <typename SubgroupType>
-void list_data_between_versions(ServiceClientAPI &capi, std::string &key, uint32_t subgroup_index, uint32_t shard_index, persistent::version_t ver_begin, persistent::version_t ver_end) {
+void list_data_between_versions(ServiceClientAPI &capi, const std::string& key, uint32_t subgroup_index, uint32_t shard_index, persistent::version_t ver_begin, persistent::version_t ver_end) {
     if constexpr (std::is_same<typename SubgroupType::KeyType, uint64_t>::value) {
         auto result = capi.template get<SubgroupType>(static_cast<uint64_t>(std::stol(key)), ver_end, subgroup_index, shard_index);
         for (auto &reply_future : result.get()) {
@@ -564,12 +564,12 @@ void list_data_between_versions(ServiceClientAPI &capi, std::string &key, uint32
 }
 
 template <>
-void list_data_between_versions<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI &capi, std::string &key, uint32_t subgroup_index, uint32_t shard_index, persistent::version_t ver_begin, persistent::version_t ver_end) {
+void list_data_between_versions<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI &capi, const std::string& key, uint32_t subgroup_index, uint32_t shard_index, persistent::version_t ver_begin, persistent::version_t ver_end) {
     print_red("TCSS does not support list_data_between_versions.");
 }
 
 template <typename SubgroupType>
-void list_data_between_timestamps(ServiceClientAPI &capi, std::string &key, uint32_t subgroup_index, uint32_t shard_index, uint64_t ts_begin, uint64_t ts_end) {
+void list_data_between_timestamps(ServiceClientAPI &capi, const std::string& key, uint32_t subgroup_index, uint32_t shard_index, uint64_t ts_begin, uint64_t ts_end) {
     std::vector<typename SubgroupType::KeyType> keys;
     if constexpr (std::is_same<typename SubgroupType::KeyType, uint64_t>::value) {
         auto result = capi.template get<SubgroupType>(static_cast<uint64_t>(std::stol(key)), CURRENT_VERSION, subgroup_index, shard_index);
@@ -606,7 +606,7 @@ void list_data_between_timestamps(ServiceClientAPI &capi, std::string &key, uint
 }
 
 template <>
-void list_data_between_timestamps<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI &capi, std::string &key, uint32_t subgroup_index, uint32_t shard_index, uint64_t ts_begin, uint64_t ts_end) {
+void list_data_between_timestamps<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI &capi, const std::string& key, uint32_t subgroup_index, uint32_t shard_index, uint64_t ts_begin, uint64_t ts_end) {
     print_red("TCSS does not support list_data_between_timestamp.");
 }
 
@@ -668,7 +668,7 @@ bool perftest<TriggerCascadeNoStoreWithStringKey>(PerfTestClient& ptc,
 
 
 /* TEST2: put/get/remove tests */
-using command_handler_t = std::function<bool(ServiceClientAPI& capi,std::vector<std::string>& cmd_tokens)>;
+using command_handler_t = std::function<bool(ServiceClientAPI& capi,const std::vector<std::string>& cmd_tokens)>;
 struct command_entry_t {
     const std::string cmd;              // command name
     const std::string desc;             // help info
@@ -712,7 +712,7 @@ std::vector<command_entry_t> commands =
         "help",
         "Print help info",
         "help [command name]",
-        [](ServiceClientAPI&,std::vector<std::string>& cmd_tokens){
+        [](ServiceClientAPI&,const std::vector<std::string>& cmd_tokens){
             if (cmd_tokens.size() >= 2) {
                 ssize_t command_index = find_command(commands,cmd_tokens[1]);
                 if (command_index < 0) {
@@ -731,7 +731,7 @@ std::vector<command_entry_t> commands =
         "quit",
         "Exit",
         "quit",
-        [](ServiceClientAPI&,std::vector<std::string>& cmd_tokens) {
+        [](ServiceClientAPI&,const std::vector<std::string>& cmd_tokens) {
             shell_is_active = false;
             return true;
         }
@@ -743,7 +743,7 @@ std::vector<command_entry_t> commands =
         "list_members",
         "List the IDs of all nodes in the Cascade service.",
         "list_members",
-        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             std::cout << "Cascade service members = [";
             auto members = capi.get_members();
             for (auto nid: members) {
@@ -758,7 +758,7 @@ std::vector<command_entry_t> commands =
         "List the IDs in a shard specified by type, subgroup index, and shard index.",
         "list_shard_members <type> [subgroup index(default:0)] [shard index(default:0)]\n"
             "type := " SUBGROUP_TYPE_LIST,
-        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             uint32_t subgroup_index = 0, shard_index = 0;
             if (cmd_tokens.size() < 2) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
@@ -780,7 +780,7 @@ std::vector<command_entry_t> commands =
         "set_member_selection_policy <type> <subgroup_index> <shard_index> <policy> [user specified node id]\n"
             "type := " SUBGROUP_TYPE_LIST
             "policy := " SHARD_MEMBER_SELECTION_POLICY_LIST,
-        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             if (cmd_tokens.size() < 5) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
@@ -805,7 +805,7 @@ std::vector<command_entry_t> commands =
         "Get the policy for choosing among a set of server members.",
         "get_member_selection_policy <type> <subgroup_index> <shard_index>\n"
             "type := " SUBGROUP_TYPE_LIST,
-        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             if (cmd_tokens.size() < 4) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
@@ -823,7 +823,7 @@ std::vector<command_entry_t> commands =
         "list_object_pools",
         "List existing object pools",
         "list_object_pools",
-        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             std::cout << "refreshed object pools:" << std::endl;
             for (std::string& opath: capi.list_object_pools(true)) {
                 std::cout << "\t" << opath << std::endl;
@@ -836,7 +836,7 @@ std::vector<command_entry_t> commands =
         "Create an object pool",
         "create_object_pool <path> <type> <subgroup_index>\n"
             "type := " SUBGROUP_TYPE_LIST,
-        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             if (cmd_tokens.size() < 4) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
@@ -851,7 +851,7 @@ std::vector<command_entry_t> commands =
         "remove_object_pool",
         "Soft-Remove an object pool",
         "remove_object_pool <path>",
-        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             if (cmd_tokens.size() < 2) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
@@ -865,7 +865,7 @@ std::vector<command_entry_t> commands =
         "get_object_pool",
         "Get details of an object pool",
         "get_object_pool <path>",
-        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             if (cmd_tokens.size() < 2) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
@@ -884,7 +884,7 @@ std::vector<command_entry_t> commands =
         "Put an object to a shard.",
         "put <type> <key> <value> <subgroup_index> <shard_index> [previous_version(default:-1)] [previous_version_by_key(default:-1)]\n"
             "type := " SUBGROUP_TYPE_LIST,
-        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             persistent::version_t pver = persistent::INVALID_VERSION;
             persistent::version_t pver_bk = persistent::INVALID_VERSION;
             if (cmd_tokens.size() < 6) {
@@ -907,7 +907,7 @@ std::vector<command_entry_t> commands =
         "op_put <type> <key> <value> [previous_version(default:-1)] [previous_version_by_key(default:-1)]\n"
             "type := " SUBGROUP_TYPE_LIST "\n"
             "Please note that cascade automatically decides the object pool path using the key's prefix.",
-        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             persistent::version_t pver = persistent::INVALID_VERSION;
             persistent::version_t pver_bk = persistent::INVALID_VERSION;
             if (cmd_tokens.size() < 4) {
@@ -927,7 +927,7 @@ std::vector<command_entry_t> commands =
         "Trigger put an object to a shard.",
         "trigger_put <type> <key> <value> <subgroup_index> <shard_index>\n"
             "type := " SUBGROUP_TYPE_LIST,
-        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             if (cmd_tokens.size() < 6) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
@@ -944,7 +944,7 @@ std::vector<command_entry_t> commands =
         "op_trigger_put <type> <key> <value>\n"
             "type := " SUBGROUP_TYPE_LIST "\n"
             "Please note that cascade automatically decides the object pool path using the key's prefix.",
-        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             if (cmd_tokens.size() < 4) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
@@ -958,7 +958,7 @@ std::vector<command_entry_t> commands =
         "Collectively trigger put an object to a set of nodes in a subgroup.",
         "collective_trigger_put <type> <key> <value> <subgroup_index> <node id 1> [node id 2, ...] \n"
             "type := " SUBGROUP_TYPE_LIST,
-        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             std::vector<node_id_t> nodes;
             if (cmd_tokens.size() < 6) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
@@ -978,7 +978,7 @@ std::vector<command_entry_t> commands =
         "Remove an object from a shard.",
         "remove <type> <key> <subgroup_index> <shard_index> \n"
             "type := " SUBGROUP_TYPE_LIST,
-        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             if (cmd_tokens.size() < 5) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
@@ -995,7 +995,7 @@ std::vector<command_entry_t> commands =
         "op_remove <type> <key>\n"
             "type := " SUBGROUP_TYPE_LIST "\n"
             "Please note that cascade automatically decides the object pool path using the key's prefix.",
-        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             if (cmd_tokens.size() < 3) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
@@ -1009,7 +1009,7 @@ std::vector<command_entry_t> commands =
         "Get an object (by version).",
         "get <type> <key> <subgroup_index> <shard_index> [ version(default:current version) ]\n"
             "type := " SUBGROUP_TYPE_LIST,
-        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             if (cmd_tokens.size() < 5) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
@@ -1030,7 +1030,7 @@ std::vector<command_entry_t> commands =
         "op_get <type> <key> [ version(default:current version) ]\n"
             "type := " SUBGROUP_TYPE_LIST "\n"
             "Please note that cascade automatically decides the object pool path using the key's prefix.",
-        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             if (cmd_tokens.size() < 3) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
@@ -1048,7 +1048,7 @@ std::vector<command_entry_t> commands =
         "Get an object (by timestamp in microseconds).",
         "get_by_time <type> <key> <subgroup_index> <shard_index> <timestamp in us>\n"
             "type := " SUBGROUP_TYPE_LIST,
-        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             if (cmd_tokens.size() < 6) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
@@ -1066,7 +1066,7 @@ std::vector<command_entry_t> commands =
         "op_get_by_time <type> <key> <timestamp in us>\n"
             "type := " SUBGROUP_TYPE_LIST "\n"
             "Please note that cascade automatically decides the object pool path using the key's prefix.",
-        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             if (cmd_tokens.size() < 4) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
@@ -1081,7 +1081,7 @@ std::vector<command_entry_t> commands =
         "Get the size of an object (by version).",
         "get_size <type> <key> <subgroup_index> <shard_index> [ version(default:current version) ]\n"
             "type := " SUBGROUP_TYPE_LIST,
-        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             if (cmd_tokens.size() < 5) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
@@ -1102,7 +1102,7 @@ std::vector<command_entry_t> commands =
         "op_get_size <type> <key> [ version(default:current version) ]\n"
             "type := " SUBGROUP_TYPE_LIST "\n"
             "Please note that cascade automatically decides the object pool path using the key's prefix.",
-        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             if (cmd_tokens.size() < 3) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
@@ -1120,7 +1120,7 @@ std::vector<command_entry_t> commands =
         "Get the size of an object (by timestamp in microseconds).",
         "get_size_by_time <type> <key> <subgroup_index> <shard_index> <timestamp in us>\n"
             "type := " SUBGROUP_TYPE_LIST,
-        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             if (cmd_tokens.size() < 6) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
@@ -1138,7 +1138,7 @@ std::vector<command_entry_t> commands =
         "op_get_size_by_time <type> <key> <timestamp in us>\n"
             "type := " SUBGROUP_TYPE_LIST "\n"
             "Please note that cascade automatically decides the object pool path using the key's prefix.",
-        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             if (cmd_tokens.size() < 4) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
@@ -1153,7 +1153,7 @@ std::vector<command_entry_t> commands =
         "list the object keys in a shard (by version).",
         "list_keys <type> <subgroup_index> <shard_index> [ version(default:current version) ]\n"
             "type := " SUBGROUP_TYPE_LIST,
-        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             if (cmd_tokens.size() < 4) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
@@ -1173,7 +1173,7 @@ std::vector<command_entry_t> commands =
         "list the object keys in an object pool (by version).",
         "op_list_keys <type> <object pool pathname> [ version(default:current version) ]\n"
             "type := " SUBGROUP_TYPE_LIST,
-        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             if (cmd_tokens.size() < 3) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
@@ -1191,7 +1191,7 @@ std::vector<command_entry_t> commands =
         "list the object keys in a shard (by timestamp in mircoseconds).",
         "list_keys_by_time <type> <subgroup_index> <shard_index> <timestamp in us>\n"
             "type := " SUBGROUP_TYPE_LIST,
-        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             if (cmd_tokens.size() < 5) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
@@ -1208,7 +1208,7 @@ std::vector<command_entry_t> commands =
         "list the object keys in an object pool (by timestamp in microseconds).",
         "op_list_keys_by_time <type> <object pool pathname> <timestamp in us>\n"
             "type := " SUBGROUP_TYPE_LIST,
-        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             if (cmd_tokens.size() < 4) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
@@ -1227,12 +1227,12 @@ std::vector<command_entry_t> commands =
         "LINQ API Tester: list the object with a specific prefix",
         "list_data_by_prefix <type> <prefix> <subgroup_index> <shard_index> [ version(default:current version) ] \n"
             "type := " SUBGROUP_TYPE_LIST,
-        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             if (cmd_tokens.size() < 5) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
             }
-            std::string& prefix = cmd_tokens[2];
+            const std::string& prefix = cmd_tokens[2];
             uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
             uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
             persistent::version_t version = CURRENT_VERSION;
@@ -1248,7 +1248,7 @@ std::vector<command_entry_t> commands =
         "LINQ API Tester: list an object data between versions",
         "list_data_between_versions <type> <key> <subgroup_index> <shard_index> [ start version(default:MIN) ] [ end version (default:MAX) ] \n"
             "type := " SUBGROUP_TYPE_LIST,
-        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             if (cmd_tokens.size() < 5) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
@@ -1273,7 +1273,7 @@ std::vector<command_entry_t> commands =
         "LINQ API Tester: list an object data between points of time",
         "list_data_between_timestamps <type> <key> <subgroup_index> <shard_index> [ start time(default:MIN) ] [ end time (default:MAX) ] \n"
             "type := " SUBGROUP_TYPE_LIST,
-        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             if (cmd_tokens.size() < 5) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
@@ -1298,7 +1298,7 @@ std::vector<command_entry_t> commands =
         "LINQ API Tester: list all objects in a subgroup",
         "list_data_in_subgroup <type> <subgroup_index> [ version (default:CURRENT_VERSION) ] \n"
             "type := " SUBGROUP_TYPE_LIST,
-        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             if (cmd_tokens.size() < 3) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
@@ -1329,7 +1329,7 @@ std::vector<command_entry_t> commands =
             "'max rate' is the maximum number of operations in Operations per Second, 0 for best effort; \n"
             "'duration' is the span of the whole experiments; \n"
             "'clientn' is a host[:port] pair representing the parallel clients. The port is default to " + std::to_string(PERFTEST_PORT),
-        [](ServiceClientAPI& capi, std::vector<std::string>& cmd_tokens) {
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             if (cmd_tokens.size() < 8) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
@@ -1366,11 +1366,26 @@ std::vector<command_entry_t> commands =
 #endif
 };
 
+inline void do_command(ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+    try {
+        ssize_t command_index = find_command(commands, cmd_tokens[0]);
+        if (command_index>=0) {
+            if (commands.at(command_index).handler(capi,cmd_tokens)) {
+                std::cout << "-> Succeeded." << std::endl;
+            } else {
+                std::cout << "-> Failed." << std::endl;
+            }
+        } else {
+            print_red("unknown command:" + cmd_tokens[0]);
+        }
+    } catch (const derecho::derecho_exception &ex) {
+        print_red (std::string("Exception:") + ex.what());
+    } catch (...) {
+        print_red ("Unknown exception caught.");
+    }
+}
+
 void interactive_test(ServiceClientAPI& capi) {
-#ifdef ENABLE_EVALUATION
-    // start working thread.
-    PerfTestServer pts(capi);
-#endif 
     // loop
     while (shell_is_active) {
         char* malloced_cmd = readline("cmd> ");
@@ -1380,32 +1395,30 @@ void interactive_test(ServiceClientAPI& capi) {
         add_history(cmdline.c_str());
 
         std::string delimiter = " ";
-        auto cmd_tokens = tokenize(cmdline, delimiter.c_str());
-
-        try {
-            ssize_t command_index = find_command(commands, cmd_tokens[0]);
-            if (command_index>=0) {
-                if (commands.at(command_index).handler(capi,cmd_tokens)) {
-                    std::cout << "-> Succeeded." << std::endl;
-                } else {
-                    std::cout << "-> Failed." << std::endl;
-                }
-            } else {
-                print_red("unknown command:" + cmd_tokens[0]);
-            }
-        } catch (const derecho::derecho_exception &ex) {
-            print_red (std::string("Exception:") + ex.what());
-        } catch (...) {
-            print_red ("Unknown exception caught.");
-        }
+        do_command(capi,tokenize(cmdline, delimiter.c_str()));
     }
     std::cout << "Client exits." << std::endl;
 }
 
-int main(int,char**) {
-    std::cout << "This is a Service Client Example." << std::endl;
+void detached_test(ServiceClientAPI& capi, int argc, char** argv) {
+    std::vector<std::string> cmd_tokens;
+    for(int i=1;i<argc;i++) {
+        cmd_tokens.emplace_back(argv[i]);
+    }
+    do_command(capi, cmd_tokens);
+}
 
+int main(int argc,char** argv) {
     ServiceClientAPI capi;
-    interactive_test(capi);
+#ifdef ENABLE_EVALUATION
+    // start working thread.
+    PerfTestServer pts(capi);
+#endif 
+    if (argc == 1) {
+        // by default, we use the interactive shell.
+        interactive_test(capi);
+    } else {
+        detached_test(capi,argc,argv);
+    }
     return 0;
 }

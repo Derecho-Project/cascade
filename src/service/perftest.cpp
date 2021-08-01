@@ -95,7 +95,8 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         // STEP 3 - start experiment and log
         // synchronization data structures
         // 1 - version,send_timestamp_ns,reply_timestamp_ns
-        std::vector<std::tuple<uint64_t,uint64_t,uint64_t>> timestamp_log(65536);
+        std::vector<std::tuple<uint64_t,uint64_t,uint64_t>> timestamp_log;
+        timestamp_log.reserve(65536);
         // 2 - sending window and future queue
         uint32_t                window_size = derecho::getConfUInt32(CONF_DERECHO_P2P_WINDOW_SIZE);
         uint32_t                window_slots = window_size;
