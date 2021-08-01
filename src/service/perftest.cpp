@@ -13,9 +13,9 @@
 namespace derecho {
 namespace cascade {
 
-//////////////////////////////////////
-// PerfTestClient implementation    //
-//////////////////////////////////////
+/////////////////////////////////////////////////////
+// PerfTestClient/PerfTestServer implementation    //
+/////////////////////////////////////////////////////
 
 #define on_subgroup_type_index(tindex, func, ...) \
     if (std::type_index(typeid(VolatileCascadeStoreWithStringKey)) == tindex) { \
@@ -57,46 +57,25 @@ namespace cascade {
         throw derecho::derecho_exception(std::string("Unknown type_index:") + tindex.name()); \
     }
 
-PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
-    capi(capi),
-    server(port) {
-    // Initialize objects
-    // API 1 : run perf
-    server.bind("perf",[this](
-        const std::string&  object_pool_pathname,
-        uint32_t            policy,
-        std::vector<node_id_t>  user_specified_node_ids, // one per shard
-        double              read_write_ratio,
-        uint64_t            max_operation_per_second,
-        uint64_t            duration_secs,
-        const std::string&  output_filename) {
+void PerfTestServer::make_workload(uint32_t payload_size, const std::string& key_prefix) {
+    const uint32_t buf_size = payload_size - 128 - key_prefix.size();
+    char *buf = (char*)malloc(buf_size);
+    memset(buf,'A',buf_size);
+    for (uint32_t i=0;i<NUMBER_OF_DISTINCT_OBJECTS;i++) {
+        objects.emplace_back(key_prefix+std::to_string(i),buf,buf_size);
+    }
+    free(buf);
+}
 
-        auto object_pool = this->capi.find_object_pool(object_pool_pathname);
-
-        uint32_t number_of_shards;
-        // STEP 1 - set up the shard member selection policy
-        on_subgroup_type_index_no_trigger(std::decay_t<decltype(capi)>::subgroup_type_order.at(object_pool.subgroup_type_index),
-            number_of_shards = this->capi.template get_number_of_shards, object_pool.subgroup_index);
-        if (user_specified_node_ids.size() < number_of_shards) {
-            throw derecho::derecho_exception(std::string("The size of 'user_specified_node_ids' argument does not match shard number."));
-        }
-        for (uint32_t shard_index = 0; shard_index < number_of_shards; shard_index ++) {
-            on_subgroup_type_index_no_trigger(std::decay_t<decltype(capi)>::subgroup_type_order.at(object_pool.subgroup_type_index),
-                this->capi.template set_member_selection_policy, object_pool.subgroup_index, shard_index, static_cast<ShardMemberSelectionPolicy>(policy), user_specified_node_ids.at(shard_index));
-        }
-        // STEP 2 - prepare workload
-        const uint32_t buf_size = derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE) - 256;
-        char *buf = (char*)malloc(buf_size);
-        memset(buf,'A',buf_size);
-        for (uint32_t i=0;i<NUMBER_OF_DISTINCT_OBJECTS;i++) {
-            objects.emplace_back(object_pool_pathname+"/key_"+std::to_string(i),buf,buf_size);
-        }
-        free(buf);
-        // STEP 3 - start experiment and log
+bool PerfTestServer::eval_put(std::vector<std::tuple<uint64_t,uint64_t,uint64_t>>& timestamp_log,
+                              uint64_t max_operation_per_second,
+                              uint64_t duration_secs,
+                              uint32_t subgroup_type_index,
+                              uint32_t subgroup_index,
+                              uint32_t shard_index) {
         // synchronization data structures
         // 1 - version,send_timestamp_ns,reply_timestamp_ns
-        std::vector<std::tuple<uint64_t,uint64_t,uint64_t>> timestamp_log;
-        timestamp_log.reserve(65536);
+        // are now from timestamp_log
         // 2 - sending window and future queue
         uint32_t                window_size = derecho::getConfUInt32(CONF_DERECHO_P2P_WINDOW_SIZE);
         uint32_t                window_slots = window_size;
@@ -174,33 +153,145 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
                     lock.unlock();
                     futures_cv.notify_one();
                 };
-            on_subgroup_type_index_with_return_no_trigger(
-                std::decay_t<decltype(capi)>::subgroup_type_order.at(object_pool.subgroup_type_index),
-                future_appender,
-                this->capi.template put, objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS));
+            if (subgroup_index == INVALID_SHARD_INDEX ||
+                shard_index == INVALID_SHARD_INDEX) {
+                on_subgroup_type_index_with_return_no_trigger(
+                    std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
+                    future_appender,
+                    this->capi.template put, objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS));
+            } else {
+                on_subgroup_type_index_with_return_no_trigger(
+                    std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
+                    future_appender,
+                    this->capi.template put, objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS), subgroup_index, shard_index);
+            }
         }
         // wait for all pending futures.
         query_thread.join();
-        // write client-side timestamp log to file
-        std::ofstream outfile(output_filename);
-        outfile << "#version send_ts_us acked_ts_us" << std::endl;
-        for (const auto& le:timestamp_log) {
-            outfile << std::get<0>(le) << " " << (std::get<1>(le)/1000) << " " << (std::get<2>(le)/1000) << std::endl;
-        }
-        outfile.close();
-        // flush server_side timestamp log to file
-        std::function<void(std::vector<std::unique_ptr<QueryResults<void>>>&&)> future_handler = [](std::vector<std::unique_ptr<QueryResults<void>>>&& qrs) {
-            for (auto& qr:qrs){
-                qr.get();
-            }
-        };
-        on_subgroup_type_index_with_return_no_trigger(
-            std::decay_t<decltype(capi)>::subgroup_type_order.at(object_pool.subgroup_type_index),
-            future_handler,
-            this->capi.template dump_timestamp, output_filename, object_pool_pathname);
         return true;
+}
+
+PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
+    capi(capi),
+    server(port) {
+    // Initialize objects
+
+    // API 1 : run shard perf
+    //
+    // @param subgroup_type_index
+    // @param subgroup_index
+    // @param shard_index
+    // @param policy
+    // @param user_specified_node_id
+    // @param read_write_ratio
+    // @param max_operation_per_second
+    // @param duration_Secs
+    // @param output_filename
+    //
+    // @return true/false indicating if the RPC call is successful.
+    server.bind("perf_shard",[this](
+        uint32_t            subgroup_type_index,
+        uint32_t            subgroup_index,
+        uint32_t            shard_index,
+        uint32_t            policy,
+        uint32_t            user_specified_node_id,
+        double              read_write_ratio,
+        uint64_t            max_operation_per_second,
+        uint64_t            duration_secs,
+        const std::string&  output_filename) {
+        // STEP 1 - set up the shard member selection policy
+        on_subgroup_type_index_no_trigger(std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
+            this->capi.template set_member_selection_policy,
+            subgroup_index,
+            shard_index,
+            static_cast<ShardMemberSelectionPolicy>(policy),
+            user_specified_node_id);
+        // STEP 2 - prepare workload
+        make_workload(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_");
+        // STEP 3 - start experiment and log
+        std::vector<std::tuple<uint64_t,uint64_t,uint64_t>> timestamp_log;
+        timestamp_log.reserve(65536);
+        if (this->eval_put(timestamp_log,max_operation_per_second,duration_secs,subgroup_type_index,subgroup_index,shard_index)) {
+            std::ofstream outfile(output_filename);
+            outfile << "#version send_ts_us acked_ts_us" << std::endl;
+            for (const auto& le:timestamp_log) {
+                outfile << std::get<0>(le) << " " << (std::get<1>(le)/1000) << " " << (std::get<2>(le)/1000) << std::endl;
+            }
+            outfile.close();
+            // flush server_side timestamp log to file
+            std::function<void(derecho::rpc::QueryResults<void>&&)> future_handler = [](derecho::rpc::QueryResults<void>&& qr) {
+                qr.get();
+            };
+            on_subgroup_type_index_with_return_no_trigger(
+                std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
+                future_handler,
+                this->capi.template dump_timestamp, output_filename, subgroup_index, shard_index);
+            return true;
+        } else {
+            return false;
+        }
     });
-    // API 2: read file
+    // API 2 : run object pool perf
+    //
+    // @param object_pool_pathname
+    // @param policy
+    // @param user_specified_node_ids
+    // @param read_write_ratio
+    // @param max_operation_per_second
+    // @param duration_Secs
+    // @param output_filename
+    //
+    // @return true/false indicating if the RPC call is successful.
+    server.bind("perf_objectpool",[this](
+        const std::string&  object_pool_pathname,
+        uint32_t            policy,
+        const std::vector<node_id_t>&  user_specified_node_ids, // one per shard
+        double              read_write_ratio,
+        uint64_t            max_operation_per_second,
+        uint64_t            duration_secs,
+        const std::string&  output_filename) {
+
+        auto object_pool = this->capi.find_object_pool(object_pool_pathname);
+
+        uint32_t number_of_shards;
+        // STEP 1 - set up the shard member selection policy
+        on_subgroup_type_index_no_trigger(std::decay_t<decltype(capi)>::subgroup_type_order.at(object_pool.subgroup_type_index),
+            number_of_shards = this->capi.template get_number_of_shards, object_pool.subgroup_index);
+        if (user_specified_node_ids.size() < number_of_shards) {
+            throw derecho::derecho_exception(std::string("the size of 'user_specified_node_ids' argument does not match shard number."));
+        }
+        for (uint32_t shard_index = 0; shard_index < number_of_shards; shard_index ++) {
+            on_subgroup_type_index_no_trigger(std::decay_t<decltype(capi)>::subgroup_type_order.at(object_pool.subgroup_type_index),
+                this->capi.template set_member_selection_policy, object_pool.subgroup_index, shard_index, static_cast<ShardMemberSelectionPolicy>(policy), user_specified_node_ids.at(shard_index));
+        }
+        // STEP 2 - prepare workload
+        make_workload(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),object_pool_pathname+"/key_");
+        // STEP 3 - start experiment and log
+        std::vector<std::tuple<uint64_t,uint64_t,uint64_t>> timestamp_log;
+        timestamp_log.reserve(65536);
+        if (this->eval_put(timestamp_log,max_operation_per_second,duration_secs,object_pool.subgroup_type_index)) {
+            std::ofstream outfile(output_filename);
+            outfile << "#version send_ts_us acked_ts_us" << std::endl;
+            for (const auto& le:timestamp_log) {
+                outfile << std::get<0>(le) << " " << (std::get<1>(le)/1000) << " " << (std::get<2>(le)/1000) << std::endl;
+            }
+            outfile.close();
+            // flush server_side timestamp log to file
+            std::function<void(std::vector<std::unique_ptr<derecho::rpc::QueryResults<void>>>&&)> future_handler = [](std::vector<std::unique_ptr<derecho::rpc::QueryResults<void>>>&& qrs) {
+                for (auto& qr:qrs){
+                    qr.get();
+                }
+            };
+            on_subgroup_type_index_with_return_no_trigger(
+                std::decay_t<decltype(capi)>::subgroup_type_order.at(object_pool.subgroup_type_index),
+                future_handler,
+                this->capi.template dump_timestamp, output_filename, object_pool_pathname);
+            return true;
+        } else {
+            return false;
+        }
+    });
+    // API 3: read file
     server.bind("download",[](const std::string& filename){
         char buf[1024];
         std::stringstream ss;
@@ -249,6 +340,51 @@ void PerfTestClient::remove_server(const std::string& host, uint16_t port) {
 }
 
 PerfTestClient::~PerfTestClient() {}
+
+bool PerfTestClient::check_rpc_futures(std::map<std::pair<std::string,uint16_t>,std::future<RPCLIB_MSGPACK::object_handle>>&& futures) {
+    bool ret = true;
+    for(auto& kv:futures) {
+        try {
+            bool result = kv.second.get().as<bool>();
+            dbg_default_trace("perfserver {}:{} finished with {}.",kv.first.first,kv.first.second,result);
+        } catch (::rpc::rpc_error& rpce) {
+            dbg_default_warn("perfserver {}:{} throws an exception. function:{}, error:{}",
+                             kv.first.first,
+                             kv.first.second,
+                             rpce.get_function_name(),
+                             rpce.get_error().as<std::string>());
+            ret = false;
+        } catch (...) {
+            dbg_default_warn("perfserver {}:{} throws unknown exception.",
+                             kv.first.first, kv.first.second);
+            ret = false;
+        }
+    }
+    return ret;
+}
+
+bool PerfTestClient::download_file(const std::string& filename) {
+    bool ret = true;
+    for(auto& kv:connections) {
+        try {
+            auto output = kv.second->call("download",filename);
+            std::ofstream outfile{filename+"-"+kv.first.first+":"+std::to_string(kv.first.second)};
+            outfile << output.as<std::string>();
+        } catch (::rpc::rpc_error& rpce) {
+            dbg_default_warn("perfserver {}:{} throws an exception. function:{}, error:{}",
+                             kv.first.first,
+                             kv.first.second,
+                             rpce.get_function_name(),
+                             rpce.get_error().as<std::string>());
+            ret = false;
+        } catch (...) {
+            dbg_default_warn("perfserver {}:{} throws unknown exception.",
+                             kv.first.first, kv.first.second);
+            ret = false;
+        }
+    }
+    return ret;
+}
 
 }
 }

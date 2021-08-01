@@ -638,6 +638,7 @@ void list_data_in_objectpool(ServiceClientAPI& capi, persistent::version_t versi
 #endif// HAS_BOOLINQ
 
 #ifdef ENABLE_EVALUATION
+// The object pool version of perf test
 template <typename SubgroupType>
 bool perftest(PerfTestClient& ptc,
               const std::string& object_pool_pathname,
@@ -656,6 +657,36 @@ bool perftest(PerfTestClient& ptc,
 template <>
 bool perftest<TriggerCascadeNoStoreWithStringKey>(PerfTestClient& ptc,
               const std::string& object_pool_pathname,
+              ExternalClientToCascadeServerMapping ec2cs,
+              double read_write_ratio,
+              uint64_t ops_threashold,
+              uint64_t duration_secs,
+              const std::string& output_file) {
+    print_red("TCSS does not support list_data_in_subgroup.");
+    return false;
+}
+
+// The raw shard version of perf test
+template <typename SubgroupType>
+bool perftest(PerfTestClient& ptc,
+              uint32_t subgroup_index,
+              uint32_t shard_index,
+              ExternalClientToCascadeServerMapping ec2cs,
+              double read_write_ratio,
+              uint64_t ops_threshold,
+              uint64_t duration_secs,
+              const std::string& output_file) {
+    debug_enter_func_with_args("subgroup_index={},shard_index={},ec2cs={},read_write_ratio={},ops_threshold={},duration_secs={},output_file={}",
+                               subgroup_index, shard_index,static_cast<uint32_t>(ec2cs),read_write_ratio,ops_threshold,duration_secs,output_file);
+    bool ret = ptc.template perf<SubgroupType>(subgroup_index,shard_index,ec2cs,read_write_ratio,ops_threshold,duration_secs,output_file);
+    debug_leave_func();
+    return ret;
+}
+
+template <>
+bool perftest<TriggerCascadeNoStoreWithStringKey>(PerfTestClient& ptc,
+              uint32_t subgroup_index,
+              uint32_t shard_index,
               ExternalClientToCascadeServerMapping ec2cs,
               double read_write_ratio,
               uint64_t ops_threashold,
@@ -1319,9 +1350,9 @@ std::vector<command_entry_t> commands =
         "Performance Test Commands","","",command_handler_t()
     },
     {
-        "perftest",
-        "Performance Tester for put and get.",
-        "perftest <type> <object pool pathname> <member selection policy> <r/w ratio> <max rate> <duration in sec> <client1> [<client2>, ...] \n"
+        "perftest_object_pool",
+        "Performance Tester for put to an object pool.",
+        "perftest_object_pool <type> <object pool pathname> <member selection policy> <r/w ratio> <max rate> <duration in sec> <client1> [<client2>, ...] \n"
             "type := " SUBGROUP_TYPE_LIST "\n"
             "'member selection policy' refers how the external clients pick a member in a shard;\n"
             "    Available options: FIXED|RANDOM|ROUNDROBIN;\n"
@@ -1360,6 +1391,53 @@ std::vector<command_entry_t> commands =
             }
             bool ret;
             on_subgroup_type(cmd_tokens[1], ret = perftest, ptc, object_pool_pathname, member_selection_policy,read_write_ratio,max_rate,duration_sec,"output.log");
+            return ret;
+        }
+    },
+    {
+        "perftest_shard",
+        "Performance Tester for put to a shard.",
+        "perftest_shard <type> <subgroup index> <shard index> <member selection policy> <r/w ratio> <max rate> <duration in sec> <client1> [<client2>, ...] \n"
+            "type := " SUBGROUP_TYPE_LIST "\n"
+            "'member selection policy' refers how the external clients pick a member in a shard;\n"
+            "    Available options: FIXED|RANDOM|ROUNDROBIN;\n"
+            "'r/w ratio' is the ratio of get vs put operations, INF for all put test; \n"
+            "'max rate' is the maximum number of operations in Operations per Second, 0 for best effort; \n"
+            "'duration' is the span of the whole experiments; \n"
+            "'clientn' is a host[:port] pair representing the parallel clients. The port is default to " + std::to_string(PERFTEST_PORT),
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+            if (cmd_tokens.size() < 9) {
+                print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
+                return false;
+            }
+
+            uint32_t subgroup_index = std::stoul(cmd_tokens[2]);
+            uint32_t shard_index = std::stoul(cmd_tokens[3]);
+
+            ExternalClientToCascadeServerMapping member_selection_policy = FIXED;
+            if (cmd_tokens[4] == "RANDOM") {
+                member_selection_policy = ExternalClientToCascadeServerMapping::RANDOM;
+            } else if (cmd_tokens[4] == "ROUNDROBIN") {
+                member_selection_policy = ExternalClientToCascadeServerMapping::ROUNDROBIN;
+            }
+            double read_write_ratio = std::stod(cmd_tokens[5]);
+            uint64_t max_rate = std::stoul(cmd_tokens[6]);
+            uint64_t duration_sec = std::stoul(cmd_tokens[7]);
+
+            PerfTestClient ptc{capi};
+            uint32_t pos = 8;
+            while (pos < cmd_tokens.size()) {
+                std::string::size_type colon_pos = cmd_tokens[pos].find(':');
+                if (colon_pos == std::string::npos) {
+                    ptc.add_or_update_server(cmd_tokens[pos],PERFTEST_PORT);
+                } else {
+                    ptc.add_or_update_server(cmd_tokens[pos].substr(0,colon_pos),
+                                             static_cast<uint16_t>(std::stoul(cmd_tokens[pos].substr(colon_pos+1))));
+                }
+                pos ++;
+            }
+            bool ret;
+            on_subgroup_type(cmd_tokens[1], ret = perftest,ptc,subgroup_index,shard_index,member_selection_policy,read_write_ratio,max_rate,duration_sec,"output.log");
             return ret;
         }
     },
