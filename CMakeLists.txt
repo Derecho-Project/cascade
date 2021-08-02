@@ -61,7 +61,7 @@ CHECK_INCLUDE_FILE_CXX("mxnet-cpp/MxNetCpp.h" HAS_MXNET_CPP)
 unset(CMAKE_REQUIRED_LIBRARIES)
 
 #cuda
-find_package(CUDA)
+find_package(CUDA QUIET)
 if (CUDA_FOUND)
     set (ENABLE_GPU 1)
 endif()
