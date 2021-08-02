@@ -877,13 +877,13 @@ derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::dump_timestamp(
         } else {
             auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
             node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
-            return subgroup_handle.template p2p_send<RPC_NAME(dump_timestamp_log)>(filename);
+            return subgroup_handle.template p2p_send<RPC_NAME(dump_timestamp_log)>(node_id,filename);
         }
     } else {
         std::lock_guard(this->external_group_ptr_mutex);
         auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
         node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
-        return caller.template p2p_send<RPC_NAME(dump_timestamp_log)>(filename);
+        return caller.template p2p_send<RPC_NAME(dump_timestamp_log)>(node_id,filename);
     }
 }
 
