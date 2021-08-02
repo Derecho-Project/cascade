@@ -1,9 +1,9 @@
 cmake_minimum_required (VERSION 3.10.0)
 
-find_package(Java)
+find_package(Java QUIET)
 
 if (NOT Java_FOUND)
-    message("Java not found - skipping building tests")
+    message(STATUS "Java not found - skipping building tests")
 	return()
 endif (NOT Java_FOUND)
 
@@ -11,12 +11,6 @@ endif (NOT Java_FOUND)
 # set(JAVA_JVM_LIBRARY NotNeeded)
 # set(JAVA_AWT_INCLUDE_PATH NotNeeded)
 find_package(JNI)
-
-if (NOT JNI_FOUND)
-	message("JNI not found - skipping building tests")
-	return()
-endif (NOT JNI_FOUND)
-
 
 include(UseJava)
 
