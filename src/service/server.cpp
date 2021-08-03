@@ -94,7 +94,6 @@ int main(int argc, char** argv) {
     if( prctl(PR_SET_NAME, PROC_NAME, 0, 0, 0) != 0 ) {
         dbg_default_warn("Cannot set proc name to {}.", PROC_NAME);
     }
-    dbg_default_trace("set proc name to {}", PROC_NAME);
 
     CascadeServiceCDPO<VolatileCascadeStoreWithStringKey> cdpo_vcss;
     CascadeServiceCDPO<PersistentCascadeStoreWithStringKey> cdpo_pcss;
