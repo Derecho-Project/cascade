@@ -7,11 +7,14 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <cascade/utils.hpp>
+#include <sys/prctl.h>
 #ifdef ENABLE_EVALUATION
 #include "perftest.hpp"
 #endif//ENABLE_EVALUATION
 
 using namespace derecho::cascade;
+
+#define PROC_NAME   "cascade_client"
 
 template <typename SubgroupType>
 void print_shard_member(ServiceClientAPI& capi, uint32_t subgroup_index, uint32_t shard_index) {
@@ -1487,6 +1490,9 @@ void detached_test(ServiceClientAPI& capi, int argc, char** argv) {
 }
 
 int main(int argc,char** argv) {
+    if( prctl(PR_SET_NAME, PROC_NAME, 0, 0, 0) != 0 ) {
+        dbg_default_debug("Failed to set proc name to {}.",PROC_NAME);
+    }
     ServiceClientAPI capi;
 #ifdef ENABLE_EVALUATION
     // start working thread.
