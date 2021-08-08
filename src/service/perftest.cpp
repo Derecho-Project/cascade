@@ -78,7 +78,7 @@ bool PerfTestServer::eval_put(std::vector<std::tuple<uint64_t,uint64_t,uint64_t>
         // are now from timestamp_log
         // 2 - sending window and future queue
         uint32_t                window_size = derecho::getConfUInt32(CONF_DERECHO_P2P_WINDOW_SIZE);
-        uint32_t                window_slots = window_size;
+        uint32_t                window_slots = window_size*2;
         std::mutex              window_slots_mutex;
         std::condition_variable window_slots_cv;
         std::queue<std::pair<uint64_t,derecho::QueryResults<std::tuple<persistent::version_t,uint64_t>>>> futures;
