@@ -354,6 +354,42 @@ derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceCl
 
 template <typename... CascadeTypes>
 template <typename SubgroupType>
+void ServiceClient<CascadeTypes...>::put_and_forget(
+        const typename SubgroupType::ObjectType& value,
+        uint32_t subgroup_index,
+        uint32_t shard_index) {
+    if (group_ptr != nullptr) {
+        std::lock_guard(this->group_ptr_mutex);
+        if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
+            // do ordered put as a member (Replicated).
+            auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
+            subgroup_handle.template ordered_send<RPC_NAME(ordered_put_and_forget)>(value);
+        } else {
+            // do normal put as a non member (ExternalCaller).
+            auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
+            node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
+            subgroup_handle.template p2p_send<RPC_NAME(put_and_forget)>(node_id,value);
+        }
+    } else {
+        std::lock_guard(this->external_group_ptr_mutex);
+        // call as an external client (ExternalClientCaller).
+        auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
+        node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
+        caller.template p2p_send<RPC_NAME(put_and_forget)>(node_id,value);
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+void ServiceClient<CascadeTypes...>::put_and_forget(
+        const typename SubgroupType::ObjectType& value) {
+    uint32_t subgroup_index,shard_index;
+    std::tie(subgroup_index,shard_index) = this->template key_to_subgroup_index_and_shard_index<SubgroupType>(value.get_key_ref());
+    this->template put_and_forget<SubgroupType>(value,subgroup_index,shard_index);
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
 derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::trigger_put(
         const typename SubgroupType::ObjectType& value,
         uint32_t subgroup_index,

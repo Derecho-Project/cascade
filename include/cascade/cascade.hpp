@@ -89,6 +89,15 @@ namespace cascade {
          */
         virtual std::tuple<persistent::version_t,uint64_t> put(const VT& value) const = 0;
         /**
+         * put_and_forget(const VT&)
+         *
+         * Put a value. VT must implement ICascadeObject interface. The key is given in value and retrieved by
+         * ICascadeObject::get_key_ref()
+         *
+         * @param value
+         */
+        virtual void put_and_forget(const VT& value) const = 0;
+        /**
          * remove(const KT&)
          *
          * Remove a value by key. The key will still be in the map with an empty value.
@@ -249,6 +258,11 @@ namespace cascade {
          */
         virtual std::tuple<persistent::version_t,uint64_t> ordered_put(const VT& value) = 0;
         /**
+         * ordered_put_and_forget
+         * @param value
+         */
+        virtual void ordered_put_and_forget(const VT& value) = 0;
+        /**
          * ordered_remove
          * @param key
          * @return a tuple including version number (version_t) and a timestamp in microseconds.
@@ -296,6 +310,7 @@ namespace cascade {
         /* timestamp logger */
         mutable std::vector<std::tuple<uint64_t,uint64_t,uint64_t>> timestamp_log;
 #endif//ENABLE_EVALUATION
+        bool internal_ordered_put(const VT& value);
     public:
         /* group reference */
         using derecho::GroupReference::group;
@@ -311,6 +326,7 @@ namespace cascade {
         REGISTER_RPC_FUNCTIONS(VolatileCascadeStore,
                                P2P_TARGETS(
                                    put,
+                                   put_and_forget,
                                    remove,
                                    get,
                                    get_by_time,
@@ -327,6 +343,7 @@ namespace cascade {
                                ),
                                ORDERED_TARGETS(
                                    ordered_put,
+                                   ordered_put_and_forget,
                                    ordered_remove,
                                    ordered_get,
                                    ordered_list_keys,
@@ -340,6 +357,7 @@ namespace cascade {
 #endif//ENABLE_EVALUATION
         virtual void trigger_put(const VT& value) const override;
         virtual std::tuple<persistent::version_t,uint64_t> put(const VT& value) const override;
+        virtual void put_and_forget(const VT& value) const override;
         virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) const override;
         virtual const VT get(const KT& key, const persistent::version_t& ver, bool exact=false) const override;
         virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) const override;
@@ -350,6 +368,7 @@ namespace cascade {
         virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, bool exact=false) const override;
         virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us) const override;
         virtual std::tuple<persistent::version_t,uint64_t> ordered_put(const VT& value) override;
+        virtual void ordered_put_and_forget(const VT& value) override;
         virtual std::tuple<persistent::version_t,uint64_t> ordered_remove(const KT& key) override;
         virtual const VT ordered_get(const KT& key) override;
         virtual std::vector<KT> ordered_list_keys() override;
@@ -483,6 +502,7 @@ namespace cascade {
         /* timestamp logger */
         mutable std::vector<std::tuple<uint64_t,uint64_t,uint64_t>> timestamp_log;
 #endif//ENABLE_EVALUATION
+        bool internal_ordered_put(const VT& value);
     public:
         using derecho::GroupReference::group;
         persistent::Persistent<DeltaCascadeStoreCore<KT,VT,IK,IV>,ST> persistent_core;
@@ -493,6 +513,7 @@ namespace cascade {
         REGISTER_RPC_FUNCTIONS(PersistentCascadeStore,
                                P2P_TARGETS(
                                    put,
+                                   put_and_forget,
                                    remove,
                                    get,
                                    get_by_time,
@@ -509,6 +530,7 @@ namespace cascade {
                                ),
                                ORDERED_TARGETS(
                                    ordered_put,
+                                   ordered_put_and_forget,
                                    ordered_remove,
                                    ordered_get,
                                    ordered_list_keys,
@@ -520,8 +542,9 @@ namespace cascade {
 #ifdef ENABLE_EVALUATION
         virtual void dump_timestamp_log(const std::string& filename) const override;
 #endif//ENABLE_EVALUATION
-        virtual void trigger_put(const VT& value) const;
+        virtual void trigger_put(const VT& value) const override;
         virtual std::tuple<persistent::version_t,uint64_t> put(const VT& value) const override;
+        virtual void put_and_forget(const VT& value) const override;
         virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) const override;
         virtual const VT get(const KT& key, const persistent::version_t& ver, bool exact=false) const override;
         virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) const override;
@@ -532,6 +555,7 @@ namespace cascade {
         virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, bool exact=false) const override;
         virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us) const override;
         virtual std::tuple<persistent::version_t,uint64_t> ordered_put(const VT& value) override;
+        virtual void ordered_put_and_forget(const VT& value) override;
         virtual std::tuple<persistent::version_t,uint64_t> ordered_remove(const KT& key) override;
         virtual const VT ordered_get(const KT& key) override;
         virtual std::vector<KT> ordered_list_keys() override;
@@ -747,8 +771,9 @@ namespace cascade {
 #ifdef ENABLE_EVALUATION
         virtual void dump_timestamp_log(const std::string& filename) const override;
 #endif//ENABLE_EVALUATION
-        virtual void trigger_put(const VT& value) const;
+        virtual void trigger_put(const VT& value) const override;
         virtual std::tuple<persistent::version_t,uint64_t> put(const VT& value) const override;
+        virtual void put_and_forget(const VT& value) const override;
         virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) const override;
         virtual const VT get(const KT& key, const persistent::version_t& ver, bool exact=false) const override;
         virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) const override;
@@ -759,6 +784,7 @@ namespace cascade {
         virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, bool exact=false) const override;
         virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us) const override;
         virtual std::tuple<persistent::version_t,uint64_t> ordered_put(const VT& value) override;
+        virtual void ordered_put_and_forget(const VT& value) override;
         virtual std::tuple<persistent::version_t,uint64_t> ordered_remove(const KT& key) override;
         virtual const VT ordered_get(const KT& key) override;
         virtual std::vector<KT> ordered_list_keys() override;

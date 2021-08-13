@@ -51,6 +51,14 @@ std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::pu
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
+void VolatileCascadeStore<KT,VT,IK,IV>::put_and_forget(const VT& value) const {
+    debug_enter_func_with_args("value.get_key_ref={}",value.get_key_ref());
+    derecho::Replicated<VolatileCascadeStore>& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
+    subgroup_handle.template ordered_send<RPC_NAME(ordered_put_and_forget)>(value);
+    debug_leave_func();
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
 std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::remove(const KT& key) const {
     debug_enter_func_with_args("key={}",key);
     derecho::Replicated<VolatileCascadeStore>& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
@@ -200,6 +208,26 @@ std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::or
 
     std::tuple<persistent::version_t,uint64_t> version_and_timestamp = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
 
+    if(this->internal_ordered_put(value)==false) {
+        version_and_timestamp = {persistent::INVALID_VERSION,0};
+    }
+
+    debug_leave_func_with_value("version=0x{:x},timestamp={}",std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp));
+
+    return version_and_timestamp;
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
+void VolatileCascadeStore<KT,VT,IK,IV>::ordered_put_and_forget(const VT& value) {
+    debug_enter_func_with_args("key={}",value.get_key_ref());
+    internal_ordered_put(value);
+    debug_leave_func();
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
+bool VolatileCascadeStore<KT,VT,IK,IV>::internal_ordered_put(const VT& value) {
+    std::tuple<persistent::version_t,uint64_t> version_and_timestamp = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
+
     if constexpr (std::is_base_of<IKeepVersion,VT>::value) {
         value.set_version(std::get<0>(version_and_timestamp));
     }
@@ -210,7 +238,7 @@ std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::or
     // validator
     if constexpr (std::is_base_of<IValidator<KT,VT>,VT>::value) {
         if(!value.validate(this->kv_map)) {
-            return {persistent::INVALID_VERSION,0};
+            return false;
         }
     }
 
@@ -224,7 +252,7 @@ std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::or
         }
         if (!verify_result) {
             // reject the update by returning an invalid version and timestamp
-            return {persistent::INVALID_VERSION,0};
+            return false;
         }
     }
     if constexpr (std::is_base_of<IKeepPreviousVersion,VT>::value) {
@@ -245,11 +273,9 @@ std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::or
             group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_shard_num(),
             value.get_key_ref(), value, cascade_context_ptr);
     }
-
-    debug_leave_func_with_value("version=0x{:x},timestamp={}",std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp));
-
-    return version_and_timestamp;
+    return true;
 }
+
 
 template<typename KT, typename VT, KT* IK, VT* IV>
 std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::ordered_remove(const KT& key) {
@@ -670,6 +696,14 @@ std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+void PersistentCascadeStore<KT,VT,IK,IV,ST>::put_and_forget(const VT& value) const {
+    debug_enter_func_with_args("value.get_key_ref()={}",value.get_key_ref());
+    derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
+    subgroup_handle.template ordered_send<RPC_NAME(ordered_put_and_forget)>(value);
+    debug_leave_func();
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST>::remove(const KT& key) const {
     debug_enter_func_with_args("key={}",key);
     derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
@@ -880,6 +914,24 @@ template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST>::ordered_put(const VT& value) {
     debug_enter_func_with_args("key={}",value.get_key_ref());
     std::tuple<persistent::version_t,uint64_t> version_and_timestamp = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
+    if(this->internal_ordered_put(value) == false) {
+        version_and_timestamp = {persistent::INVALID_VERSION,0};
+    }
+    debug_leave_func_with_value("version=0x{:x},timestamp={}",std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp));
+
+    return version_and_timestamp;
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+void PersistentCascadeStore<KT,VT,IK,IV,ST>::ordered_put_and_forget(const VT& value) {
+    debug_enter_func_with_args("key={}",value.get_key_ref());
+    this->internal_ordered_put(value);
+    debug_leave_func();
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+bool PersistentCascadeStore<KT,VT,IK,IV,ST>::internal_ordered_put(const VT& value) {
+    std::tuple<persistent::version_t,uint64_t> version_and_timestamp = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
     if constexpr (std::is_base_of<IKeepVersion,VT>::value) {
         value.set_version(std::get<0>(version_and_timestamp));
     }
@@ -889,7 +941,7 @@ std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST
     if (this->persistent_core->ordered_put(value,this->persistent_core.getLatestVersion()) == false) {
         // verification failed. S we return invalid versions.
         debug_leave_func_with_value("version=0x{:x},timestamp={}",std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp));
-        return {persistent::INVALID_VERSION,0};
+        return false;
     }
     if (cascade_watcher_ptr) {
         (*cascade_watcher_ptr)(
@@ -898,10 +950,7 @@ std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST
             group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_shard_num(),
             value.get_key_ref(), value, cascade_context_ptr);
     }
-
-    debug_leave_func_with_value("version=0x{:x},timestamp={}",std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp));
-
-    return version_and_timestamp;
+    return true;
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
@@ -1043,6 +1092,11 @@ std::tuple<persistent::version_t,uint64_t> TriggerCascadeNoStore<KT,VT,IK,IV>::p
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
+void TriggerCascadeNoStore<KT,VT,IK,IV>::put_and_forget(const VT& value) const {
+    dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
 std::tuple<persistent::version_t,uint64_t> TriggerCascadeNoStore<KT,VT,IK,IV>::remove(const KT& key) const {
     dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
     return {persistent::INVALID_VERSION,0};
@@ -1084,8 +1138,6 @@ std::vector<KT> TriggerCascadeNoStore<KT,VT,IK,IV>::op_list_keys_by_time(const u
     return {};
 }
 
-
-
 template<typename KT, typename VT, KT* IK, VT* IV>
 uint64_t TriggerCascadeNoStore<KT,VT,IK,IV>::get_size(const KT& key, const persistent::version_t& ver, bool) const {
     dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
@@ -1109,6 +1161,12 @@ std::tuple<persistent::version_t,uint64_t> TriggerCascadeNoStore<KT,VT,IK,IV>::o
     dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
     return {};
 }
+
+template<typename KT, typename VT, KT* IK, VT* IV>
+void TriggerCascadeNoStore<KT,VT,IK,IV>::ordered_put_and_forget(const VT& value) {
+    dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
+}
+
 
 template<typename KT, typename VT, KT* IK, VT* IV>
 std::tuple<persistent::version_t,uint64_t> TriggerCascadeNoStore<KT,VT,IK,IV>::ordered_remove(const KT& key) {
