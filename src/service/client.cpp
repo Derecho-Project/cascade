@@ -161,6 +161,29 @@ void put<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, const std::
 }
 
 template <typename SubgroupType>
+void put_and_forget(ServiceClientAPI& capi, const std::string& key, const std::string& value, persistent::version_t pver, persistent::version_t pver_bk, uint32_t subgroup_index, uint32_t shard_index) {
+    typename SubgroupType::ObjectType obj;
+    if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
+        obj.key = static_cast<uint64_t>(std::stol(key));
+    } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
+        obj.key = key;
+    } else {
+        print_red(std::string("Unhandled KeyType:") + typeid(typename SubgroupType::KeyType).name());
+        return;
+    }
+    obj.previous_version = pver;
+    obj.previous_version_by_key = pver_bk;
+    obj.blob = Blob(value.c_str(),value.length());
+    capi.template put_and_forget<SubgroupType>(obj, subgroup_index, shard_index);
+    std::cout << "put done." << std::endl;
+}
+
+template <>
+void put_and_forget<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, const std::string& key, const std::string& value, persistent::version_t pver, persistent::version_t pver_bk, uint32_t subgroup_index, uint32_t shard_index) {
+    print_red("TCSS does not support put.");
+}
+
+template <typename SubgroupType>
 void op_put(ServiceClientAPI& capi, const std::string& key, const std::string& value, persistent::version_t pver, persistent::version_t pver_bk) {
     typename SubgroupType::ObjectType obj;
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
@@ -180,6 +203,29 @@ void op_put(ServiceClientAPI& capi, const std::string& key, const std::string& v
 
 template <>
 void op_put<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, const std::string& key, const std::string& value, persistent::version_t pver, persistent::version_t pver_bk) {
+    print_red("TCSS does not support op_put.");
+}
+
+template <typename SubgroupType>
+void op_put_and_forget(ServiceClientAPI& capi, const std::string& key, const std::string& value, persistent::version_t pver, persistent::version_t pver_bk) {
+    typename SubgroupType::ObjectType obj;
+    if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
+        obj.key = static_cast<uint64_t>(std::stol(key));
+    } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
+        obj.key = key;
+    } else {
+        print_red(std::string("Unhandled KeyType:") + typeid(typename SubgroupType::KeyType).name());
+        return;
+    }
+    obj.previous_version = pver;
+    obj.previous_version_by_key = pver_bk;
+    obj.blob = Blob(value.c_str(),value.length());
+    capi.template put_and_forget<SubgroupType>(obj);
+    std::cout << "put done." << std::endl;
+}
+
+template <>
+void op_put_and_forget<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, const std::string& key, const std::string& value, persistent::version_t pver, persistent::version_t pver_bk) {
     print_red("TCSS does not support op_put.");
 }
 
@@ -936,6 +982,28 @@ std::vector<command_entry_t> commands =
         }
     },
     {
+        "put_and_forget",
+        "Put an object to a shard, without a return value",
+        "put_and_forget <type> <key> <value> <subgroup_index> <shard_index> [previous_version(default:-1)] [previous_version_by_key(default:-1)]\n"
+            "type := " SUBGROUP_TYPE_LIST,
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+            persistent::version_t pver = persistent::INVALID_VERSION;
+            persistent::version_t pver_bk = persistent::INVALID_VERSION;
+            if (cmd_tokens.size() < 6) {
+                print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
+                return false;
+            }
+            uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
+            uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[5]));
+            if (cmd_tokens.size() >= 7)
+                pver = static_cast<persistent::version_t>(std::stol(cmd_tokens[6]));
+            if (cmd_tokens.size() >= 8)
+                pver_bk = static_cast<persistent::version_t>(std::stol(cmd_tokens[7]));
+            on_subgroup_type(cmd_tokens[1],put_and_forget,capi,cmd_tokens[2]/*key*/,cmd_tokens[3]/*value*/,pver,pver_bk,subgroup_index,shard_index);
+            return true;
+        }
+    },
+    {
         "op_put",
         "Put an object into an object pool",
         "op_put <type> <key> <value> [previous_version(default:-1)] [previous_version_by_key(default:-1)]\n"
@@ -953,6 +1021,27 @@ std::vector<command_entry_t> commands =
             if (cmd_tokens.size() >= 6)
                 pver_bk = static_cast<persistent::version_t>(std::stol(cmd_tokens[5]));
             on_subgroup_type(cmd_tokens[1], op_put,capi,cmd_tokens[2]/*key*/,cmd_tokens[3]/*value*/,pver,pver_bk);
+            return true;
+        }
+    },
+    {
+        "op_put_and_forget",
+        "Put an object into an object pool, without a return value",
+        "op_put_and_forget <type> <key> <value> [previous_version(default:-1)] [previous_version_by_key(default:-1)]\n"
+            "type := " SUBGROUP_TYPE_LIST "\n"
+            "Please note that cascade automatically decides the object pool path using the key's prefix.",
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+            persistent::version_t pver = persistent::INVALID_VERSION;
+            persistent::version_t pver_bk = persistent::INVALID_VERSION;
+            if (cmd_tokens.size() < 4) {
+                print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
+                return false;
+            }
+            if (cmd_tokens.size() >= 5)
+                pver = static_cast<persistent::version_t>(std::stol(cmd_tokens[4]));
+            if (cmd_tokens.size() >= 6)
+                pver_bk = static_cast<persistent::version_t>(std::stol(cmd_tokens[5]));
+            on_subgroup_type(cmd_tokens[1], op_put_and_forget,capi,cmd_tokens[2]/*key*/,cmd_tokens[3]/*value*/,pver,pver_bk);
             return true;
         }
     },
