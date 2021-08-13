@@ -16,6 +16,12 @@ namespace cascade {
 #define INVALID_SHARD_INDEX         (std::numeric_limits<uint32_t>::max())
 
 class PerfTestServer {
+    using put_and_forget_perf_log_t = struct {
+        uint64_t first_send_ns;
+        uint64_t last_send_ns;
+        uint64_t ack_ns;
+        uint64_t num_messages;
+    };
 private:
     ServiceClientAPI&   capi;
     ::rpc::server       server;
@@ -48,6 +54,25 @@ private:
                   uint32_t subgroup_type_index,
                   uint32_t subgroup_index=INVALID_SUBGROUP_INDEX,
                   uint32_t shard_index=INVALID_SHARD_INDEX);
+
+    /**
+     * evaluating put_and_forget operation
+     *
+     * @param timestamp_log         Caller provided timestamp_log
+     * @param max_operation_per_second  max message rate
+     * @param duration_secs         experiment duration in seconds
+     * @param subgroup_type_index
+     * @param subgroup_index        If subgroup_index and shard_index are both valid, the test will use object pool API.
+     * @param shard_index           If subgroup_index and shard_index are both valid, the test will use object pool API.
+     *
+     * @return true/false
+     */
+    bool eval_put_and_forget(put_and_forget_perf_log_t& timestamp_log,
+                             uint64_t max_operation_per_second,
+                             uint64_t duration_secs,
+                             uint32_t subgroup_type_index,
+                             uint32_t subgroup_index=INVALID_SUBGROUP_INDEX,
+                             uint32_t shard_index=INVALID_SHARD_INDEX);
 
 public:
     /**
