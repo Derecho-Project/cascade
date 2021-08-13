@@ -108,7 +108,8 @@ public:
     void remove_server(const std::string& host, uint16_t port);
 
     /**
-     * Object Pool Performance testing
+     * Object Pool Performance testing, using put with return
+     * @param use_put_and_forget if true, use put and forget to keep the pipeline busy.
      * @param object_pool_pathname
      * @param ec2cs
      *        Mapping from external client to a shard member.
@@ -120,14 +121,16 @@ public:
      * @return true for a successful run, false for a failed run.
      */
     template<typename SubgroupType>
-    bool perf(const std::string&    object_pool_pathname,
-              ExternalClientToCascadeServerMapping ec2cs,
-              double                read_write_ratio,
-              uint64_t              ops_threshold,
-              uint64_t              duration_secs,
-              const std::string&    output_file);
+    bool perf_put(bool                  use_put_and_forget,
+                  const std::string&    object_pool_pathname,
+                  ExternalClientToCascadeServerMapping ec2cs,
+                  double                read_write_ratio,
+                  uint64_t              ops_threshold,
+                  uint64_t              duration_secs,
+                  const std::string&    output_file);
     /**
-     * Single Shard Performance testing
+     * Single Shard Performance testing, using put with return
+     * @param use_put_and_forget if true, use put and forget to keep the pipeline busy.
      * @param subgroup_index
      * @param subgroup_shard
      * @param ec2cs
@@ -137,28 +140,31 @@ public:
      * @param duration_secs
      * @param output_file
      *        The log in "message id, version, send_ts_us, acked_ts_us" will be written in the output file.
+     * @return true for a successful run, false for a failed run.
      */
     template<typename SubgroupType>
-    bool perf(uint32_t  subgroup_index,
-              uint32_t  shard_index,
-              ExternalClientToCascadeServerMapping ec2cs,
-              double    read_write_ratio,
-              uint64_t  ops_threshold,
-              uint64_t  duration_secs,
-              const std::string&    output_file);
+    bool perf_put(bool      use_put_and_forget,
+                  uint32_t  subgroup_index,
+                  uint32_t  shard_index,
+                  ExternalClientToCascadeServerMapping ec2cs,
+                  double    read_write_ratio,
+                  uint64_t  ops_threshold,
+                  uint64_t  duration_secs,
+                  const std::string&    output_file);
     /**
      * Destructor
      */
     virtual ~PerfTestClient();
 };
 
-template<typename SubgroupType>
-bool PerfTestClient::perf(const std::string&    object_pool_pathname,
-                          ExternalClientToCascadeServerMapping ec2cs,
-                          double                read_write_ratio,
-                          uint64_t              ops_threshold,
-                          uint64_t              duration_secs,
-                          const std::string&    output_filename) {
+    template<typename SubgroupType>
+    bool PerfTestClient::perf_put(bool                  use_put_and_forget,
+                                  const std::string&    object_pool_pathname,
+                                  ExternalClientToCascadeServerMapping ec2cs,
+                                  double                read_write_ratio,
+                                  uint64_t              ops_threshold,
+                                  uint64_t              duration_secs,
+                                  const std::string&    output_filename) {
     debug_enter_func_with_args("object_pool_pathname={},ec2cs={},read_write_ratio={},ops_threshold={},duration_secs={},output_filename={}",
                                object_pool_pathname,static_cast<uint32_t>(ec2cs),read_write_ratio,ops_threshold,duration_secs,output_filename);
     bool ret = true;
@@ -195,7 +201,7 @@ bool PerfTestClient::perf(const std::string&    object_pool_pathname,
     // 2 - send requests and wait for response
     std::map<std::pair<std::string,uint16_t>,std::future<RPCLIB_MSGPACK::object_handle>> futures;
     for (auto& kv: connections) {
-        futures.emplace(kv.first,kv.second->async_call("perf_objectpool",object_pool_pathname,static_cast<uint32_t>(policy),
+        futures.emplace(kv.first,kv.second->async_call(use_put_and_forget?"perf_put_and_forget_to_objectpool":"perf_put_to_objectpool",object_pool_pathname,static_cast<uint32_t>(policy),
                         user_specified_node_ids.at(kv.first),read_write_ratio,ops_threshold,duration_secs,output_filename));
     }
 
@@ -211,13 +217,14 @@ bool PerfTestClient::perf(const std::string&    object_pool_pathname,
 }
 
 template <typename SubgroupType>
-bool PerfTestClient::perf(uint32_t  subgroup_index,
-                          uint32_t  shard_index,
-                          ExternalClientToCascadeServerMapping ec2cs,
-                          double    read_write_ratio,
-                          uint64_t  ops_threshold,
-                          uint64_t  duration_secs,
-                          const std::string& output_filename) {
+bool PerfTestClient::perf_put(bool      use_put_and_forget,
+                              uint32_t  subgroup_index,
+                              uint32_t  shard_index,
+                              ExternalClientToCascadeServerMapping ec2cs,
+                              double    read_write_ratio,
+                              uint64_t  ops_threshold,
+                              uint64_t  duration_secs,
+                              const std::string& output_filename) {
     debug_enter_func_with_args("subgroup_index={}, shard_index={}, ec2cs={},read_write_ratio={},ops_threshold={},duration_secs={},output_filename={}",
                                subgroup_index,shard_index,static_cast<uint32_t>(ec2cs),read_write_ratio,ops_threshold,duration_secs,output_filename);
     bool ret = true;
@@ -248,7 +255,7 @@ bool PerfTestClient::perf(uint32_t  subgroup_index,
     std::map<std::pair<std::string,uint16_t>,std::future<RPCLIB_MSGPACK::object_handle>> futures;
 
     for (auto& kv: connections) {
-        futures.emplace(kv.first,kv.second->async_call("perf_shard",
+        futures.emplace(kv.first,kv.second->async_call(use_put_and_forget?"perf_put_and_forget_to_shard":"perf_put_to_shard",
                                                        capi.template get_subgroup_type_index<SubgroupType>(),
                                                        subgroup_index,shard_index,static_cast<uint32_t>(policy),
                                                        user_specified_node_ids.at(kv.first),read_write_ratio,

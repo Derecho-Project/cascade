@@ -189,7 +189,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
     // @param output_filename
     //
     // @return true/false indicating if the RPC call is successful.
-    server.bind("perf_shard",[this](
+    server.bind("perf_put_to_shard",[this](
         uint32_t            subgroup_type_index,
         uint32_t            subgroup_index,
         uint32_t            shard_index,
@@ -242,7 +242,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
     // @param output_filename
     //
     // @return true/false indicating if the RPC call is successful.
-    server.bind("perf_objectpool",[this](
+    server.bind("perf_put_to_objectpool",[this](
         const std::string&  object_pool_pathname,
         uint32_t            policy,
         const std::vector<node_id_t>&  user_specified_node_ids, // one per shard
