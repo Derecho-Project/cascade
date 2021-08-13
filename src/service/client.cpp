@@ -1448,53 +1448,10 @@ std::vector<command_entry_t> commands =
     {
         "perftest_object_pool",
         "Performance Tester for put to an object pool.",
-        "perftest_object_pool <type> <object pool pathname> <member selection policy> <r/w ratio> <max rate> <duration in sec> <client1> [<client2>, ...] \n"
+        "perftest_object_pool <type> <forget> <object pool pathname> <member selection policy> <r/w ratio> <max rate> <duration in sec> <client1> [<client2>, ...] \n"
             "type := " SUBGROUP_TYPE_LIST "\n"
-            "'member selection policy' refers how the external clients pick a member in a shard;\n"
-            "    Available options: FIXED|RANDOM|ROUNDROBIN;\n"
-            "'r/w ratio' is the ratio of get vs put operations, INF for all put test; \n"
-            "'max rate' is the maximum number of operations in Operations per Second, 0 for best effort; \n"
-            "'duration' is the span of the whole experiments; \n"
-            "'clientn' is a host[:port] pair representing the parallel clients. The port is default to " + std::to_string(PERFTEST_PORT),
-        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
-            if (cmd_tokens.size() < 8) {
-                print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
-                return false;
-            }
-
-            std::string object_pool_pathname = cmd_tokens[2];
-            ExternalClientToCascadeServerMapping member_selection_policy = FIXED;
-            if (cmd_tokens[3] == "RANDOM") {
-                member_selection_policy = ExternalClientToCascadeServerMapping::RANDOM;
-            } else if (cmd_tokens[3] == "ROUNDROBIN") {
-                member_selection_policy = ExternalClientToCascadeServerMapping::ROUNDROBIN;
-            }
-            double read_write_ratio = std::stod(cmd_tokens[4]);
-            uint64_t max_rate = std::stoul(cmd_tokens[5]);
-            uint64_t duration_sec = std::stoul(cmd_tokens[6]);
-
-            PerfTestClient ptc{capi};
-            uint32_t pos = 7;
-            while (pos < cmd_tokens.size()) {
-                std::string::size_type colon_pos = cmd_tokens[pos].find(':');
-                if (colon_pos == std::string::npos) {
-                    ptc.add_or_update_server(cmd_tokens[pos],PERFTEST_PORT);
-                } else {
-                    ptc.add_or_update_server(cmd_tokens[pos].substr(0,colon_pos),
-                                             static_cast<uint16_t>(std::stoul(cmd_tokens[pos].substr(colon_pos+1))));
-                }
-                pos ++;
-            }
-            bool ret;
-            on_subgroup_type(cmd_tokens[1], ret = perftest, ptc, false, object_pool_pathname, member_selection_policy,read_write_ratio,max_rate,duration_sec,"output.log");
-            return ret;
-        }
-    },
-    {
-        "perftest_shard",
-        "Performance Tester for put to a shard.",
-        "perftest_shard <type> <subgroup index> <shard index> <member selection policy> <r/w ratio> <max rate> <duration in sec> <client1> [<client2>, ...] \n"
-            "type := " SUBGROUP_TYPE_LIST "\n"
+            "forget := true|false \n"
+            "    if 'forget' is true, use 'put_and_forget', otherwise, use 'put'\n"
             "'member selection policy' refers how the external clients pick a member in a shard;\n"
             "    Available options: FIXED|RANDOM|ROUNDROBIN;\n"
             "'r/w ratio' is the ratio of get vs put operations, INF for all put test; \n"
@@ -1507,9 +1464,12 @@ std::vector<command_entry_t> commands =
                 return false;
             }
 
-            uint32_t subgroup_index = std::stoul(cmd_tokens[2]);
-            uint32_t shard_index = std::stoul(cmd_tokens[3]);
+            bool put_and_forget = false;
+            if (cmd_tokens[2] == "true") {
+                put_and_forget = true;
+            }
 
+            std::string object_pool_pathname = cmd_tokens[3];
             ExternalClientToCascadeServerMapping member_selection_policy = FIXED;
             if (cmd_tokens[4] == "RANDOM") {
                 member_selection_policy = ExternalClientToCascadeServerMapping::RANDOM;
@@ -1533,7 +1493,61 @@ std::vector<command_entry_t> commands =
                 pos ++;
             }
             bool ret;
-            on_subgroup_type(cmd_tokens[1], ret = perftest,ptc,false,subgroup_index,shard_index,member_selection_policy,read_write_ratio,max_rate,duration_sec,"output.log");
+            on_subgroup_type(cmd_tokens[1], ret = perftest, ptc, put_and_forget, object_pool_pathname, member_selection_policy,read_write_ratio,max_rate,duration_sec,"output.log");
+            return ret;
+        }
+    },
+    {
+        "perftest_shard",
+        "Performance Tester for put to a shard.",
+        "perftest_shard <type> <forget> <subgroup index> <shard index> <member selection policy> <r/w ratio> <max rate> <duration in sec> <client1> [<client2>, ...] \n"
+            "type := " SUBGROUP_TYPE_LIST "\n"
+            "forget := true|false \n"
+            "    if 'forget' is true, use 'put_and_forget', otherwise, use 'put'\n"
+            "'member selection policy' refers how the external clients pick a member in a shard;\n"
+            "    Available options: FIXED|RANDOM|ROUNDROBIN;\n"
+            "'r/w ratio' is the ratio of get vs put operations, INF for all put test; \n"
+            "'max rate' is the maximum number of operations in Operations per Second, 0 for best effort; \n"
+            "'duration' is the span of the whole experiments; \n"
+            "'clientn' is a host[:port] pair representing the parallel clients. The port is default to " + std::to_string(PERFTEST_PORT),
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+            if (cmd_tokens.size() < 10) {
+                print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
+                return false;
+            }
+
+            bool put_and_forget = false;
+            if (cmd_tokens[2] == "true") {
+                put_and_forget = true;
+            }
+
+            uint32_t subgroup_index = std::stoul(cmd_tokens[3]);
+            uint32_t shard_index = std::stoul(cmd_tokens[4]);
+
+            ExternalClientToCascadeServerMapping member_selection_policy = FIXED;
+            if (cmd_tokens[5] == "RANDOM") {
+                member_selection_policy = ExternalClientToCascadeServerMapping::RANDOM;
+            } else if (cmd_tokens[6] == "ROUNDROBIN") {
+                member_selection_policy = ExternalClientToCascadeServerMapping::ROUNDROBIN;
+            }
+            double read_write_ratio = std::stod(cmd_tokens[7]);
+            uint64_t max_rate = std::stoul(cmd_tokens[8]);
+            uint64_t duration_sec = std::stoul(cmd_tokens[9]);
+
+            PerfTestClient ptc{capi};
+            uint32_t pos = 9;
+            while (pos < cmd_tokens.size()) {
+                std::string::size_type colon_pos = cmd_tokens[pos].find(':');
+                if (colon_pos == std::string::npos) {
+                    ptc.add_or_update_server(cmd_tokens[pos],PERFTEST_PORT);
+                } else {
+                    ptc.add_or_update_server(cmd_tokens[pos].substr(0,colon_pos),
+                                             static_cast<uint16_t>(std::stoul(cmd_tokens[pos].substr(colon_pos+1))));
+                }
+                pos ++;
+            }
+            bool ret;
+            on_subgroup_type(cmd_tokens[1], ret = perftest,ptc,put_and_forget,subgroup_index,shard_index,member_selection_policy,read_write_ratio,max_rate,duration_sec,"output.log");
             return ret;
         }
     },
