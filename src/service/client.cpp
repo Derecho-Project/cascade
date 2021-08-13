@@ -690,21 +690,23 @@ void list_data_in_objectpool(ServiceClientAPI& capi, persistent::version_t versi
 // The object pool version of perf test
 template <typename SubgroupType>
 bool perftest(PerfTestClient& ptc,
+              bool put_and_forget,
               const std::string& object_pool_pathname,
               ExternalClientToCascadeServerMapping ec2cs,
               double read_write_ratio,
               uint64_t ops_threshold,
               uint64_t duration_secs,
               const std::string& output_file) {
-    debug_enter_func_with_args("object_pool_pathname={},ec2cs={},read_write_ratio={},ops_threshold={},duration_secs={},output_file={}",
-                               object_pool_pathname,static_cast<uint32_t>(ec2cs),read_write_ratio,ops_threshold,duration_secs,output_file);
-    bool ret = ptc.template perf<SubgroupType>(object_pool_pathname,ec2cs,read_write_ratio,ops_threshold,duration_secs,output_file);
+    debug_enter_func_with_args("put_and_forget={},object_pool_pathname={},ec2cs={},read_write_ratio={},ops_threshold={},duration_secs={},output_file={}",
+                               put_and_forget,object_pool_pathname,static_cast<uint32_t>(ec2cs),read_write_ratio,ops_threshold,duration_secs,output_file);
+    bool ret = ptc.template perf_put<SubgroupType>(put_and_forget,object_pool_pathname,ec2cs,read_write_ratio,ops_threshold,duration_secs,output_file);
     debug_leave_func();
     return ret;
 }
 
 template <>
 bool perftest<TriggerCascadeNoStoreWithStringKey>(PerfTestClient& ptc,
+              bool put_and_forget,
               const std::string& object_pool_pathname,
               ExternalClientToCascadeServerMapping ec2cs,
               double read_write_ratio,
@@ -718,6 +720,7 @@ bool perftest<TriggerCascadeNoStoreWithStringKey>(PerfTestClient& ptc,
 // The raw shard version of perf test
 template <typename SubgroupType>
 bool perftest(PerfTestClient& ptc,
+              bool put_and_forget,
               uint32_t subgroup_index,
               uint32_t shard_index,
               ExternalClientToCascadeServerMapping ec2cs,
@@ -725,15 +728,16 @@ bool perftest(PerfTestClient& ptc,
               uint64_t ops_threshold,
               uint64_t duration_secs,
               const std::string& output_file) {
-    debug_enter_func_with_args("subgroup_index={},shard_index={},ec2cs={},read_write_ratio={},ops_threshold={},duration_secs={},output_file={}",
-                               subgroup_index, shard_index,static_cast<uint32_t>(ec2cs),read_write_ratio,ops_threshold,duration_secs,output_file);
-    bool ret = ptc.template perf<SubgroupType>(subgroup_index,shard_index,ec2cs,read_write_ratio,ops_threshold,duration_secs,output_file);
+    debug_enter_func_with_args("put_and_forget={},subgroup_index={},shard_index={},ec2cs={},read_write_ratio={},ops_threshold={},duration_secs={},output_file={}",
+                               put_and_forget,subgroup_index, shard_index,static_cast<uint32_t>(ec2cs),read_write_ratio,ops_threshold,duration_secs,output_file);
+    bool ret = ptc.template perf_put<SubgroupType>(put_and_forget,subgroup_index,shard_index,ec2cs,read_write_ratio,ops_threshold,duration_secs,output_file);
     debug_leave_func();
     return ret;
 }
 
 template <>
 bool perftest<TriggerCascadeNoStoreWithStringKey>(PerfTestClient& ptc,
+              bool put_and_forget,
               uint32_t subgroup_index,
               uint32_t shard_index,
               ExternalClientToCascadeServerMapping ec2cs,
@@ -1482,7 +1486,7 @@ std::vector<command_entry_t> commands =
                 pos ++;
             }
             bool ret;
-            on_subgroup_type(cmd_tokens[1], ret = perftest, ptc, object_pool_pathname, member_selection_policy,read_write_ratio,max_rate,duration_sec,"output.log");
+            on_subgroup_type(cmd_tokens[1], ret = perftest, ptc, false, object_pool_pathname, member_selection_policy,read_write_ratio,max_rate,duration_sec,"output.log");
             return ret;
         }
     },
@@ -1529,7 +1533,7 @@ std::vector<command_entry_t> commands =
                 pos ++;
             }
             bool ret;
-            on_subgroup_type(cmd_tokens[1], ret = perftest,ptc,subgroup_index,shard_index,member_selection_policy,read_write_ratio,max_rate,duration_sec,"output.log");
+            on_subgroup_type(cmd_tokens[1], ret = perftest,ptc,false,subgroup_index,shard_index,member_selection_policy,read_write_ratio,max_rate,duration_sec,"output.log");
             return ret;
         }
     },
