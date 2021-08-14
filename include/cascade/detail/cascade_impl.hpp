@@ -44,7 +44,7 @@ std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::pu
     }
 #ifdef ENABLE_EVALUATION
     uint64_t s2 = get_walltime();
-    this->timestamp_log.emplace_back(std::get<0>(ret),s1,s2);
+    this->timestamp_log.emplace_back(0,std::get<0>(ret),s1,s2);
 #endif//ENABLE_EVALUATION
     debug_leave_func_with_value("version=0x{:x},timestamp={}",std::get<0>(ret),std::get<1>(ret));
     return ret;
@@ -226,6 +226,9 @@ void VolatileCascadeStore<KT,VT,IK,IV>::ordered_put_and_forget(const VT& value) 
 
 template<typename KT, typename VT, KT* IK, VT* IV>
 bool VolatileCascadeStore<KT,VT,IK,IV>::internal_ordered_put(const VT& value) {
+#ifdef ENABLE_EVALUATION
+    uint64_t s1 = get_walltime();
+#endif//ENABLE_EVALUATION
     std::tuple<persistent::version_t,uint64_t> version_and_timestamp = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
 
     if constexpr (std::is_base_of<IKeepVersion,VT>::value) {
@@ -273,6 +276,10 @@ bool VolatileCascadeStore<KT,VT,IK,IV>::internal_ordered_put(const VT& value) {
             group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_shard_num(),
             value.get_key_ref(), value, cascade_context_ptr);
     }
+#ifdef ENABLE_EVALUATION
+    uint64_t s2 = get_walltime();
+    this->timestamp_log.emplace_back(2,std::get<0>(version_and_timestamp),s1,s2);
+#endif//ENABLE_EVALUATION
     return true;
 }
 
@@ -381,13 +388,14 @@ void VolatileCascadeStore<KT,VT,IK,IV>::dump_timestamp_log(const std::string& fi
  * @param filename      - the output filename
  *
  */
-inline void _dump_timestamp_log(const std::vector<std::tuple<uint64_t,uint64_t,uint64_t>>& timestamps, const std::string& filename) {
+inline void _dump_timestamp_log(const std::vector<std::tuple<uint64_t,uint64_t,uint64_t,uint64_t>>& timestamps, const std::string& filename) {
     std::ofstream outfile(filename);
+    outfile << "# type 0 for latency in 'put', type 1 for latency in 'put_and_forget', type 2 for latency in 'internal_ordered_put'" << std::endl;
     outfile << "# 'ts1': a put request is received from an external client." << std::endl;
     outfile << "# 'ts2': a response is sent to an external client." << std::endl;
-    outfile << "# version, ts1, ts2" << std::endl;
+    outfile << "# type, version, ts1, ts2" << std::endl;
     for (const auto& le: timestamps) {
-        outfile << std::get<0>(le) << " " << (std::get<1>(le)/1000) << " " << (std::get<2>(le)/1000) << std::endl;
+        outfile << std::get<0>(le) << " " << std::get<1>(le) << " " << (std::get<2>(le)/1000) << " " << (std::get<3>(le)/1000) << std::endl;
     }
     outfile.close();
     return;
@@ -689,7 +697,7 @@ std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST
     }
 #ifdef ENABLE_EVALUATION
     uint64_t s2 = get_walltime();
-    this->timestamp_log.emplace_back(std::get<0>(ret),s1,s2);
+    this->timestamp_log.emplace_back(0,std::get<0>(ret),s1,s2);
 #endif//ENABLE_EVALUATION
     debug_leave_func_with_value("version=0x{:x},timestamp={}",std::get<0>(ret),std::get<1>(ret));
     return ret;
@@ -931,6 +939,9 @@ void PersistentCascadeStore<KT,VT,IK,IV,ST>::ordered_put_and_forget(const VT& va
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 bool PersistentCascadeStore<KT,VT,IK,IV,ST>::internal_ordered_put(const VT& value) {
+#ifdef ENABLE_EVALUATION
+    uint64_t s1 = get_walltime();
+#endif//ENABLE_EVALUATION
     std::tuple<persistent::version_t,uint64_t> version_and_timestamp = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
     if constexpr (std::is_base_of<IKeepVersion,VT>::value) {
         value.set_version(std::get<0>(version_and_timestamp));
@@ -950,6 +961,10 @@ bool PersistentCascadeStore<KT,VT,IK,IV,ST>::internal_ordered_put(const VT& valu
             group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_shard_num(),
             value.get_key_ref(), value, cascade_context_ptr);
     }
+#ifdef ENABLE_EVALUATION
+    uint64_t s2 = get_walltime();
+    this->timestamp_log.emplace_back(2,std::get<0>(version_and_timestamp),s1,s2);
+#endif//ENABLE_EVALUATION
     return true;
 }
 

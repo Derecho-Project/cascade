@@ -308,7 +308,7 @@ namespace cascade {
     private:
 #ifdef ENABLE_EVALUATION
         /* timestamp logger */
-        mutable std::vector<std::tuple<uint64_t,uint64_t,uint64_t>> timestamp_log;
+        mutable std::vector<std::tuple<uint64_t,uint64_t,uint64_t,uint64_t>> timestamp_log;
 #endif//ENABLE_EVALUATION
         bool internal_ordered_put(const VT& value);
     public:
@@ -500,7 +500,7 @@ namespace cascade {
     private:
 #ifdef ENABLE_EVALUATION
         /* timestamp logger */
-        mutable std::vector<std::tuple<uint64_t,uint64_t,uint64_t>> timestamp_log;
+        mutable std::vector<std::tuple<uint64_t,uint64_t,uint64_t,uint64_t>> timestamp_log;
 #endif//ENABLE_EVALUATION
         bool internal_ordered_put(const VT& value);
     public:
