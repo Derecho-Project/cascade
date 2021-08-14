@@ -1527,12 +1527,12 @@ std::vector<command_entry_t> commands =
             ExternalClientToCascadeServerMapping member_selection_policy = FIXED;
             if (cmd_tokens[5] == "RANDOM") {
                 member_selection_policy = ExternalClientToCascadeServerMapping::RANDOM;
-            } else if (cmd_tokens[6] == "ROUNDROBIN") {
+            } else if (cmd_tokens[5] == "ROUNDROBIN") {
                 member_selection_policy = ExternalClientToCascadeServerMapping::ROUNDROBIN;
             }
-            double read_write_ratio = std::stod(cmd_tokens[7]);
-            uint64_t max_rate = std::stoul(cmd_tokens[8]);
-            uint64_t duration_sec = std::stoul(cmd_tokens[9]);
+            double read_write_ratio = std::stod(cmd_tokens[6]);
+            uint64_t max_rate = std::stoul(cmd_tokens[7]);
+            uint64_t duration_sec = std::stoul(cmd_tokens[8]);
 
             PerfTestClient ptc{capi};
             uint32_t pos = 9;
