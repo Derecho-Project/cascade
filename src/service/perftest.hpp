@@ -28,15 +28,6 @@ private:
     std::vector<ObjectWithStringKey> objects;
 
     /**
-     * Create the workload for test. Please note that the old data in objects will be removed.
-     *
-     * @param payload_size      Expected size of the serialized object byte array. We are going to calculate a adequate
-     *                          object size of the workload.
-     * @param key_prefix        The key prefix for the objects created.
-     */
-    void make_workload(uint32_t payload_size,const std::string& key_prefix);
-
-    /**
      * evaluating put operation
      *
      * @param timestamp_log         Caller provided timestamp_log

@@ -57,16 +57,6 @@ namespace cascade {
         throw derecho::derecho_exception(std::string("Unknown type_index:") + tindex.name()); \
     }
 
-void PerfTestServer::make_workload(uint32_t payload_size, const std::string& key_prefix) {
-    const uint32_t buf_size = payload_size - 128 - key_prefix.size();
-    char *buf = (char*)malloc(buf_size);
-    memset(buf,'A',buf_size);
-    for (uint32_t i=0;i<NUMBER_OF_DISTINCT_OBJECTS;i++) {
-        objects.emplace_back(key_prefix+std::to_string(i),buf,buf_size);
-    }
-    free(buf);
-}
-
 bool PerfTestServer::eval_put(std::vector<std::tuple<uint64_t,uint64_t,uint64_t>>& timestamp_log,
                               uint64_t max_operation_per_second,
                               uint64_t duration_secs,
@@ -264,7 +254,8 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
             static_cast<ShardMemberSelectionPolicy>(policy),
             user_specified_node_id);
         // STEP 2 - prepare workload
-        make_workload(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_");
+        objects.clear();
+        make_workload(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
         // STEP 3 - start experiment and log
         std::vector<std::tuple<uint64_t,uint64_t,uint64_t>> timestamp_log;
         timestamp_log.reserve(65536);
@@ -319,7 +310,8 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
             static_cast<ShardMemberSelectionPolicy>(policy),
             user_specified_node_id);
         // STEP 2 - prepare workload
-        make_workload(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_");
+        objects.clear();
+        make_workload(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
         // STEP 3 - start experiment and log
         put_and_forget_perf_log_t timestamp_log;
         if (this->eval_put_and_forget(timestamp_log,max_operation_per_second,duration_secs,subgroup_type_index,subgroup_index,shard_index)) {
@@ -377,7 +369,8 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
                 this->capi.template set_member_selection_policy, object_pool.subgroup_index, shard_index, static_cast<ShardMemberSelectionPolicy>(policy), user_specified_node_ids.at(shard_index));
         }
         // STEP 2 - prepare workload
-        make_workload(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),object_pool_pathname+"/key_");
+        objects.clear();
+        make_workload(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),object_pool_pathname+"/key_",objects);
         // STEP 3 - start experiment and log
         std::vector<std::tuple<uint64_t,uint64_t,uint64_t>> timestamp_log;
         timestamp_log.reserve(65536);
@@ -437,7 +430,8 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
                 this->capi.template set_member_selection_policy, object_pool.subgroup_index, shard_index, static_cast<ShardMemberSelectionPolicy>(policy), user_specified_node_ids.at(shard_index));
         }
         // STEP 2 - prepare workload
-        make_workload(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_");
+        objects.clear();
+        make_workload(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
         // STEP 3 - start experiment and log
         put_and_forget_perf_log_t timestamp_log;
         if (this->eval_put_and_forget(timestamp_log,max_operation_per_second,duration_secs,object_pool.subgroup_type_index)) {

@@ -901,10 +901,6 @@ template <typename... CascadeTypes>
 template <typename SubgroupType>
 derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::dump_timestamp(const std::string& filename, const uint32_t subgroup_index, const uint32_t shard_index) {
     std::lock_guard(this->external_group_ptr_mutex);
-    // call as an external client (ExternalClientCaller).
-    auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
-    node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
-    return caller.template p2p_send<RPC_NAME(dump_timestamp_log)>(node_id,filename);
 
     if (group_ptr != nullptr) {
         if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
@@ -951,6 +947,22 @@ std::vector<std::unique_ptr<derecho::rpc::QueryResults<void>>> ServiceClient<Cas
         }
     }
     return result;
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+derecho::rpc::QueryResults<double> ServiceClient<CascadeTypes...>::perf_put(const uint32_t message_size, const uint64_t duration_sec, const uint32_t subgroup_index, const uint32_t shard_index) {
+    std::lock_guard(this->external_group_ptr_mutex);
+    if (group_ptr != nullptr) {
+        auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
+        node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
+        return subgroup_handle.template p2p_send<RPC_NAME(perf_put)>(node_id,message_size,duration_sec);
+    } else {
+        std::lock_guard(this->external_group_ptr_mutex);
+        auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
+        node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
+        return caller.template p2p_send<RPC_NAME(perf_put)>(node_id,message_size,duration_sec);
+    }
 }
 #endif//ENABLE_EVALUATION
 
