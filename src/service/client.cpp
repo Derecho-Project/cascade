@@ -748,6 +748,31 @@ bool perftest<TriggerCascadeNoStoreWithStringKey>(PerfTestClient& ptc,
     print_red("TCSS does not support list_data_in_subgroup.");
     return false;
 }
+
+
+template <typename SubgroupType>
+bool perftest_ordered_put(ServiceClientAPI &capi,
+                          uint32_t message_size,
+                          uint64_t duration_sec,
+                          uint32_t subgroup_index,
+                          uint32_t shard_index){
+    debug_enter_func_with_args("message_size={},duration_sec={},subgroup_index={},shard_index={}.",
+                               message_size,duration_sec,subgroup_index,shard_index);
+    auto result = capi.template perf_put<SubgroupType>(message_size,duration_sec,subgroup_index,shard_index);
+    check_get_result(result);
+    debug_leave_func();
+    return true;
+}
+
+template <>
+bool perftest_ordered_put<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI &capi,
+                          uint32_t message_size,
+                          uint64_t duration_sec,
+                          uint32_t subgroup_index,
+                          uint32_t shard_index){
+    print_red("TCSS does not support perftest_ordered_put");
+    return false;
+}
 #endif // ENABLE_EVALUATION
 
 
@@ -1549,6 +1574,26 @@ std::vector<command_entry_t> commands =
             bool ret;
             on_subgroup_type(cmd_tokens[1], ret = perftest,ptc,put_and_forget,subgroup_index,shard_index,member_selection_policy,read_write_ratio,max_rate,duration_sec,"output.log");
             return ret;
+        }
+    },
+    {
+        "perftest_ordered_put",
+        "Performance Test for ordered_put in a shard.",
+        "perftest_ordered_put <type> <message_size> <duration_sec> <subgroup index> <shard_index>\n"
+            "type := " SUBGROUP_TYPE_LIST "\n"
+            "'duration_sec' is the span of the whole experiments; \n",
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+            if (cmd_tokens.size() < 6) {
+                print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
+                return false;
+            }
+            uint32_t message_size = std::stoul(cmd_tokens[2]);
+            uint64_t duration_sec = std::stoul(cmd_tokens[3]);
+            uint32_t subgroup_index = std::stoul(cmd_tokens[4]);
+            uint32_t shard_index = std::stoul(cmd_tokens[5]);
+
+            on_subgroup_type(cmd_tokens[1], perftest_ordered_put, capi, message_size, duration_sec, subgroup_index, shard_index);
+            return true;
         }
     },
 #endif

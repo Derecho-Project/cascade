@@ -742,6 +742,20 @@ namespace cascade {
          */
         template <typename SubgroupType>
         std::vector<std::unique_ptr<derecho::rpc::QueryResults<void>>> dump_timestamp(const std::string& filename, const std::string& object_pool_pathname);
+        /**
+         * Evaluate the ordered put performance inside a shard. Please note that those put does not involve the
+         * external client data path.
+         *
+         * @param message_size      - the message size for the shard. TODO: we should be able to retrieve the maximum
+         *                            message size from SubgroupType, subgroup_index and shard_index. How?
+         * @param duration_sec      - the duration of the test in seconds.
+         * @param subgroup_index    - the subgroup index
+         * @param shard_index       - the shard index
+         *
+         * @return the value in ops.
+         */
+        template <typename SubgroupType>
+        derecho::rpc::QueryResults<double> perf_put(const uint32_t message_size, const uint64_t duration_sec, const uint32_t subgroup_index, const uint32_t shard_index);
 #endif//ENABLE_EVALUATION
 
         const static std::vector<std::type_index> subgroup_type_order;

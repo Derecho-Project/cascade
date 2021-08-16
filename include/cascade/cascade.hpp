@@ -97,6 +97,17 @@ namespace cascade {
          * @param value
          */
         virtual void put_and_forget(const VT& value) const = 0;
+#ifdef ENABLE_EVALUATION
+        /**
+         * perf_put is used to evaluate the performance of an internal shard
+         *
+         * @param max_payload_size the maximum size of the payload.
+         * @param duration_sec duration of the test
+         *
+         * @return ops
+         */
+        virtual double perf_put(const uint32_t max_payload_size,const uint64_t duration_sec) const = 0;
+#endif
         /**
          * remove(const KT&)
          *
@@ -327,6 +338,9 @@ namespace cascade {
                                P2P_TARGETS(
                                    put,
                                    put_and_forget,
+#ifdef ENABLE_EVALUATION
+                                   perf_put,
+#endif
                                    remove,
                                    get,
                                    get_by_time,
@@ -357,6 +371,9 @@ namespace cascade {
 #endif//ENABLE_EVALUATION
         virtual void trigger_put(const VT& value) const override;
         virtual std::tuple<persistent::version_t,uint64_t> put(const VT& value) const override;
+#ifdef ENABLE_EVALUATION
+        virtual double perf_put(const uint32_t max_payload_size,const uint64_t duration_sec) const override;
+#endif//ENABLE_EVALUATION
         virtual void put_and_forget(const VT& value) const override;
         virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) const override;
         virtual const VT get(const KT& key, const persistent::version_t& ver, bool exact=false) const override;
@@ -514,6 +531,9 @@ namespace cascade {
                                P2P_TARGETS(
                                    put,
                                    put_and_forget,
+#ifdef ENABLE_EVALUATION
+                                   perf_put,
+#endif//ENABLE_EVALUATION
                                    remove,
                                    get,
                                    get_by_time,
@@ -545,6 +565,9 @@ namespace cascade {
         virtual void trigger_put(const VT& value) const override;
         virtual std::tuple<persistent::version_t,uint64_t> put(const VT& value) const override;
         virtual void put_and_forget(const VT& value) const override;
+#ifdef ENABLE_EVALUATION
+        virtual double perf_put(const uint32_t max_payload_size,const uint64_t duration_sec) const override;
+#endif//ENABLE_EVALUATION
         virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) const override;
         virtual const VT get(const KT& key, const persistent::version_t& ver, bool exact=false) const override;
         virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) const override;
@@ -774,6 +797,9 @@ namespace cascade {
         virtual void trigger_put(const VT& value) const override;
         virtual std::tuple<persistent::version_t,uint64_t> put(const VT& value) const override;
         virtual void put_and_forget(const VT& value) const override;
+#ifdef ENABLE_EVALUATION
+        virtual double perf_put(const uint32_t max_payload_size,const uint64_t duration_sec) const override;
+#endif//ENABLE_EVALUATION
         virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) const override;
         virtual const VT get(const KT& key, const persistent::version_t& ver, bool exact=false) const override;
         virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) const override;

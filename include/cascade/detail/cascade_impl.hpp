@@ -1,4 +1,5 @@
 #pragma once
+#include <derecho/conf/conf.hpp>
 #include <memory>
 #include <map>
 #include <type_traits>
@@ -7,6 +8,48 @@
 
 namespace derecho {
 namespace cascade {
+
+#ifdef ENABLE_EVALUATION
+#define NUMBER_OF_DISTINCT_OBJECTS (4096)
+
+/**
+ * This is a hidden API.
+ * TestValueTypeConstructor is to check if the ValueType has a public constructor support such a call:
+ * VT(KT,char*,uint32_t)
+ */
+template <typename KT,typename VT>
+struct TestVTConstructor {
+    template <class X,class = decltype(X(KT{},static_cast<char*>(nullptr),0))>
+        static std::true_type test(X*);
+    template <class X>
+        static std::false_type test(...);
+
+    static constexpr bool value = decltype(test<VT>(0))::value;
+};
+
+template<typename KT, typename VT>
+void make_workload(uint32_t payload_size, const KT& key_prefix, std::vector<VT>& objects) {
+    if constexpr (TestVTConstructor<KT,VT>::value) {
+        const uint32_t buf_size = payload_size - 128 - sizeof(key_prefix);
+        char* buf = (char*)malloc(buf_size);
+        memset(buf,'A',buf_size);
+        for (uint32_t i=0;i<NUMBER_OF_DISTINCT_OBJECTS;i++) {
+            if constexpr (std::is_convertible_v<KT,std::string>) {
+                objects.emplace_back(key_prefix+std::to_string(i),buf,buf_size);
+            } else if constexpr (std::is_integral_v<KT>) {
+                objects.emplace_back(key_prefix+i,buf,buf_size);
+            } else {
+                dbg_default_error("Cannot make workload for key type:{}",typeid(KT).name());
+                break;
+            }
+        }
+        free(buf);
+    } else {
+        dbg_default_error("Cannot make workload for key type:{}, because it does not support constructor:VT(KT,char*,uint32_t)",typeid(VT).name());
+    }
+}
+#endif//ENABLE_EVALUATION
+
 
 template<typename KeyType>
 std::string get_pathname(const std::enable_if_t<std::is_convertible<KeyType,std::string>::value,std::string>& key) {
@@ -57,6 +100,53 @@ void VolatileCascadeStore<KT,VT,IK,IV>::put_and_forget(const VT& value) const {
     subgroup_handle.template ordered_send<RPC_NAME(ordered_put_and_forget)>(value);
     debug_leave_func();
 }
+
+#ifdef ENABLE_EVALUATION
+
+template <typename CascadeType>
+double internal_perf_put(derecho::Replicated<CascadeType>& subgroup_handle, const uint64_t max_payload_size, const uint64_t duration_sec) {
+    uint64_t num_messages_sent = 0;
+    // make workload
+    std::vector<typename CascadeType::ObjectType> objects;
+    if constexpr (std::is_convertible_v<typename CascadeType::KeyType,std::string>) {
+        make_workload(max_payload_size,"raw_key_",objects);
+    } else if constexpr (std::is_integral_v<typename CascadeType::KeyType>) {
+        make_workload(max_payload_size,10000,objects);
+    } else {
+        dbg_default_error("{} see unknown Key Type:{}",__PRETTY_FUNCTION__,typeid(typename CascadeType::KeyType).name());
+        return 0;
+    }
+    uint64_t now_ns = get_walltime();
+    uint64_t start_ns = now_ns;
+    uint64_t end_ns = now_ns + duration_sec*1000000000;
+    while(end_ns > now_ns) {
+        subgroup_handle.template ordered_send<RPC_NAME(ordered_put_and_forget)>(objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS));
+        now_ns = get_walltime();
+        num_messages_sent ++;
+    }
+    // send a normal put
+    auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put)>(objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS));
+    auto& replies = results.get();
+    std::tuple<persistent::version_t,uint64_t> ret(CURRENT_VERSION,0);
+    // TODO: verfiy consistency ?
+    for (auto& reply_pair : replies) {
+        ret = reply_pair.second.get();
+    }
+    now_ns = get_walltime();
+    num_messages_sent ++;
+
+    return (num_messages_sent)*1e9/(now_ns-start_ns);
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
+double VolatileCascadeStore<KT,VT,IK,IV>::perf_put(const uint32_t max_payload_size, const uint64_t duration_sec) const {
+    debug_enter_func_with_args("max_payload_size={},duration_sec={}",max_payload_size,duration_sec);
+    derecho::Replicated<VolatileCascadeStore>& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
+    double ops = internal_perf_put(subgroup_handle,max_payload_size,duration_sec);
+    debug_leave_func_with_value("{} ops.",ops);
+    return ops;
+}
+#endif//ENABLE_EVALUATION
 
 template<typename KT, typename VT, KT* IK, VT* IV>
 std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::remove(const KT& key) const {
@@ -711,6 +801,17 @@ void PersistentCascadeStore<KT,VT,IK,IV,ST>::put_and_forget(const VT& value) con
     debug_leave_func();
 }
 
+#ifdef ENABLE_EVALUATION
+template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+double PersistentCascadeStore<KT,VT,IK,IV,ST>::perf_put(const uint32_t max_payload_size, const uint64_t duration_sec) const {
+    debug_enter_func_with_args("max_payload_size={},duration_sec={}",max_payload_size,duration_sec);
+    derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
+    double ops = internal_perf_put(subgroup_handle,max_payload_size,duration_sec);
+    debug_leave_func_with_value("{} ops.",ops);
+    return ops;
+}
+#endif//ENABLE_EVALUATION
+
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST>::remove(const KT& key) const {
     debug_enter_func_with_args("key={}",key);
@@ -1110,6 +1211,14 @@ template<typename KT, typename VT, KT* IK, VT* IV>
 void TriggerCascadeNoStore<KT,VT,IK,IV>::put_and_forget(const VT& value) const {
     dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
 }
+
+#ifdef ENABLE_EVALUATION
+template<typename KT, typename VT, KT* IK, VT* IV>
+double TriggerCascadeNoStore<KT,VT,IK,IV>::perf_put(const uint32_t max_payload_size, const uint64_t duration_sec) const {
+    dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
+    return 0.0;
+}
+#endif//ENABLE_EVALUATION
 
 template<typename KT, typename VT, KT* IK, VT* IV>
 std::tuple<persistent::version_t,uint64_t> TriggerCascadeNoStore<KT,VT,IK,IV>::remove(const KT& key) const {
