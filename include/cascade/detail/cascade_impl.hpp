@@ -45,7 +45,7 @@ void make_workload(uint32_t payload_size, const KT& key_prefix, std::vector<VT>&
         }
         free(buf);
     } else {
-        dbg_default_error("Cannot make workload for key type:{}, because it does not support constructor:VT(KT,char*,uint32_t)",typeid(VT).name());
+        dbg_default_error("Cannot make workload for key type:{} and value type:{}, because it does not support constructor:VT(KT,char*,uint32_t)",typeid(KT).name(),typeid(VT).name());
     }
 }
 #endif//ENABLE_EVALUATION
@@ -109,9 +109,9 @@ double internal_perf_put(derecho::Replicated<CascadeType>& subgroup_handle, cons
     // make workload
     std::vector<typename CascadeType::ObjectType> objects;
     if constexpr (std::is_convertible_v<typename CascadeType::KeyType,std::string>) {
-        make_workload(max_payload_size,"raw_key_",objects);
+        make_workload<typename CascadeType::KeyType,typename CascadeType::ObjectType>(max_payload_size,"raw_key_",objects);
     } else if constexpr (std::is_integral_v<typename CascadeType::KeyType>) {
-        make_workload(max_payload_size,10000,objects);
+        make_workload<typename CascadeType::KeyType,typename CascadeType::ObjectType>(max_payload_size,10000,objects);
     } else {
         dbg_default_error("{} see unknown Key Type:{}",__PRETTY_FUNCTION__,typeid(typename CascadeType::KeyType).name());
         return 0;

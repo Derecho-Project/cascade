@@ -255,7 +255,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
             user_specified_node_id);
         // STEP 2 - prepare workload
         objects.clear();
-        make_workload(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
+        make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
         // STEP 3 - start experiment and log
         std::vector<std::tuple<uint64_t,uint64_t,uint64_t>> timestamp_log;
         timestamp_log.reserve(65536);
@@ -311,7 +311,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
             user_specified_node_id);
         // STEP 2 - prepare workload
         objects.clear();
-        make_workload(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
+        make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
         // STEP 3 - start experiment and log
         put_and_forget_perf_log_t timestamp_log;
         if (this->eval_put_and_forget(timestamp_log,max_operation_per_second,duration_secs,subgroup_type_index,subgroup_index,shard_index)) {
@@ -370,7 +370,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         }
         // STEP 2 - prepare workload
         objects.clear();
-        make_workload(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),object_pool_pathname+"/key_",objects);
+        make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),object_pool_pathname+"/key_",objects);
         // STEP 3 - start experiment and log
         std::vector<std::tuple<uint64_t,uint64_t,uint64_t>> timestamp_log;
         timestamp_log.reserve(65536);
@@ -431,7 +431,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         }
         // STEP 2 - prepare workload
         objects.clear();
-        make_workload(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
+        make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
         // STEP 3 - start experiment and log
         put_and_forget_perf_log_t timestamp_log;
         if (this->eval_put_and_forget(timestamp_log,max_operation_per_second,duration_secs,object_pool.subgroup_type_index)) {
