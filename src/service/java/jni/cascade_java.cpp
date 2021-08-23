@@ -582,13 +582,13 @@ JNIEXPORT jobject JNICALL Java_io_cascade_QueryResults_getReplyMap(JNIEnv *env, 
 //         std::cout << "converting objects with string keys!" << std::endl;
 // #endif
 
-        char *data = obj.blob.bytes;
+        const char *data = obj.blob.bytes;
         std::size_t size = obj.blob.size;
 
         // initialize the java byte array
         jbyteArray data_byte_arr = env->NewByteArray(size);
 
-        env->SetByteArrayRegion(data_byte_arr, 0, size, reinterpret_cast<jbyte *>(data));
+        env->SetByteArrayRegion(data_byte_arr, 0, size, reinterpret_cast<const jbyte *>(data));
 
         jclass byte_buffer_cls = env->FindClass("java/nio/ByteBuffer");
         // create and return a new direct byte buffer

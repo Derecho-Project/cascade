@@ -27,14 +27,14 @@ namespace cascade{
 
 class Blob : public mutils::ByteRepresentable {
 public:
-    char* bytes;
+    const char* bytes;
     std::size_t size;
     bool is_temporary;
 
     // constructor - copy to own the data
     Blob(const char* const b, const decltype(size) s);
 
-    Blob(char* b, const decltype(size) s, bool temporary);
+    Blob(const char* b, const decltype(size) s, bool temporary);
 
     // copy constructor - copy to own the data
     Blob(const Blob& other);
@@ -65,11 +65,11 @@ public:
 
     static std::unique_ptr<Blob> from_bytes(mutils::DeserializationManager*, const char* const v);
 
-    mutils::context_ptr<Blob> from_bytes_noalloc(
+    static mutils::context_ptr<Blob> from_bytes_noalloc(
         mutils::DeserializationManager* ctx,
         const char* const v);
 
-    mutils::context_ptr<Blob> from_bytes_noalloc_const(
+    static mutils::context_ptr<Blob> from_bytes_noalloc_const(
         mutils::DeserializationManager* ctx,
         const char* const v);
 };
@@ -193,7 +193,8 @@ public:
                         const persistent::version_t _previous_version,
                         const persistent::version_t _previous_version_by_key,
                         const std::string& _key,
-                        const Blob& _blob);
+                        const Blob& _blob,
+                        bool is_temporary = false);
 
     // constructor 1 : copy consotructor
     ObjectWithStringKey(const std::string& _key,
@@ -230,7 +231,18 @@ public:
     virtual void set_previous_version(persistent::version_t prev_ver, persistent::version_t perv_ver_by_key) const override;
     virtual bool verify_previous_version(persistent::version_t prev_ver, persistent::version_t perv_ver_by_key) const override;
 
-    DEFAULT_SERIALIZATION_SUPPORT(ObjectWithStringKey, version, timestamp_us, previous_version, previous_version_by_key, key, blob);
+//    DEFAULT_SERIALIZATION_SUPPORT(ObjectWithStringKey, version, timestamp_us, previous_version, previous_version_by_key, key, blob);
+    std::size_t to_bytes(char* v) const;
+    std::size_t bytes_size() const;
+    void post_object(const std::function<void(char const* const, std::size_t)>& f) const;
+    void ensure_registerd(mutils::DeserializationManager&) {}
+    static std::unique_ptr<ObjectWithStringKey> from_bytes(mutils::DeserializationManager*, const char* const v);
+    static mutils::context_ptr<ObjectWithStringKey> from_bytes_noalloc(
+        mutils::DeserializationManager* ctx,
+        const char* const v);
+    static mutils::context_ptr<const ObjectWithStringKey> from_bytes_noalloc_const(
+        mutils::DeserializationManager* ctx,
+        const char* const v);
 
     // IK and IV for volatile cascade store
     static std::string IK;
