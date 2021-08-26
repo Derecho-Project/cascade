@@ -1025,7 +1025,7 @@ void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeMetadataSe
                 // set cpu affinity
                 if (this->resource_descriptor.multicast_ocdp_worker_to_cpu_cores.find(i)!=
                     this->resource_descriptor.multicast_ocdp_worker_to_cpu_cores.end()) {
-                    cpu_set_t cpuset;
+                    cpu_set_t cpuset{};
                     CPU_ZERO(&cpuset);
                     for (auto core: this->resource_descriptor.multicast_ocdp_worker_to_cpu_cores.at(i)) {
                         CPU_SET(core,&cpuset);
@@ -1050,7 +1050,7 @@ void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeMetadataSe
                 // set cpu affinity
                 if (this->resource_descriptor.p2p_ocdp_worker_to_cpu_cores.find(i)!=
                     this->resource_descriptor.p2p_ocdp_worker_to_cpu_cores.end()) {
-                    cpu_set_t cpuset;
+                    cpu_set_t cpuset{};
                     CPU_ZERO(&cpuset);
                     for (auto core: this->resource_descriptor.p2p_ocdp_worker_to_cpu_cores.at(i)) {
                         CPU_SET(core,&cpuset);
