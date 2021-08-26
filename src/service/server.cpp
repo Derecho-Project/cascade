@@ -55,6 +55,9 @@ class CascadeServiceCDPO: public CriticalDataPathObserver<CascadeType> {
                 prefix = key.substr(0,pos+1);
             }
             auto handlers = ctxt->get_prefix_handlers(prefix);
+            if (handlers.empty()) {
+                return;
+            }
             auto value_ptr = std::make_shared<typename CascadeType::ObjectType>(value);
             for(auto& per_prefix : handlers) {
                 // per_prefix.first is the matching prefix
