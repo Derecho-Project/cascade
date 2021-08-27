@@ -494,6 +494,7 @@ inline void _dump_timestamp_log(const std::vector<std::tuple<uint64_t,uint64_t,u
 template<typename KT, typename VT, KT* IK, VT* IV>
 void VolatileCascadeStore<KT,VT,IK,IV>::ordered_dump_timestamp_log(const std::string& filename) {
     _dump_timestamp_log(timestamp_log,filename);
+    timestamp_log.clear();
 }
 #endif//ENABLE_EVALUATION
 
@@ -1143,6 +1144,7 @@ void PersistentCascadeStore<KT,VT,IK,IV,ST>::dump_timestamp_log(const std::strin
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void PersistentCascadeStore<KT,VT,IK,IV,ST>::ordered_dump_timestamp_log(const std::string& filename) {
     _dump_timestamp_log(timestamp_log,filename);
+    timestamp_log.clear();
 }
 #endif//ENABLE_EVALUATION
 
