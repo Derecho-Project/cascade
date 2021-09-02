@@ -18,14 +18,27 @@ ObjectWithStringKey ObjectWithStringKey::IV;
  *  'wired_reconnecting_external_client' branch with a setup of 1 VCSS node, 1MB message, and 1 external client). To
  *  solve this issue, we only use full pages for Blob data buffer. To further improve the performance, we should use
  *  hugepages.
+ *
+ *  Update on Sept 1st, 2021
+ *  The reason for the "wired" issue is found. It was because the malloc system adatps the size of idle pages to use
+ *  memory smartly. The glibc tunable 'glibc.malloc.trim_threshold' controls that behaviour. If
+ *  glibc.malloc.trim_threshold is not set, the default value of the threshold is 128KB and dynamically changing by the
+ *  workload. So for the first time, when the workload keeps malloc-ing and free-ing 1MB memory chunks, the free
+ *  operation will return the pages to OS. Therefore, the malloc-ed new pages does not exist in the page table.
+ *  Accessing the new allocated memory cause a page fault and page walk for each new page (256 4K pages per 1MB),
+ *  causing 4~5x overhead in memcpy(). But later, when the threshold adapts to the new workload, The performance is back
+ *  to normal.
+ *
+ *  The right way to avoid this is to use an optimal trim_threshold value instead of setting page alignment.
  */
-static const std::size_t page_size = sysconf(_SC_PAGESIZE);
-#define PAGE_ALIGNED_NEW(x) (new char[((x)+page_size-1)/page_size*page_size])
+// static const std::size_t page_size = sysconf(_SC_PAGESIZE);
+// #define PAGE_ALIGNED_NEW(x) (new char[((x)+page_size-1)/page_size*page_size])
 
 Blob::Blob(const char* const b, const decltype(size) s) :
     bytes(nullptr), size(0), is_emplaced(false) {
     if(s > 0) {
-        char* t_bytes = PAGE_ALIGNED_NEW(s);
+        // char* t_bytes = PAGE_ALIGNED_NEW(s);
+        char* t_bytes = new char[s];
         if (b != nullptr) {
             memcpy(t_bytes, b, s);
         } else {
@@ -39,7 +52,8 @@ Blob::Blob(const char* const b, const decltype(size) s) :
 Blob::Blob(const char* b, const decltype(size) s, bool emplaced) :
     bytes(b), size(s), is_emplaced(emplaced) {
     if ( (size>0) && (is_emplaced==false)) {
-        char* t_bytes = PAGE_ALIGNED_NEW(s);
+        // char* t_bytes = PAGE_ALIGNED_NEW(s);
+        char* t_bytes = new char[s];
         if (b != nullptr) {
             memcpy(t_bytes, b, s);
         } else {
@@ -56,7 +70,8 @@ Blob::Blob(const char* b, const decltype(size) s, bool emplaced) :
 Blob::Blob(const Blob& other) :
     bytes(nullptr), size(0) {
     if(other.size > 0) {
-        char* t_bytes = PAGE_ALIGNED_NEW(other.size);
+        // char* t_bytes = PAGE_ALIGNED_NEW(other.size);
+        char* t_bytes = new char[other.size];
         memcpy(t_bytes, other.bytes, other.size);
         bytes = t_bytes;
         size = other.size;
@@ -93,7 +108,8 @@ Blob& Blob::operator=(const Blob& other) {
     }
     size = other.size;
     if(size > 0) {
-        char* t_bytes = PAGE_ALIGNED_NEW(size);
+        // char* t_bytes = PAGE_ALIGNED_NEW(size);
+        char* t_bytes = new char[size]; 
         memcpy(t_bytes, other.bytes, size);
         bytes = t_bytes;
     } else {
