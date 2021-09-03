@@ -690,23 +690,23 @@ void list_data_in_objectpool(ServiceClientAPI& capi, persistent::version_t versi
 // The object pool version of perf test
 template <typename SubgroupType>
 bool perftest(PerfTestClient& ptc,
-              bool put_and_forget,
+              PutType put_type,
               const std::string& object_pool_pathname,
               ExternalClientToCascadeServerMapping ec2cs,
               double read_write_ratio,
               uint64_t ops_threshold,
               uint64_t duration_secs,
               const std::string& output_file) {
-    debug_enter_func_with_args("put_and_forget={},object_pool_pathname={},ec2cs={},read_write_ratio={},ops_threshold={},duration_secs={},output_file={}",
-                               put_and_forget,object_pool_pathname,static_cast<uint32_t>(ec2cs),read_write_ratio,ops_threshold,duration_secs,output_file);
-    bool ret = ptc.template perf_put<SubgroupType>(put_and_forget,object_pool_pathname,ec2cs,read_write_ratio,ops_threshold,duration_secs,output_file);
+    debug_enter_func_with_args("put_type={},object_pool_pathname={},ec2cs={},read_write_ratio={},ops_threshold={},duration_secs={},output_file={}",
+                               put_type,object_pool_pathname,static_cast<uint32_t>(ec2cs),read_write_ratio,ops_threshold,duration_secs,output_file);
+    bool ret = ptc.template perf_put<SubgroupType>(put_type,object_pool_pathname,ec2cs,read_write_ratio,ops_threshold,duration_secs,output_file);
     debug_leave_func();
     return ret;
 }
 
 template <>
 bool perftest<TriggerCascadeNoStoreWithStringKey>(PerfTestClient& ptc,
-              bool put_and_forget,
+              PutType put_type,
               const std::string& object_pool_pathname,
               ExternalClientToCascadeServerMapping ec2cs,
               double read_write_ratio,
@@ -720,7 +720,7 @@ bool perftest<TriggerCascadeNoStoreWithStringKey>(PerfTestClient& ptc,
 // The raw shard version of perf test
 template <typename SubgroupType>
 bool perftest(PerfTestClient& ptc,
-              bool put_and_forget,
+              PutType put_type,
               uint32_t subgroup_index,
               uint32_t shard_index,
               ExternalClientToCascadeServerMapping ec2cs,
@@ -728,16 +728,16 @@ bool perftest(PerfTestClient& ptc,
               uint64_t ops_threshold,
               uint64_t duration_secs,
               const std::string& output_file) {
-    debug_enter_func_with_args("put_and_forget={},subgroup_index={},shard_index={},ec2cs={},read_write_ratio={},ops_threshold={},duration_secs={},output_file={}",
-                               put_and_forget,subgroup_index, shard_index,static_cast<uint32_t>(ec2cs),read_write_ratio,ops_threshold,duration_secs,output_file);
-    bool ret = ptc.template perf_put<SubgroupType>(put_and_forget,subgroup_index,shard_index,ec2cs,read_write_ratio,ops_threshold,duration_secs,output_file);
+    debug_enter_func_with_args("put_type={},subgroup_index={},shard_index={},ec2cs={},read_write_ratio={},ops_threshold={},duration_secs={},output_file={}",
+                               put_type,subgroup_index, shard_index,static_cast<uint32_t>(ec2cs),read_write_ratio,ops_threshold,duration_secs,output_file);
+    bool ret = ptc.template perf_put<SubgroupType>(put_type,subgroup_index,shard_index,ec2cs,read_write_ratio,ops_threshold,duration_secs,output_file);
     debug_leave_func();
     return ret;
 }
 
 template <>
 bool perftest<TriggerCascadeNoStoreWithStringKey>(PerfTestClient& ptc,
-              bool put_and_forget,
+              PutType put_type,
               uint32_t subgroup_index,
               uint32_t shard_index,
               ExternalClientToCascadeServerMapping ec2cs,
@@ -1475,8 +1475,7 @@ std::vector<command_entry_t> commands =
         "Performance Tester for put to an object pool.",
         "perftest_object_pool <type> <forget> <object pool pathname> <member selection policy> <r/w ratio> <max rate> <duration in sec> <client1> [<client2>, ...] \n"
             "type := " SUBGROUP_TYPE_LIST "\n"
-            "forget := true|false \n"
-            "    if 'forget' is true, use 'put_and_forget', otherwise, use 'put'\n"
+            "put_type := put|put_and_forget|trigger_put \n"
             "'member selection policy' refers how the external clients pick a member in a shard;\n"
             "    Available options: FIXED|RANDOM|ROUNDROBIN;\n"
             "'r/w ratio' is the ratio of get vs put operations, INF for all put test; \n"
@@ -1489,9 +1488,12 @@ std::vector<command_entry_t> commands =
                 return false;
             }
 
-            bool put_and_forget = false;
-            if (cmd_tokens[2] == "true") {
-                put_and_forget = true;
+            PutType put_type = PutType::PUT;
+
+            if (cmd_tokens[2] == "put_and_forget") {
+                put_type = PutType::PUT_AND_FORGET;
+            } else if (cmd_tokens[2] == "trigger_put") {
+                put_type = PutType::TRIGGER_PUT;
             }
 
             std::string object_pool_pathname = cmd_tokens[3];
@@ -1518,17 +1520,16 @@ std::vector<command_entry_t> commands =
                 pos ++;
             }
             bool ret;
-            on_subgroup_type(cmd_tokens[1], ret = perftest, ptc, put_and_forget, object_pool_pathname, member_selection_policy,read_write_ratio,max_rate,duration_sec,"output.log");
+            on_subgroup_type(cmd_tokens[1], ret = perftest, ptc, put_type, object_pool_pathname, member_selection_policy,read_write_ratio,max_rate,duration_sec,"output.log");
             return ret;
         }
     },
     {
         "perftest_shard",
         "Performance Tester for put to a shard.",
-        "perftest_shard <type> <forget> <subgroup index> <shard index> <member selection policy> <r/w ratio> <max rate> <duration in sec> <client1> [<client2>, ...] \n"
+        "perftest_shard <type> <put type> <subgroup index> <shard index> <member selection policy> <r/w ratio> <max rate> <duration in sec> <client1> [<client2>, ...] \n"
             "type := " SUBGROUP_TYPE_LIST "\n"
-            "forget := true|false \n"
-            "    if 'forget' is true, use 'put_and_forget', otherwise, use 'put'\n"
+            "put_type := put|put_and_forget|trigger_put \n"
             "'member selection policy' refers how the external clients pick a member in a shard;\n"
             "    Available options: FIXED|RANDOM|ROUNDROBIN;\n"
             "'r/w ratio' is the ratio of get vs put operations, INF for all put test; \n"
@@ -1541,9 +1542,12 @@ std::vector<command_entry_t> commands =
                 return false;
             }
 
-            bool put_and_forget = false;
-            if (cmd_tokens[2] == "true") {
-                put_and_forget = true;
+            PutType put_type = PutType::PUT;
+
+            if (cmd_tokens[2] == "put_and_forget") {
+                put_type = PutType::PUT_AND_FORGET;
+            } else if (cmd_tokens[2] == "trigger_put") {
+                put_type = PutType::TRIGGER_PUT;
             }
 
             uint32_t subgroup_index = std::stoul(cmd_tokens[3]);
@@ -1572,7 +1576,7 @@ std::vector<command_entry_t> commands =
                 pos ++;
             }
             bool ret;
-            on_subgroup_type(cmd_tokens[1], ret = perftest,ptc,put_and_forget,subgroup_index,shard_index,member_selection_policy,read_write_ratio,max_rate,duration_sec,"output.log");
+            on_subgroup_type(cmd_tokens[1], ret = perftest,ptc,put_type,subgroup_index,shard_index,member_selection_policy,read_write_ratio,max_rate,duration_sec,"output.log");
             return ret;
         }
     },

@@ -161,61 +161,104 @@ bool PerfTestServer::eval_put(std::vector<std::tuple<uint64_t,uint64_t,uint64_t>
         return true;
 }
 
-bool PerfTestServer::eval_put_and_forget(put_and_forget_perf_log_t& timestamp_log,
+bool PerfTestServer::eval_put_and_forget(put_perf_log_t& timestamp_log,
                                          uint64_t max_operation_per_second,
                                          uint64_t duration_secs,
                                          uint32_t subgroup_type_index,
                                          uint32_t subgroup_index,
                                          uint32_t shard_index) {
-        uint64_t interval_ns = (max_operation_per_second==0)?0:static_cast<uint64_t>(1e9/max_operation_per_second);
-        uint64_t next_ns = get_walltime();
-        uint64_t end_ns = next_ns + duration_secs*1000000000;
-        timestamp_log.first_send_ns = next_ns;
-        timestamp_log.num_messages = 0;
-        // control read_write_ratio
-        while(true) {
-            uint64_t now_ns = get_walltime();
-            if (now_ns > end_ns) {
-                break;
-            }
-            // we leave 500 ns for loop overhead.
-            if (now_ns + 500 < next_ns) {
-                usleep((next_ns - now_ns - 500)/1000); // sleep in microseconds.
-            }
-            next_ns += interval_ns;
-            if (subgroup_index == INVALID_SUBGROUP_INDEX || shard_index == INVALID_SHARD_INDEX) {
-                on_subgroup_type_index_no_trigger(std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
-                        this->capi.template put_and_forget, objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS));
-            } else {
-                on_subgroup_type_index_no_trigger(std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
-                        this->capi.template put_and_forget, objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS), subgroup_index, shard_index);
-            }
-            timestamp_log.num_messages ++;
+    uint64_t interval_ns = (max_operation_per_second==0)?0:static_cast<uint64_t>(1e9/max_operation_per_second);
+    uint64_t next_ns = get_walltime();
+    uint64_t end_ns = next_ns + duration_secs*1000000000;
+    timestamp_log.first_send_ns = next_ns;
+    timestamp_log.num_messages = 0;
+    // control read_write_ratio
+    while(true) {
+        uint64_t now_ns = get_walltime();
+        if (now_ns > end_ns) {
+            break;
         }
-        // send a normal put
-        timestamp_log.last_send_ns = get_walltime();
-        std::function<void(QueryResults<std::tuple<persistent::version_t,uint64_t>>&&)> future_appender = 
-            [&timestamp_log](QueryResults<std::tuple<persistent::version_t,uint64_t>>&& query_results){
-                auto& replies = query_results.get();
-                for (auto& reply: replies) {
-                    reply.second.get();
-                }
-                timestamp_log.ack_ns = get_walltime();
-                timestamp_log.num_messages ++;
-            };
-        if (subgroup_index == INVALID_SUBGROUP_INDEX ||
-            shard_index == INVALID_SHARD_INDEX) {
-            on_subgroup_type_index_with_return_no_trigger(
-                std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
-                future_appender,
-                this->capi.template put, objects.at(0));
+        // we leave 500 ns for loop overhead.
+        if (now_ns + 500 < next_ns) {
+            usleep((next_ns - now_ns - 500)/1000); // sleep in microseconds.
+        }
+        next_ns += interval_ns;
+        if (subgroup_index == INVALID_SUBGROUP_INDEX || shard_index == INVALID_SHARD_INDEX) {
+            on_subgroup_type_index_no_trigger(std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
+                    this->capi.template put_and_forget, objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS));
         } else {
-            on_subgroup_type_index_with_return_no_trigger(
-                std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
-                future_appender,
-                this->capi.template put, objects.at(0), subgroup_index, shard_index);
+            on_subgroup_type_index_no_trigger(std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
+                    this->capi.template put_and_forget, objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS), subgroup_index, shard_index);
         }
-        return true;
+        timestamp_log.num_messages ++;
+    }
+    // send a normal put
+    timestamp_log.last_send_ns = get_walltime();
+    std::function<void(QueryResults<std::tuple<persistent::version_t,uint64_t>>&&)> future_appender = 
+        [&timestamp_log](QueryResults<std::tuple<persistent::version_t,uint64_t>>&& query_results){
+            auto& replies = query_results.get();
+            for (auto& reply: replies) {
+                reply.second.get();
+            }
+            timestamp_log.ack_ns = get_walltime();
+            timestamp_log.num_messages ++;
+        };
+    if (subgroup_index == INVALID_SUBGROUP_INDEX ||
+        shard_index == INVALID_SHARD_INDEX) {
+        on_subgroup_type_index_with_return_no_trigger(
+            std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
+            future_appender,
+            this->capi.template put, objects.at(0));
+    } else {
+        on_subgroup_type_index_with_return_no_trigger(
+            std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
+            future_appender,
+            this->capi.template put, objects.at(0), subgroup_index, shard_index);
+    }
+    return true;
+}
+
+bool PerfTestServer::eval_trigger_put(put_perf_log_t& timestamp_log,
+                                      uint64_t max_operation_per_second,
+                                      uint64_t duration_secs,
+                                      uint32_t subgroup_type_index,
+                                      uint32_t subgroup_index,
+                                      uint32_t shard_index) {
+    //TODO: evaluate trigger put
+    uint64_t interval_ns = (max_operation_per_second==0)?0:static_cast<uint64_t>(1e9/max_operation_per_second);
+    uint64_t next_ns = get_walltime();
+    uint64_t end_ns = next_ns + duration_secs*1000000000;
+    timestamp_log.first_send_ns = next_ns;
+    timestamp_log.num_messages = 0;
+    // control read_write_ratio
+    while(true) {
+        uint64_t now_ns = get_walltime();
+        if (now_ns > end_ns) {
+            break;
+        }
+        // we leave 500 ns for loop overhead.
+        if (now_ns + 500 < next_ns) {
+            usleep((next_ns - now_ns - 500)/1000); // sleep in microseconds.
+        }
+        next_ns += interval_ns;
+        if (subgroup_index == INVALID_SUBGROUP_INDEX || shard_index == INVALID_SHARD_INDEX) {
+            on_subgroup_type_index(std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
+                    this->capi.template trigger_put, objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS));
+        } else {
+            on_subgroup_type_index(std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
+                    this->capi.template trigger_put, objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS), subgroup_index, shard_index);
+        }
+        timestamp_log.num_messages ++;
+    }
+    // calculate the throughput.
+    timestamp_log.last_send_ns = get_walltime();
+    /* Since the trigger put is a void function, we don't know exactly when the last message was sent from window. But
+     * this should be a very short time especially for small messages. Therefore, we just use the send timestamp of the
+     * last message. A better future solution should be using the timestamp on the server side.
+     */
+    timestamp_log.ack_ns = timestamp_log.last_send_ns;
+    
+    return true;
 }
 
 PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
@@ -313,7 +356,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         objects.clear();
         make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
         // STEP 3 - start experiment and log
-        put_and_forget_perf_log_t timestamp_log;
+        put_perf_log_t timestamp_log;
         if (this->eval_put_and_forget(timestamp_log,max_operation_per_second,duration_secs,subgroup_type_index,subgroup_index,shard_index)) {
             std::ofstream outfile(output_filename);
             outfile << "#first_send_us last_send_us acked_ts_us num_messages" << std::endl;
@@ -335,6 +378,55 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
             return false;
         }
     });
+    // API 1.6 : run shard perf with trigger_put
+    //
+    // @param subgroup_type_index
+    // @param subgroup_index
+    // @param shard_index
+    // @param policy
+    // @param user_specified_node_id
+    // @param read_write_ratio
+    // @param max_operation_per_second
+    // @param duration_Secs
+    // @param output_filename
+    //
+    // @return true/false indicating if the RPC call is successful.
+    server.bind("perf_trigger_put_to_shard",[this](
+        uint32_t            subgroup_type_index,
+        uint32_t            subgroup_index,
+        uint32_t            shard_index,
+        uint32_t            policy,
+        uint32_t            user_specified_node_id,
+        double              read_write_ratio,
+        uint64_t            max_operation_per_second,
+        uint64_t            duration_secs,
+        const std::string&  output_filename) {
+        // STEP 1 - set up the shard member selection policy
+        on_subgroup_type_index_no_trigger(std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
+            this->capi.template set_member_selection_policy,
+            subgroup_index,
+            shard_index,
+            static_cast<ShardMemberSelectionPolicy>(policy),
+            user_specified_node_id);
+        // STEP 2 - prepare workload
+        objects.clear();
+        make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
+        // STEP 3 - start experiment and log
+        put_perf_log_t timestamp_log;
+        if (this->eval_trigger_put(timestamp_log,max_operation_per_second,duration_secs,subgroup_type_index,subgroup_index,shard_index)) {
+            std::ofstream outfile(output_filename);
+            outfile << "#first_send_us last_send_us acked_ts_us num_messages" << std::endl;
+            outfile << timestamp_log.first_send_ns/1000 << " "
+                    << timestamp_log.last_send_ns/1000 << " "
+                    << timestamp_log.ack_ns/1000 << " "
+                    << timestamp_log.num_messages << std::endl;
+            outfile.close();
+            return true;
+        } else {
+            return false;
+        }
+    });
+
     // API 2 : run object pool perf
     //
     // @param object_pool_pathname
@@ -433,7 +525,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         objects.clear();
         make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
         // STEP 3 - start experiment and log
-        put_and_forget_perf_log_t timestamp_log;
+        put_perf_log_t timestamp_log;
         if (this->eval_put_and_forget(timestamp_log,max_operation_per_second,duration_secs,object_pool.subgroup_type_index)) {
             std::ofstream outfile(output_filename);
             outfile << "#first_send_us last_send_us acked_ts_us num_messages" << std::endl;
@@ -452,6 +544,57 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
                 std::decay_t<decltype(capi)>::subgroup_type_order.at(object_pool.subgroup_type_index),
                 future_handler,
                 this->capi.template dump_timestamp, output_filename, object_pool_pathname);
+            return true;
+        } else {
+            return false;
+        }
+    });
+    // API 2.6 : run object perf with trigger_put
+    //
+    // @param object_pool_pathname
+    // @param policy
+    // @param user_specified_node_id
+    // @param read_write_ratio
+    // @param max_operation_per_second
+    // @param duration_Secs
+    // @param output_filename
+    //
+    // @return true/false indicating if the RPC call is successful.
+    server.bind("perf_trigger_put_to_objectpool",[this](
+        const std::string&  object_pool_pathname,
+        uint32_t            policy,
+        const std::vector<node_id_t>&  user_specified_node_ids, // one per shard
+        double              read_write_ratio,
+        uint64_t            max_operation_per_second,
+        uint64_t            duration_secs,
+        const std::string&  output_filename) {
+
+        auto object_pool = this->capi.find_object_pool(object_pool_pathname);
+
+        uint32_t number_of_shards;
+        // STEP 1 - set up the shard member selection policy
+        on_subgroup_type_index_no_trigger(std::decay_t<decltype(capi)>::subgroup_type_order.at(object_pool.subgroup_type_index),
+            number_of_shards = this->capi.template get_number_of_shards, object_pool.subgroup_index);
+        if (user_specified_node_ids.size() < number_of_shards) {
+            throw derecho::derecho_exception(std::string("the size of 'user_specified_node_ids' argument does not match shard number."));
+        }
+        for (uint32_t shard_index = 0; shard_index < number_of_shards; shard_index ++) {
+            on_subgroup_type_index_no_trigger(std::decay_t<decltype(capi)>::subgroup_type_order.at(object_pool.subgroup_type_index),
+                this->capi.template set_member_selection_policy, object_pool.subgroup_index, shard_index, static_cast<ShardMemberSelectionPolicy>(policy), user_specified_node_ids.at(shard_index));
+        }
+        // STEP 2 - prepare workload
+        objects.clear();
+        make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
+        // STEP 3 - start experiment and log
+        put_perf_log_t timestamp_log;
+        if (this->eval_trigger_put(timestamp_log,max_operation_per_second,duration_secs,object_pool.subgroup_type_index)) {
+            std::ofstream outfile(output_filename);
+            outfile << "#first_send_us last_send_us acked_ts_us num_messages" << std::endl;
+            outfile << timestamp_log.first_send_ns/1000 << " "
+                    << timestamp_log.last_send_ns/1000 << " "
+                    << timestamp_log.ack_ns/1000 << " "
+                    << timestamp_log.num_messages << std::endl;
+            outfile.close();
             return true;
         } else {
             return false;

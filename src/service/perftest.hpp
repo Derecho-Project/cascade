@@ -16,7 +16,7 @@ namespace cascade {
 #define INVALID_SHARD_INDEX         (std::numeric_limits<uint32_t>::max())
 
 class PerfTestServer {
-    using put_and_forget_perf_log_t = struct {
+    using put_perf_log_t = struct {
         uint64_t first_send_ns;
         uint64_t last_send_ns;
         uint64_t ack_ns;
@@ -58,12 +58,32 @@ private:
      *
      * @return true/false
      */
-    bool eval_put_and_forget(put_and_forget_perf_log_t& timestamp_log,
+    bool eval_put_and_forget(put_perf_log_t& timestamp_log,
                              uint64_t max_operation_per_second,
                              uint64_t duration_secs,
                              uint32_t subgroup_type_index,
                              uint32_t subgroup_index=INVALID_SUBGROUP_INDEX,
                              uint32_t shard_index=INVALID_SHARD_INDEX);
+
+    /**
+     * evaluating trigger put operation
+     *
+     * @param timestamp_log         Caller provided timestamp_log
+     * @param max_operation_per_second  max message rate
+     * @param duration_secs         experiment duration in seconds
+     * @param subgroup_type_index
+     * @param subgroup_index        If subgroup_index and shard_index are both valid, the test will use object pool API.
+     * @param shard_index           If subgroup_index and shard_index are both valid, the test will use object pool API.
+     *
+     * @return true/false
+     */
+    bool eval_trigger_put(put_perf_log_t& timestamp_log,
+                          uint64_t max_operation_per_second,
+                          uint64_t duration_secs,
+                          uint32_t subgroup_type_index,
+                          uint32_t subgroup_index=INVALID_SUBGROUP_INDEX,
+                          uint32_t shard_index=INVALID_SHARD_INDEX);
+
 
 public:
     /**
@@ -90,6 +110,15 @@ enum ExternalClientToCascadeServerMapping {
     FIXED,
     RANDOM,
     ROUNDROBIN
+};
+
+/*
+ * The put type is for the perf_put() function
+ */
+enum PutType {
+    PUT,            // normal put
+    PUT_AND_FORGET, // put and forget
+    TRIGGER_PUT     // trigger put
 };
 
 class PerfTestClient {
@@ -125,7 +154,7 @@ public:
 
     /**
      * Object Pool Performance testing, using put with return
-     * @param use_put_and_forget if true, use put and forget to keep the pipeline busy.
+     * @param put_type
      * @param object_pool_pathname
      * @param ec2cs
      *        Mapping from external client to a shard member.
@@ -137,7 +166,7 @@ public:
      * @return true for a successful run, false for a failed run.
      */
     template<typename SubgroupType>
-    bool perf_put(bool                  use_put_and_forget,
+    bool perf_put(PutType               put_type,
                   const std::string&    object_pool_pathname,
                   ExternalClientToCascadeServerMapping ec2cs,
                   double                read_write_ratio,
@@ -146,7 +175,7 @@ public:
                   const std::string&    output_file);
     /**
      * Single Shard Performance testing, using put with return
-     * @param use_put_and_forget if true, use put and forget to keep the pipeline busy.
+     * @param put_type
      * @param subgroup_index
      * @param subgroup_shard
      * @param ec2cs
@@ -159,7 +188,7 @@ public:
      * @return true for a successful run, false for a failed run.
      */
     template<typename SubgroupType>
-    bool perf_put(bool      use_put_and_forget,
+    bool perf_put(PutType   put_type,
                   uint32_t  subgroup_index,
                   uint32_t  shard_index,
                   ExternalClientToCascadeServerMapping ec2cs,
@@ -174,7 +203,7 @@ public:
 };
 
     template<typename SubgroupType>
-    bool PerfTestClient::perf_put(bool                  use_put_and_forget,
+    bool PerfTestClient::perf_put(PutType               put_type,
                                   const std::string&    object_pool_pathname,
                                   ExternalClientToCascadeServerMapping ec2cs,
                                   double                read_write_ratio,
@@ -217,8 +246,26 @@ public:
     // 2 - send requests and wait for response
     std::map<std::pair<std::string,uint16_t>,std::future<RPCLIB_MSGPACK::object_handle>> futures;
     for (auto& kv: connections) {
-        futures.emplace(kv.first,kv.second->async_call(use_put_and_forget?"perf_put_and_forget_to_objectpool":"perf_put_to_objectpool",object_pool_pathname,static_cast<uint32_t>(policy),
-                        user_specified_node_ids.at(kv.first),read_write_ratio,ops_threshold,duration_secs,output_filename));
+        std::string rpc_cmd{};
+        switch(put_type){
+        case PutType::PUT:
+            rpc_cmd = "perf_put_to_objectpool";
+            break;
+        case PutType::PUT_AND_FORGET:
+            rpc_cmd = "perf_put_and_forget_to_objectpool";
+            break;
+        case PutType::TRIGGER_PUT:
+            rpc_cmd = "perf_trigger_put_to_objectpool";
+            break;
+        }
+        futures.emplace(kv.first,kv.second->async_call(rpc_cmd,
+                                                       object_pool_pathname,
+                                                       static_cast<uint32_t>(policy),
+                                                       user_specified_node_ids.at(kv.first),
+                                                       read_write_ratio,
+                                                       ops_threshold,
+                                                       duration_secs,
+                                                       output_filename));
     }
 
     ret = check_rpc_futures(std::move(futures));
@@ -233,7 +280,7 @@ public:
 }
 
 template <typename SubgroupType>
-bool PerfTestClient::perf_put(bool      use_put_and_forget,
+bool PerfTestClient::perf_put(PutType   put_type,
                               uint32_t  subgroup_index,
                               uint32_t  shard_index,
                               ExternalClientToCascadeServerMapping ec2cs,
@@ -270,8 +317,21 @@ bool PerfTestClient::perf_put(bool      use_put_and_forget,
     // 2 - send requests and wait for response
     std::map<std::pair<std::string,uint16_t>,std::future<RPCLIB_MSGPACK::object_handle>> futures;
 
+    std::string rpc_cmd{};
+    switch(put_type) {
+    case PutType::PUT:
+        rpc_cmd = "perf_put_to_shard";
+        break;
+    case PutType::PUT_AND_FORGET:
+        rpc_cmd = "perf_put_and_forget_to_shard";
+        break;
+    case PutType::TRIGGER_PUT:
+        rpc_cmd = "perf_trigger_put_to_shard";
+        break;
+    }
+
     for (auto& kv: connections) {
-        futures.emplace(kv.first,kv.second->async_call(use_put_and_forget?"perf_put_and_forget_to_shard":"perf_put_to_shard",
+        futures.emplace(kv.first,kv.second->async_call(rpc_cmd,
                                                        capi.template get_subgroup_type_index<SubgroupType>(),
                                                        subgroup_index,shard_index,static_cast<uint32_t>(policy),
                                                        user_specified_node_ids.at(kv.first),read_write_ratio,
