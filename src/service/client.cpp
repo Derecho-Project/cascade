@@ -704,19 +704,6 @@ bool perftest(PerfTestClient& ptc,
     return ret;
 }
 
-template <>
-bool perftest<TriggerCascadeNoStoreWithStringKey>(PerfTestClient& ptc,
-              PutType put_type,
-              const std::string& object_pool_pathname,
-              ExternalClientToCascadeServerMapping ec2cs,
-              double read_write_ratio,
-              uint64_t ops_threashold,
-              uint64_t duration_secs,
-              const std::string& output_file) {
-    print_red("TCSS does not support perftest.");
-    return false;
-}
-
 // The raw shard version of perf test
 template <typename SubgroupType>
 bool perftest(PerfTestClient& ptc,
@@ -734,21 +721,6 @@ bool perftest(PerfTestClient& ptc,
     debug_leave_func();
     return ret;
 }
-
-template <>
-bool perftest<TriggerCascadeNoStoreWithStringKey>(PerfTestClient& ptc,
-              PutType put_type,
-              uint32_t subgroup_index,
-              uint32_t shard_index,
-              ExternalClientToCascadeServerMapping ec2cs,
-              double read_write_ratio,
-              uint64_t ops_threashold,
-              uint64_t duration_secs,
-              const std::string& output_file) {
-    print_red("TCSS does not support perftest.");
-    return false;
-}
-
 
 template <typename SubgroupType>
 bool perftest_ordered_put(ServiceClientAPI &capi,

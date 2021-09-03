@@ -402,7 +402,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         uint64_t            duration_secs,
         const std::string&  output_filename) {
         // STEP 1 - set up the shard member selection policy
-        on_subgroup_type_index_no_trigger(std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
+        on_subgroup_type_index(std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
             this->capi.template set_member_selection_policy,
             subgroup_index,
             shard_index,
