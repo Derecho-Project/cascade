@@ -713,7 +713,7 @@ bool perftest<TriggerCascadeNoStoreWithStringKey>(PerfTestClient& ptc,
               uint64_t ops_threashold,
               uint64_t duration_secs,
               const std::string& output_file) {
-    print_red("TCSS does not support list_data_in_subgroup.");
+    print_red("TCSS does not support perftest.");
     return false;
 }
 
@@ -745,7 +745,7 @@ bool perftest<TriggerCascadeNoStoreWithStringKey>(PerfTestClient& ptc,
               uint64_t ops_threashold,
               uint64_t duration_secs,
               const std::string& output_file) {
-    print_red("TCSS does not support list_data_in_subgroup.");
+    print_red("TCSS does not support perftest.");
     return false;
 }
 
