@@ -317,10 +317,6 @@ namespace cascade {
                                  public mutils::ByteRepresentable,
                                  public derecho::GroupReference {
     private:
-#ifdef ENABLE_EVALUATION
-        /* timestamp logger */
-        mutable std::vector<std::tuple<uint64_t,uint64_t,uint64_t,uint64_t>> timestamp_log;
-#endif//ENABLE_EVALUATION
         bool internal_ordered_put(const VT& value);
     public:
         /* group reference */
@@ -515,10 +511,6 @@ namespace cascade {
                                    public derecho::PersistsFields,
                                    public derecho::GroupReference {
     private:
-#ifdef ENABLE_EVALUATION
-        /* timestamp logger */
-        mutable std::vector<std::tuple<uint64_t,uint64_t,uint64_t,uint64_t>> timestamp_log;
-#endif//ENABLE_EVALUATION
         bool internal_ordered_put(const VT& value);
     public:
         using derecho::GroupReference::group;
@@ -749,6 +741,28 @@ namespace cascade {
         virtual bool validate(const std::map<KT,VT>& kv_map) const = 0;
     };
 
+#ifdef ENABLE_EVALUATION
+    /**
+     * TODO:
+     * If the VT template of PersistentCascadeStore implements IKeepPreviousVersion interface, its 'set_message_id'
+     * method is used to set an id dedicated for evaluation purpose, which is different from the key. The
+     * 'get_message_id' methdo is used to retrieve its id.
+     */
+    class IHasMessageID {
+    public:
+        /**
+         * set_message_id
+         * @param message id
+         */
+        virtual void set_message_id(uint64_t id) const = 0;
+        /**
+         * get_message_id
+         * @return message id
+         */
+        virtual uint64_t get_message_id() const = 0;
+    };
+#endif
+
     /**
      * Template for cascade trigger store
      *
@@ -769,7 +783,11 @@ namespace cascade {
         
         REGISTER_RPC_FUNCTIONS(TriggerCascadeNoStore,
                                P2P_TARGETS(
-                                   trigger_put));
+                                   trigger_put,
+                                   dump_timestamp_log),
+                               ORDERED_TARGETS(
+                                   ordered_dump_timestamp_log
+                                   ));
         /**
         REGISTER_RPC_FUNCTIONS(TriggerCascadeNoStore,
                                P2P_TARGETS(

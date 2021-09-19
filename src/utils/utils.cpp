@@ -9,6 +9,7 @@
 #include <chrono>
 #include <math.h>
 #include <utility>
+#include <fstream>
 
 using namespace std::chrono_literals;
 
@@ -178,6 +179,43 @@ std::unique_ptr<OpenLoopLatencyCollector> OpenLoopLatencyCollector::create_serve
         uint16_t udp_port) {
     return std::make_unique<OpenLoopLatencyCollector>(max_ids,type_set,udp_acks_collected,udp_port);
 }
+
+#ifdef ENABLE_EVALUATION
+TimestampLogger::TimestampLogger() {
+    pthread_spin_init(&lck,PTHREAD_PROCESS_PRIVATE);
+    _log.reserve(65536);
+}
+
+void TimestampLogger::log(uint64_t tag, uint64_t node_id, uint64_t msg_id, uint64_t ts_ns) {
+    pthread_spin_lock(&lck);
+    _log.emplace_back(tag,node_id,msg_id,ts_ns);
+    pthread_spin_unlock(&lck);
+}
+
+void TimestampLogger::flush(const std::string& filename, bool clear) {
+    pthread_spin_lock(&lck);
+    std::ofstream outfile(filename);
+    for (auto& ent: this->_log) {
+        outfile << std::get<0>(ent) << " "
+                << std::get<1>(ent) << " "
+                << std::get<2>(ent) << " "
+                << std::get<3>(ent) << std::endl;
+    }
+    outfile.close();
+    if (clear) {
+        _log.clear();
+    }
+    pthread_spin_unlock(&lck);
+}
+
+void TimestampLogger::clear() {
+    pthread_spin_lock(&lck);
+    _log.clear();
+    pthread_spin_unlock(&lck);
+}
+
+TimestampLogger global_timestamp_logger;
+#endif
 
 }
 }

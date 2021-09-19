@@ -153,5 +153,63 @@ public:
 
 };
 
+#ifdef ENABLE_EVALUATION
+// time logger tags (TLTs)
+#define TLT_READY_TO_SEND                   (0)
+#define TLT_EC_SENT                         (1)
+#define TLT_VOLATILE_PUT_START              (2)
+#define TLT_VOLATILE_PUT_END                (3)
+#define TLT_VOLATILE_PUT_AND_FORGET_START   (4)
+#define TLT_VOLATILE_PUT_AND_FORGET_END     (5)
+#define TLT_VOLATILE_ORDERED_PUT_START      (6)
+#define TLT_VOLATILE_ORDERED_PUT_END        (7)
+#define TLT_VOLATILE_ORDERED_PUT_AND_FORGET_START      (8)
+#define TLT_VOLATILE_ORDERED_PUT_AND_FORGET_END        (9)
+#define TLT_TRIGGER_PUT_START               (10)
+#define TLT_TRIGGER_PUT_END                 (11)
+#define TLT_PERSISTENT_PUT_START            (12)
+#define TLT_PERSISTENT_PUT_END              (13)
+#define TLT_PERSISTENT_PUT_AND_FORGET_START (14)
+#define TLT_PERSISTENT_PUT_AND_FORGET_END   (15)
+#define TLT_PERSISTENT_ORDERED_PUT_START    (16)
+#define TLT_PERSISTENT_ORDERED_PUT_END      (17)
+#define TLT_PERSISTENT_ORDERED_PUT_AND_FORGET_START    (18)
+#define TLT_PERSISTENT_ORDERED_PUT_AND_FORGET_END      (19)
+#define TLT_P2P_TRIGGERED                   (20)
+#define TLT_ORDERED_TRIGGERED               (21)
+#define TLT_PERSISTED                       (22)
+class TimestampLogger {
+private:
+    std::vector<std::tuple<uint64_t,uint64_t,uint64_t,uint64_t>> _log;
+    pthread_spinlock_t lck;
+public:
+    /**
+     * Constructor
+     */
+    TimestampLogger();
+    /**
+     * Log the timestamp
+     * @param tag       timestamp tag
+     * @param node_id   node id
+     * @param msg_id    message id
+     * @param ts_ns     timestamp in nanoseconds
+     */
+    void log(uint64_t tag, uint64_t node_id, uint64_t msg_id, uint64_t ts_ns);
+    /**
+     * Flush log to file
+     * @param filename  filename
+     * @param clear     True for clear the log after flush
+     */
+    void flush(const std::string& filename, bool clear = true);
+    /**
+     * Clear the log
+     */
+    void clear();
+};
+
+extern TimestampLogger global_timestamp_logger;
+
+#endif
+
 }
 }
