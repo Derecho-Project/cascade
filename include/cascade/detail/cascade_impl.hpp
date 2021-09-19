@@ -48,6 +48,19 @@ void make_workload(uint32_t payload_size, const KT& key_prefix, std::vector<VT>&
         dbg_default_error("Cannot make workload for key type:{} and value type:{}, because it does not support constructor:VT(KT,char*,uint32_t)",typeid(KT).name(),typeid(VT).name());
     }
 }
+
+#define LOG_TIMESTAMP_BY_TAG(t,g,v) \
+    if constexpr (std::is_convertible_v<std::decay_t<decltype(v)>,IHasMessageID>) { \
+        global_timestamp_logger.log(t, \
+                                    g->get_my_id(), \
+                                    dynamic_cast<IHasMessageID>(v).get_message_id(), \
+                                    get_walltime()); \
+    }
+
+#else
+
+#define LOG_TIMESTAMP_BY_TAG(t,g,v)
+
 #endif//ENABLE_EVALUATION
 
 
@@ -74,9 +87,8 @@ std::string get_pathname(const std::enable_if_t<!std::is_convertible<KeyType,std
 template<typename KT, typename VT, KT* IK, VT* IV>
 std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::put(const VT& value) const {
     debug_enter_func_with_args("value.get_key_ref={}",value.get_key_ref());
-#ifdef ENABLE_EVALUATION
-    uint64_t s1 = get_walltime();
-#endif//ENABLE_EVALUATION
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_PUT_START,group,value);
+
     derecho::Replicated<VolatileCascadeStore>& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put)>(value);
     auto& replies = results.get();
@@ -85,10 +97,8 @@ std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::pu
     for (auto& reply_pair : replies) {
         ret = reply_pair.second.get();
     }
-#ifdef ENABLE_EVALUATION
-    uint64_t s2 = get_walltime();
-    this->timestamp_log.emplace_back(0,std::get<0>(ret),s1,s2);
-#endif//ENABLE_EVALUATION
+
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_PUT_END,group,value);
     debug_leave_func_with_value("version=0x{:x},timestamp={}",std::get<0>(ret),std::get<1>(ret));
     return ret;
 }
@@ -96,8 +106,12 @@ std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::pu
 template<typename KT, typename VT, KT* IK, VT* IV>
 void VolatileCascadeStore<KT,VT,IK,IV>::put_and_forget(const VT& value) const {
     debug_enter_func_with_args("value.get_key_ref={}",value.get_key_ref());
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_PUT_AND_FORGET_START,group,value);
+
     derecho::Replicated<VolatileCascadeStore>& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
     subgroup_handle.template ordered_send<RPC_NAME(ordered_put_and_forget)>(value);
+
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_PUT_AND_FORGET_END,group,value);
     debug_leave_func();
 }
 
@@ -146,7 +160,8 @@ double VolatileCascadeStore<KT,VT,IK,IV>::perf_put(const uint32_t max_payload_si
     debug_leave_func_with_value("{} ops.",ops);
     return ops;
 }
-#endif//ENABLE_EVALUATION
+
+#endif
 
 template<typename KT, typename VT, KT* IK, VT* IV>
 std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::remove(const KT& key) const {
@@ -310,15 +325,14 @@ std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::or
 template<typename KT, typename VT, KT* IK, VT* IV>
 void VolatileCascadeStore<KT,VT,IK,IV>::ordered_put_and_forget(const VT& value) {
     debug_enter_func_with_args("key={}",value.get_key_ref());
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_PUT_AND_FORGET_START,group,value);
     internal_ordered_put(value);
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_PUT_AND_FORGET_END,group,value);
     debug_leave_func();
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
 bool VolatileCascadeStore<KT,VT,IK,IV>::internal_ordered_put(const VT& value) {
-#ifdef ENABLE_EVALUATION
-    uint64_t s1 = get_walltime();
-#endif//ENABLE_EVALUATION
     std::tuple<persistent::version_t,uint64_t> version_and_timestamp = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
 
     if constexpr (std::is_base_of<IKeepVersion,VT>::value) {
@@ -366,10 +380,7 @@ bool VolatileCascadeStore<KT,VT,IK,IV>::internal_ordered_put(const VT& value) {
             group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_shard_num(),
             value.get_key_ref(), value, cascade_context_ptr);
     }
-#ifdef ENABLE_EVALUATION
-    uint64_t s2 = get_walltime();
-    this->timestamp_log.emplace_back(2,std::get<0>(version_and_timestamp),s1,s2);
-#endif//ENABLE_EVALUATION
+
     return true;
 }
 
@@ -469,32 +480,9 @@ void VolatileCascadeStore<KT,VT,IK,IV>::dump_timestamp_log(const std::string& fi
     return;
 }
 
-/**
- * _dump_timestamp_log() dump the server timestamps to a text file.
- *
- * @param timestamps    - the timestamp log. Each log entry is a 3-tuple of version, ts1, ts2.
- *                        'ts1': a put request is received from an external client
- *                        'ts2': a response is sent to an external client
- * @param filename      - the output filename
- *
- */
-inline void _dump_timestamp_log(const std::vector<std::tuple<uint64_t,uint64_t,uint64_t,uint64_t>>& timestamps, const std::string& filename) {
-    std::ofstream outfile(filename);
-    outfile << "# type 0 for latency in 'put', type 1 for latency in 'put_and_forget', type 2 for latency in 'internal_ordered_put'" << std::endl;
-    outfile << "# 'ts1': a put request is received from an external client." << std::endl;
-    outfile << "# 'ts2': a response is sent to an external client." << std::endl;
-    outfile << "# type, version, ts1, ts2" << std::endl;
-    for (const auto& le: timestamps) {
-        outfile << std::get<0>(le) << " " << std::get<1>(le) << " " << (std::get<2>(le)/1000) << " " << (std::get<3>(le)/1000) << std::endl;
-    }
-    outfile.close();
-    return;
-}
-
 template<typename KT, typename VT, KT* IK, VT* IV>
 void VolatileCascadeStore<KT,VT,IK,IV>::ordered_dump_timestamp_log(const std::string& filename) {
-    _dump_timestamp_log(timestamp_log,filename);
-    timestamp_log.clear();
+    global_timestamp_logger.flush(filename);
 }
 #endif//ENABLE_EVALUATION
 
@@ -520,9 +508,6 @@ VolatileCascadeStore<KT,VT,IK,IV>::VolatileCascadeStore(
     cascade_watcher_ptr(cw),
     cascade_context_ptr(cc) {
     debug_enter_func();
-#ifdef ENABLE_EVALUATION
-    timestamp_log.reserve(65536);
-#endif
     debug_leave_func();
 }
 
@@ -537,9 +522,6 @@ VolatileCascadeStore<KT,VT,IK,IV>::VolatileCascadeStore(
     cascade_watcher_ptr(cw),
     cascade_context_ptr(cc) {
     debug_enter_func_with_args("copy to kv_map, size={}",kv_map.size());
-#ifdef ENABLE_EVALUATION
-    timestamp_log.reserve(65536);
-#endif
     debug_leave_func();
 }
 
@@ -554,9 +536,6 @@ VolatileCascadeStore<KT,VT,IK,IV>::VolatileCascadeStore(
     cascade_watcher_ptr(cw),
     cascade_context_ptr(cc) {
     debug_enter_func_with_args("move to kv_map, size={}",kv_map.size());
-#ifdef ENABLE_EVALUATION
-    timestamp_log.reserve(65536);
-#endif
     debug_leave_func();
 }
 
@@ -775,9 +754,8 @@ DeltaCascadeStoreCore<KT,VT,IK,IV>::~DeltaCascadeStoreCore() {
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST>::put(const VT& value) const {
     debug_enter_func_with_args("value.get_key_ref()={}",value.get_key_ref());
-#ifdef ENABLE_EVALUATION
-    uint64_t s1 = get_walltime();
-#endif//ENABLE_EVALUATION
+    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_PUT_START,group,value);
+
     derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put)>(value);
     auto& replies = results.get();
@@ -786,10 +764,8 @@ std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST
     for (auto& reply_pair : replies) {
         ret = reply_pair.second.get();
     }
-#ifdef ENABLE_EVALUATION
-    uint64_t s2 = get_walltime();
-    this->timestamp_log.emplace_back(0,std::get<0>(ret),s1,s2);
-#endif//ENABLE_EVALUATION
+
+    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_PUT_END,group,value);
     debug_leave_func_with_value("version=0x{:x},timestamp={}",std::get<0>(ret),std::get<1>(ret));
     return ret;
 }
@@ -1023,10 +999,14 @@ std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::op_list_keys_by_time(con
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST>::ordered_put(const VT& value) {
     debug_enter_func_with_args("key={}",value.get_key_ref());
+    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_PUT_START,group,value);
+
     std::tuple<persistent::version_t,uint64_t> version_and_timestamp = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
     if(this->internal_ordered_put(value) == false) {
         version_and_timestamp = {persistent::INVALID_VERSION,0};
     }
+
+    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_PUT_END,group,value);
     debug_leave_func_with_value("version=0x{:x},timestamp={}",std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp));
 
     return version_and_timestamp;
@@ -1035,15 +1015,16 @@ std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void PersistentCascadeStore<KT,VT,IK,IV,ST>::ordered_put_and_forget(const VT& value) {
     debug_enter_func_with_args("key={}",value.get_key_ref());
+    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_PUT_AND_FORGET_START,group,value);
+
     this->internal_ordered_put(value);
+
+    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_PUT_AND_FORGET_END,group,value);
     debug_leave_func();
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 bool PersistentCascadeStore<KT,VT,IK,IV,ST>::internal_ordered_put(const VT& value) {
-#ifdef ENABLE_EVALUATION
-    uint64_t s1 = get_walltime();
-#endif//ENABLE_EVALUATION
     std::tuple<persistent::version_t,uint64_t> version_and_timestamp = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
     if constexpr (std::is_base_of<IKeepVersion,VT>::value) {
         value.set_version(std::get<0>(version_and_timestamp));
@@ -1063,10 +1044,6 @@ bool PersistentCascadeStore<KT,VT,IK,IV,ST>::internal_ordered_put(const VT& valu
             group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_shard_num(),
             value.get_key_ref(), value, cascade_context_ptr);
     }
-#ifdef ENABLE_EVALUATION
-    uint64_t s2 = get_walltime();
-    this->timestamp_log.emplace_back(2,std::get<0>(version_and_timestamp),s1,s2);
-#endif//ENABLE_EVALUATION
     return true;
 }
 
@@ -1143,8 +1120,7 @@ void PersistentCascadeStore<KT,VT,IK,IV,ST>::dump_timestamp_log(const std::strin
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void PersistentCascadeStore<KT,VT,IK,IV,ST>::ordered_dump_timestamp_log(const std::string& filename) {
-    _dump_timestamp_log(timestamp_log,filename);
-    timestamp_log.clear();
+    global_timestamp_logger.flush(filename);
 }
 #endif//ENABLE_EVALUATION
 
@@ -1181,9 +1157,6 @@ PersistentCascadeStore<KT,VT,IK,IV,ST>::PersistentCascadeStore(
                                                    pr),
                                                cascade_watcher_ptr(cw),
                                                cascade_context_ptr(cc) {
-#ifdef ENABLE_EVALUATION
-    timestamp_log.reserve(65536);
-#endif//ENABLE_EVALUATION
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
@@ -1195,9 +1168,6 @@ PersistentCascadeStore<KT,VT,IK,IV,ST>::PersistentCascadeStore(
                                                persistent_core(std::move(_persistent_core)),
                                                cascade_watcher_ptr(cw),
                                                cascade_context_ptr(cc) {
-#ifdef ENABLE_EVALUATION
-    timestamp_log.reserve(65536);
-#endif//ENABLE_EVALUATION
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
@@ -1315,6 +1285,8 @@ uint64_t TriggerCascadeNoStore<KT,VT,IK,IV>::ordered_get_size(const KT& key) {
 template<typename KT, typename VT, KT* IK, VT* IV>
 void TriggerCascadeNoStore<KT,VT,IK,IV>::trigger_put(const VT& value) const {
     debug_enter_func_with_args("key={}",value.get_key_ref());
+    LOG_TIMESTAMP_BY_TAG(TLT_TRIGGER_PUT_START,group,value);
+    
 
     if (cascade_watcher_ptr) {
         (*cascade_watcher_ptr)(
@@ -1323,6 +1295,7 @@ void TriggerCascadeNoStore<KT,VT,IK,IV>::trigger_put(const VT& value) const {
             value.get_key_ref(), value, cascade_context_ptr, true);
     }
 
+    LOG_TIMESTAMP_BY_TAG(TLT_TRIGGER_PUT_END,group,value);
     debug_leave_func();
 }
 
@@ -1330,12 +1303,19 @@ void TriggerCascadeNoStore<KT,VT,IK,IV>::trigger_put(const VT& value) const {
 
 template<typename KT, typename VT, KT* IK, VT* IV>
 void TriggerCascadeNoStore<KT,VT,IK,IV>::dump_timestamp_log(const std::string& filename) const {
-    dbg_default_warn("To be implemented.");
+    derecho::Replicated<TriggerCascadeNoStore>& subgroup_handle = group->template get_subgroup<TriggerCascadeNoStore>(this->subgroup_index);
+    auto result = subgroup_handle.template ordered_send<RPC_NAME(ordered_dump_timestamp_log)>(filename);
+    auto& replies = result.get();
+    for (auto r:replies) {
+        volatile uint32_t _ = r;
+        _ = _;
+    }
+    return;
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
 void TriggerCascadeNoStore<KT,VT,IK,IV>::ordered_dump_timestamp_log(const std::string& filename) {
-    dbg_default_warn("To be implemented.");
+    global_timestamp_logger.flush(filename);
 }
 #endif//ENABLE_EVALUATION
 
