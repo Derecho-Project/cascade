@@ -782,12 +782,18 @@ namespace cascade {
         ICascadeContext* cascade_context_ptr;
         
         REGISTER_RPC_FUNCTIONS(TriggerCascadeNoStore,
+#ifdef ENABLE_EVALUATION
                                P2P_TARGETS(
                                    trigger_put,
                                    dump_timestamp_log),
                                ORDERED_TARGETS(
                                    ordered_dump_timestamp_log
                                    ));
+#else
+                               P2P_TARGETS(
+                                   trigger_put
+                                   ));
+#endif
         /**
         REGISTER_RPC_FUNCTIONS(TriggerCascadeNoStore,
                                P2P_TARGETS(
