@@ -170,13 +170,20 @@ ObjectWithUInt64Key::ObjectWithUInt64Key(const uint64_t _key,
     blob(_blob) {}
 
 // constructor 0.5 : copy constructor
-ObjectWithUInt64Key::ObjectWithUInt64Key(const persistent::version_t _version,
+ObjectWithUInt64Key::ObjectWithUInt64Key(
+#ifdef ENABLE_EVALUATION
+                                         const uint64_t _message_id,
+#endif
+                                         const persistent::version_t _version,
                                          const uint64_t _timestamp_us,
                                          const persistent::version_t _previous_version,
                                          const persistent::version_t _previous_version_by_key,
                                          const uint64_t _key,
                                          const Blob& _blob,
                                          bool  emplaced) :
+#ifdef ENABLE_EVALUATION
+    message_id(_message_id),
+#endif
     version(_version),
     timestamp_us(_timestamp_us),
     previous_version(_previous_version),
@@ -188,6 +195,9 @@ ObjectWithUInt64Key::ObjectWithUInt64Key(const persistent::version_t _version,
 ObjectWithUInt64Key::ObjectWithUInt64Key(const uint64_t _key,
                                          const char* const _b,
                                          const std::size_t _s) :
+#ifdef ENABLE_EVALUATION
+    message_id(0),
+#endif
     version(persistent::INVALID_VERSION),
     timestamp_us(0),
     previous_version(INVALID_VERSION),
@@ -196,13 +206,20 @@ ObjectWithUInt64Key::ObjectWithUInt64Key(const uint64_t _key,
     blob(_b, _s) {}
 
 // constructor 1.5 : copy constructor
-ObjectWithUInt64Key::ObjectWithUInt64Key(const persistent::version_t _version,
+ObjectWithUInt64Key::ObjectWithUInt64Key(
+#ifdef ENABLE_EVALUATION
+                                         const uint64_t _message_id,
+#endif
+                                         const persistent::version_t _version,
                                          const uint64_t _timestamp_us,
                                          const persistent::version_t _previous_version,
                                          const persistent::version_t _previous_version_by_key,
                                          const uint64_t _key,
                                          const char* const _b,
                                          const std::size_t _s) :
+#ifdef ENABLE_EVALUATION
+    message_id(_message_id),
+#endif
     version(_version),
     timestamp_us(_timestamp_us),
     previous_version(_previous_version),
@@ -212,6 +229,9 @@ ObjectWithUInt64Key::ObjectWithUInt64Key(const persistent::version_t _version,
 
 // constructor 2 : move constructor
 ObjectWithUInt64Key::ObjectWithUInt64Key(ObjectWithUInt64Key&& other) :
+#ifdef ENABLE_EVALUATION
+    message_id(other.message_id),
+#endif
     version(other.version),
     timestamp_us(other.timestamp_us),
     previous_version(other.previous_version),
@@ -221,6 +241,9 @@ ObjectWithUInt64Key::ObjectWithUInt64Key(ObjectWithUInt64Key&& other) :
 
 // constructor 3 : copy constructor
 ObjectWithUInt64Key::ObjectWithUInt64Key(const ObjectWithUInt64Key& other) :
+#ifdef ENABLE_EVALUATION
+    message_id(other.message_id),
+#endif
     version(other.version),
     timestamp_us(other.timestamp_us),
     previous_version(other.previous_version),
@@ -230,6 +253,9 @@ ObjectWithUInt64Key::ObjectWithUInt64Key(const ObjectWithUInt64Key& other) :
 
 // constructor 4 : default invalid constructor
 ObjectWithUInt64Key::ObjectWithUInt64Key() :
+#ifdef ENABLE_EVALUATION
+    message_id(0),
+#endif
     version(persistent::INVALID_VERSION),
     timestamp_us(0),
     previous_version(INVALID_VERSION),
@@ -275,6 +301,16 @@ bool ObjectWithUInt64Key::verify_previous_version(persistent::version_t prev_ver
            ((this->previous_version_by_key == persistent::INVALID_VERSION)?true:(this->previous_version_by_key >= prev_ver_by_key));
 }
 
+#ifdef ENABLE_EVALUATION
+void ObjectWithUInt64Key::set_message_id(uint64_t id) const {
+    this->message_id = id;
+}
+
+uint64_t ObjectWithUInt64Key::get_message_id() const {
+    return this->message_id;
+}
+#endif
+
 template <>
 ObjectWithUInt64Key create_null_object_cb<uint64_t,ObjectWithUInt64Key,&ObjectWithUInt64Key::IK,&ObjectWithUInt64Key::IV>(const uint64_t& key) {
     return ObjectWithUInt64Key(key,Blob{});
@@ -282,6 +318,9 @@ ObjectWithUInt64Key create_null_object_cb<uint64_t,ObjectWithUInt64Key,&ObjectWi
 
 std::size_t ObjectWithUInt64Key::to_bytes(char* v) const {
     std::size_t pos = 0;
+#ifdef ENABLE_EVALUATION
+    pos+=mutils::to_bytes(message_id, v + pos);
+#endif
     pos+=mutils::to_bytes(version, v + pos);
     pos+=mutils::to_bytes(timestamp_us, v + pos);
     pos+=mutils::to_bytes(previous_version, v + pos);
@@ -292,7 +331,11 @@ std::size_t ObjectWithUInt64Key::to_bytes(char* v) const {
 }
 
 std::size_t ObjectWithUInt64Key::bytes_size() const {
-    return mutils::bytes_size(version) +
+    return 
+#ifdef ENABLE_EVALUATION
+           mutils::bytes_size(message_id) +
+#endif
+           mutils::bytes_size(version) +
            mutils::bytes_size(timestamp_us) +
            mutils::bytes_size(previous_version) +
            mutils::bytes_size(previous_version_by_key) +
@@ -301,6 +344,9 @@ std::size_t ObjectWithUInt64Key::bytes_size() const {
 }
 
 void ObjectWithUInt64Key::post_object(const std::function<void(char const* const, std::size_t)>& f) const {
+#ifdef ENABLE_EVALUATION
+    mutils::post_object(f, message_id);
+#endif
     mutils::post_object(f, version);
     mutils::post_object(f, timestamp_us);
     mutils::post_object(f, previous_version);
@@ -311,6 +357,10 @@ void ObjectWithUInt64Key::post_object(const std::function<void(char const* const
 
 std::unique_ptr<ObjectWithUInt64Key> ObjectWithUInt64Key::from_bytes(mutils::DeserializationManager* dsm, const char* const v) {
     size_t pos = 0;
+#ifdef ENABLE_EVALUATION
+    auto p_message_id = mutils::from_bytes_noalloc<uint64_t>(dsm,v + pos);
+    pos += mutils::bytes_size(*p_message_id);
+#endif
     auto p_version = mutils::from_bytes_noalloc<persistent::version_t>(dsm,v + pos);
     pos += mutils::bytes_size(*p_version);
     auto p_timestamp_us = mutils::from_bytes_noalloc<uint64_t>(dsm,v + pos);
@@ -324,6 +374,9 @@ std::unique_ptr<ObjectWithUInt64Key> ObjectWithUInt64Key::from_bytes(mutils::Des
     auto p_blob = mutils::from_bytes_noalloc<Blob>(dsm, v + pos);
     // this is a copy constructor
     return std::make_unique<ObjectWithUInt64Key>(
+#ifdef ENABLE_EVALUATION
+        *p_message_id,
+#endif
         *p_version,
         *p_timestamp_us,
         *p_previous_version,
@@ -336,6 +389,10 @@ mutils::context_ptr<ObjectWithUInt64Key> ObjectWithUInt64Key::from_bytes_noalloc
     mutils::DeserializationManager* dsm,
     const char* const v) {
     size_t pos = 0;
+#ifdef ENABLE_EVALUATION
+    auto p_message_id = mutils::from_bytes_noalloc<uint64_t>(dsm,v + pos);
+    pos += mutils::bytes_size(*p_message_id);
+#endif
     auto p_version = mutils::from_bytes_noalloc<persistent::version_t>(dsm,v + pos);
     pos += mutils::bytes_size(*p_version);
     auto p_timestamp_us = mutils::from_bytes_noalloc<uint64_t>(dsm,v + pos);
@@ -347,9 +404,11 @@ mutils::context_ptr<ObjectWithUInt64Key> ObjectWithUInt64Key::from_bytes_noalloc
     auto p_key = mutils::from_bytes_noalloc<uint64_t>(dsm,v + pos);
     pos += mutils::bytes_size(*p_key);
     auto p_blob = mutils::from_bytes_noalloc<Blob>(dsm, v + pos);
-    // TODO: solve the memory leak here: ObjectWithString object is malloc-ed
     return mutils::context_ptr<ObjectWithUInt64Key>(
         new ObjectWithUInt64Key{
+#ifdef ENABLE_EVALUATION
+        *p_message_id,
+#endif
         *p_version,
         *p_timestamp_us,
         *p_previous_version,
@@ -362,6 +421,10 @@ mutils::context_ptr<const ObjectWithUInt64Key> ObjectWithUInt64Key::from_bytes_n
     mutils::DeserializationManager* dsm,
     const char* const v) {
     size_t pos = 0;
+#ifdef ENABLE_EVALUATION
+    auto p_message_id = mutils::from_bytes_noalloc<uint64_t>(dsm,v + pos);
+    pos += mutils::bytes_size(*p_message_id);
+#endif
     auto p_version = mutils::from_bytes_noalloc<persistent::version_t>(dsm,v + pos);
     pos += mutils::bytes_size(*p_version);
     auto p_timestamp_us = mutils::from_bytes_noalloc<uint64_t>(dsm,v + pos);
@@ -373,9 +436,11 @@ mutils::context_ptr<const ObjectWithUInt64Key> ObjectWithUInt64Key::from_bytes_n
     auto p_key = mutils::from_bytes_noalloc<uint64_t>(dsm,v + pos);
     pos += mutils::bytes_size(*p_key);
     auto p_blob = mutils::from_bytes_noalloc<Blob>(dsm, v + pos);
-    // TODO: solve the memory leak here: ObjectWithString object is malloc-ed
     return mutils::context_ptr<const ObjectWithUInt64Key>(
         new ObjectWithUInt64Key{
+#ifdef ENABLE_EVALUATION
+        *p_message_id,
+#endif
         *p_version,
         *p_timestamp_us,
         *p_previous_version,
@@ -399,21 +464,31 @@ bool ObjectWithStringKey::is_valid() const {
 
 // constructor 0 : copy constructor
 ObjectWithStringKey::ObjectWithStringKey(const std::string& _key, 
-                                         const Blob& _blob) : 
+                                         const Blob& _blob) :
+#ifdef ENABLE_EVALUATION
+    message_id(0),
+#endif
     version(persistent::INVALID_VERSION),
     timestamp_us(0),
     previous_version(INVALID_VERSION),
     previous_version_by_key(INVALID_VERSION),
     key(_key),
     blob(_blob) {}
-// constructor 0.5 : copy constructor
-ObjectWithStringKey::ObjectWithStringKey(const persistent::version_t _version,
+// constructor 0.5 : copy/in-place constructor
+ObjectWithStringKey::ObjectWithStringKey(
+#ifdef ENABLE_EVALUATION
+                                         const uint64_t _message_id,
+#endif
+                                         const persistent::version_t _version,
                                          const uint64_t _timestamp_us,
                                          const persistent::version_t _previous_version,
                                          const persistent::version_t _previous_version_by_key,
                                          const std::string& _key,
                                          const Blob& _blob,
                                          const bool emplaced) :
+#ifdef ENABLE_EVALUATION
+    message_id(_message_id),
+#endif
     version(_version),
     timestamp_us(_timestamp_us),
     previous_version(_previous_version),
@@ -424,7 +499,10 @@ ObjectWithStringKey::ObjectWithStringKey(const persistent::version_t _version,
 // constructor 1 : copy consotructor
 ObjectWithStringKey::ObjectWithStringKey(const std::string& _key,
                                          const char* const _b, 
-                                         const std::size_t _s) : 
+                                         const std::size_t _s) :
+#ifdef ENABLE_EVALUATION
+    message_id(0),
+#endif
     version(persistent::INVALID_VERSION),
     timestamp_us(0),
     previous_version(INVALID_VERSION),
@@ -432,13 +510,20 @@ ObjectWithStringKey::ObjectWithStringKey(const std::string& _key,
     key(_key),
     blob(_b, _s) {}
 // constructor 1.5 : copy constructor
-ObjectWithStringKey::ObjectWithStringKey(const persistent::version_t _version,
+ObjectWithStringKey::ObjectWithStringKey(
+#ifdef ENABLE_EVALUATION
+                                         const uint64_t _message_id,
+#endif
+                                         const persistent::version_t _version,
                                          const uint64_t _timestamp_us,
                                          const persistent::version_t _previous_version,
                                          const persistent::version_t _previous_version_by_key,
                                          const std::string& _key,
                                          const char* const _b,
-                                         const std::size_t _s) : 
+                                         const std::size_t _s) :
+#ifdef ENABLE_EVALUATION
+    message_id(_message_id),
+#endif
     version(_version),
     timestamp_us(_timestamp_us),
     previous_version(_previous_version),
@@ -447,7 +532,10 @@ ObjectWithStringKey::ObjectWithStringKey(const persistent::version_t _version,
     blob(_b, _s) {}
 
 // constructor 2 : move constructor
-ObjectWithStringKey::ObjectWithStringKey(ObjectWithStringKey&& other) : 
+ObjectWithStringKey::ObjectWithStringKey(ObjectWithStringKey&& other) :
+#ifdef ENABLE_EVALUATION
+    message_id(other.message_id),
+#endif
     version(other.version),
     timestamp_us(other.timestamp_us),
     previous_version(other.previous_version),
@@ -456,7 +544,10 @@ ObjectWithStringKey::ObjectWithStringKey(ObjectWithStringKey&& other) :
     blob(std::move(other.blob)) {}
 
 // constructor 3 : copy constructor
-ObjectWithStringKey::ObjectWithStringKey(const ObjectWithStringKey& other) : 
+ObjectWithStringKey::ObjectWithStringKey(const ObjectWithStringKey& other) :
+#ifdef ENABLE_EVALUATION
+    message_id(other.message_id),
+#endif
     version(other.version),
     timestamp_us(other.timestamp_us),
     previous_version(other.previous_version),
@@ -466,6 +557,9 @@ ObjectWithStringKey::ObjectWithStringKey(const ObjectWithStringKey& other) :
 
 // constructor 4 : default invalid constructor
 ObjectWithStringKey::ObjectWithStringKey() : 
+#ifdef ENABLE_EVALUATION
+    message_id(0),
+#endif
     version(persistent::INVALID_VERSION),
     timestamp_us(0),
     previous_version(INVALID_VERSION),
@@ -511,6 +605,16 @@ bool ObjectWithStringKey::verify_previous_version(persistent::version_t prev_ver
            ((this->previous_version_by_key == persistent::INVALID_VERSION)?true:(this->previous_version_by_key >= prev_ver_by_key));
 }
 
+#ifdef ENABLE_EVALUATION
+void ObjectWithStringKey::set_message_id(uint64_t id) const {
+    this->message_id = id;
+}
+
+uint64_t ObjectWithStringKey::get_message_id() const {
+    return this->message_id;
+}
+#endif
+
 template <>
 ObjectWithStringKey create_null_object_cb<std::string,ObjectWithStringKey,&ObjectWithStringKey::IK,&ObjectWithStringKey::IV>(const std::string& key) {
     return ObjectWithStringKey(key,Blob{});
@@ -518,6 +622,9 @@ ObjectWithStringKey create_null_object_cb<std::string,ObjectWithStringKey,&Objec
 
 std::size_t ObjectWithStringKey::to_bytes(char* v) const {
     std::size_t pos = 0;
+#ifdef ENABLE_EVALUATION
+    pos+=mutils::to_bytes(message_id, v + pos);
+#endif
     pos+=mutils::to_bytes(version, v + pos);
     pos+=mutils::to_bytes(timestamp_us, v + pos);
     pos+=mutils::to_bytes(previous_version, v + pos);
@@ -528,7 +635,11 @@ std::size_t ObjectWithStringKey::to_bytes(char* v) const {
 }
 
 std::size_t ObjectWithStringKey::bytes_size() const {
-    return mutils::bytes_size(version) +
+    return
+#ifdef ENABLE_EVALUATION
+           mutils::bytes_size(message_id) +
+#endif
+           mutils::bytes_size(version) +
            mutils::bytes_size(timestamp_us) +
            mutils::bytes_size(previous_version) +
            mutils::bytes_size(previous_version_by_key) +
@@ -537,6 +648,9 @@ std::size_t ObjectWithStringKey::bytes_size() const {
 }
 
 void ObjectWithStringKey::post_object(const std::function<void(char const* const, std::size_t)>& f) const {
+#ifdef ENABLE_EVALUATION
+    mutils::post_object(f, message_id);
+#endif
     mutils::post_object(f, version);
     mutils::post_object(f, timestamp_us);
     mutils::post_object(f, previous_version);
@@ -547,6 +661,10 @@ void ObjectWithStringKey::post_object(const std::function<void(char const* const
 
 std::unique_ptr<ObjectWithStringKey> ObjectWithStringKey::from_bytes(mutils::DeserializationManager* dsm, const char* const v) {
     size_t pos = 0;
+#ifdef ENABLE_EVALUATION
+    auto p_message_id = mutils::from_bytes_noalloc<uint64_t>(dsm,v + pos);
+    pos += mutils::bytes_size(*p_message_id);
+#endif
     auto p_version = mutils::from_bytes_noalloc<persistent::version_t>(dsm,v + pos);
     pos += mutils::bytes_size(*p_version);
     auto p_timestamp_us = mutils::from_bytes_noalloc<uint64_t>(dsm,v + pos);
@@ -560,6 +678,9 @@ std::unique_ptr<ObjectWithStringKey> ObjectWithStringKey::from_bytes(mutils::Des
     auto p_blob = mutils::from_bytes_noalloc<Blob>(dsm, v + pos);
     // this is a copy constructor
     return std::make_unique<ObjectWithStringKey>(
+#ifdef ENABLE_EVALUATION
+        *p_message_id,
+#endif
         *p_version,
         *p_timestamp_us,
         *p_previous_version,
@@ -572,6 +693,10 @@ mutils::context_ptr<ObjectWithStringKey> ObjectWithStringKey::from_bytes_noalloc
     mutils::DeserializationManager* dsm,
     const char* const v) {
     size_t pos = 0;
+#ifdef ENABLE_EVALUATION
+    auto p_message_id = mutils::from_bytes_noalloc<uint64_t>(dsm,v + pos);
+    pos += mutils::bytes_size(*p_message_id);
+#endif
     auto p_version = mutils::from_bytes_noalloc<persistent::version_t>(dsm,v + pos);
     pos += mutils::bytes_size(*p_version);
     auto p_timestamp_us = mutils::from_bytes_noalloc<uint64_t>(dsm,v + pos);
@@ -583,9 +708,11 @@ mutils::context_ptr<ObjectWithStringKey> ObjectWithStringKey::from_bytes_noalloc
     auto p_key = mutils::from_bytes_noalloc<std::string>(dsm,v + pos);
     pos += mutils::bytes_size(*p_key);
     auto p_blob = mutils::from_bytes_noalloc<Blob>(dsm, v + pos);
-    // TODO: solve the memory leak here: ObjectWithString object is malloc-ed
     return mutils::context_ptr<ObjectWithStringKey>(
         new ObjectWithStringKey{
+#ifdef ENABLE_EVALUATION
+        *p_message_id,
+#endif
         *p_version,
         *p_timestamp_us,
         *p_previous_version,
@@ -598,6 +725,10 @@ mutils::context_ptr<const ObjectWithStringKey> ObjectWithStringKey::from_bytes_n
     mutils::DeserializationManager* dsm,
     const char* const v) {
     size_t pos = 0;
+#ifdef ENABLE_EVALUATION
+    auto p_message_id = mutils::from_bytes_noalloc<uint64_t>(dsm,v + pos);
+    pos += mutils::bytes_size(*p_message_id);
+#endif
     auto p_version = mutils::from_bytes_noalloc<persistent::version_t>(dsm,v + pos);
     pos += mutils::bytes_size(*p_version);
     auto p_timestamp_us = mutils::from_bytes_noalloc<uint64_t>(dsm,v + pos);
@@ -609,9 +740,11 @@ mutils::context_ptr<const ObjectWithStringKey> ObjectWithStringKey::from_bytes_n
     auto p_key = mutils::from_bytes_noalloc<std::string>(dsm,v + pos);
     pos += mutils::bytes_size(*p_key);
     auto p_blob = mutils::from_bytes_noalloc<Blob>(dsm, v + pos);
-    // TODO: solve the memory leak here: ObjectWithString object is malloc-ed
     return mutils::context_ptr<const ObjectWithStringKey>(
         new ObjectWithStringKey{
+#ifdef ENABLE_EVALUATION
+        *p_message_id,
+#endif
         *p_version,
         *p_timestamp_us,
         *p_previous_version,
