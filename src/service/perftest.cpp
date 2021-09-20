@@ -57,16 +57,13 @@ namespace cascade {
         throw derecho::derecho_exception(std::string("Unknown type_index:") + tindex.name()); \
     }
 
-bool PerfTestServer::eval_put(std::vector<std::tuple<uint64_t,uint64_t,uint64_t>>& timestamp_log,
-                              uint64_t max_operation_per_second,
+bool PerfTestServer::eval_put(uint64_t max_operation_per_second,
                               uint64_t duration_secs,
                               uint32_t subgroup_type_index,
                               uint32_t subgroup_index,
                               uint32_t shard_index) {
         // synchronization data structures
-        // 1 - version,send_timestamp_ns,reply_timestamp_ns
-        // are now from timestamp_log
-        // 2 - sending window and future queue
+        // 1 - sending window and future queue
         uint32_t                window_size = derecho::getConfUInt32(CONF_DERECHO_P2P_WINDOW_SIZE);
         uint32_t                window_slots = window_size*2;
         std::mutex              window_slots_mutex;
@@ -79,7 +76,7 @@ bool PerfTestServer::eval_put(std::vector<std::tuple<uint64_t,uint64_t,uint64_t>
         std::atomic<bool>                                   all_sent(false);
         // 4 - query thread
         std::thread                                         query_thread(
-            [&timestamp_log,&window_slots,&window_slots_mutex,&window_slots_cv,&futures,&futures_mutex,&futures_cv,&all_sent](){
+            [&window_slots,&window_slots_mutex,&window_slots_cv,&futures,&futures_mutex,&futures_cv,&all_sent](){
                 std::unique_lock<std::mutex> futures_lck{futures_mutex};
                 while(!all_sent || (futures.size()>0)) {
                     // pick pending futures
@@ -94,10 +91,7 @@ bool PerfTestServer::eval_put(std::vector<std::tuple<uint64_t,uint64_t,uint64_t>
                     while (pending_futures.size() > 0) {
                         auto& replies = pending_futures.front().second.get();
                         for (auto& reply: replies) {
-                            auto version = std::get<0>(reply.second.get());
-                            uint64_t reply_timestamp_ns = get_walltime();
-                            uint64_t send_timestamp_ns = pending_futures.front().first;
-                            timestamp_log.emplace_back(version, send_timestamp_ns, reply_timestamp_ns);
+                            std::get<0>(reply.second.get());
                             break;
                         }
                         pending_futures.pop();
@@ -119,6 +113,7 @@ bool PerfTestServer::eval_put(std::vector<std::tuple<uint64_t,uint64_t,uint64_t>
         uint64_t interval_ns = (max_operation_per_second==0)?0:static_cast<uint64_t>(1e9/max_operation_per_second);
         uint64_t next_ns = get_walltime();
         uint64_t end_ns = next_ns + duration_secs*1000000000;
+        uint64_t message_id = this->capi.get_my_id()*1000000000;
         while(true) {
             uint64_t now_ns = get_walltime();
             if (now_ns > end_ns) {
@@ -143,6 +138,14 @@ bool PerfTestServer::eval_put(std::vector<std::tuple<uint64_t,uint64_t,uint64_t>
                     lock.unlock();
                     futures_cv.notify_one();
                 };
+            // set message id.
+            // constexpr does not work in non-template functions.
+            if (std::is_base_of<IHasMessageID,std::decay_t<decltype(objects[0])>>::value) {
+                dynamic_cast<IHasMessageID*>(&objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS))->set_message_id(message_id);
+            } else {
+                throw derecho_exception{"Evaluation requests an object to support IHasMessageID interface."};
+            }
+            global_timestamp_logger.log(TLT_READY_TO_SEND,this->capi.get_my_id(),message_id,get_walltime());
             if (subgroup_index == INVALID_SUBGROUP_INDEX ||
                 shard_index == INVALID_SHARD_INDEX) {
                 on_subgroup_type_index_with_return_no_trigger(
@@ -155,14 +158,15 @@ bool PerfTestServer::eval_put(std::vector<std::tuple<uint64_t,uint64_t,uint64_t>
                     future_appender,
                     this->capi.template put, objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS), subgroup_index, shard_index);
             }
+            global_timestamp_logger.log(TLT_EC_SENT,this->capi.get_my_id(),message_id,get_walltime());
+            message_id ++;
         }
         // wait for all pending futures.
         query_thread.join();
         return true;
 }
 
-bool PerfTestServer::eval_put_and_forget(put_perf_log_t& timestamp_log,
-                                         uint64_t max_operation_per_second,
+bool PerfTestServer::eval_put_and_forget(uint64_t max_operation_per_second,
                                          uint64_t duration_secs,
                                          uint32_t subgroup_type_index,
                                          uint32_t subgroup_index,
@@ -170,8 +174,7 @@ bool PerfTestServer::eval_put_and_forget(put_perf_log_t& timestamp_log,
     uint64_t interval_ns = (max_operation_per_second==0)?0:static_cast<uint64_t>(1e9/max_operation_per_second);
     uint64_t next_ns = get_walltime();
     uint64_t end_ns = next_ns + duration_secs*1000000000;
-    timestamp_log.first_send_ns = next_ns;
-    timestamp_log.num_messages = 0;
+    uint64_t message_id = this->capi.get_my_id()*1000000000;
     // control read_write_ratio
     while(true) {
         uint64_t now_ns = get_walltime();
@@ -183,6 +186,16 @@ bool PerfTestServer::eval_put_and_forget(put_perf_log_t& timestamp_log,
             usleep((next_ns - now_ns - 500)/1000); // sleep in microseconds.
         }
         next_ns += interval_ns;
+        // set message id.
+        // constexpr does not work in non-template function, obviously
+        if (std::is_base_of<IHasMessageID, std::decay_t<decltype(objects[0])>>::value) {
+            dynamic_cast<IHasMessageID*>(&objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS))->set_message_id(message_id);
+        } else {
+            throw derecho_exception{"Evaluation requests an object to support IHasMessageID interface."};
+        }
+        // log time.
+        global_timestamp_logger.log(TLT_READY_TO_SEND,this->capi.get_my_id(),message_id,get_walltime());
+        // send it
         if (subgroup_index == INVALID_SUBGROUP_INDEX || shard_index == INVALID_SHARD_INDEX) {
             on_subgroup_type_index_no_trigger(std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
                     this->capi.template put_and_forget, objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS));
@@ -190,46 +203,22 @@ bool PerfTestServer::eval_put_and_forget(put_perf_log_t& timestamp_log,
             on_subgroup_type_index_no_trigger(std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
                     this->capi.template put_and_forget, objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS), subgroup_index, shard_index);
         }
-        timestamp_log.num_messages ++;
-    }
-    // send a normal put
-    timestamp_log.last_send_ns = get_walltime();
-    std::function<void(QueryResults<std::tuple<persistent::version_t,uint64_t>>&&)> future_appender = 
-        [&timestamp_log](QueryResults<std::tuple<persistent::version_t,uint64_t>>&& query_results){
-            auto& replies = query_results.get();
-            for (auto& reply: replies) {
-                reply.second.get();
-            }
-            timestamp_log.ack_ns = get_walltime();
-            timestamp_log.num_messages ++;
-        };
-    if (subgroup_index == INVALID_SUBGROUP_INDEX ||
-        shard_index == INVALID_SHARD_INDEX) {
-        on_subgroup_type_index_with_return_no_trigger(
-            std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
-            future_appender,
-            this->capi.template put, objects.at(0));
-    } else {
-        on_subgroup_type_index_with_return_no_trigger(
-            std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
-            future_appender,
-            this->capi.template put, objects.at(0), subgroup_index, shard_index);
+        // log time.
+        global_timestamp_logger.log(TLT_EC_SENT,this->capi.get_my_id(),message_id,get_walltime());
+        message_id ++;
     }
     return true;
 }
 
-bool PerfTestServer::eval_trigger_put(put_perf_log_t& timestamp_log,
-                                      uint64_t max_operation_per_second,
+bool PerfTestServer::eval_trigger_put(uint64_t max_operation_per_second,
                                       uint64_t duration_secs,
                                       uint32_t subgroup_type_index,
                                       uint32_t subgroup_index,
                                       uint32_t shard_index) {
-    //TODO: evaluate trigger put
     uint64_t interval_ns = (max_operation_per_second==0)?0:static_cast<uint64_t>(1e9/max_operation_per_second);
     uint64_t next_ns = get_walltime();
     uint64_t end_ns = next_ns + duration_secs*1000000000;
-    timestamp_log.first_send_ns = next_ns;
-    timestamp_log.num_messages = 0;
+    uint64_t message_id = this->capi.get_my_id()*1000000000;
     // control read_write_ratio
     while(true) {
         uint64_t now_ns = get_walltime();
@@ -241,6 +230,15 @@ bool PerfTestServer::eval_trigger_put(put_perf_log_t& timestamp_log,
             usleep((next_ns - now_ns - 500)/1000); // sleep in microseconds.
         }
         next_ns += interval_ns;
+        // set message id.
+        // constexpr does not work here.
+        if (std::is_base_of<IHasMessageID,std::decay_t<decltype(objects[0])>>::value) {
+            dynamic_cast<IHasMessageID*>(&objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS))->set_message_id(message_id);
+        } else {
+            throw derecho_exception{"Evaluation requests an object to support IHasMessageID interface."};
+        }
+        // log time.
+        global_timestamp_logger.log(TLT_READY_TO_SEND,this->capi.get_my_id(),message_id,get_walltime());
         if (subgroup_index == INVALID_SUBGROUP_INDEX || shard_index == INVALID_SHARD_INDEX) {
             on_subgroup_type_index(std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
                     this->capi.template trigger_put, objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS));
@@ -248,15 +246,9 @@ bool PerfTestServer::eval_trigger_put(put_perf_log_t& timestamp_log,
             on_subgroup_type_index(std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
                     this->capi.template trigger_put, objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS), subgroup_index, shard_index);
         }
-        timestamp_log.num_messages ++;
+        global_timestamp_logger.log(TLT_EC_SENT,this->capi.get_my_id(),message_id,get_walltime());
+        message_id ++;
     }
-    // calculate the throughput.
-    timestamp_log.last_send_ns = get_walltime();
-    /* Since the trigger put is a void function, we don't know exactly when the last message was sent from window. But
-     * this should be a very short time especially for small messages. Therefore, we just use the send timestamp of the
-     * last message. A better future solution should be using the timestamp on the server side.
-     */
-    timestamp_log.ack_ns = timestamp_log.last_send_ns;
     
     return true;
 }
@@ -300,23 +292,8 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         objects.clear();
         make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
         // STEP 3 - start experiment and log
-        std::vector<std::tuple<uint64_t,uint64_t,uint64_t>> timestamp_log;
-        timestamp_log.reserve(65536);
-        if (this->eval_put(timestamp_log,max_operation_per_second,duration_secs,subgroup_type_index,subgroup_index,shard_index)) {
-            std::ofstream outfile(output_filename);
-            outfile << "#version send_ts_us acked_ts_us" << std::endl;
-            for (const auto& le:timestamp_log) {
-                outfile << std::get<0>(le) << " " << (std::get<1>(le)/1000) << " " << (std::get<2>(le)/1000) << std::endl;
-            }
-            outfile.close();
-            // flush server_side timestamp log to file
-            std::function<void(derecho::rpc::QueryResults<void>&&)> future_handler = [](derecho::rpc::QueryResults<void>&& qr) {
-                qr.get();
-            };
-            on_subgroup_type_index_with_return_no_trigger(
-                std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
-                future_handler,
-                this->capi.template dump_timestamp, output_filename, subgroup_index, shard_index);
+        if (this->eval_put(max_operation_per_second,duration_secs,subgroup_type_index,subgroup_index,shard_index)) {
+            global_timestamp_logger.flush(output_filename);
             return true;
         } else {
             return false;
@@ -356,23 +333,8 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         objects.clear();
         make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
         // STEP 3 - start experiment and log
-        put_perf_log_t timestamp_log;
-        if (this->eval_put_and_forget(timestamp_log,max_operation_per_second,duration_secs,subgroup_type_index,subgroup_index,shard_index)) {
-            std::ofstream outfile(output_filename);
-            outfile << "#first_send_us last_send_us acked_ts_us num_messages" << std::endl;
-            outfile << timestamp_log.first_send_ns/1000 << " "
-                    << timestamp_log.last_send_ns/1000 << " "
-                    << timestamp_log.ack_ns/1000 << " "
-                    << timestamp_log.num_messages << std::endl;
-            outfile.close();
-            // flush server_side timestamp log to file
-            std::function<void(derecho::rpc::QueryResults<void>&&)> future_handler = [](derecho::rpc::QueryResults<void>&& qr) {
-                qr.get();
-            };
-            on_subgroup_type_index_with_return_no_trigger(
-                std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
-                future_handler,
-                this->capi.template dump_timestamp, output_filename, subgroup_index, shard_index);
+        if (this->eval_put_and_forget(max_operation_per_second,duration_secs,subgroup_type_index,subgroup_index,shard_index)) {
+            global_timestamp_logger.flush(output_filename);
             return true;
         } else {
             return false;
@@ -412,15 +374,8 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         objects.clear();
         make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
         // STEP 3 - start experiment and log
-        put_perf_log_t timestamp_log;
-        if (this->eval_trigger_put(timestamp_log,max_operation_per_second,duration_secs,subgroup_type_index,subgroup_index,shard_index)) {
-            std::ofstream outfile(output_filename);
-            outfile << "#first_send_us last_send_us acked_ts_us num_messages" << std::endl;
-            outfile << timestamp_log.first_send_ns/1000 << " "
-                    << timestamp_log.last_send_ns/1000 << " "
-                    << timestamp_log.ack_ns/1000 << " "
-                    << timestamp_log.num_messages << std::endl;
-            outfile.close();
+        if (this->eval_trigger_put(max_operation_per_second,duration_secs,subgroup_type_index,subgroup_index,shard_index)) {
+            global_timestamp_logger.flush(output_filename);
             return true;
         } else {
             return false;
@@ -464,25 +419,8 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         objects.clear();
         make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),object_pool_pathname+"/key_",objects);
         // STEP 3 - start experiment and log
-        std::vector<std::tuple<uint64_t,uint64_t,uint64_t>> timestamp_log;
-        timestamp_log.reserve(65536);
-        if (this->eval_put(timestamp_log,max_operation_per_second,duration_secs,object_pool.subgroup_type_index)) {
-            std::ofstream outfile(output_filename);
-            outfile << "#version send_ts_us acked_ts_us" << std::endl;
-            for (const auto& le:timestamp_log) {
-                outfile << std::get<0>(le) << " " << (std::get<1>(le)/1000) << " " << (std::get<2>(le)/1000) << std::endl;
-            }
-            outfile.close();
-            // flush server_side timestamp log to file
-            std::function<void(std::vector<std::unique_ptr<derecho::rpc::QueryResults<void>>>&&)> future_handler = [](std::vector<std::unique_ptr<derecho::rpc::QueryResults<void>>>&& qrs) {
-                for (auto& qr:qrs){
-                    qr.get();
-                }
-            };
-            on_subgroup_type_index_with_return_no_trigger(
-                std::decay_t<decltype(capi)>::subgroup_type_order.at(object_pool.subgroup_type_index),
-                future_handler,
-                this->capi.template dump_timestamp, output_filename, object_pool_pathname);
+        if (this->eval_put(max_operation_per_second,duration_secs,object_pool.subgroup_type_index)) {
+            global_timestamp_logger.flush(output_filename);
             return true;
         } else {
             return false;
@@ -525,25 +463,8 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         objects.clear();
         make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
         // STEP 3 - start experiment and log
-        put_perf_log_t timestamp_log;
-        if (this->eval_put_and_forget(timestamp_log,max_operation_per_second,duration_secs,object_pool.subgroup_type_index)) {
-            std::ofstream outfile(output_filename);
-            outfile << "#first_send_us last_send_us acked_ts_us num_messages" << std::endl;
-            outfile << timestamp_log.first_send_ns/1000 << " "
-                    << timestamp_log.last_send_ns/1000 << " "
-                    << timestamp_log.ack_ns/1000 << " "
-                    << timestamp_log.num_messages << std::endl;
-            outfile.close();
-            // flush server_side timestamp log to file
-            std::function<void(std::vector<std::unique_ptr<derecho::rpc::QueryResults<void>>>&&)> future_handler = [](std::vector<std::unique_ptr<derecho::rpc::QueryResults<void>>>&& qrs) {
-                for (auto& qr:qrs){
-                    qr.get();
-                }
-            };
-            on_subgroup_type_index_with_return_no_trigger(
-                std::decay_t<decltype(capi)>::subgroup_type_order.at(object_pool.subgroup_type_index),
-                future_handler,
-                this->capi.template dump_timestamp, output_filename, object_pool_pathname);
+        if (this->eval_put_and_forget(max_operation_per_second,duration_secs,object_pool.subgroup_type_index)) {
+            global_timestamp_logger.flush(output_filename);
             return true;
         } else {
             return false;
@@ -586,30 +507,12 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         objects.clear();
         make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
         // STEP 3 - start experiment and log
-        put_perf_log_t timestamp_log;
-        if (this->eval_trigger_put(timestamp_log,max_operation_per_second,duration_secs,object_pool.subgroup_type_index)) {
-            std::ofstream outfile(output_filename);
-            outfile << "#first_send_us last_send_us acked_ts_us num_messages" << std::endl;
-            outfile << timestamp_log.first_send_ns/1000 << " "
-                    << timestamp_log.last_send_ns/1000 << " "
-                    << timestamp_log.ack_ns/1000 << " "
-                    << timestamp_log.num_messages << std::endl;
-            outfile.close();
+        if (this->eval_trigger_put(max_operation_per_second,duration_secs,object_pool.subgroup_type_index)) {
+            global_timestamp_logger.flush(output_filename);
             return true;
         } else {
             return false;
         }
-    });
-    // API 3: read file
-    server.bind("download",[](const std::string& filename){
-        char buf[1024];
-        std::stringstream ss;
-        std::ifstream infile(filename);
-        while(infile.getline(buf,1024)) {
-            ss << buf << '\n';
-        }
-        infile.close();
-        return ss.str();
     });
     // start the worker thread asynchronously
     server.async_run(1);
@@ -656,29 +559,6 @@ bool PerfTestClient::check_rpc_futures(std::map<std::pair<std::string,uint16_t>,
         try {
             bool result = kv.second.get().as<bool>();
             dbg_default_trace("perfserver {}:{} finished with {}.",kv.first.first,kv.first.second,result);
-        } catch (::rpc::rpc_error& rpce) {
-            dbg_default_warn("perfserver {}:{} throws an exception. function:{}, error:{}",
-                             kv.first.first,
-                             kv.first.second,
-                             rpce.get_function_name(),
-                             rpce.get_error().as<std::string>());
-            ret = false;
-        } catch (...) {
-            dbg_default_warn("perfserver {}:{} throws unknown exception.",
-                             kv.first.first, kv.first.second);
-            ret = false;
-        }
-    }
-    return ret;
-}
-
-bool PerfTestClient::download_file(const std::string& filename) {
-    bool ret = true;
-    for(auto& kv:connections) {
-        try {
-            auto output = kv.second->call("download",filename);
-            std::ofstream outfile{filename+"-"+kv.first.first+":"+std::to_string(kv.first.second)};
-            outfile << output.as<std::string>();
         } catch (::rpc::rpc_error& rpce) {
             dbg_default_warn("perfserver {}:{} throws an exception. function:{}, error:{}",
                              kv.first.first,

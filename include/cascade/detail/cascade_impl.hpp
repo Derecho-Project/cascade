@@ -50,7 +50,7 @@ void make_workload(uint32_t payload_size, const KT& key_prefix, std::vector<VT>&
 }
 
 #define LOG_TIMESTAMP_BY_TAG(t,g,v) \
-    if constexpr (std::is_convertible_v<std::decay_t<decltype(v)>,IHasMessageID>) { \
+    if constexpr (std::is_base_of<IHasMessageID, std::decay_t<decltype(v)>>::value) { \
         global_timestamp_logger.log(t, \
                                     g->get_my_id(), \
                                     dynamic_cast<IHasMessageID>(v).get_message_id(), \

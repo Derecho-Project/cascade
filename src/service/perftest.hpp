@@ -16,12 +16,6 @@ namespace cascade {
 #define INVALID_SHARD_INDEX         (std::numeric_limits<uint32_t>::max())
 
 class PerfTestServer {
-    using put_perf_log_t = struct {
-        uint64_t first_send_ns;
-        uint64_t last_send_ns;
-        uint64_t ack_ns;
-        uint64_t num_messages;
-    };
 private:
     ServiceClientAPI&   capi;
     ::rpc::server       server;
@@ -30,7 +24,6 @@ private:
     /**
      * evaluating put operation
      *
-     * @param timestamp_log         Caller provided timestamp_log
      * @param max_operation_per_second  max message rate
      * @param duration_secs         experiment duration in seconds
      * @param subgroup_type_index
@@ -39,8 +32,7 @@ private:
      *
      * @return true/false
      */
-    bool eval_put(std::vector<std::tuple<uint64_t,uint64_t,uint64_t>>& timestamp_log,
-                  uint64_t max_operation_per_second,
+    bool eval_put(uint64_t max_operation_per_second,
                   uint64_t duration_secs,
                   uint32_t subgroup_type_index,
                   uint32_t subgroup_index=INVALID_SUBGROUP_INDEX,
@@ -49,7 +41,6 @@ private:
     /**
      * evaluating put_and_forget operation
      *
-     * @param timestamp_log         Caller provided timestamp_log
      * @param max_operation_per_second  max message rate
      * @param duration_secs         experiment duration in seconds
      * @param subgroup_type_index
@@ -58,8 +49,7 @@ private:
      *
      * @return true/false
      */
-    bool eval_put_and_forget(put_perf_log_t& timestamp_log,
-                             uint64_t max_operation_per_second,
+    bool eval_put_and_forget(uint64_t max_operation_per_second,
                              uint64_t duration_secs,
                              uint32_t subgroup_type_index,
                              uint32_t subgroup_index=INVALID_SUBGROUP_INDEX,
@@ -68,7 +58,6 @@ private:
     /**
      * evaluating trigger put operation
      *
-     * @param timestamp_log         Caller provided timestamp_log
      * @param max_operation_per_second  max message rate
      * @param duration_secs         experiment duration in seconds
      * @param subgroup_type_index
@@ -77,8 +66,7 @@ private:
      *
      * @return true/false
      */
-    bool eval_trigger_put(put_perf_log_t& timestamp_log,
-                          uint64_t max_operation_per_second,
+    bool eval_trigger_put(uint64_t max_operation_per_second,
                           uint64_t duration_secs,
                           uint32_t subgroup_type_index,
                           uint32_t subgroup_index=INVALID_SUBGROUP_INDEX,
@@ -202,14 +190,14 @@ public:
     virtual ~PerfTestClient();
 };
 
-    template<typename SubgroupType>
-    bool PerfTestClient::perf_put(PutType               put_type,
-                                  const std::string&    object_pool_pathname,
-                                  ExternalClientToCascadeServerMapping ec2cs,
-                                  double                read_write_ratio,
-                                  uint64_t              ops_threshold,
-                                  uint64_t              duration_secs,
-                                  const std::string&    output_filename) {
+template<typename SubgroupType>
+bool PerfTestClient::perf_put(PutType               put_type,
+                              const std::string&    object_pool_pathname,
+                              ExternalClientToCascadeServerMapping ec2cs,
+                              double                read_write_ratio,
+                              uint64_t              ops_threshold,
+                              uint64_t              duration_secs,
+                              const std::string&    output_filename) {
     debug_enter_func_with_args("object_pool_pathname={},ec2cs={},read_write_ratio={},ops_threshold={},duration_secs={},output_filename={}",
                                object_pool_pathname,static_cast<uint32_t>(ec2cs),read_write_ratio,ops_threshold,duration_secs,output_filename);
     bool ret = true;
@@ -270,9 +258,10 @@ public:
 
     ret = check_rpc_futures(std::move(futures));
 
-    // 3 - download
-    if (ret) {
-        ret = download_file(output_filename);
+    // 3 - flush server timestamps
+    auto qrs = capi.template dump_timestamp<SubgroupType>(output_filename,object_pool_pathname);
+    for (auto& qr: qrs) {
+        qr->get();
     }
 
     debug_leave_func();
@@ -339,10 +328,9 @@ bool PerfTestClient::perf_put(PutType   put_type,
     }
     ret = check_rpc_futures(std::move(futures));
 
-    // 3 - download
-    if (ret) {
-        ret = download_file(output_filename);
-    }
+    // 3 - flush server timestamp
+    auto qr = capi.template dump_timestamp<SubgroupType>(output_filename,subgroup_index,shard_index);
+    qr.get();
 
     debug_leave_func();
     return ret;

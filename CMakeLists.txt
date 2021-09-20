@@ -85,6 +85,7 @@ add_subdirectory(src/applications/demos)
 add_library(cascade SHARED
     $<TARGET_OBJECTS:core>
     $<TARGET_OBJECTS:service>
+    $<TARGET_OBJECTS:utils>
 )
 # not ready yet:
 #    $<TARGET_OBJECTS:utils>)
