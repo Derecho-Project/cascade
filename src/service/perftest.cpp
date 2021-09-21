@@ -112,8 +112,8 @@ bool PerfTestServer::eval_put(uint64_t max_operation_per_second,
         //TODO: control read_write_ratio
         uint64_t interval_ns = (max_operation_per_second==0)?0:static_cast<uint64_t>(1e9/max_operation_per_second);
         uint64_t next_ns = get_walltime();
-        uint64_t end_ns = next_ns + duration_secs*1000000000;
-        uint64_t message_id = this->capi.get_my_id()*1000000000;
+        uint64_t end_ns = next_ns + duration_secs*1000000000ull;
+        uint64_t message_id = this->capi.get_my_id()*1000000000ull;
         while(true) {
             uint64_t now_ns = get_walltime();
             if (now_ns > end_ns) {
@@ -173,8 +173,8 @@ bool PerfTestServer::eval_put_and_forget(uint64_t max_operation_per_second,
                                          uint32_t shard_index) {
     uint64_t interval_ns = (max_operation_per_second==0)?0:static_cast<uint64_t>(1e9/max_operation_per_second);
     uint64_t next_ns = get_walltime();
-    uint64_t end_ns = next_ns + duration_secs*1000000000;
-    uint64_t message_id = this->capi.get_my_id()*1000000000;
+    uint64_t end_ns = next_ns + duration_secs*1000000000ull;
+    uint64_t message_id = this->capi.get_my_id()*1000000000ull;
     // control read_write_ratio
     while(true) {
         uint64_t now_ns = get_walltime();
@@ -217,8 +217,8 @@ bool PerfTestServer::eval_trigger_put(uint64_t max_operation_per_second,
                                       uint32_t shard_index) {
     uint64_t interval_ns = (max_operation_per_second==0)?0:static_cast<uint64_t>(1e9/max_operation_per_second);
     uint64_t next_ns = get_walltime();
-    uint64_t end_ns = next_ns + duration_secs*1000000000;
-    uint64_t message_id = this->capi.get_my_id()*1000000000;
+    uint64_t end_ns = next_ns + duration_secs*1000000000ull;
+    uint64_t message_id = this->capi.get_my_id()*1000000000ull;
     // control read_write_ratio
     while(true) {
         uint64_t now_ns = get_walltime();
