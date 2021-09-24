@@ -60,7 +60,7 @@ void make_workload(uint32_t payload_size, const KT& key_prefix, std::vector<VT>&
                                     __VA_OPT__(,) __VA_ARGS__); \
     }
 #else
-
+// C++ 17
 #define LOG_TIMESTAMP_BY_TAG(t,g,v) \
     if constexpr (std::is_base_of<IHasMessageID, std::decay_t<decltype(v)>>::value) { \
         global_timestamp_logger.log(t, \
@@ -81,7 +81,12 @@ void make_workload(uint32_t payload_size, const KT& key_prefix, std::vector<VT>&
 
 #else
 
+#if __cplusplus > 201703L
 #define LOG_TIMESTAMP_BY_TAG(t,g,v,...)
+#else
+#define LOG_TIMESTAMP_BY_TAG(t,g,v)
+#define LOG_TIMESTAMP_BY_TAG_EXTRA(t,g,v,e)
+#endif
 
 #endif//ENABLE_EVALUATION
 
@@ -1045,11 +1050,30 @@ std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void PersistentCascadeStore<KT,VT,IK,IV,ST>::ordered_put_and_forget(const VT& value) {
     debug_enter_func_with_args("key={}",value.get_key_ref());
-    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_PUT_AND_FORGET_START,group,value);
+#ifdef ENABLE_EVALUATION
+    std::tuple<persistent::version_t,uint64_t> version_and_timestamp = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
+#endif
+
+#if __cplusplus > 201703L
+    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_PUT_AND_FORGET_START,group,value,std::get<0>(version_and_timestamp));
+#else
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_PUT_AND_FORGET_START,group,value,std::get<0>(version_and_timestamp));
+#endif
 
     this->internal_ordered_put(value);
 
-    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_PUT_AND_FORGET_END,group,value);
+#if __cplusplus > 201703L
+    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_PUT_AND_FORGET_END,group,value,std::get<0>(version_and_timestamp));
+#else
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_PUT_AND_FORGET_END,group,value,std::get<0>(version_and_timestamp));
+#endif
+
+#ifdef ENABLE_EVALUATION
+    // avoid unused variable warning.
+    if constexpr (!std::is_base_of<IHasMessageID,VT>::value) {
+        version_and_timestamp = version_and_timestamp;
+    }
+#endif
     debug_leave_func();
 }
 
