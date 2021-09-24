@@ -49,6 +49,18 @@ void make_workload(uint32_t payload_size, const KT& key_prefix, std::vector<VT>&
     }
 }
 
+#if __cplusplus > 201703L
+// C++ 20
+#define LOG_TIMESTAMP_BY_TAG(t,g,v,...) \
+    if constexpr (std::is_base_of<IHasMessageID, std::decay_t<decltype(v)>>::value) { \
+        global_timestamp_logger.log(t, \
+                                    g->get_my_id(), \
+                                    dynamic_cast<const IHasMessageID*>(&(v))->get_message_id(), \
+                                    get_walltime() \
+                                    __VA_OPT__(,) __VA_ARGS__); \
+    }
+#else
+
 #define LOG_TIMESTAMP_BY_TAG(t,g,v) \
     if constexpr (std::is_base_of<IHasMessageID, std::decay_t<decltype(v)>>::value) { \
         global_timestamp_logger.log(t, \
@@ -57,9 +69,19 @@ void make_workload(uint32_t payload_size, const KT& key_prefix, std::vector<VT>&
                                     get_walltime()); \
     }
 
+#define LOG_TIMESTAMP_BY_TAG_EXTRA(t,g,v,e) \
+    if constexpr (std::is_base_of<IHasMessageID, std::decay_t<decltype(v)>>::value) { \
+        global_timestamp_logger.log(t, \
+                                    g->get_my_id(), \
+                                    dynamic_cast<const IHasMessageID*>(&(v))->get_message_id(), \
+                                    get_walltime(),e); \
+    }
+
+#endif//__cplusplus > 201703L
+
 #else
 
-#define LOG_TIMESTAMP_BY_TAG(t,g,v)
+#define LOG_TIMESTAMP_BY_TAG(t,g,v,...)
 
 #endif//ENABLE_EVALUATION
 
@@ -999,14 +1021,22 @@ std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::op_list_keys_by_time(con
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST>::ordered_put(const VT& value) {
     debug_enter_func_with_args("key={}",value.get_key_ref());
-    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_PUT_START,group,value);
 
     std::tuple<persistent::version_t,uint64_t> version_and_timestamp = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
+#if __cplusplus > 201703L
+    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_PUT_START,group,value,std::get<0>(version_and_timestamp));
+#else
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_PUT_START,group,value,std::get<0>(version_and_timestamp));
+#endif
     if(this->internal_ordered_put(value) == false) {
         version_and_timestamp = {persistent::INVALID_VERSION,0};
     }
 
-    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_PUT_END,group,value);
+#if __cplusplus > 201703L
+    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_PUT_END,group,value,std::get<0>(version_and_timestamp));
+#else
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_PUT_END,group,value,std::get<0>(version_and_timestamp));
+#endif
     debug_leave_func_with_value("version=0x{:x},timestamp={}",std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp));
 
     return version_and_timestamp;

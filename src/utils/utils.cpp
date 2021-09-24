@@ -186,9 +186,9 @@ TimestampLogger::TimestampLogger() {
     _log.reserve(65536);
 }
 
-void TimestampLogger::log(uint64_t tag, uint64_t node_id, uint64_t msg_id, uint64_t ts_ns) {
+void TimestampLogger::log(uint64_t tag, uint64_t node_id, uint64_t msg_id, uint64_t ts_ns, uint64_t extra) {
     pthread_spin_lock(&lck);
-    _log.emplace_back(tag,node_id,msg_id,ts_ns);
+    _log.emplace_back(tag,node_id,msg_id,ts_ns,extra);
     pthread_spin_unlock(&lck);
 }
 
@@ -199,7 +199,8 @@ void TimestampLogger::flush(const std::string& filename, bool clear) {
         outfile << std::get<0>(ent) << " "
                 << std::get<1>(ent) << " "
                 << std::get<2>(ent) << " "
-                << std::get<3>(ent) << std::endl;
+                << std::get<3>(ent) << " "
+                << std::get<4>(ent) << std::endl;
     }
     outfile.close();
     if (clear) {
