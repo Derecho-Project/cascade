@@ -39,7 +39,17 @@ Service<CascadeTypes...>::Service(const std::vector<DeserializationContext*>& ds
     new_dsms.emplace_back(context.get());
     // STEP 3 - create derecho group
     group = std::make_unique<derecho::Group<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>>(
-                UserMessageCallbacks{},
+                UserMessageCallbacks{
+#ifdef ENABLE_EVALUATION
+                    nullptr,
+                    nullptr,
+                    // persistent
+                    [this](subgroup_id_t sgid, persistent::version_t ver){
+                        global_timestamp_logger.log(TLT_PERSISTED,group->get_my_id(),ver,get_walltime());
+                    },
+                    nullptr
+#endif
+                },
                 si,
                 new_dsms,
                 std::vector<derecho::view_upcall_t>{},

@@ -180,7 +180,7 @@ public:
 #define TLT_PERSISTED                       (22)
 class TimestampLogger {
 private:
-    std::vector<std::tuple<uint64_t,uint64_t,uint64_t,uint64_t>> _log;
+    std::vector<std::tuple<uint64_t,uint64_t,uint64_t,uint64_t,uint64_t>> _log;
     pthread_spinlock_t lck;
 public:
     /**
@@ -194,7 +194,7 @@ public:
      * @param msg_id    message id
      * @param ts_ns     timestamp in nanoseconds
      */
-    void log(uint64_t tag, uint64_t node_id, uint64_t msg_id, uint64_t ts_ns);
+    void log(uint64_t tag, uint64_t node_id, uint64_t msg_id, uint64_t ts_ns, uint64_t extra=0ull);
     /**
      * Flush log to file
      * @param filename  filename
