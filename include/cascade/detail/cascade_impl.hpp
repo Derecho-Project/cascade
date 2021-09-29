@@ -800,8 +800,10 @@ std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void PersistentCascadeStore<KT,VT,IK,IV,ST>::put_and_forget(const VT& value) const {
     debug_enter_func_with_args("value.get_key_ref()={}",value.get_key_ref());
+    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_PUT_AND_FORGET_START,group,value);
     derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
     subgroup_handle.template ordered_send<RPC_NAME(ordered_put_and_forget)>(value);
+    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_PUT_AND_FORGET_END,group,value);
     debug_leave_func();
 }
 
