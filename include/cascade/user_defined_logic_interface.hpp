@@ -36,16 +36,21 @@ std::string get_description();
 /**
  * Initialize the user defined logic
  *
- * @param ctxt
+ * @param ctxt - cascade context
  */
 void initialize(ICascadeContext* ctxt);
 
 /**
  * register triggers to cascade
  *
- * @param   ctxt
+ * @param   ctxt - cascade context
+ * @param   pathname represents which node in the prefix tree is requesting the observer.
+ * @param   config is a configuration string from dfgs.json to customize the UDL behaviour.
  */
-std::shared_ptr<OffCriticalDataPathObserver> get_observer();
+std::shared_ptr<OffCriticalDataPathObserver> get_observer(
+        ICascadeContext* ctxt,
+        const std::string& pathname,
+        const std::string& udl_config);
 
 /**
  * Release the user defined logic

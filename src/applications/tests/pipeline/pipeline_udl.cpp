@@ -44,7 +44,10 @@ void initialize(ICascadeContext* ctxt) {
     PipelineOCDPO::initialize();
 }
 
-std::shared_ptr<OffCriticalDataPathObserver> get_observer() {
+std::shared_ptr<OffCriticalDataPathObserver> get_observer(
+        ICascadeContext* ctxt,
+        const std::string& pathname,
+        const std::string& config) {
     return PipelineOCDPO::get();
 }
 
