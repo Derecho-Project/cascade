@@ -19,6 +19,9 @@
                 "user_defined_logic_list": [
                     "43fecc86-9b3c-11eb-b70c-0242ac110002"
                 ],
+                "user_defined_logic_config_list": [
+                    "configuration string for UDL-43fecc86..."
+                ],
                 "destinations": [
                     {"/pool3":"put"}
                 ]

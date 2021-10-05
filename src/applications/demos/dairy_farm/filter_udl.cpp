@@ -117,7 +117,8 @@ void initialize(ICascadeContext* ctxt) {
     DairyFarmFilterOCDPO::initialize();
 }
 
-std::shared_ptr<OffCriticalDataPathObserver> get_observer() {
+std::shared_ptr<OffCriticalDataPathObserver> get_observer(
+        ICascadeContext*,const std::string&,const std::string&) {
     return DairyFarmFilterOCDPO::get();
 }
 

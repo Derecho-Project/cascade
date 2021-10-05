@@ -21,6 +21,13 @@ DataFlowGraph::DataFlowGraph(const json& dfg_conf):
         }
         for(size_t i=0;i<(*it)[DFG_JSON_DATA_PATH_LOGIC_LIST].size();i++) {
             std::string udl_uuid = (*it)[DFG_JSON_DATA_PATH_LOGIC_LIST].at(i);
+            // configurations
+            if (it->contains(DFG_JSON_UDL_CONFIG_LIST)) {
+                dfgv.configurations.emplace(udl_uuid,(*it)[DFG_JSON_UDL_CONFIG_LIST].at(i));
+            } else {
+                dfgv.configurations.emplace(udl_uuid,"");
+            }
+            // edges
             std::map<std::string,std::string> dest = 
                 (*it)[DFG_JSON_DESTINATIONS].at(i).get<std::map<std::string,std::string>>();
 

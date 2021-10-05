@@ -23,6 +23,10 @@ namespace cascade {
  *                 "4e4ecc86-9b3c-11eb-b70c-0242ac110002",
  *                 "4f0373a2-9b3c-11eb-a651-0242ac110002"
  *             ],
+ *             "user_defined_logic_config_list": [
+ *                 "udl-specific config string1",
+ *                 "udl-specific config string2"
+ *             ],
  *             "destinations": [
  *                 {"/pool1.1/":"put","/pool1.2/":"trigger_put"},
  *                 {"/pool2/":"put"}
@@ -54,6 +58,7 @@ namespace cascade {
 #define DFG_JSON_GRAPH                  "graph"
 #define DFG_JSON_PATHNAME               "pathname"
 #define DFG_JSON_DATA_PATH_LOGIC_LIST   "user_defined_logic_list"
+#define DFG_JSON_UDL_CONFIG_LIST        "user_defined_logic_config_list"
 #define DFG_JSON_DESTINATIONS           "destinations"
 #define DFG_JSON_PUT                    "put"
 #define DFG_JSON_TRIGGER_PUT            "trigger_put"
@@ -70,6 +75,8 @@ public:
     // to its vertex structure.
     struct DataFlowGraphVertex {
         std::string pathname;
+        // The optional initialization string for each UUID
+        std::unordered_map<std::string,std::string> configurations;
         // The edges is a map from UDL uuid string to a vector of destiation vertex pathnames.
         // An entry "udl_uuid->[pool1:true,pool2:false,pool3:false]" means three edges from the current vertex to three destination
         // vertices pool1, pool2, and pool3. The input data is processed by UDL specified by udl_uuid.
@@ -78,6 +85,9 @@ public:
         inline std::string to_string() const {
             std::ostringstream out;
             out << typeid(*this).name() << ":" << pathname << "{\n";
+            for (auto& c: configurations) {
+                out << "\t-{udl:" << c.first << "} is configured with \"" << c.second << "\"\n";
+            }
             for (auto& e:edges) {
                 for (auto& pool:e.second){
                     out << "\t-[udl:" << e.first << "]-" << (pool.second?'*':'-') << "->" << pool.first <<"\n";
