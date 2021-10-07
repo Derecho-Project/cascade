@@ -631,7 +631,7 @@ namespace cascade {
          * "type_recursive_remove" is a helper function for internal use only.
          * @type_index              the index of the subgroup type in the CascadeTypes... list. and the FirstType,
          *                          SecondType, .../ RestTypes should be in the same order.
-         * @object                  the object to write
+         * @key                     the key
          * @subgroup_index          the subgroup index in the subgroup type designated by type_index
          * @shard_index             the shard index
          *
@@ -673,11 +673,44 @@ namespace cascade {
         template <typename SubgroupType>
         derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> get(const typename SubgroupType::KeyType& key, const persistent::version_t& version, 
                 uint32_t subgroup_index, uint32_t shard_index);
+
+        /**
+         * "type_recursive_get" is a helper function for internal use only.
+         * @type_index              the index of the subgroup type in the CascadeTypes... list. and the FirstType,
+         *                          SecondType, .../ RestTypes should be in the same order.
+         * @key                     the key
+         * @version                 the version
+         * @subgroup_index          the subgroup index in the subgroup type designated by type_index
+         * @shard_index             the shard index
+         *
+         * @return a future for the object.
+         */
+    protected:
+        template <typename KeyType, typename FirstType, typename SecondType, typename... RestTypes>
+        auto type_recursive_get(
+                uint32_t type_index,
+                const KeyType& key,
+                const persistent::version_t& version,
+                uint32_t subgroup_index,
+                uint32_t shard_index);
+
+        template <typename KeyType, typename LastType>
+        auto type_recursive_get(
+                uint32_t type_index,
+                const KeyType& key,
+                const persistent::version_t& version,
+                uint32_t subgroup_index,
+                uint32_t shard_index);
+    public:
+        
         /**
          * object pool version
          */
-        template <typename SubgroupType>
-        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> get(const typename SubgroupType::KeyType& key, const persistent::version_t& version = CURRENT_VERSION);
+        template <typename KeyType>
+        auto get(
+                // const std::decay_t<typename std::result_of_t<decltype(&ObjectType::get_key_ref)()>>& key,
+                const KeyType& key,
+                const persistent::version_t& version = CURRENT_VERSION);
     
         /**
          * "get_by_time" retrieve the object of a given key

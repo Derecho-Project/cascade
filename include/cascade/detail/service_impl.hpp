@@ -707,6 +707,59 @@ derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> ServiceClien
     }
 }
 
+//TODO
+template <typename... CascadeTypes>
+template <typename KeyType, typename FirstType, typename SecondType, typename... RestTypes>
+auto ServiceClient<CascadeTypes...>::type_recursive_get(
+        uint32_t type_index,
+        const KeyType& key,
+        const persistent::version_t& version,
+        uint32_t subgroup_index,
+        uint32_t shard_index) {
+    if (type_index == 0) {
+        return this->template get<FirstType>(key,version,subgroup_index,shard_index);
+    } else {
+        return this->template type_recursive_get<KeyType,SecondType,RestTypes...>(type_index-1,key,version,subgroup_index,shard_index);
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename KeyType, typename LastType>
+auto ServiceClient<CascadeTypes...>::type_recursive_get(
+        uint32_t type_index,
+        const KeyType& key,
+        const persistent::version_t& version,
+        uint32_t subgroup_index,
+        uint32_t shard_index) {
+    if (type_index == 0) {
+        return this->template get<LastType>(key,version,subgroup_index,shard_index);
+    } else {
+        throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) + ": type index is out of boundary.");
+    }
+}
+
+template <typename... CascadeTypes>
+// template <typename ObjectType>
+// derecho::rpc::QueryResults<const ObjectType> ServiceClient<CascadeTypes...>::get(
+template <typename KeyType>
+auto ServiceClient<CascadeTypes...>::get(
+        // const std::decay_t<typename std::result_of_t<decltype(&ObjectType::get_key_ref())>>& key,
+        const KeyType& key,
+        const persistent::version_t& version) {
+    // STEP 1 - get key
+    if constexpr (!std::is_convertible_v<KeyType,std::string>) {
+        throw derecho::derecho_exception(__PRETTY_FUNCTION__ + std::string(" only supports string key,but we get ") + typeid(KeyType).name());
+    }
+
+    // STEP 2 - get shard
+    uint32_t subgroup_type_index,subgroup_index,shard_index;
+    std::tie(subgroup_type_index,subgroup_index,shard_index) = this->template key_to_shard(key);
+
+    // STEP 3 - call put
+    return this->template type_recursive_get<KeyType,CascadeTypes...>(subgroup_type_index,key,version,subgroup_index,shard_index);
+}
+
+/*
 template <typename... CascadeTypes>
 template <typename SubgroupType>
 derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> ServiceClient<CascadeTypes...>::get(
@@ -716,7 +769,7 @@ derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> ServiceClien
     std::tie(subgroup_index,shard_index) = this->template key_to_subgroup_index_and_shard_index<SubgroupType>(key);
     return get<SubgroupType>(key,version,subgroup_index,shard_index);
 }
-
+*/
 template <typename... CascadeTypes>
 template <typename SubgroupType>
 derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> ServiceClient<CascadeTypes...>::get_by_time(
