@@ -241,22 +241,6 @@ uint32_t ServiceClient<CascadeTypes...>::get_number_of_shards (
 }
 
 template <typename... CascadeTypes>
-template <typename KeyType>
-std::tuple<uint32_t,uint32_t,uint32_t> ServiceClient<CascadeTypes...>::key_to_shard(
-	    const KeyType& key,
-	    bool check_object_location) {
-    std::string object_pool_pathname = get_pathname<KeyType>(key);
-    if (object_pool_pathname.empty()) {
-        std::string exp_msg("Key:");
-        throw derecho::derecho_exception(std::string("Key:") + key + " does not belong to any object pool.");
-    }
-
-    auto opm = find_object_pool(object_pool_pathname);
-    return std::tuple<uint32_t,uint32_t,uint32_t>{opm.subgroup_type_index,opm.subgroup_index,
-        opm.key_to_shard_index(key,get_number_of_shards(opm.subgroup_type_index,opm.subgroup_index),check_object_location)};
-}
-
-template <typename... CascadeTypes>
 template <typename SubgroupType>
 void ServiceClient<CascadeTypes...>::set_member_selection_policy(uint32_t subgroup_index,uint32_t shard_index,
         ShardMemberSelectionPolicy policy, node_id_t user_specified_node_id) {
@@ -299,6 +283,24 @@ void ServiceClient<CascadeTypes...>::refresh_member_cache_entry(uint32_t subgrou
 }
 
 template <typename... CascadeTypes>
+template <typename KeyType>
+std::tuple<uint32_t,uint32_t,uint32_t> ServiceClient<CascadeTypes...>::key_to_shard(
+	    const KeyType& key,
+	    bool check_object_location) {
+    std::string object_pool_pathname = get_pathname<KeyType>(key);
+    if (object_pool_pathname.empty()) {
+        std::string exp_msg("Key:");
+        throw derecho::derecho_exception(std::string("Key:") + key + " does not belong to any object pool.");
+    }
+
+    auto opm = find_object_pool(object_pool_pathname);
+    return std::tuple<uint32_t,uint32_t,uint32_t>{opm.subgroup_type_index,opm.subgroup_index,
+        opm.key_to_shard_index(key,get_number_of_shards(opm.subgroup_type_index,opm.subgroup_index),check_object_location)};
+}
+
+/**
+ * Deprecated: use key_to_shard() instead.
+template <typename... CascadeTypes>
 template <typename SubgroupType>
 std::pair<uint32_t,uint32_t> ServiceClient<CascadeTypes...>::key_to_subgroup_index_and_shard_index(
 	const typename SubgroupType::KeyType& key,
@@ -313,7 +315,7 @@ std::pair<uint32_t,uint32_t> ServiceClient<CascadeTypes...>::key_to_subgroup_ind
     uint32_t shard_index = opm.key_to_shard_index(key,get_number_of_shards<SubgroupType>(opm.subgroup_index),check_object_location);
     return std::pair<uint32_t,uint32_t>{opm.subgroup_index,shard_index};
 }
-
+**/
 
 template <typename... CascadeTypes>
 template <typename SubgroupType>
@@ -472,12 +474,47 @@ void ServiceClient<CascadeTypes...>::put_and_forget(
 }
 
 template <typename... CascadeTypes>
-template <typename SubgroupType>
-void ServiceClient<CascadeTypes...>::put_and_forget(
-        const typename SubgroupType::ObjectType& value) {
-    uint32_t subgroup_index,shard_index;
-    std::tie(subgroup_index,shard_index) = this->template key_to_subgroup_index_and_shard_index<SubgroupType>(value.get_key_ref());
-    this->template put_and_forget<SubgroupType>(value,subgroup_index,shard_index);
+template <typename ObjectType, typename FirstType, typename SecondType, typename... RestTypes>
+void ServiceClient<CascadeTypes...>::type_recursive_put_and_forget(
+        uint32_t type_index,
+        const ObjectType& value,
+        uint32_t subgroup_index,
+        uint32_t shard_index) {
+    if (type_index == 0) {
+        put_and_forget<FirstType>(value,subgroup_index,shard_index);
+    } else {
+        type_recursive_put_and_forget<ObjectType,SecondType,RestTypes...>(type_index-1,value,subgroup_index,shard_index);
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename ObjectType, typename LastType>
+void ServiceClient<CascadeTypes...>::type_recursive_put_and_forget(
+        uint32_t type_index,
+        const ObjectType& value,
+        uint32_t subgroup_index,
+        uint32_t shard_index) {
+    if (type_index == 0) {
+        put_and_forget<LastType>(value,subgroup_index,shard_index);
+    } else {
+        throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) + ": type index is out of boundary.");
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename ObjectType>
+void ServiceClient<CascadeTypes...>::put_and_forget(const ObjectType& value) {
+    // STEP 1 - get key
+    if constexpr (!std::is_base_of_v<ICascadeObject<std::string>,ObjectType>) {
+        throw derecho::derecho_exception(std::string("ServiceClient<>::put() only support object of type ICascadeObject<std::string>,but we get ") + typeid(ObjectType).name());
+    }
+
+    // STEP 2 - get shard
+    uint32_t subgroup_type_index,subgroup_index,shard_index;
+    std::tie(subgroup_type_index,subgroup_index,shard_index) = this->template key_to_shard(value.get_key_ref());
+
+    // STEP 3 - call put
+    this->template type_recursive_put_and_forget<ObjectType,CascadeTypes...>(subgroup_type_index,value,subgroup_index,shard_index);
 }
 
 template <typename... CascadeTypes>

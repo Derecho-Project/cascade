@@ -369,12 +369,14 @@ namespace cascade {
         void refresh_member_cache_entry(uint32_t subgroup_index, uint32_t shard_index);
 
         /**
+         * Deprecated: Please use key_to_shard() instead
+         *
          * Metadata API Helper: turn a string key to subgroup index and shard index
-         * 
-         */
+         *
         template <typename SubgroupType>
         std::pair<uint32_t,uint32_t> key_to_subgroup_index_and_shard_index(const typename SubgroupType::KeyType& key,
                 bool check_object_location = true);
+         */
 
         /**
          * Metadata API Helper: turn a string key to subgroup type index, subgroup index, and shard index.
@@ -403,13 +405,12 @@ namespace cascade {
          * refresh its local member cache by calling get_shard_members.
          */
         node_id_t get_my_id() const;
+
         std::vector<node_id_t> get_members() const;
-        // std::vector<node_id_t> get_shard_members(derecho::subgroup_id_t subgroup_id,uint32_t shard_index);
+
         template <typename SubgroupType>
         std::vector<node_id_t> get_shard_members(uint32_t subgroup_index,uint32_t shard_index) const;
-        // template <typename SubgroupType>
-        // uint32_t get_number_of_subgroups();
-        // uint32_t get_number_of_shards(derecho::subgroup_id_t subgroup_id);
+
         template <typename SubgroupType>
         uint32_t get_number_of_shards(uint32_t subgroup_index) const;
 
@@ -426,6 +427,7 @@ namespace cascade {
          * @param subgroup_index        - the subgroup index in the given type.
          */
         uint32_t get_number_of_shards(uint32_t subgroup_type_index, uint32_t subgroup_index) const;
+
         /**
          * Member selection policy control API.
          * - set_member_selection_policy updates the member selection policies.
@@ -467,9 +469,9 @@ namespace cascade {
         derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> put(const typename SubgroupType::ObjectType& object,
                 uint32_t subgroup_index, uint32_t shard_index);
         /**
-         * "type_recursive_put" is helper function for internal use only.
-         * @type_index              the index of the subgroup type in the CascadeTypes... list to which the FirstType,
-         *                          SecondType, ..., RestTypes should be the same.
+         * "type_recursive_put" is a helper function for internal use only.
+         * @type_index              the index of the subgroup type in the CascadeTypes... list. And the FirstType,
+         *                          SecondType, ..., RestTypes should be in the same order.
          * @object                  the object to write
          * @subgroup_index          the subgroup index in the subgroup type designated by type_index
          * @shard_index             the shard index
@@ -521,10 +523,34 @@ namespace cascade {
                 uint32_t subgroup_index, uint32_t shard_index);
 
         /**
-         * object pool version
+         * "type_recursive_put_and_forget" is a helper function for internal use only.
+         * @type_index              the index of the subgroup type in the CascadeTypes... list. and the FirstType,
+         *                          SecondType, .../ RestTypes should be in the same order.
+         * @object                  the object to write
+         * @subgroup_index          the subgroup index in the subgroup type designated by type_index
+         * @shard_index             the shard index
          */
-        template <typename SubgroupType>
-        void put_and_forget(const typename SubgroupType::ObjectType& object);
+    protected:
+        template <typename ObjectType, typename FirstType, typename SecondType, typename... RestTypes>
+        void type_recursive_put_and_forget(
+                uint32_t type_index,
+                const ObjectType& object,
+                uint32_t subgroup_index,
+                uint32_t shard_index);
+
+        template <typename ObjectType, typename LastType>
+        void type_recursive_put_and_forget(
+                uint32_t type_index,
+                const ObjectType& object,
+                uint32_t subgroup_index,
+                uint32_t shard_index);
+    public:
+        /**
+         * object pool version
+         * @param object    the object to write, the object pool is extracted from the object key.
+         */
+        template <typename ObjectType>
+        void put_and_forget(const ObjectType& object);
 
         /**
          * "trigger_put" writes an object to a given subgroup/shard.
@@ -540,11 +566,34 @@ namespace cascade {
                 uint32_t subgroup_index, uint32_t shard_index);
 
         /**
-         * object pool version
+         * "type_recursive_trigger_put" is a helper function for internal use only.
+         * @type_index              the index of the subgroup type in the CascadeTypes... list. and the FirstType,
+         *                          SecondType, .../ RestTypes should be in the same order.
+         * @object                  the object to write
+         * @subgroup_index          the subgroup index in the subgroup type designated by type_index
+         * @shard_index             the shard index
          */
-        template <typename SubgroupType>
-        derecho::rpc::QueryResults<void> trigger_put(const typename SubgroupType::ObjectType& object);
+    protected:
+        template <typename ObjectType, typename FirstType, typename SecondType, typename... RestTypes>
+        derecho::rpc::QueryResults<void> type_recursive_trigger_put(
+                uint32_t type_index,
+                const ObjectType& object,
+                uint32_t subgroup_index,
+                uint32_t shard_index);
 
+        template <typename ObjectType, typename LastType>
+        derecho::rpc::QueryResults<void> type_recursive_trigger_put(
+                uint32_t type_index,
+                const ObjectType& object,
+                uint32_t subgroup_index,
+                uint32_t shard_index);
+    public:
+        /**
+         * object pool version
+         * @param object    the object to write, the object pool is extracted from the object key.
+         */
+        template <typename ObjectType>
+        derecho::rpc::QueryResults<void> trigger_put(const ObjectType& object);
         /**
          * "collective_trigger_put" writes an object to a set of nodes.
          * 
