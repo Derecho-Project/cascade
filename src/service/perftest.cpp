@@ -39,24 +39,6 @@ namespace cascade {
         throw derecho::derecho_exception(std::string("Unknown type_index:") + tindex.name()); \
     }
 
-#define on_subgroup_type_index_no_trigger(tindex, func, ...) \
-    if (std::type_index(typeid(VolatileCascadeStoreWithStringKey)) == tindex) { \
-        func <VolatileCascadeStoreWithStringKey>(__VA_ARGS__); \
-    } else if (std::type_index(typeid(PersistentCascadeStoreWithStringKey)) == tindex) { \
-        func <PersistentCascadeStoreWithStringKey>(__VA_ARGS__); \
-    } else { \
-        throw derecho::derecho_exception(std::string("Unknown type_index:") + tindex.name()); \
-    }
-
-#define on_subgroup_type_index_with_return_no_trigger(tindex, result_handler, func, ...) \
-    if (std::type_index(typeid(VolatileCascadeStoreWithStringKey)) == tindex) { \
-        result_handler(func <VolatileCascadeStoreWithStringKey>(__VA_ARGS__)); \
-    } else if (std::type_index(typeid(PersistentCascadeStoreWithStringKey)) == tindex) { \
-        result_handler(func <PersistentCascadeStoreWithStringKey>(__VA_ARGS__)); \
-    } else { \
-        throw derecho::derecho_exception(std::string("Unknown type_index:") + tindex.name()); \
-    }
-
 bool PerfTestServer::eval_put(uint64_t max_operation_per_second,
                               uint64_t duration_secs,
                               uint32_t subgroup_type_index,
@@ -148,12 +130,9 @@ bool PerfTestServer::eval_put(uint64_t max_operation_per_second,
             global_timestamp_logger.log(TLT_READY_TO_SEND,this->capi.get_my_id(),message_id,get_walltime());
             if (subgroup_index == INVALID_SUBGROUP_INDEX ||
                 shard_index == INVALID_SHARD_INDEX) {
-                on_subgroup_type_index_with_return_no_trigger(
-                    std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
-                    future_appender,
-                    this->capi.template put, objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS));
+                future_appender(this->capi.put(objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS)));
             } else {
-                on_subgroup_type_index_with_return_no_trigger(
+                on_subgroup_type_index_with_return(
                     std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
                     future_appender,
                     this->capi.template put, objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS), subgroup_index, shard_index);
@@ -197,10 +176,10 @@ bool PerfTestServer::eval_put_and_forget(uint64_t max_operation_per_second,
         global_timestamp_logger.log(TLT_READY_TO_SEND,this->capi.get_my_id(),message_id,get_walltime());
         // send it
         if (subgroup_index == INVALID_SUBGROUP_INDEX || shard_index == INVALID_SHARD_INDEX) {
-            on_subgroup_type_index_no_trigger(std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
+            on_subgroup_type_index(std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
                     this->capi.template put_and_forget, objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS));
         } else {
-            on_subgroup_type_index_no_trigger(std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
+            on_subgroup_type_index(std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
                     this->capi.template put_and_forget, objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS), subgroup_index, shard_index);
         }
         // log time.
@@ -282,7 +261,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         uint64_t            duration_secs,
         const std::string&  output_filename) {
         // STEP 1 - set up the shard member selection policy
-        on_subgroup_type_index_no_trigger(std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
+        on_subgroup_type_index(std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
             this->capi.template set_member_selection_policy,
             subgroup_index,
             shard_index,
@@ -323,7 +302,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         uint64_t            duration_secs,
         const std::string&  output_filename) {
         // STEP 1 - set up the shard member selection policy
-        on_subgroup_type_index_no_trigger(std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
+        on_subgroup_type_index(std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
             this->capi.template set_member_selection_policy,
             subgroup_index,
             shard_index,
@@ -406,13 +385,13 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
 
         uint32_t number_of_shards;
         // STEP 1 - set up the shard member selection policy
-        on_subgroup_type_index_no_trigger(std::decay_t<decltype(capi)>::subgroup_type_order.at(object_pool.subgroup_type_index),
+        on_subgroup_type_index(std::decay_t<decltype(capi)>::subgroup_type_order.at(object_pool.subgroup_type_index),
             number_of_shards = this->capi.template get_number_of_shards, object_pool.subgroup_index);
         if (user_specified_node_ids.size() < number_of_shards) {
             throw derecho::derecho_exception(std::string("the size of 'user_specified_node_ids' argument does not match shard number."));
         }
         for (uint32_t shard_index = 0; shard_index < number_of_shards; shard_index ++) {
-            on_subgroup_type_index_no_trigger(std::decay_t<decltype(capi)>::subgroup_type_order.at(object_pool.subgroup_type_index),
+            on_subgroup_type_index(std::decay_t<decltype(capi)>::subgroup_type_order.at(object_pool.subgroup_type_index),
                 this->capi.template set_member_selection_policy, object_pool.subgroup_index, shard_index, static_cast<ShardMemberSelectionPolicy>(policy), user_specified_node_ids.at(shard_index));
         }
         // STEP 2 - prepare workload
@@ -450,13 +429,13 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
 
         uint32_t number_of_shards;
         // STEP 1 - set up the shard member selection policy
-        on_subgroup_type_index_no_trigger(std::decay_t<decltype(capi)>::subgroup_type_order.at(object_pool.subgroup_type_index),
+        on_subgroup_type_index(std::decay_t<decltype(capi)>::subgroup_type_order.at(object_pool.subgroup_type_index),
             number_of_shards = this->capi.template get_number_of_shards, object_pool.subgroup_index);
         if (user_specified_node_ids.size() < number_of_shards) {
             throw derecho::derecho_exception(std::string("the size of 'user_specified_node_ids' argument does not match shard number."));
         }
         for (uint32_t shard_index = 0; shard_index < number_of_shards; shard_index ++) {
-            on_subgroup_type_index_no_trigger(std::decay_t<decltype(capi)>::subgroup_type_order.at(object_pool.subgroup_type_index),
+            on_subgroup_type_index(std::decay_t<decltype(capi)>::subgroup_type_order.at(object_pool.subgroup_type_index),
                 this->capi.template set_member_selection_policy, object_pool.subgroup_index, shard_index, static_cast<ShardMemberSelectionPolicy>(policy), user_specified_node_ids.at(shard_index));
         }
         // STEP 2 - prepare workload
@@ -494,13 +473,13 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
 
         uint32_t number_of_shards;
         // STEP 1 - set up the shard member selection policy
-        on_subgroup_type_index_no_trigger(std::decay_t<decltype(capi)>::subgroup_type_order.at(object_pool.subgroup_type_index),
+        on_subgroup_type_index(std::decay_t<decltype(capi)>::subgroup_type_order.at(object_pool.subgroup_type_index),
             number_of_shards = this->capi.template get_number_of_shards, object_pool.subgroup_index);
         if (user_specified_node_ids.size() < number_of_shards) {
             throw derecho::derecho_exception(std::string("the size of 'user_specified_node_ids' argument does not match shard number."));
         }
         for (uint32_t shard_index = 0; shard_index < number_of_shards; shard_index ++) {
-            on_subgroup_type_index_no_trigger(std::decay_t<decltype(capi)>::subgroup_type_order.at(object_pool.subgroup_type_index),
+            on_subgroup_type_index(std::decay_t<decltype(capi)>::subgroup_type_order.at(object_pool.subgroup_type_index),
                 this->capi.template set_member_selection_policy, object_pool.subgroup_index, shard_index, static_cast<ShardMemberSelectionPolicy>(policy), user_specified_node_ids.at(shard_index));
         }
         // STEP 2 - prepare workload

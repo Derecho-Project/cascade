@@ -376,6 +376,13 @@ namespace cascade {
         std::pair<uint32_t,uint32_t> key_to_subgroup_index_and_shard_index(const typename SubgroupType::KeyType& key,
                 bool check_object_location = true);
 
+        /**
+         * Metadata API Helper: turn a string key to subgroup type index, subgroup index, and shard index.
+         */
+        template <typename KeyType>
+        std::tuple<uint32_t,uint32_t,uint32_t> key_to_shard(
+                const KeyType& key, bool check_object_location = true);
+
     public:
         /**
          * The Constructor
@@ -405,7 +412,20 @@ namespace cascade {
         // uint32_t get_number_of_shards(derecho::subgroup_id_t subgroup_id);
         template <typename SubgroupType>
         uint32_t get_number_of_shards(uint32_t subgroup_index) const;
-    
+
+        // type recursive helpers for get_number_of_shards
+    protected:
+        template <typename FirstType,typename SecondType, typename...RestTypes>
+        uint32_t type_recursive_get_number_of_shards(uint32_t type_index, uint32_t subgroup_index) const;
+        template <typename LastType>
+        uint32_t type_recursive_get_number_of_shards(uint32_t type_index, uint32_t subgroup_index) const;
+    public:
+        /**
+         * This get_number_of_shards() overload the typed version.
+         * @param subgroup_type_index   - the type index of the subrgoup type.
+         * @param subgroup_index        - the subgroup index in the given type.
+         */
+        uint32_t get_number_of_shards(uint32_t subgroup_type_index, uint32_t subgroup_index) const;
         /**
          * Member selection policy control API.
          * - set_member_selection_policy updates the member selection policies.
@@ -446,12 +466,39 @@ namespace cascade {
         template <typename SubgroupType>
         derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> put(const typename SubgroupType::ObjectType& object,
                 uint32_t subgroup_index, uint32_t shard_index);
+        /**
+         * "type_recursive_put" is helper function for internal use only.
+         * @type_index              the index of the subgroup type in the CascadeTypes... list to which the FirstType,
+         *                          SecondType, ..., RestTypes should be the same.
+         * @object                  the object to write
+         * @subgroup_index          the subgroup index in the subgroup type designated by type_index
+         * @shard_index             the shard index
+         *
+         * @return a future to the version and timestamp of the put operation.
+         */
+    protected:
+        template <typename ObjectType, typename FirstType, typename SecondType, typename... RestTypes>
+        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> type_recursive_put(
+                uint32_t type_index,
+                const ObjectType& object,
+                uint32_t subgroup_index,
+                uint32_t shard_index);
 
+        template <typename ObjectType, typename LastType>
+        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> type_recursive_put(
+                uint32_t type_index,
+                const ObjectType& object,
+                uint32_t subgroup_index,
+                uint32_t shard_index);
+    public:
         /**
          * object pool version
+         * @param object            the object to write, the object pool is extracted from the object key.
+         *
+         * @return a future to the version and timestamp of the put operation.
          */
-        template <typename SubgroupType>
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> put(const typename SubgroupType::ObjectType& object);
+        template <typename ObjectType>
+        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> put(const ObjectType& object);
 
         /**
          * "put_and_forget" writes an object to a given subgroup/shard, but no return value.

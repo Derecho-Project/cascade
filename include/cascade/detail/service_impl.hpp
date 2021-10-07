@@ -213,6 +213,50 @@ uint32_t ServiceClient<CascadeTypes...>::get_number_of_shards(uint32_t subgroup_
 }
 
 template <typename... CascadeTypes>
+template <typename FirstType,typename SecondType, typename...RestTypes>
+uint32_t ServiceClient<CascadeTypes...>::type_recursive_get_number_of_shards (
+        uint32_t type_index,uint32_t subgroup_index) const {
+    if (type_index == 0 ) {
+        return this->template get_number_of_shards<FirstType>(subgroup_index);
+    } else {
+        return this->template type_recursive_get_number_of_shards<SecondType,RestTypes...>(type_index-1,subgroup_index);
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename LastType>
+uint32_t ServiceClient<CascadeTypes...>::type_recursive_get_number_of_shards (
+        uint32_t type_index,uint32_t subgroup_index) const {
+    if (type_index == 0) {
+        return this->template get_number_of_shards<LastType>(subgroup_index);
+    } else {
+        throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) + " type index is out of boundary");
+    }
+}
+
+template <typename... CascadeTypes>
+uint32_t ServiceClient<CascadeTypes...>::get_number_of_shards (
+        uint32_t subgroup_type_index,uint32_t subgroup_index) const {
+    return type_recursive_get_number_of_shards<CascadeTypes...>(subgroup_type_index,subgroup_index);
+}
+
+template <typename... CascadeTypes>
+template <typename KeyType>
+std::tuple<uint32_t,uint32_t,uint32_t> ServiceClient<CascadeTypes...>::key_to_shard(
+	    const KeyType& key,
+	    bool check_object_location) {
+    std::string object_pool_pathname = get_pathname<KeyType>(key);
+    if (object_pool_pathname.empty()) {
+        std::string exp_msg("Key:");
+        throw derecho::derecho_exception(std::string("Key:") + key + " does not belong to any object pool.");
+    }
+
+    auto opm = find_object_pool(object_pool_pathname);
+    return std::tuple<uint32_t,uint32_t,uint32_t>{opm.subgroup_type_index,opm.subgroup_index,
+        opm.key_to_shard_index(key,get_number_of_shards(opm.subgroup_type_index,opm.subgroup_index),check_object_location)};
+}
+
+template <typename... CascadeTypes>
 template <typename SubgroupType>
 void ServiceClient<CascadeTypes...>::set_member_selection_policy(uint32_t subgroup_index,uint32_t shard_index,
         ShardMemberSelectionPolicy policy, node_id_t user_specified_node_id) {
@@ -326,6 +370,8 @@ node_id_t ServiceClient<CascadeTypes...>::pick_member_by_policy(uint32_t subgrou
     return node_id;
 }
 
+
+
 template <typename... CascadeTypes>
 template <typename SubgroupType>
 derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::put(
@@ -354,12 +400,48 @@ derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceCl
 }
 
 template <typename... CascadeTypes>
-template <typename SubgroupType>
+template <typename ObjectType, typename FirstType, typename SecondType, typename... RestTypes>
+derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::type_recursive_put(
+        uint32_t type_index,
+        const ObjectType& value,
+        uint32_t subgroup_index,
+        uint32_t shard_index) {
+    if (type_index == 0) {
+        return this->template put<FirstType>(value,subgroup_index,shard_index);
+    } else {
+        return this->template type_recursive_put<ObjectType, SecondType, RestTypes...>(type_index-1,value,subgroup_index,shard_index);
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename ObjectType, typename LastType>
+derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::type_recursive_put(
+        uint32_t type_index,
+        const ObjectType& value,
+        uint32_t subgroup_index,
+        uint32_t shard_index) {
+    if (type_index == 0) {
+        return this->template put<LastType>(value,subgroup_index,shard_index);
+    } else {
+        throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) + ": type index is out of boundary.");
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename ObjectType>
 derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::put(
-        const typename SubgroupType::ObjectType& value) {
-    uint32_t subgroup_index,shard_index;
-    std::tie(subgroup_index,shard_index) = this->template key_to_subgroup_index_and_shard_index<SubgroupType>(value.get_key_ref());
-    return this->template put<SubgroupType>(value,subgroup_index,shard_index);
+        const ObjectType& value) {
+    // STEP 1 - get key
+    if constexpr (!std::is_base_of_v<ICascadeObject<std::string>,ObjectType>) {
+        throw derecho::derecho_exception(std::string("ServiceClient<>::put() only support object of type ICascadeObject<std::string>,but we get ") + typeid(ObjectType).name());
+    }
+
+    // STEP 2 - get shard
+    uint32_t subgroup_type_index,subgroup_index,shard_index;
+    std::tie(subgroup_type_index,subgroup_index,shard_index) = this->template key_to_shard(value.get_key_ref());
+
+    // STEP 3 - call put
+    return this->template type_recursive_put<ObjectType,CascadeTypes...>(subgroup_type_index,value,subgroup_index,shard_index);
 }
 
 template <typename... CascadeTypes>
