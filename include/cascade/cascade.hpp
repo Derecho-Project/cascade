@@ -782,22 +782,12 @@ namespace cascade {
         ICascadeContext* cascade_context_ptr;
         
         REGISTER_RPC_FUNCTIONS(TriggerCascadeNoStore,
-#ifdef ENABLE_EVALUATION
-                               P2P_TARGETS(
-                                   trigger_put,
-                                   dump_timestamp_log),
-                               ORDERED_TARGETS(
-                                   ordered_dump_timestamp_log
-                                   ));
-#else
-                               P2P_TARGETS(
-                                   trigger_put
-                                   ));
-#endif
-        /**
-        REGISTER_RPC_FUNCTIONS(TriggerCascadeNoStore,
                                P2P_TARGETS(
                                    put,
+                                   put_and_forget,
+#ifdef ENABLE_EVALUATION
+                                   perf_put,
+#endif
                                    remove,
                                    get,
                                    get_by_time,
@@ -807,14 +797,22 @@ namespace cascade {
                                    op_list_keys_by_time,
                                    get_size,
                                    get_size_by_time,
-                                   trigger_put),
+                                   trigger_put
+#ifdef ENABLE_EVALUATION
+                                   ,dump_timestamp_log
+#endif
+                                   ),
                                ORDERED_TARGETS(
                                    ordered_put,
+                                   ordered_put_and_forget,
                                    ordered_remove,
                                    ordered_get,
                                    ordered_list_keys,
-                                   ordered_get_size));
-        **/
+                                   ordered_get_size
+#ifdef ENABLE_EVALUATION
+                                   ,ordered_dump_timestamp_log
+#endif
+                                   ));
 #ifdef ENABLE_EVALUATION
         virtual void dump_timestamp_log(const std::string& filename) const override;
 #endif//ENABLE_EVALUATION

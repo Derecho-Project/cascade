@@ -183,27 +183,14 @@ void put_and_forget<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, 
     print_red("TCSS does not support put.");
 }
 
-template <typename SubgroupType>
 void op_put(ServiceClientAPI& capi, const std::string& key, const std::string& value, persistent::version_t pver, persistent::version_t pver_bk) {
-    typename SubgroupType::ObjectType obj;
-    if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
-        obj.key = static_cast<uint64_t>(std::stol(key));
-    } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
-        obj.key = key;
-    } else {
-        print_red(std::string("Unhandled KeyType:") + typeid(typename SubgroupType::KeyType).name());
-        return;
-    }
+    ObjectWithStringKey obj;
+    obj.key = key;
     obj.previous_version = pver;
     obj.previous_version_by_key = pver_bk;
     obj.blob = Blob(value.c_str(),value.length());
-    derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> result = capi.template put<SubgroupType>(obj);
+    derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> result = capi.put(obj);
     check_put_and_remove_result(result);
-}
-
-template <>
-void op_put<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, const std::string& key, const std::string& value, persistent::version_t pver, persistent::version_t pver_bk) {
-    print_red("TCSS does not support op_put.");
 }
 
 template <typename SubgroupType>
@@ -1007,21 +994,20 @@ std::vector<command_entry_t> commands =
     {
         "op_put",
         "Put an object into an object pool",
-        "op_put <type> <key> <value> [previous_version(default:-1)] [previous_version_by_key(default:-1)]\n"
-            "type := " SUBGROUP_TYPE_LIST "\n"
+        "op_put <key> <value> [previous_version(default:-1)] [previous_version_by_key(default:-1)]\n"
             "Please note that cascade automatically decides the object pool path using the key's prefix.",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             persistent::version_t pver = persistent::INVALID_VERSION;
             persistent::version_t pver_bk = persistent::INVALID_VERSION;
-            if (cmd_tokens.size() < 4) {
+            if (cmd_tokens.size() < 3) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
             }
+            if (cmd_tokens.size() >= 4)
+                pver = static_cast<persistent::version_t>(std::stol(cmd_tokens[3]));
             if (cmd_tokens.size() >= 5)
-                pver = static_cast<persistent::version_t>(std::stol(cmd_tokens[4]));
-            if (cmd_tokens.size() >= 6)
-                pver_bk = static_cast<persistent::version_t>(std::stol(cmd_tokens[5]));
-            on_subgroup_type(cmd_tokens[1], op_put,capi,cmd_tokens[2]/*key*/,cmd_tokens[3]/*value*/,pver,pver_bk);
+                pver_bk = static_cast<persistent::version_t>(std::stol(cmd_tokens[4]));
+            op_put(capi,cmd_tokens[1]/*key*/,cmd_tokens[2]/*value*/,pver,pver_bk);
             return true;
         }
     },
