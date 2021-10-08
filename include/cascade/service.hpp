@@ -708,7 +708,6 @@ namespace cascade {
          */
         template <typename KeyType>
         auto get(
-                // const std::decay_t<typename std::result_of_t<decltype(&ObjectType::get_key_ref)()>>& key,
                 const KeyType& key,
                 const persistent::version_t& version = CURRENT_VERSION);
     
@@ -728,11 +727,42 @@ namespace cascade {
                 uint32_t subgroup_index, uint32_t shard_index);
 
         /**
+         * "type_recursive_get_by_time" is a helper function for internal use only.
+         * @param type_index        the index of the subgroup type in the CascadeTypes... list. and the FirstType,
+         *                          SecondType, .../ RestTypes should be in the same order.
+         * @param key               the key
+         * @param ts_us             Wall clock time in microseconds. 
+         * @param subgroup_index    the subgroup index in the subgroup type designated by type_index
+         * @param shard_index       the shard index
+         *
+         * @return a future for the object.
+         */
+    protected:
+        template <typename KeyType, typename FirstType, typename SecondType, typename... RestTypes>
+        auto type_recursive_get_by_time(
+                uint32_t type_index,
+                const KeyType& key,
+                const uint64_t& ts_us,
+                uint32_t subgroup_index,
+                uint32_t shard_index);
+
+        template <typename KeyType, typename LastType>
+        auto type_recursive_get_by_time(
+                uint32_t type_index,
+                const KeyType& key,
+                const uint64_t& ts_us,
+                uint32_t subgroup_index,
+                uint32_t shard_index);
+    public:
+        
+        /**
          * object pool version
          */
-        template <typename SubgroupType>
-        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> get_by_time(const typename SubgroupType::KeyType& key, const uint64_t& ts_us);
-    
+        template <typename KeyType>
+        auto get_by_time(
+                const KeyType& key,
+                const uint64_t& ts_us);
+
         /**
          * "get_size" retrieve size of the object of a given key
          *
