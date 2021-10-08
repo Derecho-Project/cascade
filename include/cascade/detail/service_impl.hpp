@@ -1012,8 +1012,34 @@ derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> ServiceC
 }
 
 template <typename... CascadeTypes>
+template <typename FirstType, typename SecondType, typename... RestTypes>
+auto ServiceClient<CascadeTypes...>::type_recursive_list_keys(
+        uint32_t type_index,
+        const persistent::version_t& version,
+        const std::string& object_pool_pathname) {
+    if (type_index == 0) {
+        return this->template __list_keys<FirstType>(version,object_pool_pathname);
+    } else {
+        return this->template list_keys<SecondType, RestTypes...>(type_index-1, version, object_pool_pathname);
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename LastType>
+auto ServiceClient<CascadeTypes...>::type_recursive_list_keys(
+        uint32_t type_index,
+        const persistent::version_t& version,
+        const std::string& object_pool_pathname) {
+    if (type_index == 0) {
+        return this->template __list_keys<LastType>(version,object_pool_pathname);
+    } else {
+        throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) + ": type index is out of boundary.");
+    }
+}
+
+template <typename... CascadeTypes>
 template <typename SubgroupType>
-std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>> ServiceClient<CascadeTypes...>::list_keys(
+std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>> ServiceClient<CascadeTypes...>::__list_keys(
         const persistent::version_t& version,
         const std::string& object_pool_pathname){
     auto opm = find_object_pool(object_pool_pathname);
@@ -1043,6 +1069,15 @@ std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename Subg
     return result;
 }
 
+template <typename... CascadeTypes>
+auto ServiceClient<CascadeTypes...>::list_keys(
+        const persistent::version_t& version, 
+        const std::string& object_pool_pathname) {
+    volatile uint32_t subgroup_type_index,subgroup_index,shard_index;
+    std::tie(subgroup_type_index,subgroup_index,shard_index) = this->template key_to_shard(object_pool_pathname+"/_");
+    return this->template type_recursive_list_keys<CascadeTypes...>(subgroup_type_index,version,object_pool_pathname);
+}
+
 template <typename ReturnType>  
 inline ReturnType wait_for_future(derecho::rpc::QueryResults<ReturnType>& result){
     // iterate through ReplyMap
@@ -1055,13 +1090,13 @@ inline ReturnType wait_for_future(derecho::rpc::QueryResults<ReturnType>& result
 
 
 template <typename... CascadeTypes>
-template <typename SubgroupType>
-std::vector<typename SubgroupType::KeyType> ServiceClient<CascadeTypes...>::wait_list_keys(
-        std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>>& future){
-    std::vector<typename SubgroupType::KeyType> result;
+template <typename KeyType>
+std::vector<KeyType> ServiceClient<CascadeTypes...>::wait_list_keys(
+        std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<KeyType>>>>& future){
+    std::vector<KeyType> result;
     // iterate over each shard's Query result
     for(auto& query_result: future){
-        std::vector<typename SubgroupType::KeyType> reply = wait_for_future<std::vector<typename SubgroupType::KeyType>>(*(query_result.get()));
+        std::vector<KeyType> reply = wait_for_future<std::vector<KeyType>>(*(query_result.get()));
         std::move(reply.begin(), reply.end(), std::back_inserter(result));
     }
     return result;
@@ -1095,8 +1130,34 @@ derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> ServiceC
 }
 
 template <typename... CascadeTypes>
+template <typename FirstType, typename SecondType, typename... RestTypes>
+auto ServiceClient<CascadeTypes...>::type_recursive_list_keys_by_time(
+        uint32_t type_index,
+        const uint64_t& ts_us,
+        const std::string& object_pool_pathname) {
+    if (type_index == 0) {
+        return this->template __list_keys_by_time<FirstType>(ts_us,object_pool_pathname);
+    } else {
+        return this->template type_recursive_list_keys_by_time<SecondType, RestTypes...>(type_index-1,ts_us,object_pool_pathname);
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename LastType>
+auto ServiceClient<CascadeTypes...>::type_recursive_list_keys_by_time(
+        uint32_t type_index,
+        const uint64_t& ts_us,
+        const std::string& object_pool_pathname) {
+    if (type_index == 0) {
+        return this->template __list_keys_by_time<LastType>(ts_us,object_pool_pathname);
+    } else {
+        throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) + ": type index is out of boundary.");
+    }
+}
+
+template <typename... CascadeTypes>
 template <typename SubgroupType> 
-std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>> ServiceClient<CascadeTypes...>::list_keys_by_time(
+std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>> ServiceClient<CascadeTypes...>::__list_keys_by_time(
                 const uint64_t& ts_us, const std::string& object_pool_pathname){
     auto opm = find_object_pool(object_pool_pathname);
     uint32_t subgroup_index = opm.subgroup_index;
@@ -1127,6 +1188,13 @@ std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename Subg
         }
     }
     return result;
+}
+
+template <typename... CascadeTypes>
+auto ServiceClient<CascadeTypes...>::list_keys_by_time(const uint64_t& ts_us, const std::string& object_pool_pathname) {
+    volatile uint32_t subgroup_type_index,subgroup_index,shard_index;
+    std::tie(subgroup_type_index,subgroup_index,shard_index) = this->template key_to_shard(object_pool_pathname+"/_");
+    return this->template type_recursive_list_keys_by_time<CascadeTypes...>(subgroup_type_index,ts_us,object_pool_pathname);
 }
 
 template <typename... CascadeTypes>
