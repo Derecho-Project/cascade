@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <derecho/persistent/PersistentInterface.hpp>
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
@@ -780,10 +781,49 @@ namespace cascade {
                 uint32_t subgroup_index, uint32_t shard_index);
 
         /**
+         * "type_recursive_get_size" is a helper function for internal use only.
+         * @param type_index        the index of the subgroup type in the CascadeTypes... list. and the FirstType,
+         *                          SecondType, .../ RestTypes should be in the same order.
+         * @param key               the key
+         * @param ts_us             Wall clock time in microseconds. 
+         * @param subgroup_index    the subgroup index in the subgroup type designated by type_index
+         * @param shard_index       the shard index
+         *
+         * @return a future for the object.
+         */
+    protected:
+        template <typename KeyType, typename FirstType, typename SecondType, typename... RestTypes>
+        derecho::rpc::QueryResults<uint64_t> type_recursive_get_size(
+                uint32_t type_index,
+                const KeyType& key,
+                const persistent::version_t& version,
+                uint32_t subgroup_index,
+                uint32_t shard_index);
+
+        template <typename KeyType, typename LastType>
+        derecho::rpc::QueryResults<uint64_t> type_recursive_get_size(
+                uint32_t type_index,
+                const KeyType& key,
+                const persistent::version_t& version,
+                uint32_t subgroup_index,
+                uint32_t shard_index);
+    public:
+        
+        /**
          * object pool version
          */
+        template <typename KeyType>
+        derecho::rpc::QueryResults<uint64_t> get_size(
+                const KeyType& key,
+                const persistent::version_t& version = CURRENT_VERSION);
+
+
+        /**
+         * object pool version
+         *
         template <typename SubgroupType>
         derecho::rpc::QueryResults<uint64_t> get_size(const typename SubgroupType::KeyType& key, const persistent::version_t& version = CURRENT_VERSION);
+         */
     
         /**
          * "get_size_by_time" retrieve size of the object of a given key
