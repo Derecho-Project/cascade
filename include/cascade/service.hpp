@@ -884,17 +884,31 @@ namespace cascade {
         derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> list_keys(const persistent::version_t& version,
                 uint32_t subgroup_index, uint32_t shard_index);
 
-        /**
-        * object pool version
-        */
+    protected:
+        template <typename FirstType, typename SecondType, typename... RestTypes>
+        auto type_recursive_list_keys(
+                uint32_t type_index,
+                const persistent::version_t& version, 
+                const std::string& object_pool_pathname);
+        template <typename LastType> 
+        auto type_recursive_list_keys(
+                uint32_t type_index,
+                const persistent::version_t& version,
+                const std::string& object_pool_pathname);
         template <typename SubgroupType>
         std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>> 
-            list_keys(const persistent::version_t& version, const std::string& object_pool_pathname);
+            __list_keys(const persistent::version_t& version, const std::string& object_pool_pathname);
+    public:
+        /**
+         * object pool version
+         * @param version               if version is 
+         * @param object_pool_pathname  the object pathname
+         */
+        auto list_keys(const persistent::version_t& version, const std::string& object_pool_pathname);
 
-
-        template <typename SubgroupType>
-        std::vector<typename SubgroupType::KeyType> wait_list_keys(
-                                std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>>& future);
+        template <typename KeyType>
+        std::vector<KeyType> wait_list_keys(
+                                std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<KeyType>>>>& future);
     
         /**
          * "list_keys_by_time" retrieve the list of keys in a shard
@@ -910,14 +924,27 @@ namespace cascade {
         derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> list_keys_by_time(const uint64_t& ts_us,
                 uint32_t subgroup_index, uint32_t shard_index);
         
-
-        /**
-        * object pool version
-        */
+    protected:
+        template <typename FirstType, typename SecondType, typename... RestTypes>
+        auto type_recursive_list_keys_by_time(
+                uint32_t type_index,
+                const uint64_t& ts_us,
+                const std::string& object_pool_pathname);
+        template <typename LastType> 
+        auto type_recursive_list_keys_by_time(
+                uint32_t type_index,
+                const uint64_t& ts_us,
+                const std::string& object_pool_pathname);
         template <typename SubgroupType>
         std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>> 
-            list_keys_by_time(const uint64_t& ts_us, const std::string& object_pool_pathname);
-
+            __list_keys_by_time(const uint64_t& ts_us, const std::string& object_pool_pathname);
+    public:
+        /**
+        * object pool version
+        * @param ts_us                  timestamp
+        * @param object_pool_pathname   the object pathname
+        */
+        auto list_keys_by_time(const uint64_t& ts_us, const std::string& object_pool_pathname);
 
         /**
          * Object Pool Management API: refresh object pool cache
