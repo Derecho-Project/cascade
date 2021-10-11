@@ -155,11 +155,6 @@ void put(ServiceClientAPI& capi, const std::string& key, const std::string& valu
     check_put_and_remove_result(result);
 }
 
-template <>
-void put<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, const std::string& key, const std::string& value, persistent::version_t pver, persistent::version_t pver_bk, uint32_t subgroup_index, uint32_t shard_index) {
-    print_red("TCSS does not support put.");
-}
-
 template <typename SubgroupType>
 void put_and_forget(ServiceClientAPI& capi, const std::string& key, const std::string& value, persistent::version_t pver, persistent::version_t pver_bk, uint32_t subgroup_index, uint32_t shard_index) {
     typename SubgroupType::ObjectType obj;
@@ -178,11 +173,6 @@ void put_and_forget(ServiceClientAPI& capi, const std::string& key, const std::s
     std::cout << "put done." << std::endl;
 }
 
-template <>
-void put_and_forget<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, const std::string& key, const std::string& value, persistent::version_t pver, persistent::version_t pver_bk, uint32_t subgroup_index, uint32_t shard_index) {
-    print_red("TCSS does not support put.");
-}
-
 void op_put(ServiceClientAPI& capi, const std::string& key, const std::string& value, persistent::version_t pver, persistent::version_t pver_bk) {
     ObjectWithStringKey obj;
     obj.key = key;
@@ -193,27 +183,14 @@ void op_put(ServiceClientAPI& capi, const std::string& key, const std::string& v
     check_put_and_remove_result(result);
 }
 
-template <typename SubgroupType>
 void op_put_and_forget(ServiceClientAPI& capi, const std::string& key, const std::string& value, persistent::version_t pver, persistent::version_t pver_bk) {
-    typename SubgroupType::ObjectType obj;
-    if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
-        obj.key = static_cast<uint64_t>(std::stol(key));
-    } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
-        obj.key = key;
-    } else {
-        print_red(std::string("Unhandled KeyType:") + typeid(typename SubgroupType::KeyType).name());
-        return;
-    }
+    ObjectWithStringKey obj;
+    obj.key = key;
     obj.previous_version = pver;
     obj.previous_version_by_key = pver_bk;
     obj.blob = Blob(value.c_str(),value.length());
-    capi.template put_and_forget<SubgroupType>(obj);
+    capi.put_and_forget(obj);
     std::cout << "put done." << std::endl;
-}
-
-template <>
-void op_put_and_forget<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, const std::string& key, const std::string& value, persistent::version_t pver, persistent::version_t pver_bk) {
-    print_red("TCSS does not support op_put.");
 }
 
 template <typename SubgroupType>
@@ -242,20 +219,12 @@ void trigger_put(ServiceClientAPI& capi, const std::string& key, const std::stri
     std::cout << "trigger_put is done." << std::endl;
 }
 
-template <typename SubgroupType>
 void op_trigger_put(ServiceClientAPI& capi, const std::string& key, const std::string& value) {
-    typename SubgroupType::ObjectType obj;
-    if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
-        obj.key = static_cast<uint64_t>(std::stol(key));
-    } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
-        obj.key = key;
-    } else {
-        print_red(std::string("Unhandled KeyType:") + typeid(typename SubgroupType::KeyType).name());
-        return;
-    }
+    ObjectWithStringKey obj;
 
+    obj.key = key;
     obj.blob = Blob(value.c_str(),value.length());
-    derecho::rpc::QueryResults<void> result = capi.template trigger_put<SubgroupType>(obj);
+    derecho::rpc::QueryResults<void> result = capi.trigger_put(obj);
     result.get();
    
     std::cout << "op_trigger_put is done." << std::endl;
@@ -302,28 +271,9 @@ void remove(ServiceClientAPI& capi, const std::string& key, uint32_t subgroup_in
     }
 }
 
-template <>
-void remove<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, const std::string& key, uint32_t subgroup_index, uint32_t shard_index) {
-    print_red("TCSS does not support remove.");
-}
-
-template <typename SubgroupType>
 void op_remove(ServiceClientAPI& capi, const std::string& key) {
-    if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> result = std::move(capi.template remove<SubgroupType>(static_cast<uint64_t>(std::stol(key))));
-        check_put_and_remove_result(result);
-    } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> result = std::move(capi.template remove<SubgroupType>(key));
-        check_put_and_remove_result(result);
-    } else {
-        print_red(std::string("Unhandled KeyType:") + typeid(typename SubgroupType::KeyType).name());
-        return;
-    }
-}
-
-template <>
-void op_remove<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, const std::string& key) {
-    print_red("TCSS does not support remove.");
+    auto result = capi.remove(key);
+    check_put_and_remove_result(result);
 }
 
 #define check_get_result(result) \
@@ -345,28 +295,6 @@ void get(ServiceClientAPI& capi, const std::string& key, persistent::version_t v
     }
 }
 
-template <>
-void get<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, const std::string& key, persistent::version_t ver, uint32_t subgroup_index,uint32_t shard_index) {
-    print_red("TCSS does not support get.");
-}
-
-template <typename SubgroupType>
-void op_get(ServiceClientAPI& capi, const std::string& key, persistent::version_t ver) {
-    if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
-        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get<SubgroupType>(
-                static_cast<uint64_t>(std::stol(key)),ver);
-        check_get_result(result);
-    } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
-        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get<SubgroupType>(key,ver);
-        check_get_result(result);
-    }
-}
-
-template <>
-void op_get<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, const std::string& key, persistent::version_t ver) {
-    print_red("TCSS does not support get.");
-}
-
 template <typename SubgroupType>
 void get_by_time(ServiceClientAPI& capi, const std::string& key, uint64_t ts_us, uint32_t subgroup_index, uint32_t shard_index) {
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
@@ -378,29 +306,6 @@ void get_by_time(ServiceClientAPI& capi, const std::string& key, uint64_t ts_us,
                 key,ts_us,subgroup_index,shard_index);
         check_get_result(result);
     }
-}
-
-template <>
-void get_by_time<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, const std::string& key, uint64_t ts_us, uint32_t subgroup_index, uint32_t shard_index) {
-    print_red("TCSS does not support get_by_time.");
-}
-
-template <typename SubgroupType>
-void op_get_by_time(ServiceClientAPI& capi, const std::string& key, uint64_t ts_us) {
-    if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
-        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get_by_time<SubgroupType>(
-                static_cast<uint64_t>(std::stol(key)),ts_us);
-        check_get_result(result);
-    } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
-        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get_by_time<SubgroupType>(
-                key,ts_us);
-        check_get_result(result);
-    }
-}
-
-template <>
-void op_get_by_time<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, const std::string& key, uint64_t ts_us) {
-    print_red("TCSS does not support get_by_time.");
 }
 
 template <typename SubgroupType>
@@ -416,29 +321,6 @@ void get_size(ServiceClientAPI& capi, const std::string& key, persistent::versio
     }
 }
 
-template<>
-void get_size<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, const std::string& key, persistent::version_t ver, uint32_t subgroup_index,uint32_t shard_index) {
-    print_red("TCSS does not support get_size.");
-}
-
-template <typename SubgroupType>
-void op_get_size(ServiceClientAPI& capi, const std::string& key, persistent::version_t ver) {
-    if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
-        derecho::rpc::QueryResults<uint64_t> result = capi.template get_size<SubgroupType>(
-                static_cast<uint64_t>(std::stol(key)),ver);
-        check_get_result(result);
-    } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
-        derecho::rpc::QueryResults<uint64_t> result = capi.template get_size<SubgroupType>(
-                key,ver);
-        check_get_result(result);
-    }
-}
-
-template<>
-void op_get_size<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, const std::string& key, persistent::version_t ver) {
-    print_red("TCSS does not support get_size.");
-}
-
 template <typename SubgroupType>
 void get_size_by_time(ServiceClientAPI& capi, const std::string& key, uint64_t ts_us, uint32_t subgroup_index, uint32_t shard_index) {
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
@@ -450,29 +332,6 @@ void get_size_by_time(ServiceClientAPI& capi, const std::string& key, uint64_t t
                 key,ts_us,subgroup_index,shard_index);
         check_get_result(result);
     }
-}
-
-template <>
-void get_size_by_time<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, const std::string& key, uint64_t ts_us, uint32_t subgroup_index, uint32_t shard_index) {
-    print_red("TCSS does not support get_size_by_time.");
-}
-
-template <typename SubgroupType>
-void op_get_size_by_time(ServiceClientAPI& capi, const std::string& key, uint64_t ts_us) {
-    if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
-        derecho::rpc::QueryResults<uint64_t> result = capi.template get_size_by_time<SubgroupType>(
-                static_cast<uint64_t>(std::stol(key)),ts_us);
-        check_get_result(result);
-    } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
-        derecho::rpc::QueryResults<uint64_t> result = capi.template get_size_by_time<SubgroupType>(
-                key,ts_us);
-        check_get_result(result);
-    }
-}
-
-template <>
-void op_get_size_by_time<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, const std::string& key, uint64_t ts_us) {
-    print_red("TCSS does not support get_size_by_time.");
 }
 
 #define check_list_keys_result(result) \
@@ -498,48 +357,11 @@ void list_keys(ServiceClientAPI& capi, persistent::version_t ver, uint32_t subgr
     check_list_keys_result(result);
 }
 
-template <>
-void list_keys<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, persistent::version_t ver, uint32_t subgroup_index, uint32_t shard_index) {
-    print_red("TCSS does not support list_keys.");
-}
-
-template <typename SubgroupType>
-void op_list_keys(ServiceClientAPI& capi, persistent::version_t& ver, std::string obj_pool) {
-    std::cout << "object pool list_keys: ver = " << ver << ", subgroup_index = " <<  std::endl;
-    std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>> future_result = capi.template list_keys<SubgroupType>(ver, obj_pool);
-    std::vector<typename SubgroupType::KeyType> result = capi.template wait_list_keys<SubgroupType>(future_result);
-    check_op_list_keys_result(result);
-}
-
-template <>
-void op_list_keys<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, persistent::version_t& ver, std::string obj_pool) {
-    print_red("TCSS does not support op_list_keys.");
-}
-
 template <typename SubgroupType>
 void list_keys_by_time(ServiceClientAPI& capi, uint64_t ts_us, uint32_t subgroup_index, uint32_t shard_index) {
     derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> result = capi.template list_keys_by_time<SubgroupType>(ts_us,subgroup_index,shard_index);
     check_list_keys_result(result);
 }
-
-template <>
-void list_keys_by_time<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, uint64_t ts_us, uint32_t subgroup_index, uint32_t shard_index) {
-    print_red("TCSS does not support list_keys_by_time.");
-}
-
-template <typename SubgroupType>
-void op_list_keys_by_time(ServiceClientAPI& capi, uint64_t ts_us, const std::string& object_pool_pathname) {
-    std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>> future_result = capi.template list_keys_by_time<SubgroupType>(ts_us,object_pool_pathname);
-    std::vector<typename SubgroupType::KeyType> result = capi.template wait_list_keys<SubgroupType>(future_result);
-    check_op_list_keys_result(result);
-}
-
-template <>
-void op_list_keys_by_time<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI& capi, uint64_t ts_us, const std::string& object_pool_path_name) {
-    print_red("TCSS does not support op_list_keys_by_time.");
-}
-
-
 
 #ifdef HAS_BOOLINQ
 //    "list_data_by_prefix <type> <prefix> [version] [subgroup_index] [shard_index\n\t test LINQ api\n]"
@@ -1014,21 +836,21 @@ std::vector<command_entry_t> commands =
     {
         "op_put_and_forget",
         "Put an object into an object pool, without a return value",
-        "op_put_and_forget <type> <key> <value> [previous_version(default:-1)] [previous_version_by_key(default:-1)]\n"
+        "op_put_and_forget <key> <value> [previous_version(default:-1)] [previous_version_by_key(default:-1)]\n"
             "type := " SUBGROUP_TYPE_LIST "\n"
             "Please note that cascade automatically decides the object pool path using the key's prefix.",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             persistent::version_t pver = persistent::INVALID_VERSION;
             persistent::version_t pver_bk = persistent::INVALID_VERSION;
-            if (cmd_tokens.size() < 4) {
+            if (cmd_tokens.size() < 3) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
             }
+            if (cmd_tokens.size() >= 4)
+                pver = static_cast<persistent::version_t>(std::stol(cmd_tokens[3]));
             if (cmd_tokens.size() >= 5)
-                pver = static_cast<persistent::version_t>(std::stol(cmd_tokens[4]));
-            if (cmd_tokens.size() >= 6)
-                pver_bk = static_cast<persistent::version_t>(std::stol(cmd_tokens[5]));
-            on_subgroup_type(cmd_tokens[1], op_put_and_forget,capi,cmd_tokens[2]/*key*/,cmd_tokens[3]/*value*/,pver,pver_bk);
+                pver_bk = static_cast<persistent::version_t>(std::stol(cmd_tokens[4]));
+            op_put_and_forget(capi,cmd_tokens[1]/*key*/,cmd_tokens[2]/*value*/,pver,pver_bk);
             return true;
         }
     },
@@ -1051,15 +873,14 @@ std::vector<command_entry_t> commands =
     {
         "op_trigger_put",
         "Trigger put an object to an object pool.",
-        "op_trigger_put <type> <key> <value>\n"
-            "type := " SUBGROUP_TYPE_LIST "\n"
+        "op_trigger_put <key> <value>\n"
             "Please note that cascade automatically decides the object pool path using the key's prefix.",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
-            if (cmd_tokens.size() < 4) {
+            if (cmd_tokens.size() < 3) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
             }
-            on_subgroup_type(cmd_tokens[1],op_trigger_put,capi,cmd_tokens[2]/*key*/,cmd_tokens[3]/*value*/);
+            op_trigger_put(capi,cmd_tokens[1]/*key*/,cmd_tokens[2]/*value*/);
             return true;
         }
     },
@@ -1102,15 +923,14 @@ std::vector<command_entry_t> commands =
     {
         "op_remove",
         "Remove an object from an object pool.",
-        "op_remove <type> <key>\n"
-            "type := " SUBGROUP_TYPE_LIST "\n"
+        "op_remove <key>\n"
             "Please note that cascade automatically decides the object pool path using the key's prefix.",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
-            if (cmd_tokens.size() < 3) {
+            if (cmd_tokens.size() < 2) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
             }
-            on_subgroup_type(cmd_tokens[1],op_remove,capi,cmd_tokens[2]);
+            op_remove(capi,cmd_tokens[1]);
             return true;
         }
     },
@@ -1137,19 +957,18 @@ std::vector<command_entry_t> commands =
     {
         "op_get",
         "Get an object from an object pool (by version).",
-        "op_get <type> <key> [ version(default:current version) ]\n"
-            "type := " SUBGROUP_TYPE_LIST "\n"
+        "op_get <key> [ version(default:current version) ]\n"
             "Please note that cascade automatically decides the object pool path using the key's prefix.",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
-            if (cmd_tokens.size() < 3) {
+            if (cmd_tokens.size() < 2) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
             }
             persistent::version_t version = CURRENT_VERSION;
-            if (cmd_tokens.size() >= 4) {
-                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[3]));
+            if (cmd_tokens.size() >= 3) {
+                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[2]));
             }
-            on_subgroup_type(cmd_tokens[1],op_get,capi,cmd_tokens[2],version);
+            check_get_result(capi.get(cmd_tokens[1],version));
             return true;
         }
     },
@@ -1173,16 +992,15 @@ std::vector<command_entry_t> commands =
     {
         "op_get_by_time",
         "Get an object from an object pool (by timestamp in microseconds).",
-        "op_get_by_time <type> <key> <timestamp in us>\n"
-            "type := " SUBGROUP_TYPE_LIST "\n"
+        "op_get_by_time <key> <timestamp in us>\n"
             "Please note that cascade automatically decides the object pool path using the key's prefix.",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
-            if (cmd_tokens.size() < 4) {
+            if (cmd_tokens.size() < 3) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
             }
-            uint64_t ts_us = static_cast<uint64_t>(std::stol(cmd_tokens[3]));
-            on_subgroup_type(cmd_tokens[1],op_get_by_time,capi,cmd_tokens[2],ts_us);
+            uint64_t ts_us = static_cast<uint64_t>(std::stol(cmd_tokens[2]));
+            check_get_result(capi.get_by_time(cmd_tokens[1],ts_us));
             return true;
         }
     },
@@ -1209,19 +1027,18 @@ std::vector<command_entry_t> commands =
     {
         "op_get_size",
         "Get the size of an object from an object pool (by version).",
-        "op_get_size <type> <key> [ version(default:current version) ]\n"
-            "type := " SUBGROUP_TYPE_LIST "\n"
+        "op_get_size <key> [ version(default:current version) ]\n"
             "Please note that cascade automatically decides the object pool path using the key's prefix.",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
-            if (cmd_tokens.size() < 3) {
+            if (cmd_tokens.size() < 2) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
             }
             persistent::version_t version = CURRENT_VERSION;
-            if (cmd_tokens.size() >= 4) {
-                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[3]));
+            if (cmd_tokens.size() >= 3) {
+                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[2]));
             }
-            on_subgroup_type(cmd_tokens[1],op_get_size,capi,cmd_tokens[2],version);
+            check_get_result(capi.get_size(cmd_tokens[1],version));
             return true;
         }
     },
@@ -1245,16 +1062,15 @@ std::vector<command_entry_t> commands =
     {
         "op_get_size_by_time",
         "Get the size of an object from an object pool (by timestamp in microseconds).",
-        "op_get_size_by_time <type> <key> <timestamp in us>\n"
-            "type := " SUBGROUP_TYPE_LIST "\n"
+        "op_get_size_by_time <key> <timestamp in us>\n"
             "Please note that cascade automatically decides the object pool path using the key's prefix.",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
-            if (cmd_tokens.size() < 4) {
+            if (cmd_tokens.size() < 3) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
             }
-            uint64_t ts_us = static_cast<uint64_t>(std::stol(cmd_tokens[3]));
-            on_subgroup_type(cmd_tokens[1],op_get_size_by_time,capi,cmd_tokens[2],ts_us);
+            uint64_t ts_us = static_cast<uint64_t>(std::stol(cmd_tokens[2]));
+            check_get_result(capi.get_size_by_time(cmd_tokens[1],ts_us));
             return true;
         }
     },
@@ -1281,18 +1097,19 @@ std::vector<command_entry_t> commands =
     {
         "op_list_keys",
         "list the object keys in an object pool (by version).",
-        "op_list_keys <type> <object pool pathname> [ version(default:current version) ]\n"
+        "op_list_keys <object pool pathname> [ version(default:current version) ]\n"
             "type := " SUBGROUP_TYPE_LIST,
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
-            if (cmd_tokens.size() < 3) {
+            if (cmd_tokens.size() < 2) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
             }
             persistent::version_t version = CURRENT_VERSION;
-            if (cmd_tokens.size() >= 4) {
-                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[3]));
+            if (cmd_tokens.size() >= 3) {
+                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[2]));
             }
-            on_subgroup_type(cmd_tokens[1],op_list_keys,capi,version,cmd_tokens[2]);
+            auto result = capi.list_keys(version,cmd_tokens[1]);
+            check_op_list_keys_result(capi.wait_list_keys(result));
             return true;
         }
     },
@@ -1316,15 +1133,15 @@ std::vector<command_entry_t> commands =
     {
         "op_list_keys_by_time",
         "list the object keys in an object pool (by timestamp in microseconds).",
-        "op_list_keys_by_time <type> <object pool pathname> <timestamp in us>\n"
-            "type := " SUBGROUP_TYPE_LIST,
+        "op_list_keys_by_time <object pool pathname> <timestamp in us>\n",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
-            if (cmd_tokens.size() < 4) {
+            if (cmd_tokens.size() < 3) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
             }
-            uint64_t ts_us = static_cast<uint64_t>(std::stoull(cmd_tokens[3]));
-            on_subgroup_type(cmd_tokens[1],op_list_keys_by_time,capi,ts_us,cmd_tokens[2]);
+            uint64_t ts_us = static_cast<uint64_t>(std::stoull(cmd_tokens[2]));
+            auto result = capi.list_keys_by_time(ts_us,cmd_tokens[1]);
+            check_op_list_keys_result(capi.wait_list_keys(result));
             return true;
         }
     },
