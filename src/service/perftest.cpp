@@ -176,8 +176,7 @@ bool PerfTestServer::eval_put_and_forget(uint64_t max_operation_per_second,
         global_timestamp_logger.log(TLT_READY_TO_SEND,this->capi.get_my_id(),message_id,get_walltime());
         // send it
         if (subgroup_index == INVALID_SUBGROUP_INDEX || shard_index == INVALID_SHARD_INDEX) {
-            on_subgroup_type_index(std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
-                    this->capi.template put_and_forget, objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS));
+            this->capi.put_and_forget(objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS));
         } else {
             on_subgroup_type_index(std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
                     this->capi.template put_and_forget, objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS), subgroup_index, shard_index);
@@ -219,8 +218,7 @@ bool PerfTestServer::eval_trigger_put(uint64_t max_operation_per_second,
         // log time.
         global_timestamp_logger.log(TLT_READY_TO_SEND,this->capi.get_my_id(),message_id,get_walltime());
         if (subgroup_index == INVALID_SUBGROUP_INDEX || shard_index == INVALID_SHARD_INDEX) {
-            on_subgroup_type_index(std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
-                    this->capi.template trigger_put, objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS));
+            this->capi.trigger_put(objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS));
         } else {
             on_subgroup_type_index(std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
                     this->capi.template trigger_put, objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS), subgroup_index, shard_index);

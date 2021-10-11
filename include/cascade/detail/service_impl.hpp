@@ -1020,7 +1020,7 @@ auto ServiceClient<CascadeTypes...>::type_recursive_list_keys(
     if (type_index == 0) {
         return this->template __list_keys<FirstType>(version,object_pool_pathname);
     } else {
-        return this->template list_keys<SecondType, RestTypes...>(type_index-1, version, object_pool_pathname);
+        return this->template type_recursive_list_keys<SecondType, RestTypes...>(type_index-1, version, object_pool_pathname);
     }
 }
 
