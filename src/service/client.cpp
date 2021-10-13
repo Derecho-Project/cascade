@@ -1097,8 +1097,7 @@ std::vector<command_entry_t> commands =
     {
         "op_list_keys",
         "list the object keys in an object pool (by version).",
-        "op_list_keys <object pool pathname> [ version(default:current version) ]\n"
-            "type := " SUBGROUP_TYPE_LIST,
+        "op_list_keys <object pool pathname> [ version(default:current version) ]\n",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             if (cmd_tokens.size() < 2) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
