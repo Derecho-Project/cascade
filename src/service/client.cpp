@@ -127,7 +127,7 @@ static void print_cyan(std::string msg) {
     } else if ((x) == "TCSS") { \
         ft <TriggerCascadeNoStoreWithStringKey>(__VA_ARGS__); \
     } else { \
-        print_red("unknown subgroup type:" + cmd_tokens[1]); \
+        print_red("unknown subgroup type:" + x); \
     }
 
 #define check_put_and_remove_result(result) \
@@ -968,7 +968,8 @@ std::vector<command_entry_t> commands =
             if (cmd_tokens.size() >= 3) {
                 version = static_cast<persistent::version_t>(std::stol(cmd_tokens[2]));
             }
-            check_get_result(capi.get(cmd_tokens[1],version));
+            auto res = capi.get(cmd_tokens[1],version);
+            check_get_result(res);
             return true;
         }
     },
@@ -1000,7 +1001,8 @@ std::vector<command_entry_t> commands =
                 return false;
             }
             uint64_t ts_us = static_cast<uint64_t>(std::stol(cmd_tokens[2]));
-            check_get_result(capi.get_by_time(cmd_tokens[1],ts_us));
+            auto res = capi.get_by_time(cmd_tokens[1],ts_us);
+            check_get_result(res);
             return true;
         }
     },
@@ -1038,7 +1040,8 @@ std::vector<command_entry_t> commands =
             if (cmd_tokens.size() >= 3) {
                 version = static_cast<persistent::version_t>(std::stol(cmd_tokens[2]));
             }
-            check_get_result(capi.get_size(cmd_tokens[1],version));
+            auto res = capi.get_size(cmd_tokens[1],version);
+            check_get_result(res);
             return true;
         }
     },
@@ -1070,7 +1073,8 @@ std::vector<command_entry_t> commands =
                 return false;
             }
             uint64_t ts_us = static_cast<uint64_t>(std::stol(cmd_tokens[2]));
-            check_get_result(capi.get_size_by_time(cmd_tokens[1],ts_us));
+            auto res = capi.get_size_by_time(cmd_tokens[1],ts_us);
+            check_get_result(res);
             return true;
         }
     },
