@@ -156,7 +156,7 @@ auto put(ServiceClientAPI& capi, std::string& key, std::string& value, uint32_t 
         return;
     }
     obj.blob = Blob(value.c_str(), value.length());
-    derecho::rpc::QueryResults<std::tuple<persistent::version_t, uint64_t>> result = (subgroup_index == UINT32_MAX) ? capi.template put<SubgroupType>(obj) : capi.template put<SubgroupType>(obj, subgroup_index, shard_index);
+    derecho::rpc::QueryResults<std::tuple<persistent::version_t, uint64_t>> result = (subgroup_index == UINT32_MAX) ? capi.put(obj) : capi.template put<SubgroupType>(obj, subgroup_index, shard_index);
 
     QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>* s = new QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>(result, bundle_f);
     return py::cast(s);
@@ -186,7 +186,7 @@ void trigger_put(ServiceClientAPI& capi, std::string& key, std::string& value, u
     }
     obj.blob = Blob(value.c_str(), value.length());
     if (subgroup_index == UINT32_MAX) {
-        capi.template trigger_put<SubgroupType>(obj);
+        capi.trigger_put(obj);
     } else {
         capi.template trigger_put<SubgroupType>(obj, subgroup_index, shard_index);
     }
@@ -210,7 +210,7 @@ auto remove(ServiceClientAPI& capi, std::string& key, uint32_t subgroup_index = 
         return py::cast(s);
 
     } else if constexpr(std::is_convertible<typename SubgroupType::KeyType, std::string>::value) {
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t, uint64_t>> result = (subgroup_index == UINT32_MAX) ? capi.template remove<SubgroupType>(key) : capi.template remove<SubgroupType>(key, subgroup_index, shard_index);
+        derecho::rpc::QueryResults<std::tuple<persistent::version_t, uint64_t>> result = (subgroup_index == UINT32_MAX) ? capi.remove(key) : capi.template remove<SubgroupType>(key, subgroup_index, shard_index);
         QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>* s = new QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>(result, bundle_f);
         return py::cast(s);
 
@@ -244,7 +244,7 @@ auto get(ServiceClientAPI& capi, const std::string& key, persistent::version_t v
         return py::cast(s);
 
     } else if constexpr(std::is_convertible<typename SubgroupType::KeyType, std::string>::value) {
-        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = (subgroup_index == UINT32_MAX) ? capi.template get<SubgroupType>(key, ver) : capi.template get<SubgroupType>(key, ver, subgroup_index, shard_index);
+        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = (subgroup_index == UINT32_MAX) ? capi.get(key, ver) : capi.template get<SubgroupType>(key, ver, subgroup_index, shard_index);
         // check_get_result(result);
         QueryResultsStore<const typename SubgroupType::ObjectType, py::bytes>* s = new QueryResultsStore<const typename SubgroupType::ObjectType, py::bytes>(result, s_f);
         return py::cast(s);
@@ -269,7 +269,7 @@ auto get_by_time(ServiceClientAPI& capi, const std::string& key, uint64_t ts_us,
         return py::cast(s);
 
     } else if constexpr(std::is_convertible<typename SubgroupType::KeyType, std::string>::value) {
-        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = (subgroup_index == UINT32_MAX) ? capi.template get_by_time<SubgroupType>(key, ts_us) : capi.template get_by_time<SubgroupType>(key, ts_us, subgroup_index, shard_index);
+        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = (subgroup_index == UINT32_MAX) ? capi.get_by_time(key, ts_us) : capi.template get_by_time<SubgroupType>(key, ts_us, subgroup_index, shard_index);
 
         QueryResultsStore<const typename SubgroupType::ObjectType, py::bytes>* s = new QueryResultsStore<const typename SubgroupType::ObjectType, py::bytes>(result, s_f);
         return py::cast(s);
