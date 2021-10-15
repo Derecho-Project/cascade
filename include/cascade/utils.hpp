@@ -178,6 +178,8 @@ public:
 #define TLT_P2P_TRIGGERED                   (20)
 #define TLT_ORDERED_TRIGGERED               (21)
 #define TLT_PERSISTED                       (22)
+
+#define TLT_PIPELINE(x)                     (10000 + (x))
 class TimestampLogger {
 private:
     std::vector<std::tuple<uint64_t,uint64_t,uint64_t,uint64_t,uint64_t>> _log;

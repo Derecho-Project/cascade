@@ -2,6 +2,7 @@
 #include <cascade/cascade.hpp>
 #include <cascade/object.hpp>
 #include <cascade/object_pool_metadata.hpp>
+#include <cascade/service.hpp>
 #include <derecho/conf/conf.hpp>
 
 #define CONF_VCS_UINT64KEY_LAYOUT "CASCADE/VOLATILECASCADESTORE/UINT64/layout"
@@ -31,5 +32,12 @@ using TriggerCascadeNoStoreWithStringKey = TriggerCascadeNoStore<
                                                 &ObjectWithStringKey::IK,
                                                 &ObjectWithStringKey::IV>;
 
+using DefaultServiceType = Service<VolatileCascadeStoreWithStringKey,
+                                   PersistentCascadeStoreWithStringKey,
+                                   TriggerCascadeNoStoreWithStringKey>;
+
+using DefaultCascadeContextType = CascadeContext<VolatileCascadeStoreWithStringKey,
+                                                 PersistentCascadeStoreWithStringKey,
+                                                 TriggerCascadeNoStoreWithStringKey>;
 } // namespace cascade
 } // namespace derecho
