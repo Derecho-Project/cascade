@@ -50,4 +50,4 @@ add_custom_command(TARGET pipeline_udl POST_BUILD
              ${CMAKE_CURRENT_SOURCE_DIR}/trigger_put_pipeline_cfg/udl_dlls.cfg.tmp
              ${CMAKE_CURRENT_SOURCE_DIR}/trigger_put_pipeline_cfg/layout.json
      COMMENT "prepare console_printer configuration"
- )
+)
