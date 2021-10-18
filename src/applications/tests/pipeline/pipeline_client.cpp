@@ -129,6 +129,7 @@ int main(int argc, char** argv) {
         } else {
             usleep((next_ns-now_ns-500)/1e3); // sleep in microseconds.
         }
+        now_ns = get_walltime();
     }
 
 #ifdef ENABLE_EVALUATION
