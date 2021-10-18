@@ -4,6 +4,7 @@
 #include <unordered_set>
 #include <memory>
 #include <string>
+#include <nlohmann/json.hpp>
 
 /**
  * This interface defines the function the user defined logic dll should implement.
@@ -44,13 +45,11 @@ void initialize(ICascadeContext* ctxt);
  * register triggers to cascade
  *
  * @param   ctxt - cascade context
- * @param   pathname represents which node in the prefix tree is requesting the observer.
  * @param   config is a configuration string from dfgs.json to customize the UDL behaviour.
  */
 std::shared_ptr<OffCriticalDataPathObserver> get_observer(
         ICascadeContext* ctxt,
-        const std::string& pathname,
-        const std::string& udl_config);
+        const nlohmann::json& udl_config);
 
 /**
  * Release the user defined logic

@@ -24,8 +24,8 @@ namespace cascade {
  *                 "4f0373a2-9b3c-11eb-a651-0242ac110002"
  *             ],
  *             "user_defined_logic_config_list": [
- *                 "udl-specific config string1",
- *                 "udl-specific config string2"
+ *                 {"udl_config_op1":"val1","udl_config_op2":"val2"},
+ *                 {"udl_config_op1":"val1","udl_config_op2":"val2"}
  *             ],
  *             "destinations": [
  *                 {"/pool1.1/":"put","/pool1.2/":"trigger_put"},
@@ -76,7 +76,7 @@ public:
     struct DataFlowGraphVertex {
         std::string pathname;
         // The optional initialization string for each UUID
-        std::unordered_map<std::string,std::string> configurations;
+        std::unordered_map<std::string,json> configurations;
         // The edges is a map from UDL uuid string to a vector of destiation vertex pathnames.
         // An entry "udl_uuid->[pool1:true,pool2:false,pool3:false]" means three edges from the current vertex to three destination
         // vertices pool1, pool2, and pool3. The input data is processed by UDL specified by udl_uuid.

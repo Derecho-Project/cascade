@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <string>
+#include <nlohmann/json.hpp>
 
 namespace derecho {
 namespace cascade {
@@ -39,9 +40,14 @@ public:
      * Get a shared ocdpo ptr. The implementation should keep a shared pointer to the ocdpo to avoid recreating ocdpo
      * for multiple calls on get_observer().
      *
+     * @param ctxt        - the CascadeContext
+     * @param udl_config  - a JSON configuration string for this UDL.
+     *
      * @return a shared pointer to the ocdpo.
      */
-    virtual std::shared_ptr<OffCriticalDataPathObserver> get_observer() = 0;
+    virtual std::shared_ptr<OffCriticalDataPathObserver> get_observer(
+            CascadeContext<CascadeTypes...>* ctxt,
+            const nlohmann::json& udl_config = nlohmann::json{}) = 0;
 
     /**
      * release the UDL
@@ -69,11 +75,15 @@ public:
     /**
      * Get a shared ocdpo ptr by UDL id.
      *
-     * @param udl_id    The UDL id.
+     * @param ctxt          - the CascadeContext
+     * @param udl_id        - The UDL id.
+     * @param udl_config    - a JSON configuration for this UDL.
      *
      * @return a shared pointer to the ocdpo.
      */
-    virtual std::shared_ptr<OffCriticalDataPathObserver> get_observer(std::string udl_id) = 0;
+    virtual std::shared_ptr<OffCriticalDataPathObserver> get_observer(
+            const std::string& udl_id,
+            const nlohmann::json& udl_config = nlohmann::json{}) = 0;
 
     /**
      * Factory

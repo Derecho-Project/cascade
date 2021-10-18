@@ -525,11 +525,16 @@ derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::trigger_put(
         uint32_t subgroup_index,
         uint32_t shard_index) {
     if (group_ptr != nullptr) {
-        // TODO: can we do p2p_call to myself?
         std::lock_guard(this->group_ptr_mutex);
-        auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
-        node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
-        return subgroup_handle.template p2p_send<RPC_NAME(trigger_put)>(node_id,value);
+        if (group_ptr->template get_my_shard<SubgroupType>(subgroup_index) == -1){
+            auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
+            node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
+            return subgroup_handle.template p2p_send<RPC_NAME(trigger_put)>(node_id,value);
+        } else {
+            auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
+            node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
+            return subgroup_handle.template p2p_send<RPC_NAME(trigger_put)>(node_id,value);
+        }
     } else {
         std::lock_guard(this->external_group_ptr_mutex);
         // call as an external client (ExternalClientCaller).
@@ -1428,7 +1433,13 @@ void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeMetadataSe
     for (auto& dfg:dfgs) {
         for (auto& vertex:dfg.vertices) {
             for (auto& edge:vertex.second.edges) {
-                register_prefixes({vertex.second.pathname},edge.first,user_defined_logic_manager->get_observer(edge.first),edge.second);
+                register_prefixes(
+                        {vertex.second.pathname},
+                        edge.first,
+                        user_defined_logic_manager->get_observer(
+                            edge.first, // UUID
+                            vertex.second.configurations.at(edge.first)),
+                        edge.second);
             }
         }
     }
