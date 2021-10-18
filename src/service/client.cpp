@@ -554,6 +554,20 @@ bool perftest_ordered_put<TriggerCascadeNoStoreWithStringKey>(ServiceClientAPI &
     print_red("TCSS does not support perftest_ordered_put");
     return false;
 }
+
+template <typename SubgroupType>
+bool dump_timestamp(ServiceClientAPI &capi,
+                    uint32_t subgroup_index,
+                    uint32_t shard_index,
+                    const std::string& filename) {
+    debug_enter_func_with_args("subgroup_index={}, shard_index={}, filename={}",
+                               subgroup_index,shard_index,filename);
+    auto result = capi.template dump_timestamp<SubgroupType>(filename,subgroup_index,shard_index);
+    result.get();
+    global_timestamp_logger.flush(filename);
+    debug_leave_func();
+    return true;
+}
 #endif // ENABLE_EVALUATION
 
 
@@ -1363,7 +1377,7 @@ std::vector<command_entry_t> commands =
         "Performance Test for ordered_put in a shard.",
         "perftest_ordered_put <type> <message_size> <duration_sec> <subgroup index> <shard_index>\n"
             "type := " SUBGROUP_TYPE_LIST "\n"
-            "'duration_sec' is the span of the whole experiments; \n",
+            "'duration_sec' is the span of the whole experiments",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             if (cmd_tokens.size() < 6) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
@@ -1375,6 +1389,23 @@ std::vector<command_entry_t> commands =
             uint32_t shard_index = std::stoul(cmd_tokens[5]);
 
             on_subgroup_type(cmd_tokens[1], perftest_ordered_put, capi, message_size, duration_sec, subgroup_index, shard_index);
+            return true;
+        }
+    },
+    {
+        "dump_timestamp",
+        "Dump timestamp for a given shard. Each node will write its timestamps to the given file.",
+        "dump_timestamp <type> <subgroup index> <shard index> <filename>\n"
+            "type := " SUBGROUP_TYPE_LIST "\n"
+            "filename := timestamp log filename",
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+            if (cmd_tokens.size() < 5) {
+                print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
+                return false;
+            }
+            uint32_t subgroup_index = std::stoul(cmd_tokens[2]);
+            uint32_t shard_index = std::stoul(cmd_tokens[3]);
+            on_subgroup_type(cmd_tokens[1]/*subgroup type*/, dump_timestamp, capi, subgroup_index, shard_index, cmd_tokens[4]/*filename*/);
             return true;
         }
     },
