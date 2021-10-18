@@ -78,11 +78,13 @@ public:
         }
     }
     //@override
-    virtual std::shared_ptr<OffCriticalDataPathObserver> get_observer() {
-        std::shared_ptr<OffCriticalDataPathObserver> (*get_observer_fun)();
-        *reinterpret_cast<void **>(&get_observer_fun) = load_symbol("_ZN7derecho7cascade12get_observerEv");
+    virtual std::shared_ptr<OffCriticalDataPathObserver> get_observer(
+            CascadeContext<CascadeTypes...>* ctxt,
+            const nlohmann::json& udl_config = nlohmann::json{}) {
+        std::shared_ptr<OffCriticalDataPathObserver> (*get_observer_fun)(ICascadeContext*,const nlohmann::json&);
+        *reinterpret_cast<void **>(&get_observer_fun) = load_symbol("_ZN7derecho7cascade12get_observerEPNS0_15ICascadeContextERKN8nlohmann10basic_jsonISt3mapSt6vectorNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEblmdSaNS3_14adl_serializerES6_IhSaIhEEEE");
         if (get_observer_fun != nullptr) {
-            return get_observer_fun();
+            return get_observer_fun(ctxt,udl_config);
         } else {
             return std::shared_ptr<OffCriticalDataPathObserver>{nullptr};
         }
@@ -156,9 +158,11 @@ public:
         }
     }
     //@override
-    std::shared_ptr<OffCriticalDataPathObserver> get_observer(std::string udl_id) {
+    std::shared_ptr<OffCriticalDataPathObserver> get_observer(
+            const std::string& udl_id,
+            const nlohmann::json& udl_config = nlohmann::json{}) {
         if (udl_map.find(udl_id)!=udl_map.end()) {
-            return udl_map.at(udl_id)->get_observer();
+            return udl_map.at(udl_id)->get_observer(cascade_context,udl_config);
         } else {
             return std::shared_ptr<OffCriticalDataPathObserver>{nullptr};
         }

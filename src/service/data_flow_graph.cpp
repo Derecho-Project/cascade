@@ -25,7 +25,7 @@ DataFlowGraph::DataFlowGraph(const json& dfg_conf):
             if (it->contains(DFG_JSON_UDL_CONFIG_LIST)) {
                 dfgv.configurations.emplace(udl_uuid,(*it)[DFG_JSON_UDL_CONFIG_LIST].at(i));
             } else {
-                dfgv.configurations.emplace(udl_uuid,"");
+                dfgv.configurations.emplace(udl_uuid,json{});
             }
             // edges
             std::map<std::string,std::string> dest = 

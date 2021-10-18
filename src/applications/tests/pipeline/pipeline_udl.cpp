@@ -43,6 +43,7 @@ class PipelineOCDPO: public OffCriticalDataPathObserver {
             std::string obj_key = okv.first;
             //TODO: why value_ptr is const???
             ObjectWithStringKey o(*value);
+            o.key = obj_key + value->get_key_ref();
             if (okv.second) {
                 // TODO: how to decide the subgroup type of the put operations???
                 // trigger put
@@ -71,6 +72,8 @@ public:
         try{
             if (config.find("stage") != config.end()) {
                 stage = config["stage"].get<uint32_t>();
+            } else {
+                stage = 0;
             }
         } catch (json::exception& jsone) {
             dbg_default_error("Failed to parse pipeline configuration:{}, exception:{}",
@@ -79,14 +82,15 @@ public:
     }
 
     static void initialize() {
+        // nothing to do
     }
-    static auto get(const std::string& json_config) {
-        auto jo = json::parse(json_config);
+
+    static auto get(const json& json_config) {
         std::lock_guard lck(ocdpo_map_mutex);
-        if (ocdpo_map.find(jo) == ocdpo_map.end()) {
-            ocdpo_map.emplace(jo,std::make_shared<PipelineOCDPO>(jo));
+        if (ocdpo_map.find(json_config) == ocdpo_map.end()) {
+            ocdpo_map.emplace(json_config,std::make_shared<PipelineOCDPO>(json_config));
         }
-        return ocdpo_map.at(jo);
+        return ocdpo_map.at(json_config);
     }
 };
 
@@ -99,8 +103,7 @@ void initialize(ICascadeContext* ctxt) {
 
 std::shared_ptr<OffCriticalDataPathObserver> get_observer(
         ICascadeContext* ctxt,
-        const std::string& pathname,
-        const std::string& config) {
+        const nlohmann::json& config) {
     return PipelineOCDPO::get(config);
 }
 
