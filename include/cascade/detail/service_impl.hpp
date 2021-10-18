@@ -526,7 +526,7 @@ derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::trigger_put(
         uint32_t shard_index) {
     if (group_ptr != nullptr) {
         std::lock_guard(this->group_ptr_mutex);
-        if (group_ptr->template get_my_shard<SubgroupType>(subgroup_index) == -1){
+        if (group_ptr->template get_my_shard<SubgroupType>(subgroup_index) == shard_index){
             auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
             node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
             return subgroup_handle.template p2p_send<RPC_NAME(trigger_put)>(node_id,value);
@@ -597,10 +597,18 @@ void ServiceClient<CascadeTypes...>::collective_trigger_put(
         std::unordered_map<node_id_t,std::unique_ptr<derecho::rpc::QueryResults<void>>>& nodes_and_futures) {
     if (group_ptr != nullptr) {
         std::lock_guard(this->group_ptr_mutex);
-        auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
-        for (auto& kv: nodes_and_futures) {
-            nodes_and_futures[kv.first] = std::make_unique<derecho::rpc::QueryResults<void>>(
-                    std::move(subgroup_handle.template p2p_send<RPC_NAME(trigger_put)>(kv.first,value)));
+        if (group_ptr->template get_my_shard<SubgroupType>(subgroup_index) != -1) {
+            auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
+            for (auto& kv: nodes_and_futures) {
+                nodes_and_futures[kv.first] = std::make_unique<derecho::rpc::QueryResults<void>>(
+                        std::move(subgroup_handle.template p2p_send<RPC_NAME(trigger_put)>(kv.first,value)));
+            }
+        } else {
+            auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
+            for (auto& kv: nodes_and_futures) {
+                nodes_and_futures[kv.first] = std::make_unique<derecho::rpc::QueryResults<void>>(
+                        std::move(subgroup_handle.template p2p_send<RPC_NAME(trigger_put)>(kv.first,value)));
+            }
         }
     } else {
         std::lock_guard(this->external_group_ptr_mutex);
@@ -1382,9 +1390,8 @@ template <typename SubgroupType>
 derecho::rpc::QueryResults<double> ServiceClient<CascadeTypes...>::perf_put(const uint32_t message_size, const uint64_t duration_sec, const uint32_t subgroup_index, const uint32_t shard_index) {
     std::lock_guard(this->external_group_ptr_mutex);
     if (group_ptr != nullptr) {
-        auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
-        node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
-        return subgroup_handle.template p2p_send<RPC_NAME(perf_put)>(node_id,message_size,duration_sec);
+        // 'perf_put' must be issued from an external client.
+        throw derecho::derecho_exception{"perf_put must be issued from an external client."};
     } else {
         std::lock_guard(this->external_group_ptr_mutex);
         auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
