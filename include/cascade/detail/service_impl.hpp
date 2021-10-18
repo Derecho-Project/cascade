@@ -526,12 +526,12 @@ derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::trigger_put(
         uint32_t shard_index) {
     if (group_ptr != nullptr) {
         std::lock_guard(this->group_ptr_mutex);
-        if (group_ptr->template get_my_shard<SubgroupType>(subgroup_index) == shard_index){
-            auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
+        if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index){
+            auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
             node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
             return subgroup_handle.template p2p_send<RPC_NAME(trigger_put)>(node_id,value);
         } else {
-            auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
+            auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
             node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
             return subgroup_handle.template p2p_send<RPC_NAME(trigger_put)>(node_id,value);
         }
