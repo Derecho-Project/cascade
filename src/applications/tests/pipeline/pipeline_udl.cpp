@@ -37,7 +37,7 @@ class PipelineOCDPO: public OffCriticalDataPathObserver {
             typed_ctxt->get_service_client_ref().get_my_id(),
             value->get_message_id(),
             get_walltime(),
-            worker_id);
+            worker_id+stage*10000);
 #endif//ENABLE_EVALUATION
         for (auto& okv:outputs) {
             std::string obj_key = okv.first;
