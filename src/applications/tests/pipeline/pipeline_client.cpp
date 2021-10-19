@@ -115,6 +115,7 @@ int main(int argc, char** argv) {
         if (now_ns + 500 >= next_ns) {
             next_ns = now_ns + interval_ns;
 #ifdef ENABLE_EVALUATION
+            objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS).set_message_id(msg_id);
             global_timestamp_logger.log(TLT_READY_TO_SEND,my_node_id,msg_id,get_walltime());
             objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS).set_message_id(msg_id);
 #endif
@@ -125,6 +126,7 @@ int main(int argc, char** argv) {
             }
 #ifdef ENABLE_EVALUATION
             global_timestamp_logger.log(TLT_EC_SENT,my_node_id,msg_id,get_walltime());
+            msg_id ++;
 #endif
         } else {
             usleep((next_ns-now_ns-500)/1e3); // sleep in microseconds.
