@@ -295,6 +295,9 @@ std::tuple<uint32_t,uint32_t,uint32_t> ServiceClient<CascadeTypes...>::key_to_sh
     }
 
     auto opm = find_object_pool(object_pool_pathname);
+    if (!opm.is_valid() || opm.is_null() || opm.deleted) {
+        throw derecho::derecho_exception("Failed to find object_pool:" + object_pool_pathname);
+    }
     return std::tuple<uint32_t,uint32_t,uint32_t>{opm.subgroup_type_index,opm.subgroup_index,
         opm.key_to_shard_index(key,get_number_of_shards(opm.subgroup_type_index,opm.subgroup_index),check_object_location)};
 }
@@ -1056,6 +1059,9 @@ std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename Subg
         const persistent::version_t& version,
         const std::string& object_pool_pathname){
     auto opm = find_object_pool(object_pool_pathname);
+    if (!opm.is_valid() || opm.is_null() || opm.deleted) {
+        throw derecho::derecho_exception("Failed to find object_pool:" + object_pool_pathname);
+    }
     uint32_t subgroup_index = opm.subgroup_index;
     uint32_t shards = get_number_of_shards<SubgroupType>(subgroup_index);
     std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>> result;
@@ -1173,6 +1179,9 @@ template <typename SubgroupType>
 std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>> ServiceClient<CascadeTypes...>::__list_keys_by_time(
                 const uint64_t& ts_us, const std::string& object_pool_pathname){
     auto opm = find_object_pool(object_pool_pathname);
+    if (!opm.is_valid() || opm.is_null() || opm.deleted) {
+        throw derecho::derecho_exception("Failed to find object_pool:" + object_pool_pathname);
+    }
     uint32_t subgroup_index = opm.subgroup_index;
     uint32_t shards = get_number_of_shards<SubgroupType>(subgroup_index);
     std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>> result;
@@ -1284,7 +1293,7 @@ derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceCl
         return this->template put<CascadeMetadataService<CascadeTypes...>>(opm,METADATA_SERVICE_SUBGROUP_INDEX,metadata_service_shard_index);
     }
 
-    // we didn't find any entry with "id", but we do the normal 'remove', which has no effect but return a version.
+    // we didn't find the object pool, but we do the normal 'remove', which has no effect but return a version.
     dbg_default_warn("deleteing a non-existing objectpool:{}.", pathname);
     return this->template remove<CascadeMetadataService<CascadeTypes...>>(pathname,METADATA_SERVICE_SUBGROUP_INDEX,metadata_service_shard_index);
 }
@@ -1359,6 +1368,9 @@ template <typename... CascadeTypes>
 template <typename SubgroupType>
 std::vector<std::unique_ptr<derecho::rpc::QueryResults<void>>> ServiceClient<CascadeTypes...>::dump_timestamp(const std::string& filename, const std::string& object_pool_pathname) {
     auto opm = find_object_pool(object_pool_pathname);
+    if (!opm.is_valid() || opm.is_null() || opm.deleted) {
+        throw derecho::derecho_exception("Failed to find object_pool:" + object_pool_pathname);
+    }
     uint32_t subgroup_index = opm.subgroup_index;
     uint32_t shards = get_number_of_shards<SubgroupType>(subgroup_index);
     std::vector<std::unique_ptr<derecho::rpc::QueryResults<void>>> result;
