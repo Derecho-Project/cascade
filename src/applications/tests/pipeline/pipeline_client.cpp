@@ -135,6 +135,8 @@ int main(int argc, char** argv) {
     }
 
 #ifdef ENABLE_EVALUATION
+    // wait for 2 seconds so that all messages has been processed.
+    usleep(2000000);
     // 3 - flush timestamp log
     // TODO: This does not support overlapping subgroups. Those should be eliminated.
     for(auto& subgroup_pair: collect_subgroups(capi)) {
