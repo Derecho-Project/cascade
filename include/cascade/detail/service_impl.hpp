@@ -1520,7 +1520,7 @@ void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeMetadataSe
 
 template <typename... CascadeTypes>
 void CascadeContext<CascadeTypes...>::workhorse(uint32_t worker_id, struct action_queue& aq) {
-    pthread_setname_np(pthread_self(), ("cascade_context_t" + std::to_string(worker_id)).c_str());
+    pthread_setname_np(pthread_self(), ("cs_ctxt_t" + std::to_string(worker_id)).c_str());
     dbg_default_trace("Cascade context workhorse[{}] started", worker_id);
     while(is_running) {
         // waiting for an action
