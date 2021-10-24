@@ -1345,9 +1345,9 @@ std::vector<std::string> ServiceClient<CascadeTypes...>::list_object_pools(bool 
 template <typename... CascadeTypes>
 template <typename SubgroupType>
 derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::dump_timestamp(const std::string& filename, const uint32_t subgroup_index, const uint32_t shard_index) {
-    std::lock_guard<std::mutex> lck(this->external_group_ptr_mutex);
 
     if (group_ptr != nullptr) {
+        std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
         if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
             auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
             return subgroup_handle.template ordered_send<RPC_NAME(ordered_dump_timestamp_log)>(filename);
@@ -1376,6 +1376,7 @@ std::vector<std::unique_ptr<derecho::rpc::QueryResults<void>>> ServiceClient<Cas
     std::vector<std::unique_ptr<derecho::rpc::QueryResults<void>>> result;
     for (uint32_t shard_index = 0; shard_index < shards; shard_index ++){
         if (group_ptr != nullptr) {
+            std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
             if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
                 auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
                 auto qr = subgroup_handle.template ordered_send<RPC_NAME(ordered_dump_timestamp_log)>(filename);
@@ -1400,7 +1401,6 @@ std::vector<std::unique_ptr<derecho::rpc::QueryResults<void>>> ServiceClient<Cas
 template <typename... CascadeTypes>
 template <typename SubgroupType>
 derecho::rpc::QueryResults<double> ServiceClient<CascadeTypes...>::perf_put(const uint32_t message_size, const uint64_t duration_sec, const uint32_t subgroup_index, const uint32_t shard_index) {
-    std::lock_guard<std::mutex> lck(this->external_group_ptr_mutex);
     if (group_ptr != nullptr) {
         // 'perf_put' must be issued from an external client.
         throw derecho::derecho_exception{"perf_put must be issued from an external client."};
