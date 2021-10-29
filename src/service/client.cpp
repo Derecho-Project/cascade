@@ -1311,7 +1311,7 @@ std::vector<command_entry_t> commands =
                 }
                 pos ++;
             }
-            bool ret;
+            bool ret = false;
             on_subgroup_type(cmd_tokens[1], ret = perftest, ptc, put_type, object_pool_pathname, member_selection_policy,read_write_ratio,max_rate,duration_sec,"timestamp.log");
             return ret;
         }
@@ -1367,7 +1367,7 @@ std::vector<command_entry_t> commands =
                 }
                 pos ++;
             }
-            bool ret;
+            bool ret = false;
             on_subgroup_type(cmd_tokens[1], ret = perftest,ptc,put_type,subgroup_index,shard_index,member_selection_policy,read_write_ratio,max_rate,duration_sec,"output.log");
             return ret;
         }

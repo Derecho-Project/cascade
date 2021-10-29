@@ -202,7 +202,9 @@ static const struct fuse_lowlevel_ops fs_ops = {
  */
 void prepare_derecho_conf_file() {
     char cwd[4096];
+#pragma GCC diagnostic ignored "-Wunused-result"
     getcwd(cwd,4096);
+#pragma GCC diagnostic pop
     sprintf(cwd+strlen(cwd), "/derecho.cfg");
     setenv("DERECHO_CONF_FILE", cwd, false);
     dbg_default_debug("Using derecho config file:{}.", getenv("DERECHO_CONF_FILE"));
@@ -212,7 +214,7 @@ int main(int argc, char** argv) {
     prepare_derecho_conf_file();
 
     struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
-    struct fuse_session *se;
+    struct fuse_session *se = nullptr;
     struct fuse_cmdline_opts opts;
     int ret = -1;
 
