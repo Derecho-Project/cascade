@@ -6,6 +6,10 @@
 #include <fstream>
 #include <cascade/utils.hpp>
 
+#ifdef ENABLE_EVALUATION
+#include <derecho/utils/time.h>
+#endif
+
 namespace derecho {
 namespace cascade {
 
