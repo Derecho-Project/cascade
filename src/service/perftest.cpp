@@ -256,6 +256,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         uint32_t            user_specified_node_id,
         double              read_write_ratio,
         uint64_t            max_operation_per_second,
+        int64_t             start_sec,
         uint64_t            duration_secs,
         const std::string&  output_filename) {
         // STEP 1 - set up the shard member selection policy
@@ -269,6 +270,10 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         objects.clear();
         make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
         // STEP 3 - start experiment and log
+        int64_t sleep_us = (start_sec*1e9 - static_cast<int64_t>(get_walltime()))/1e3;
+        while (sleep_us > 1) {
+            usleep(sleep_us);
+        }
         if (this->eval_put(max_operation_per_second,duration_secs,subgroup_type_index,subgroup_index,shard_index)) {
             global_timestamp_logger.flush(output_filename);
             return true;
@@ -297,6 +302,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         uint32_t            user_specified_node_id,
         double              read_write_ratio,
         uint64_t            max_operation_per_second,
+        int64_t             start_sec,
         uint64_t            duration_secs,
         const std::string&  output_filename) {
         // STEP 1 - set up the shard member selection policy
@@ -310,6 +316,10 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         objects.clear();
         make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
         // STEP 3 - start experiment and log
+        int64_t sleep_us = (start_sec*1e9 - static_cast<int64_t>(get_walltime()))/1e3;
+        while (sleep_us > 1) {
+            usleep(sleep_us);
+        }
         if (this->eval_put_and_forget(max_operation_per_second,duration_secs,subgroup_type_index,subgroup_index,shard_index)) {
             global_timestamp_logger.flush(output_filename);
             return true;
@@ -338,6 +348,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         uint32_t            user_specified_node_id,
         double              read_write_ratio,
         uint64_t            max_operation_per_second,
+        int64_t             start_sec,
         uint64_t            duration_secs,
         const std::string&  output_filename) {
         // STEP 1 - set up the shard member selection policy
@@ -350,6 +361,10 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         // STEP 2 - prepare workload
         objects.clear();
         make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
+        int64_t sleep_us = (start_sec*1e9 - static_cast<int64_t>(get_walltime()))/1e3;
+        while (sleep_us > 1) {
+            usleep(sleep_us);
+        }
         // STEP 3 - start experiment and log
         if (this->eval_trigger_put(max_operation_per_second,duration_secs,subgroup_type_index,subgroup_index,shard_index)) {
             global_timestamp_logger.flush(output_filename);
@@ -376,6 +391,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         const std::vector<node_id_t>&  user_specified_node_ids, // one per shard
         double              read_write_ratio,
         uint64_t            max_operation_per_second,
+        int64_t             start_sec,
         uint64_t            duration_secs,
         const std::string&  output_filename) {
 
@@ -395,6 +411,10 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         // STEP 2 - prepare workload
         objects.clear();
         make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),object_pool_pathname+"/key_",objects);
+        int64_t sleep_us = (start_sec*1e9 - static_cast<int64_t>(get_walltime()))/1e3;
+        while (sleep_us > 1) {
+            usleep(sleep_us);
+        }
         // STEP 3 - start experiment and log
         if (this->eval_put(max_operation_per_second,duration_secs,object_pool.subgroup_type_index)) {
             global_timestamp_logger.flush(output_filename);
@@ -420,6 +440,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         const std::vector<node_id_t>&  user_specified_node_ids, // one per shard
         double              read_write_ratio,
         uint64_t            max_operation_per_second,
+        int64_t             start_sec,
         uint64_t            duration_secs,
         const std::string&  output_filename) {
 
@@ -439,6 +460,10 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         // STEP 2 - prepare workload
         objects.clear();
         make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
+        int64_t sleep_us = (start_sec*1e9 - static_cast<int64_t>(get_walltime()))/1e3;
+        while (sleep_us > 1) {
+            usleep(sleep_us);
+        }
         // STEP 3 - start experiment and log
         if (this->eval_put_and_forget(max_operation_per_second,duration_secs,object_pool.subgroup_type_index)) {
             global_timestamp_logger.flush(output_filename);
@@ -464,6 +489,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         const std::vector<node_id_t>&  user_specified_node_ids, // one per shard
         double              read_write_ratio,
         uint64_t            max_operation_per_second,
+        int64_t             start_sec,
         uint64_t            duration_secs,
         const std::string&  output_filename) {
 
@@ -483,6 +509,10 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         // STEP 2 - prepare workload
         objects.clear();
         make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
+        int64_t sleep_us = (start_sec*1e9 - static_cast<int64_t>(get_walltime()))/1e3;
+        while (sleep_us > 1) {
+            usleep(sleep_us);
+        }
         // STEP 3 - start experiment and log
         if (this->eval_trigger_put(max_operation_per_second,duration_secs,object_pool.subgroup_type_index)) {
             global_timestamp_logger.flush(output_filename);
