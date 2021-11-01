@@ -330,8 +330,8 @@ bool PerfTestClient::perf_put(PutType   put_type,
                                                        capi.template get_subgroup_type_index<SubgroupType>(),
                                                        subgroup_index,shard_index,static_cast<uint32_t>(policy),
                                                        user_specified_node_ids.at(kv.first),read_write_ratio,
-                                                       start_sec,
-                                                       ops_threshold,duration_secs,output_filename));
+                                                       ops_threshold,
+                                                       start_sec, duration_secs,output_filename));
     }
     ret = check_rpc_futures(std::move(futures));
 
