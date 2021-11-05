@@ -68,7 +68,7 @@ Blob::Blob(const char* b, const decltype(size) s, bool emplaced) :
 }
 
 Blob::Blob(const Blob& other) :
-    bytes(nullptr), size(0) {
+    bytes(nullptr), size(0), is_emplaced(false) {
     if(other.size > 0) {
         // char* t_bytes = PAGE_ALIGNED_NEW(other.size);
         char* t_bytes = new char[other.size];
@@ -79,7 +79,7 @@ Blob::Blob(const Blob& other) :
 }
 
 Blob::Blob(Blob&& other) : 
-    bytes(other.bytes), size(other.size) {
+    bytes(other.bytes), size(other.size), is_emplaced(false) {
     other.bytes = nullptr;
     other.size = 0;
 }
