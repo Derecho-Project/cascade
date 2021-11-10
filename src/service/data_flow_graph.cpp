@@ -15,6 +15,11 @@ DataFlowGraph::DataFlowGraph(const json& dfg_conf):
     for(auto it=dfg_conf[DFG_JSON_GRAPH].cbegin();it!=dfg_conf[DFG_JSON_GRAPH].cend();it++) {
         DataFlowGraphVertex dfgv;
         dfgv.pathname = (*it)[DFG_JSON_PATHNAME];
+        /* shard dispatcher */
+        dfgv.shard_dispatcher = DataFlowGraph::VertexShardDispatcher::ALL;
+        if (it->contains(DFG_JSON_SHARD_DISPATCHER)) {
+            dfgv.shard_dispatcher = ((*it)[DFG_JSON_SHARD_DISPATCHER].get<std::string>() == "ONE")? VertexShardDispatcher::ONE:VertexShardDispatcher::ALL;
+        }
         /* fix the pathname if it is not ended by a separator */
         if(dfgv.pathname.back() != PATH_SEPARATOR) {
             dfgv.pathname = dfgv.pathname + PATH_SEPARATOR;
