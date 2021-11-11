@@ -5,6 +5,7 @@
         "graph": [
             {
                 "pathname": "/console_printer",
+                "shard_dispatcher_list": ["ONE"],
                 "user_defined_logic_list": ["48e60f7c-8500-11eb-8755-0242ac110002"],
                 "destinations": [{}]
             }

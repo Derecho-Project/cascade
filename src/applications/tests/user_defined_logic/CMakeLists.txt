@@ -24,6 +24,16 @@ add_custom_command(TARGET console_printer_udl POST_BUILD
     ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n3/run.sh 
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/run.sh.tmp
     ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n4/run.sh 
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/layout.json.tmp
+    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n0/layout.json
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/layout.json.tmp
+    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n1/layout.json
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/layout.json.tmp
+    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n2/layout.json
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/layout.json.tmp
+    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n3/layout.json
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/layout.json.tmp
+    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n4/layout.json
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/dfgs.json.tmp
     ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n0/dfgs.json 
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/dfgs.json.tmp
@@ -45,6 +55,7 @@ add_custom_command(TARGET console_printer_udl POST_BUILD
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/udl_dlls.cfg.tmp
     ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n4/udl_dlls.cfg 
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/console_printer_cfg/run.sh.tmp
+            ${CMAKE_CURRENT_SOURCE_DIR}/console_printer_cfg/layout.json.tmp
             ${CMAKE_CURRENT_SOURCE_DIR}/console_printer_cfg/dfgs.json.tmp
             ${CMAKE_CURRENT_SOURCE_DIR}/console_printer_cfg/udl_dlls.cfg.tmp
     COMMENT "prepare console_printer configuration"
