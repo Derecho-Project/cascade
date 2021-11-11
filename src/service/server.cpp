@@ -58,29 +58,31 @@ class CascadeServiceCDPO: public CriticalDataPathObserver<CascadeType> {
             if (handlers.empty()) {
                 return;
             }
-            // filter
-            auto shard_members = ctxt->get_service_client_ref().template get_shard_members<CascadeType>(sgidx,shidx);
-            bool icare = (shard_members[std::hash<std::string>{}(key)%shard_members.size()] == ctxt->get_service_client_ref().get_my_id());
-            for(auto& per_prefix: handlers) {
-                // per_prefix.first is the matching prefix
-                // per_prefix.second is a set of handlers
-                for (auto it=per_prefix.second.cbegin();it!=per_prefix.second.cend();) {
-                    // it->first is handler uuid
-                    // it->second is a 3-tuple of shard dispatcher,ocdpo,and outputs;
-                    switch(std::get<0>(it->second)) {
-                    case DataFlowGraph::VertexShardDispatcher::ONE:
-                        if (icare) {
+            // filter for normal put (put/put_and_forget)
+            if (!is_trigger) {
+                auto shard_members = ctxt->get_service_client_ref().template get_shard_members<CascadeType>(sgidx,shidx);
+                bool icare = (shard_members[std::hash<std::string>{}(key)%shard_members.size()] == ctxt->get_service_client_ref().get_my_id());
+                for(auto& per_prefix: handlers) {
+                    // per_prefix.first is the matching prefix
+                    // per_prefix.second is a set of handlers
+                    for (auto it=per_prefix.second.cbegin();it!=per_prefix.second.cend();) {
+                        // it->first is handler uuid
+                        // it->second is a 3-tuple of shard dispatcher,ocdpo,and outputs;
+                        switch(std::get<0>(it->second)) {
+                        case DataFlowGraph::VertexShardDispatcher::ONE:
+                            if (icare) {
+                                it++;
+                            } else {
+                                per_prefix.second.erase(it++);
+                            }
+                            break;
+                        case DataFlowGraph::VertexShardDispatcher::ALL:
                             it++;
-                        } else {
+                            break;
+                        default:
                             per_prefix.second.erase(it++);
+                            break;
                         }
-                        break;
-                    case DataFlowGraph::VertexShardDispatcher::ALL:
-                        it++;
-                        break;
-                    default:
-                        per_prefix.second.erase(it++);
-                        break;
                     }
                 }
             }
