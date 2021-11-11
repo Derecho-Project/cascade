@@ -59,6 +59,7 @@ class CascadeServiceCDPO: public CriticalDataPathObserver<CascadeType> {
                 return;
             }
             // filter for normal put (put/put_and_forget)
+            bool new_actions = false;
             if (!is_trigger) {
                 auto shard_members = ctxt->get_service_client_ref().template get_shard_members<CascadeType>(sgidx,shidx);
                 bool icare = (shard_members[std::hash<std::string>{}(key)%shard_members.size()] == ctxt->get_service_client_ref().get_my_id());
@@ -71,12 +72,14 @@ class CascadeServiceCDPO: public CriticalDataPathObserver<CascadeType> {
                         switch(std::get<0>(it->second)) {
                         case DataFlowGraph::VertexShardDispatcher::ONE:
                             if (icare) {
+                                new_actions = true;
                                 it++;
                             } else {
                                 per_prefix.second.erase(it++);
                             }
                             break;
                         case DataFlowGraph::VertexShardDispatcher::ALL:
+                            new_actions = true;
                             it++;
                             break;
                         default:
@@ -85,6 +88,9 @@ class CascadeServiceCDPO: public CriticalDataPathObserver<CascadeType> {
                         }
                     }
                 }
+            }
+            if (!new_actions) { 
+                return;
             }
             // copy data
             auto value_ptr = std::make_shared<typename CascadeType::ObjectType>(value);
