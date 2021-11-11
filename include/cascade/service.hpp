@@ -18,6 +18,7 @@
 #include "cascade.hpp"
 #include "object_pool_metadata.hpp"
 #include "user_defined_logic_manager.hpp"
+#include "data_flow_graph.hpp"
 #include "detail/prefix_registry.hpp"
 
 /**
@@ -1085,7 +1086,8 @@ namespace cascade {
     using prefix_entry_t = 
                 std::unordered_map<
                     std::string, // udl_id
-                    std::pair<
+                    std::tuple<
+                        DataFlowGraph::VertexShardDispatcher,         // shard dispatcher
                         std::shared_ptr<OffCriticalDataPathObserver>, // ocdpo
                         std::unordered_map<std::string,bool>          // output map{prefix->bool}
                     >
@@ -1206,12 +1208,14 @@ namespace cascade {
          * Register a set of prefixes
          *
          * @param prefixes              - the prefixes set
+         * @param shard_dispatcher      - the shard dispatcher
          * @param user_defined_logic_id - the UDL id, presumably an UUID string
          * @param ocdpo_ptr             - the data path observer
          * @param outputs               - the outputs are a map from another prefix to put type (true for trigger put,
          *                                false for put).
          */
         virtual void register_prefixes(const std::unordered_set<std::string>& prefixes,
+                                       const DataFlowGraph::VertexShardDispatcher shard_dispatcher,
                                        const std::string& user_defined_logic_id,
                                        const std::shared_ptr<OffCriticalDataPathObserver>& ocdpo_ptr,
                                        const std::unordered_map<std::string,bool>& outputs);
