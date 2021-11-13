@@ -44,6 +44,7 @@ class PipelineOCDPO: public OffCriticalDataPathObserver {
             //TODO: why value_ptr is const???
             ObjectWithStringKey o(*value);
             o.key = obj_key + value->get_key_ref();
+            o.set_previous_version(INVALID_VERSION,INVALID_VERSION);
             if (okv.second) {
                 // TODO: how to decide the subgroup type of the put operations???
                 // trigger put
