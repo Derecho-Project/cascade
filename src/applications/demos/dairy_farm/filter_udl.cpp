@@ -38,22 +38,6 @@ class DairyFarmFilterOCDPO: public OffCriticalDataPathObserver {
         // TODO: test if there is a cow in the incoming frame.
         auto* typed_ctxt = dynamic_cast<CascadeContext<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey,TriggerCascadeNoStoreWithStringKey>*>(ctxt);
 
-#ifdef ENABLE_GPU
-        /* Configure GPU context for tensorflow */
-        if (typed_ctxt->resource_descriptor.gpus.size()==0) {
-            dbg_default_error("Worker{}: GPU is requested but no GPU found...giving up on processing data.",worker_id);
-            return;
-        }
-        std::cout << "Configuring tensorflow GPU context" << std::endl;
-        // Serialized config options (example of 30% memory fraction)
-        // TODO: configure gpu settings, link: https://serizba.github.io/cppflow/quickstart.html#gpu-config-options
-        std::vector<uint8_t> config{0x32,0x9,0x9,0x9a,0x99,0x99,0x99,0x99,0x99,0xb9,0x3f};
-        // Create new options with your configuration
-        TFE_ContextOptions* options = TFE_NewContextOptions();
-        TFE_ContextOptionsSetConfig(options, config.data(), config.size(), cppflow::context::get_status());
-        // Replace the global context with your options
-        cppflow::get_global_context() = cppflow::context(options);
-#endif 
         
         /* step 1: load the model */ 
         static thread_local cppflow::model model(CONF_FILTER_MODEL);
@@ -114,6 +98,23 @@ public:
 std::shared_ptr<OffCriticalDataPathObserver> DairyFarmFilterOCDPO::ocdpo_ptr;
 
 void initialize(ICascadeContext* ctxt) {
+#ifdef ENABLE_GPU
+    auto* typed_ctxt = dynamic_cast<DefaultCascadeContextType*>(ctxt);
+    /* Configure GPU context for tensorflow */
+    if (typed_ctxt->resource_descriptor.gpus.size()==0) {
+        dbg_default_error("Worker{}: GPU is requested but no GPU found...giving up on processing data.",worker_id);
+        return;
+    }
+    std::cout << "Configuring tensorflow GPU context" << std::endl;
+    // Serialized config options (example of 30% memory fraction)
+    // TODO: configure gpu settings, link: https://serizba.github.io/cppflow/quickstart.html#gpu-config-options
+    std::vector<uint8_t> config{0x32,0x9,0x9,0x9a,0x99,0x99,0x99,0x99,0x99,0xb9,0x3f};
+    // Create new options with your configuration
+    TFE_ContextOptions* options = TFE_NewContextOptions();
+    TFE_ContextOptionsSetConfig(options, config.data(), config.size(), cppflow::context::get_status());
+    // Replace the global context with your options
+    cppflow::get_global_context() = cppflow::context(options);
+#endif 
     DairyFarmFilterOCDPO::initialize();
 }
 
