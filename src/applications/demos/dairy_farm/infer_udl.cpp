@@ -182,7 +182,7 @@ private:
                               ICascadeContext* ctxt,
                               uint32_t worker_id) override {
         // TODO: do inference and put it to the storage object pool specified by outputs.
-        auto* typed_ctxt = dynamic_cast<CascadeContext<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey,TriggerCascadeNoStoreWithStringKey>*>(ctxt);
+        auto* typed_ctxt = dynamic_cast<DefaultCascadeContextType*>(ctxt);
 
         // Test if I'm responsible for this message
         // TODO: we need to let the OCDPO understand which shard it is in... passing more OCDPO arguments???
@@ -191,23 +191,6 @@ private:
             // not my job, skip it.
             return;
         }
-
-#ifdef ENABLE_GPU
-        /* Configure GPU context for tensorflow */
-        if (typed_ctxt->resource_descriptor.gpus.size()==0) {
-            dbg_default_error("Worker{}: GPU is requested but no GPU found...giving up on processing data.",worker_id);
-            return;
-        }
-        std::cout << "Configuring tensorflow GPU context" << std::endl;
-        // Serialized config options (example of 30% memory fraction)
-        // TODO: configure gpu settings, link: https://serizba.github.io/cppflow/quickstart.html#gpu-config-options
-        std::vector<uint8_t> config{0x32,0x9,0x9,0x9a,0x99,0x99,0x99,0x99,0x99,0xb9,0x3f};
-        // Create new options with your configuration
-        TFE_ContextOptions* options = TFE_NewContextOptions();
-        TFE_ContextOptionsSetConfig(options, config.data(), config.size(), cppflow::context::get_status());
-        // Replace the global context with your options
-        cppflow::get_global_context() = cppflow::context(options);
-#endif 
 
         const VolatileCascadeStoreWithStringKey::ObjectType *vcss_value = reinterpret_cast<const VolatileCascadeStoreWithStringKey::ObjectType *>(value_ptr);
         const FrameData *frame = reinterpret_cast<const FrameData*>(vcss_value->blob.bytes);
@@ -261,6 +244,24 @@ public:
 std::shared_ptr<OffCriticalDataPathObserver> DairyFarmInferOCDPO::ocdpo_ptr;
 
 void initialize(ICascadeContext* ctxt) {
+#ifdef ENABLE_GPU
+    auto* typed_ctxt = dynamic_cast<DefaultCascadeContextType*>(ctxt);
+    /* Configure GPU context for tensorflow */
+    if (typed_ctxt->resource_descriptor.gpus.size()==0) {
+        dbg_default_error("GPU is requested but no GPU found...giving up on processing data.");
+        return;
+    }
+    std::cout << "Configuring tensorflow GPU context" << std::endl;
+    // Serialized config options (example of 30% memory fraction)
+    // TODO: configure gpu settings, link: https://serizba.github.io/cppflow/quickstart.html#gpu-config-options
+    // std::vector<uint8_t> config{0x32,0x9,0x9,0x9a,0x99,0x99,0x99,0x99,0x99,0xb9,0x3f};
+    std::vector<uint8_t> config{0x32,0xb,0x9,0x9a,0x99,0x99,0x99,0x99,0x99,0xb9,0x3f,0x20,0x1};
+    // Create new options with your configuration
+    TFE_ContextOptions* options = TFE_NewContextOptions();
+    TFE_ContextOptionsSetConfig(options, config.data(), config.size(), cppflow::context::get_status());
+    // Replace the global context with your options
+    cppflow::get_global_context() = cppflow::context(options);
+#endif 
     DairyFarmInferOCDPO::initialize();
 }
 
