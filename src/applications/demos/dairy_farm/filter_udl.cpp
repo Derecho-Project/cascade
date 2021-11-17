@@ -37,8 +37,6 @@ class DairyFarmFilterOCDPO: public OffCriticalDataPathObserver {
                               uint32_t worker_id) override {
         // TODO: test if there is a cow in the incoming frame.
         auto* typed_ctxt = dynamic_cast<CascadeContext<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey,TriggerCascadeNoStoreWithStringKey>*>(ctxt);
-
-        
         /* step 1: load the model */ 
         static thread_local cppflow::model model(CONF_FILTER_MODEL);
         /* step 2: Load the image & convert to tensor */
@@ -108,7 +106,8 @@ void initialize(ICascadeContext* ctxt) {
     std::cout << "Configuring tensorflow GPU context" << std::endl;
     // Serialized config options (example of 30% memory fraction)
     // TODO: configure gpu settings, link: https://serizba.github.io/cppflow/quickstart.html#gpu-config-options
-    std::vector<uint8_t> config{0x32,0x9,0x9,0x9a,0x99,0x99,0x99,0x99,0x99,0xb9,0x3f};
+    // std::vector<uint8_t> config{0x32,0x9,0x9,0x9a,0x99,0x99,0x99,0x99,0x99,0xb9,0x3f};
+    std::vector<uint8_t> config{0x32,0xb,0x9,0x9a,0x99,0x99,0x99,0x99,0x99,0xb9,0x3f,0x20,0x1};
     // Create new options with your configuration
     TFE_ContextOptions* options = TFE_NewContextOptions();
     TFE_ContextOptionsSetConfig(options, config.data(), config.size(), cppflow::context::get_status());
