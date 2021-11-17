@@ -134,7 +134,7 @@ public:
 };
 
 void infer_cow_id(uint32_t* cow_id, const void* img_buf, size_t img_size) {
-    InferenceEngine cow_id_ie(CONF_COWID_MODULE, CONF_COWID_KNN, CONF_COWID_LABEL);
+    static thread_local InferenceEngine cow_id_ie(CONF_COWID_MODULE, CONF_COWID_KNN, CONF_COWID_LABEL);
     std::vector<unsigned char> out_buf(img_size);
     std::memcpy(static_cast<void*>(out_buf.data()),img_buf,img_size);
     cv::Mat mat(240,352,CV_32FC3,out_buf.data());
@@ -150,7 +150,7 @@ void infer_cow_id(uint32_t* cow_id, const void* img_buf, size_t img_size) {
 
 void infer_bcs(float* bcs, const void* img_buf, size_t img_size) {
     /* step 1: load the model */ 
-    cppflow::model model(CONF_INFER_BCS_MODEL);
+    static thread_local cppflow::model model(CONF_INFER_BCS_MODEL);
     
     /* step 2: Load the image & convert to tensor */
     std::vector<unsigned char> out_buf(img_size);
