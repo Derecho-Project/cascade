@@ -102,7 +102,7 @@ void initialize(ICascadeContext* ctxt) {
     auto* typed_ctxt = dynamic_cast<DefaultCascadeContextType*>(ctxt);
     /* Configure GPU context for tensorflow */
     if (typed_ctxt->resource_descriptor.gpus.size()==0) {
-        dbg_default_error("Worker{}: GPU is requested but no GPU found...giving up on processing data.",worker_id);
+        dbg_default_error("GPU is requested but no GPU found...giving up on processing data.");
         return;
     }
     std::cout << "Configuring tensorflow GPU context" << std::endl;
