@@ -59,7 +59,7 @@ class DairyFarmFilterOCDPO: public OffCriticalDataPathObserver {
         static thread_local cppflow::model model(CONF_FILTER_MODEL);
         /* step 2: Load the image & convert to tensor */
         const TriggerCascadeNoStoreWithStringKey::ObjectType *tcss_value = reinterpret_cast<const TriggerCascadeNoStoreWithStringKey::ObjectType *>(value_ptr);
-        FrameData *frame = reinterpret_cast<FrameData*>(tcss_value->blob.bytes);
+        const FrameData *frame = reinterpret_cast<const FrameData*>(tcss_value->blob.bytes);
         dbg_default_trace("frame photoid is: "+std::to_string(frame->photo_id));
         dbg_default_trace("frame timestamp is: "+std::to_string(frame->timestamp));
     
@@ -84,12 +84,12 @@ class DairyFarmFilterOCDPO: public OffCriticalDataPathObserver {
                 
                 // if true, use trigger put; otherwise, use normal put
                 if (iter->second) {
-                    auto result = typed_ctxt->get_service_client_ref().template trigger_put<VolatileCascadeStoreWithStringKey>(obj);
+                    auto result = typed_ctxt->get_service_client_ref().trigger_put(obj);
                     result.get();
                     dbg_default_debug("finish put obj with key({})", obj_key);
                 } 
                 else {
-                    auto result = typed_ctxt->get_service_client_ref().template put<VolatileCascadeStoreWithStringKey>(obj);
+                    auto result = typed_ctxt->get_service_client_ref().put(obj);
                     for (auto& reply_future:result.get()) {
                         auto reply = reply_future.second.get();
                         dbg_default_debug("node({}) replied with version:({:x},{}us)",reply_future.first,std::get<0>(reply),std::get<1>(reply));
