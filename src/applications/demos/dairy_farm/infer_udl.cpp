@@ -133,10 +133,10 @@ public:
     }
 };
 
-void infer_cow_id(uint32_t* cow_id, void* img_buf, size_t img_size) {
+void infer_cow_id(uint32_t* cow_id, const void* img_buf, size_t img_size) {
     InferenceEngine cow_id_ie(CONF_COWID_MODULE, CONF_COWID_KNN, CONF_COWID_LABEL);
     std::vector<unsigned char> out_buf(img_size);
-    std::memcpy(static_cast<void*>(out_buf.data()),static_cast<const void*>(img_buf),img_size);
+    std::memcpy(static_cast<void*>(out_buf.data()),img_buf,img_size);
     cv::Mat mat(240,352,CV_32FC3,out_buf.data());
     // resize to desired dimension matching with the model
     cv::resize(mat, mat, cv::Size(COW_ID_IMAGE_WIDTH,COW_ID_IMAGE_HEIGHT));
@@ -148,13 +148,13 @@ void infer_cow_id(uint32_t* cow_id, void* img_buf, size_t img_size) {
 #define BCS_TENSOR_BUFFER_SIZE     (BCS_IMAGE_HEIGHT*BCS_IMAGE_WIDTH*3)
 #define CONF_INFER_BCS_MODEL       "infer_model"
 
-void infer_bcs(float* bcs, void* img_buf, size_t img_size) {
+void infer_bcs(float* bcs, const void* img_buf, size_t img_size) {
     /* step 1: load the model */ 
     cppflow::model model(CONF_INFER_BCS_MODEL);
     
     /* step 2: Load the image & convert to tensor */
     std::vector<unsigned char> out_buf(img_size);
-    std::memcpy(static_cast<void*>(out_buf.data()),static_cast<const void*>(img_buf),img_size);
+    std::memcpy(static_cast<void*>(out_buf.data()),img_buf,img_size);
     cv::Mat mat(240,352,CV_32FC3,out_buf.data());
     // resize to desired dimension matching with the model & convert to tensor
     cv::resize(mat, mat, cv::Size(BCS_IMAGE_WIDTH,BCS_IMAGE_HEIGHT));
@@ -210,7 +210,7 @@ private:
 #endif 
 
         const VolatileCascadeStoreWithStringKey::ObjectType *vcss_value = reinterpret_cast<const VolatileCascadeStoreWithStringKey::ObjectType *>(value_ptr);
-        FrameData *frame = reinterpret_cast<FrameData*>(vcss_value->blob.bytes);
+        const FrameData *frame = reinterpret_cast<const FrameData*>(vcss_value->blob.bytes);
         dbg_default_trace("frame photoid is: "+std::to_string(frame->photo_id));
         dbg_default_trace("frame timestamp is: "+std::to_string(frame->timestamp));
 
@@ -232,12 +232,12 @@ private:
 
             // if true, use trigger put; otherwise, use normal put
             if (iter->second) {
-                auto result = typed_ctxt->get_service_client_ref().template trigger_put<PersistentCascadeStoreWithStringKey>(obj);
+                auto result = typed_ctxt->get_service_client_ref().trigger_put(obj);
                 result.get();
                 dbg_default_debug("finish trigger put with key({})",obj_key);
             } 
             else {
-                auto result = typed_ctxt->get_service_client_ref().template put<PersistentCascadeStoreWithStringKey>(obj);
+                auto result = typed_ctxt->get_service_client_ref().put(obj);
                 for (auto& reply_future:result.get()) {
                     auto reply = reply_future.second.get();
                     dbg_default_debug("node({}) replied with version:({:x},{}us)",reply_future.first,std::get<0>(reply),std::get<1>(reply));
