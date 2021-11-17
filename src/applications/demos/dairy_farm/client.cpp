@@ -60,7 +60,7 @@ int main(int argc, char** argv) {
         auto obj = get_photo_object(key, file_name);
         // STEP 2: send to server
         ServiceClientAPI capi;
-        derecho::rpc::QueryResults<void> ret = capi.template trigger_put<TriggerCascadeNoStoreWithStringKey>(obj);
+        derecho::rpc::QueryResults<void> ret = capi.trigger_put(obj);
         ret.get();
         std::cout << "finish put to trigger put" << std::endl;
     }
