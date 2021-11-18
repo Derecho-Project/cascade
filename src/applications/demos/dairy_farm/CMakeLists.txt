@@ -9,6 +9,19 @@ CHECK_INCLUDE_FILE_CXX("cppflow/cppflow.h" CPPFLOW_FOUND)
 find_library(ANN_LIB_FOUND ANN)
 find_package(Torch QUIET)
 
+if (OPENCV_CORE_FOUND)
+    # dairy farm client
+    add_executable(dairy_farm_client client.cpp)
+    target_include_directories(dairy_farm_client PRIVATE
+        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
+        $<BUILD_INTERFACE:${OpenCV_INCLUDE_DIRS}>
+    )
+    target_link_libraries(dairy_farm_client cascade ${OpenCV_LIBS})
+endif()
+
 if (TENSORFLOW_LIB_FOUND AND CPPFLOW_FOUND AND OPENCV_CORE_FOUND AND ANN_LIB_FOUND AND TORCH_FOUND)
     # filter_udl
     add_library(filter_udl SHARED filter_udl.cpp)
@@ -56,17 +69,7 @@ if (TENSORFLOW_LIB_FOUND AND CPPFLOW_FOUND AND OPENCV_CORE_FOUND AND ANN_LIB_FOU
         message(WARNING "${CMAKE_CURRENT_SOURCE_DIR}/filter-model.tar.gz or ${CMAKE_CURRENT_SOURCE_DIR}/cow-id-model.tar.gz is not found. They are required to run the demo.")
     endif()
 
-    # dairy farm client
-    add_executable(dairy_farm_client client.cpp)
-    target_include_directories(dairy_farm_client PRIVATE
-        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
-        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
-        $<BUILD_INTERFACE:${OpenCV_INCLUDE_DIRS}>
-    )
-    target_link_libraries(dairy_farm_client cascade ${OpenCV_LIBS})
-    add_custom_command(TARGET dairy_farm_client POST_BUILD
+    add_custom_command(TARGET infer_udl POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/video_receive.py
         ${CMAKE_CURRENT_BINARY_DIR}/video_receive.py
         COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/simulated_camera.py
