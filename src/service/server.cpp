@@ -59,7 +59,7 @@ class CascadeServiceCDPO: public CriticalDataPathObserver<CascadeType> {
                 return;
             }
             // filter for normal put (put/put_and_forget)
-            bool new_actions = false;
+            bool new_actions = is_trigger;
             if (!is_trigger) {
                 auto shard_members = ctxt->get_service_client_ref().template get_shard_members<CascadeType>(sgidx,shidx);
                 bool icare = (shard_members[std::hash<std::string>{}(key)%shard_members.size()] == ctxt->get_service_client_ref().get_my_id());
