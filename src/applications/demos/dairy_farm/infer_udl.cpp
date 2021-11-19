@@ -146,7 +146,7 @@ void infer_cow_id(uint32_t* cow_id, const void* img_buf, size_t img_size) {
 #define BCS_IMAGE_HEIGHT           (300)
 #define BCS_IMAGE_WIDTH            (300)
 #define BCS_TENSOR_BUFFER_SIZE     (BCS_IMAGE_HEIGHT*BCS_IMAGE_WIDTH*3)
-#define CONF_INFER_BCS_MODEL       "infer_model"
+#define CONF_INFER_BCS_MODEL       "bcs-model"
 
 void infer_bcs(float* bcs, const void* img_buf, size_t img_size) {
     /* step 1: load the model */ 
