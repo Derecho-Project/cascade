@@ -181,16 +181,7 @@ private:
                               const std::unordered_map<std::string,bool>& outputs,
                               ICascadeContext* ctxt,
                               uint32_t worker_id) override {
-        // TODO: do inference and put it to the storage object pool specified by outputs.
         auto* typed_ctxt = dynamic_cast<DefaultCascadeContextType*>(ctxt);
-
-        // Test if I'm responsible for this message
-        // TODO: we need to let the OCDPO understand which shard it is in... passing more OCDPO arguments???
-        auto members = typed_ctxt->get_service_client_ref().get_shard_members<VolatileCascadeStoreWithStringKey>(0,0);
-        if (members[std::hash<std::string>()(key_string)%members.size()] != typed_ctxt->get_service_client_ref().get_my_id()) {
-            // not my job, skip it.
-            return;
-        }
 
         const VolatileCascadeStoreWithStringKey::ObjectType *vcss_value = reinterpret_cast<const VolatileCascadeStoreWithStringKey::ObjectType *>(value_ptr);
         const FrameData *frame = reinterpret_cast<const FrameData*>(vcss_value->blob.bytes);
