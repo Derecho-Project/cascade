@@ -266,7 +266,7 @@ void initialize(ICascadeContext* ctxt) {
 }
 
 std::shared_ptr<OffCriticalDataPathObserver> get_observer(
-        ICascadeContext*,const std::string&,const std::string&) {
+        ICascadeContext*,nlohmann::json&) {
     return DairyFarmInferOCDPO::get();
 }
 
