@@ -275,7 +275,7 @@ std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::op_list_keys(const persistent
         std::remove_if(
             ret.begin(), 
             ret.end(),
-            [&](const KT key) { return op_path != get_pathname<KT>(key);}
+            [&](const KT key) { return (get_pathname<KT>(key).find(op_path) != 0);}
         ), 
         ret.end()
     ); 
@@ -977,7 +977,7 @@ std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::op_list_keys(const persi
         std::remove_if(
             ret.begin(), 
             ret.end(),
-            [&](const KT key) { return op_path != get_pathname<KT>(key);}
+            [&](const KT key) { return (get_pathname<KT>(key).find(op_path) != 0);}
         ), 
         ret.end()
     ); 
@@ -1014,7 +1014,7 @@ std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::op_list_keys_by_time(con
         auto kv_map = persistent_core.get(hlc)->kv_map;
         std::vector<KT> key_list;
         for(auto& kv:kv_map) {
-            if (op_path == get_pathname<KT>(kv.first) ){
+            if (get_pathname<KT>(kv.first).find(op_path) == 0 ){
                 key_list.push_back(kv.first);
             }
         }
