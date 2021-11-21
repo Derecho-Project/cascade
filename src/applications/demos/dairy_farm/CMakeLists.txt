@@ -20,6 +20,16 @@ if (OPENCV_CORE_FOUND)
         $<BUILD_INTERFACE:${OpenCV_INCLUDE_DIRS}>
     )
     target_link_libraries(dairy_farm_client cascade ${OpenCV_LIBS})
+    # dairy farm perf test
+    add_executable(dairy_farm_perf perf.cpp)
+    target_include_directories(dairy_farm_perf PRIVATE
+        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
+        $<BUILD_INTERFACE:${OpenCV_INCLUDE_DIRS}>
+    )
+    target_link_libraries(dairy_farm_perf cascade rpc ${OpenCV_LIBS})
 endif()
 
 if (TENSORFLOW_LIB_FOUND AND CPPFLOW_FOUND AND OPENCV_CORE_FOUND AND ANN_LIB_FOUND AND TORCH_FOUND)
