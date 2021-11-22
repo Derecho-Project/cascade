@@ -12,6 +12,9 @@
 #include <memory>
 #include <vector>
 #include <map>
+#include <demo_udl.hpp>
+#include <filesystem>
+#include <derecho/utils/logger.hpp>
 
 using namespace derecho::cascade;
 
@@ -26,6 +29,21 @@ static void print_help(const std::string& cmd) {
               << "\t" << cmd << " client <trigger_put|put_and_forget> <pathname> <max rate> <duration in secs> <list of concurrent clients>"
               << std::endl;
     return;
+}
+
+static auto load_frames(const std::string& frame_path) {
+    std::vector<ObjectWithStringKey> frames;
+    for (const auto & entry : std::filesystem::directory_iterator{frame_path}) {
+        std::cout << entry.path() << std::endl;
+        if (entry.is_regular_file()) {
+            frames.emplace_back(
+                std::move(
+                    get_photo_object(
+                        entry.path().filename().c_str(),
+                        entry.path().c_str())));
+        }
+    }
+    return frames;
 }
 
 static int do_server(int argc, char** argv) {
@@ -47,17 +65,45 @@ static int do_server(int argc, char** argv) {
     }
     uint64_t payload_size = derecho::getConfUInt64(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
     // 1 - load frames to prepare the workload
+    auto frames = load_frames(frame_path);
     ::rpc::server rpc_server(localhost,port);
+    ServiceClientAPI capi;
     // 2 - create rpclib server, waiting for execution
-    rpc_server.bind("perf",[](
+    rpc_server.bind("perf",[&frames,&capi,payload_size](
         const std::string& pathname,
         bool               is_trigger,
         uint64_t           max_operation_per_second,
         int64_t            start_sec,
-        uint64_t           duration_sec,
-        const std::string& output_filename){
-        //TODO:
-        std::cout << "perf is called but to be implemented." << std::endl; 
+        uint64_t           duration_sec) {
+        uint64_t next_ns = (start_sec)*1e9;
+        uint64_t stop_ns = next_ns + duration_sec*1e9;
+        uint64_t interval_ns = 1e9/max_operation_per_second;
+        // - send frames at given rate
+        while (next_ns <= stop_ns) {
+            int64_t sleep_us = (next_ns - static_cast<int64_t>(get_walltime()))/1e3;
+            if (sleep_us > 1) {
+                usleep(sleep_us);
+            }
+            next_ns += interval_ns;
+            // - send a frame.
+            std::size_t object_index = get_walltime()%frames.size();
+            while (frames.at(object_index).bytes_size() > payload_size) {
+                std::cout << "object-" << object_index << " has " 
+                          << frames.at(object_index).bytes_size() << " bytes,"
+                          << " which is too large for maximum p2p request payload size ("
+                          << payload_size << "). Skip it." << std::endl;
+                object_index = get_walltime()%frames.size();
+            }
+            capi.trigger_put(frames.at(get_walltime()%frames.size()));
+        }
+        return true;
+    });
+    rpc_server.bind("flush_timestamp_log", [&capi](const std::string& output_filename,bool flush_server) {
+        global_timestamp_logger.flush(output_filename);
+        if (flush_server) {
+            //TODO: flush server timestamp: checking dfgs to get the list of subgroups and shards.
+            std::cout << "To be implemented." << std::endl;
+        }
         return true;
     });
     // 3 - run.
@@ -111,7 +157,6 @@ static int do_client(int argc, char** argv) {
         perf_servers.emplace_back(ip,port);
     }
 
-    //TODO:
     int64_t start_sec = get_walltime()/1000000000 + 5; // start about 5 seconds later.
    
     std::map<std::pair<std::string,uint16_t>,std::unique_ptr<::rpc::client>> connections;
@@ -129,12 +174,17 @@ static int do_client(int argc, char** argv) {
                                                        trigger_mode,
                                                        max_rate_ops,
                                                        start_sec,
-                                                       duration_sec,
-                                                       "perf.log"));
+                                                       duration_sec));
     }
     check_rpc_futures(std::move(futures));
-    // dump timestamps.
-    
+    usleep(1000000); // sleep for 1 second.
+    // dump timestamps
+    bool is_first_client = true;
+    for (auto& kv:connections) {
+        futures.emplace(kv.first,kv.second->async_call("flush_timestamp_log","perf.log",is_first_client));
+        is_first_client = false;
+    }
+    check_rpc_futures(std::move(futures));
     // destruct clients.
     return 0;
 }
@@ -144,7 +194,6 @@ int main(int argc, char** argv) {
         print_help(argv[0]);
         return -1;
     }
-
     if (std::string(argv[1]) == "server") {
         return do_server(argc,argv);
     } else if (std::string(argv[1]) == "client") {
