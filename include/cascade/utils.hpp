@@ -180,6 +180,8 @@ public:
 #define TLT_PERSISTED                       (22)
 
 #define TLT_PIPELINE(x)                     (10000 + (x))
+#define TLT_DAIRYFARMDEMO(x)                (20000 + (x))
+
 class TimestampLogger {
 private:
     std::vector<std::tuple<uint64_t,uint64_t,uint64_t,uint64_t,uint64_t>> _log;

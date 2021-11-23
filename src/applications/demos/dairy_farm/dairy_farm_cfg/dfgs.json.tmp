@@ -16,6 +16,13 @@
                 "destinations": [
                     {"/dairy_farm/storage" : "put"}
                 ]
+            },
+            {
+                "pathname": "/dairy_farm/storage",
+                "user_defined_logic_list": [ "36590e58-4ca2-11ec-b26b-0242ac110002" ],
+                "destinations": [
+                    {}
+                ]
             }
         ]
     }

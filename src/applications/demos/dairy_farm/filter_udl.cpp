@@ -35,12 +35,20 @@ class DairyFarmFilterOCDPO: public OffCriticalDataPathObserver {
                               const std::unordered_map<std::string,bool>& outputs,
                               ICascadeContext* ctxt,
                               uint32_t worker_id) override {
-        // TODO: test if there is a cow in the incoming frame.
-        auto* typed_ctxt = dynamic_cast<CascadeContext<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey,TriggerCascadeNoStoreWithStringKey>*>(ctxt);
+        // test if there is a cow in the incoming frame.
+        auto* typed_ctxt = dynamic_cast<DefaultCascadeContextType*>(ctxt);
+#ifdef ENABLE_EVALUATION
+        if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
+            global_timestamp_logger.log(TLT_FRONTEND_TRIGGERED,
+                                        typed_ctxt->get_service_client_ref().get_my_id(),
+                                        reinterpret_cast<const ObjectWithStringKey*>(value_ptr)->get_message_id(),
+                                        get_walltime());
+        }
+#endif
         /* step 1: load the model */ 
         static thread_local cppflow::model model(CONF_FILTER_MODEL);
         /* step 2: Load the image & convert to tensor */
-        const TriggerCascadeNoStoreWithStringKey::ObjectType *tcss_value = reinterpret_cast<const TriggerCascadeNoStoreWithStringKey::ObjectType *>(value_ptr);
+        const ObjectWithStringKey *tcss_value = reinterpret_cast<const ObjectWithStringKey *>(value_ptr);
         const FrameData *frame = reinterpret_cast<const FrameData*>(tcss_value->blob.bytes);
         dbg_default_trace("frame photoid is: "+std::to_string(frame->photo_id));
         dbg_default_trace("frame timestamp is: "+std::to_string(frame->timestamp));
@@ -56,7 +64,15 @@ class DairyFarmFilterOCDPO: public OffCriticalDataPathObserver {
         /* step 4: Send intermediate results to the next tier if image frame is meaningful */
         // prediction < 0.35 indicates strong possibility that the image frame captures full contour of the cow
         float prediction = output.get_data<float>()[0];
-        std::cout << "prediction: " << prediction << std::endl;
+        // std::cout << "prediction: " << prediction << std::endl;
+#ifdef ENABLE_EVALUATION
+        if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
+            global_timestamp_logger.log(TLT_FRONTEND_PREDICTED,
+                                        typed_ctxt->get_service_client_ref().get_my_id(),
+                                        tcss_value->get_message_id(),
+                                        get_walltime());
+        }
+#endif
         if (prediction < FILTER_THRESHOLD) {
             std::string frame_idx = key_string.substr(prefix_length);
             for (auto iter = outputs.begin(); iter != outputs.end(); ++iter) {
@@ -79,6 +95,14 @@ class DairyFarmFilterOCDPO: public OffCriticalDataPathObserver {
                 }
             }
         }
+#ifdef ENABLE_EVALUATION
+        if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
+            global_timestamp_logger.log(TLT_FRONTEND_FORWARDED,
+                                        typed_ctxt->get_service_client_ref().get_my_id(),
+                                        tcss_value->get_message_id(),
+                                        get_walltime());
+        }
+#endif
     }
 
     static std::shared_ptr<OffCriticalDataPathObserver> ocdpo_ptr;
