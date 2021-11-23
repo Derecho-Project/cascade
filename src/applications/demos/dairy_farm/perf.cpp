@@ -98,14 +98,62 @@ static int do_server(int argc, char** argv) {
         }
         return true;
     });
+#ifdef ENABLE_EVALUATION
     rpc_server.bind("flush_timestamp_log", [&capi](const std::string& output_filename,bool flush_server) {
         global_timestamp_logger.flush(output_filename);
+
         if (flush_server) {
-            //TODO: flush server timestamp: checking dfgs to get the list of subgroups and shards.
-            std::cout << "To be implemented." << std::endl;
+            // collect the object pools
+            std::set<std::string> object_pools;
+            for (const auto& dfg:DataFlowGraph::get_data_flow_graphs()) {
+                if (dfg.id == "8ac4c636-9d92-11eb-9dbc-0242ac110002") {
+                    // only check dairy farm demo.
+                    for (const auto& vertex:dfg.vertices) {
+                        object_pools.emplace(vertex.first);
+                        for (const auto& edge:vertex.second.edges) {
+                            for (const auto& op:edge.second) {
+                                object_pools.emplace(op.first);
+                            }
+                        }
+                    }
+                }
+            }
+            // collect the type and subgroups.
+            std::set<std::tuple<uint32_t,uint32_t>> subgroups;
+            for (const auto& op:object_pools) {
+                auto opm = capi.find_object_pool(op);
+                subgroups.emplace(opm.subgroup_type_index,opm.subgroup_index);
+            }
+            // do flush_timestamp_log
+            // TODO: this should be done in a more elegant way using template expansion 
+#define DUMP_TIMPSTAMP(subgroup_type) \
+                    { \
+                        uint32_t num_shard = capi.template get_number_of_shards<subgroup_type>(std::get<1>(subgroup)); \
+                        while(num_shard>0) { \
+                            auto result = capi.template dump_timestamp<subgroup_type>(output_filename,std::get<1>(subgroup),--num_shard); \
+                            result.get(); \
+                        } \
+                    }
+            for (const auto& subgroup:subgroups) {
+                switch(std::get<0>(subgroup)) {
+                case 1:
+                    DUMP_TIMPSTAMP(VolatileCascadeStoreWithStringKey);
+                    break;
+                case 2:
+                    DUMP_TIMPSTAMP(PersistentCascadeStoreWithStringKey);
+                    break;
+                case 3:
+                    DUMP_TIMPSTAMP(TriggerCascadeNoStoreWithStringKey);
+                    break;
+                default:
+                    std::cerr << "Invalid subgroup type index:" << std::get<0>(subgroup) << std::endl;
+                }
+            }
         }
+
         return true;
     });
+#endif //ENABLE_EVALUATION
     // 3 - run.
     rpc_server.async_run(1);
     std::cout << "Press ENTER to stop" << std::endl;
