@@ -182,6 +182,14 @@ private:
                               ICascadeContext* ctxt,
                               uint32_t worker_id) override {
         auto* typed_ctxt = dynamic_cast<DefaultCascadeContextType*>(ctxt);
+#ifdef ENABLE_EVALUATION
+        if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
+            global_timestamp_logger.log(TLT_COMPUTE_TRIGGERED,
+                                        typed_ctxt->get_service_client_ref().get_my_id(),
+                                        reinterpret_cast<const ObjectWithStringKey*>(value_ptr)->get_message_id(),
+                                        get_walltime());
+        }
+#endif
 
         const VolatileCascadeStoreWithStringKey::ObjectType *vcss_value = reinterpret_cast<const VolatileCascadeStoreWithStringKey::ObjectType *>(value_ptr);
         const FrameData *frame = reinterpret_cast<const FrameData*>(vcss_value->blob.bytes);
@@ -196,6 +204,14 @@ private:
         cow_id_inference.join();
         bcs_inference.join();
         
+#ifdef ENABLE_EVALUATION
+        if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
+            global_timestamp_logger.log(TLT_COMPUTE_INFERRED,
+                                        typed_ctxt->get_service_client_ref().get_my_id(),
+                                        reinterpret_cast<const ObjectWithStringKey*>(value_ptr)->get_message_id(),
+                                        get_walltime());
+        }
+#endif
         // put the result to next tier
         std::string frame_key = key_string.substr(prefix_length);
         std::string obj_value = std::to_string(bcs) + "_" + std::to_string(frame->timestamp);
@@ -218,6 +234,16 @@ private:
                 }
             }
         }
+
+#ifdef ENABLE_EVALUATION
+        if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
+            global_timestamp_logger.log(TLT_COMPUTE_FORWARDED,
+                                        typed_ctxt->get_service_client_ref().get_my_id(),
+                                        reinterpret_cast<const ObjectWithStringKey*>(value_ptr)->get_message_id(),
+                                        get_walltime());
+        }
+#endif
+
     }
 
     static std::shared_ptr<OffCriticalDataPathObserver> ocdpo_ptr;

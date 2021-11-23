@@ -78,6 +78,9 @@ static int do_server(int argc, char** argv) {
         uint64_t next_ns = (start_sec)*1e9;
         uint64_t stop_ns = next_ns + duration_sec*1e9;
         uint64_t interval_ns = 1e9/max_operation_per_second;
+#ifdef ENABLE_EVALUATION
+        uint64_t message_id = capi.get_my_id()*1000000000;
+#endif
         // - send frames at given rate
         while (next_ns <= stop_ns) {
             int64_t sleep_us = (next_ns - static_cast<int64_t>(get_walltime()))/1e3;
@@ -94,7 +97,15 @@ static int do_server(int argc, char** argv) {
                           << payload_size << "). Skip it." << std::endl;
                 object_index = get_walltime()%frames.size();
             }
-            capi.trigger_put(frames.at(get_walltime()%frames.size()));
+#ifdef ENABLE_EVALUATION
+            if (std::is_base_of<IHasMessageID,decltype(frames.at(object_index))>::value) {
+                frames.at(object_index).set_message_id(message_id++);
+            }
+#endif
+            capi.trigger_put(frames.at(object_index));
+#ifdef ENABLE_EVALUATION
+            global_timestamp_logger.log(TLT_DAIRYFARMDEMO(0),capi.get_my_id(),message_id,get_walltime());
+#endif
         }
         return true;
     });
