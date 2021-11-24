@@ -115,11 +115,14 @@ static int do_server(int argc, char** argv) {
 #ifdef ENABLE_EVALUATION
             if (std::is_base_of<IHasMessageID,decltype(frames.at(object_index))>::value) {
                 frames.at(object_index).set_message_id(message_id++);
+                dbg_default_trace("set frame message_id:{}",frames.at(object_index).get_message_id());
+            } else {
+                dbg_default_trace("message id is not set.");
             }
 #endif
             capi.trigger_put(frames.at(object_index));
 #ifdef ENABLE_EVALUATION
-            global_timestamp_logger.log(TLT_DAIRYFARMDEMO(0),capi.get_my_id(),message_id,get_walltime());
+            global_timestamp_logger.log(TLT_DAIRYFARMDEMO(0),capi.get_my_id(),frames.at(object_index).get_message_id(),get_walltime());
 #endif
         }
         return true;
