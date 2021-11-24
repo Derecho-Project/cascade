@@ -147,13 +147,13 @@ static int do_server(int argc, char** argv) {
                     }
             for (const auto& subgroup:subgroups) {
                 switch(std::get<0>(subgroup)) {
-                case 1:
+                case 0:
                     DUMP_TIMPSTAMP(VolatileCascadeStoreWithStringKey);
                     break;
-                case 2:
+                case 1:
                     DUMP_TIMPSTAMP(PersistentCascadeStoreWithStringKey);
                     break;
-                case 3:
+                case 2:
                     DUMP_TIMPSTAMP(TriggerCascadeNoStoreWithStringKey);
                     break;
                 default:
