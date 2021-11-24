@@ -149,6 +149,7 @@ static int do_server(int argc, char** argv) {
             for (const auto& op:object_pools) {
                 auto opm = capi.find_object_pool(op);
                 subgroups.emplace(opm.subgroup_type_index,opm.subgroup_index);
+                dbg_default_trace("Collected subgroup: type:{} index:{}.",opm.subgroup_type_index,opm.subgroup_index);
             }
             // do flush_timestamp_log
             // TODO: this should be done in a more elegant way using template expansion 
@@ -174,6 +175,7 @@ static int do_server(int argc, char** argv) {
                 default:
                     std::cerr << "Invalid subgroup type index:" << std::get<0>(subgroup) << std::endl;
                 }
+                dbg_default_trace("dump_timestamp type:{} index:{}.", std::get<0>(subgroup), std::get<1>(subgroup));
             }
         }
 
