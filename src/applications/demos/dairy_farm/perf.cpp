@@ -1,4 +1,5 @@
 #include <cascade/service_client_api.hpp>
+#include <experimental/bits/fs_fwd.h>
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -13,7 +14,13 @@
 #include <vector>
 #include <map>
 #include <demo_udl.hpp>
+
+#if __GNUC__ >= 9
 #include <filesystem>
+#else
+#include <experimental/filesystem>
+#endif
+
 #include <derecho/utils/logger.hpp>
 
 using namespace derecho::cascade;
@@ -33,9 +40,17 @@ static void print_help(const std::string& cmd) {
 
 static auto load_frames(const std::string& frame_path) {
     std::vector<ObjectWithStringKey> frames;
+#if __GNUC__ >= 9
     for (const auto & entry : std::filesystem::directory_iterator{frame_path}) {
+#else
+    for (const auto & entry : std::experimental::filesystem::directory_iterator{frame_path}) {
+#endif
         std::cout << entry.path() << std::endl;
+#if __GNUC__ >= 9
         if (entry.is_regular_file()) {
+#else
+        if (std::experimental::filesystem::is_regular_file(entry)) {
+#endif
             frames.emplace_back(
                 std::move(
                     get_photo_object(
