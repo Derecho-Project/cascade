@@ -94,7 +94,7 @@ static int do_server(int argc, char** argv) {
         uint64_t stop_ns = next_ns + duration_sec*1e9;
         uint64_t interval_ns = 1e9/max_operation_per_second;
 #ifdef ENABLE_EVALUATION
-        uint64_t message_id = capi.get_my_id()*1000000000;
+        uint64_t message_id = capi.get_my_id()*static_cast<uint64_t>(1000000000);
 #endif
         // - send frames at given rate
         while (next_ns <= stop_ns) {
