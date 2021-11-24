@@ -1,4 +1,5 @@
 #include <cascade/service_client_api.hpp>
+#include <experimental/bits/fs_fwd.h>
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -13,7 +14,13 @@
 #include <vector>
 #include <map>
 #include <demo_udl.hpp>
+
+#if __GNUC__ >= 9
 #include <filesystem>
+#else
+#include <experimental/filesystem>
+#endif
+
 #include <derecho/utils/logger.hpp>
 
 using namespace derecho::cascade;
@@ -33,9 +40,17 @@ static void print_help(const std::string& cmd) {
 
 static auto load_frames(const std::string& frame_path) {
     std::vector<ObjectWithStringKey> frames;
+#if __GNUC__ >= 9
     for (const auto & entry : std::filesystem::directory_iterator{frame_path}) {
+#else
+    for (const auto & entry : std::experimental::filesystem::directory_iterator{frame_path}) {
+#endif
         std::cout << entry.path() << std::endl;
+#if __GNUC__ >= 9
         if (entry.is_regular_file()) {
+#else
+        if (std::experimental::filesystem::is_regular_file(entry)) {
+#endif
             frames.emplace_back(
                 std::move(
                     get_photo_object(
@@ -134,6 +149,7 @@ static int do_server(int argc, char** argv) {
             for (const auto& op:object_pools) {
                 auto opm = capi.find_object_pool(op);
                 subgroups.emplace(opm.subgroup_type_index,opm.subgroup_index);
+                dbg_default_trace("Collected subgroup: type:{} index:{}.",opm.subgroup_type_index,opm.subgroup_index);
             }
             // do flush_timestamp_log
             // TODO: this should be done in a more elegant way using template expansion 
@@ -159,6 +175,7 @@ static int do_server(int argc, char** argv) {
                 default:
                     std::cerr << "Invalid subgroup type index:" << std::get<0>(subgroup) << std::endl;
                 }
+                dbg_default_trace("dump_timestamp type:{} index:{}.", std::get<0>(subgroup), std::get<1>(subgroup));
             }
         }
 

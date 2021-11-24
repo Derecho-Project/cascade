@@ -29,7 +29,11 @@ if (OPENCV_CORE_FOUND)
         $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
         $<BUILD_INTERFACE:${OpenCV_INCLUDE_DIRS}>
     )
-    target_link_libraries(dairy_farm_perf cascade rpc ${OpenCV_LIBS})
+    if (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9)
+        target_link_libraries(dairy_farm_perf cascade rpc ${OpenCV_LIBS})
+    else ()
+        target_link_libraries(dairy_farm_perf cascade rpc stdc++fs ${OpenCV_LIBS})
+    endif()
 endif()
 
 if (TENSORFLOW_LIB_FOUND AND CPPFLOW_FOUND AND OPENCV_CORE_FOUND AND ANN_LIB_FOUND AND TORCH_FOUND)
