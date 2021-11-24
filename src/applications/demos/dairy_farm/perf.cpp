@@ -113,7 +113,7 @@ static int do_server(int argc, char** argv) {
                 object_index = get_walltime()%frames.size();
             }
 #ifdef ENABLE_EVALUATION
-            if (std::is_base_of<IHasMessageID,decltype(frames.at(object_index))>::value) {
+            if (std::is_base_of<IHasMessageID,std::decay_t<decltype(frames.at(object_index))>>::value) {
                 frames.at(object_index).set_message_id(message_id++);
                 dbg_default_trace("set frame message_id:{}",frames.at(object_index).get_message_id());
             } else {
