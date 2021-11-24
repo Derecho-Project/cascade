@@ -218,6 +218,11 @@ private:
         for (auto iter = outputs.begin(); iter != outputs.end(); ++iter) {
             std::string obj_key = iter->first + frame_key + PATH_SEPARATOR + std::to_string(cow_id);
             PersistentCascadeStoreWithStringKey::ObjectType obj(obj_key,obj_value.c_str(),obj_value.size());
+#ifdef ENABLE_EVALUATION
+            if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
+                obj.set_message_id(vcss_value->get_message_id());
+            }
+#endif
             std::lock_guard<std::mutex> lock(p2p_send_mutex);
 
             // if true, use trigger put; otherwise, use normal put
