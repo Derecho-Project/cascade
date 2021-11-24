@@ -77,7 +77,12 @@ class DairyFarmFilterOCDPO: public OffCriticalDataPathObserver {
             std::string frame_idx = key_string.substr(prefix_length);
             for (auto iter = outputs.begin(); iter != outputs.end(); ++iter) {
                 std::string obj_key = iter->first + frame_idx;
-                VolatileCascadeStoreWithStringKey::ObjectType obj(obj_key,tcss_value->blob.bytes,tcss_value->blob.size);
+                ObjectWithStringKey obj(obj_key,tcss_value->blob.bytes,tcss_value->blob.size);
+#ifdef ENABLE_EVALUATION
+                if (std::is_base_of<IHasMessageID,std::decay_t<ObjectWithStringKey>>::value) {
+                    obj.set_message_id(tcss_value->get_message_id());
+                }
+#endif
                 std::lock_guard<std::mutex> lock(p2p_send_mutex);
                 
                 // if true, use trigger put; otherwise, use normal put
