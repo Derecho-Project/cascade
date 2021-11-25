@@ -31,9 +31,15 @@ static void print_help(const std::string& cmd) {
     std::cout << "Usage:" << std::endl;
     std::cout << "Run as a perf server:\n"
               << "\t" << cmd << " server <frame_path> [ip:port, default to 127.0.0.1:" << PERFTEST_PORT << "]"
+              << "\t\tframe_path - the folder that contains the frames."
               << std::endl;
     std::cout << "Run as a perf client:\n"
-              << "\t" << cmd << " client <trigger_put|put_and_forget> <pathname> <max rate> <duration in secs> <list of concurrent clients>"
+              << "\t" << cmd << " client <trigger_put|put_and_forget> <pathname> <max rate> <duration in secs> <flush_delay> <list of concurrent clients>"
+              << "\t\tpathname - the frontend "
+              << "\t\tmax rate - the maxmimum message rate "
+              << "\t\tduration - the time span of sending period (in seconds)"
+              << "\t\tflush delay - the time (in seconds) to wait before asking the nodes to flush their timestamp log"
+              << "\t\tclients list - the perf clients in the format of ip[:port], the default port number is " << PERFTEST_PORT
               << std::endl;
     return;
 }
@@ -216,13 +222,19 @@ static bool check_rpc_futures(std::map<std::pair<std::string,uint16_t>,std::futu
 }
 
 static int do_client(int argc, char** argv) {
+    if (argc < 8) {
+        std::cerr << "Invalid command." << std::endl;
+        print_help(argv[0]);
+        return 0;
+    }
     bool trigger_mode = (std::string("trigger_put") == argv[2]);
     std::string pathname(argv[3]);
     uint64_t max_rate_ops = std::stoul(argv[4]);
     uint64_t duration_sec = std::stoul(argv[5]);
+    uint64_t flush_delay = std::stoul(argv[6])*1000000;
 
     std::vector<std::pair<std::string,uint16_t>> perf_servers;
-    for (int i=6;i<argc;i++) {
+    for (int i=7;i<argc;i++) {
         std::string ip;
         uint16_t port;
         auto colpos = std::string(argv[i]).find(':');
@@ -256,7 +268,7 @@ static int do_client(int argc, char** argv) {
                                                        duration_sec));
     }
     check_rpc_futures(std::move(futures));
-    usleep(1000000); // sleep for 1 second.
+    usleep(flush_delay);
     // dump timestamps
     bool is_first_client = true;
     for (auto& kv:connections) {
