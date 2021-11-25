@@ -193,7 +193,9 @@ private:
 
         const VolatileCascadeStoreWithStringKey::ObjectType *vcss_value = reinterpret_cast<const VolatileCascadeStoreWithStringKey::ObjectType *>(value_ptr);
         const FrameData *frame = reinterpret_cast<const FrameData*>(vcss_value->blob.bytes);
-        dbg_default_trace("frame photo {} @ {}", frame->photo_id, frame->timestamp);
+        if (std::is_base_of<IHasMessageID,std::decay_t<decltype(vcss_value)>>::value) {
+            dbg_default_trace("frame photo {} (message id:{}) @ {}", frame->photo_id, vcss_value->get_message_id(), frame->timestamp);
+        }
 
         // Inference threads
         uint32_t cow_id;
@@ -203,12 +205,14 @@ private:
         cow_id_inference.join();
         bcs_inference.join();
         
-        dbg_default_trace("frame photo {} is processed.", frame->photo_id);
+        if (std::is_base_of<IHasMessageID,std::decay_t<decltype(vcss_value)>>::value) {
+            dbg_default_trace("frame photo {} (message id:{}) is processed.", frame->photo_id, vcss_value->get_message_id());
+        }
 #ifdef ENABLE_EVALUATION
         if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
             global_timestamp_logger.log(TLT_COMPUTE_INFERRED,
                                         typed_ctxt->get_service_client_ref().get_my_id(),
-                                        reinterpret_cast<const ObjectWithStringKey*>(value_ptr)->get_message_id(),
+                                        vcss_value->get_message_id(),
                                         get_walltime());
         }
 #endif
