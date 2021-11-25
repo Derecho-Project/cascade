@@ -193,7 +193,7 @@ private:
 
         const VolatileCascadeStoreWithStringKey::ObjectType *vcss_value = reinterpret_cast<const VolatileCascadeStoreWithStringKey::ObjectType *>(value_ptr);
         const FrameData *frame = reinterpret_cast<const FrameData*>(vcss_value->blob.bytes);
-        if (std::is_base_of<IHasMessageID,std::decay_t<decltype(vcss_value)>>::value) {
+        if (std::is_base_of<IHasMessageID,std::decay_t<decltype(*vcss_value)>>::value) {
             dbg_default_trace("frame photo {} (message id:{}) @ {}", frame->photo_id, vcss_value->get_message_id(), frame->timestamp);
         }
 
@@ -205,7 +205,7 @@ private:
         cow_id_inference.join();
         bcs_inference.join();
         
-        if (std::is_base_of<IHasMessageID,std::decay_t<decltype(vcss_value)>>::value) {
+        if (std::is_base_of<IHasMessageID,std::decay_t<decltype(*vcss_value)>>::value) {
             dbg_default_trace("frame photo {} (message id:{}) is processed.", frame->photo_id, vcss_value->get_message_id());
         }
 #ifdef ENABLE_EVALUATION
