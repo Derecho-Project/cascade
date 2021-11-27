@@ -231,7 +231,7 @@ static int do_client(int argc, char** argv) {
     std::string pathname(argv[3]);
     uint64_t max_rate_ops = std::stoul(argv[4]);
     uint64_t duration_sec = std::stoul(argv[5]);
-    uint64_t flush_delay = std::stoul(argv[6])*1000000;
+    uint64_t flush_delay = std::stoul(argv[6])*1000000ull;
 
     std::vector<std::pair<std::string,uint16_t>> perf_servers;
     for (int i=7;i<argc;i++) {
@@ -268,6 +268,7 @@ static int do_client(int argc, char** argv) {
                                                        duration_sec));
     }
     check_rpc_futures(std::move(futures));
+    std::cout << "delay flush for " << (flush_delay/1e6) << "sec." << std::endl;
     usleep(flush_delay);
     // dump timestamps
     bool is_first_client = true;
