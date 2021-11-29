@@ -209,9 +209,18 @@ private:
 
         // Inference threads
         uint32_t cow_id;
+#ifdef ENABLE_EVALUATION
+        if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
+            cow_id = static_cast<uint32_t>(reinterpret_cast<const ObjectWithStringKey*>(value_ptr)->get_message_id());
+        } else {
+            cow_id = 37;
+        }
+#else
+        cow_id = 37;
+#endif
         float bcs;
         // std::thread cow_id_inference(infer_cow_id, &cow_id, frame->data, sizeof(frame->data));
-        infer_cow_id(&cow_id, frame->data, sizeof(frame->data));
+        // infer_cow_id(&cow_id, frame->data, sizeof(frame->data));
         // std::thread bcs_inference(infer_bcs, &bcs, frame->data, sizeof(frame->data));
         infer_bcs(&bcs,frame->data, sizeof(frame->data));
         // cow_id_inference.join();
