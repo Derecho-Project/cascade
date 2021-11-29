@@ -177,7 +177,7 @@ void infer_bcs(float* bcs, const void* img_buf, size_t img_size) {
     cppflow::tensor output = model({{"serving_default_conv2d_5_input:0", input_tensor}},{"StatefulPartitionedCall:0"})[0];
     float prediction = output.get_data<float>()[0];
     *bcs = prediction;
-    std::cout << "prediction is: " << std::to_string(prediction) << std::endl;
+    dbg_default_trace("bcs prediction is: {}", prediction);
 }
 
 class DairyFarmInferOCDPO: public OffCriticalDataPathObserver {
