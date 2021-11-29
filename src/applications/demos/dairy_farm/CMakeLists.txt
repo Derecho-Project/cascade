@@ -170,17 +170,6 @@ if (TENSORFLOW_LIB_FOUND AND CPPFLOW_FOUND AND OPENCV_CORE_FOUND AND ANN_LIB_FOU
         COMMENT "prepare dairy farm demo configuration"
     )
     
-    # infer_udl
-    add_library(storage_udl SHARED storage_udl.cpp)
-    target_include_directories(storage_udl PRIVATE
-        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
-        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
-        $<BUILD_INTERFACE:${OpenCV_INCLUDE_DIRS}>
-    )
-    target_link_libraries(storage_udl cascade)
-
 else()
     message (STATUS "Skipping diary farm demo... to enable it, please install the following packages")
     if (NOT TENSORFLOW_LIB_FOUND)
@@ -199,3 +188,14 @@ else()
         message (STATUS "* libtorch c binding")
     endif()
 endif()
+
+# storage_udl
+add_library(storage_udl SHARED storage_udl.cpp)
+target_include_directories(storage_udl PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
+    $<BUILD_INTERFACE:${OpenCV_INCLUDE_DIRS}>
+)
+target_link_libraries(storage_udl cascade)
