@@ -45,13 +45,13 @@ private:
     ANNpoint img_emb;
 
     // near neighbor indices
-    ANNidxArray nnIdx;		
+    ANNidxArray nnIdx = nullptr;
 
     // near neighbor distances
-	ANNdistArray dists;	
+	ANNdistArray dists = nullptr;
     
-    // search structure				
-	ANNkd_tree*	kdTree;					
+    // search structure
+	ANNkd_tree*	kdTree = nullptr;
 
     at::Tensor to_tensor(const cv::Mat& mat, bool unsqueeze=false, int unsqueeze_dim=0) {
         at::Tensor tensor_image = torch::from_blob(mat.data, {mat.rows,mat.cols,3}, at::kByte);
@@ -126,10 +126,18 @@ public:
     } 
 
     ~InferenceEngine() {
-        delete[] nnIdx;
-        delete[] dists;
-        delete kdTree;
+        debug_enter_func();
+        if (nnIdx) {
+            delete[] nnIdx;
+        }
+        if (dists) {
+            delete[] dists;
+        }
+        if (kdTree) {
+            delete kdTree;
+        }
         annClose();
+        debug_leave_func();
     }
 };
 
@@ -139,8 +147,9 @@ void infer_cow_id(uint32_t* cow_id, const void* img_buf, size_t img_size) {
     std::memcpy(static_cast<void*>(out_buf.data()),img_buf,img_size);
     cv::Mat mat(240,352,CV_32FC3,out_buf.data());
     // resize to desired dimension matching with the model
-    cv::resize(mat, mat, cv::Size(COW_ID_IMAGE_WIDTH,COW_ID_IMAGE_HEIGHT));
-    *cow_id = cow_id_ie.infer(mat);
+    cv::Mat resized;
+    cv::resize(mat, resized, cv::Size(COW_ID_IMAGE_WIDTH,COW_ID_IMAGE_HEIGHT));
+    *cow_id = cow_id_ie.infer(resized);
 }
 
 #define BCS_IMAGE_HEIGHT           (300)
@@ -156,10 +165,11 @@ void infer_bcs(float* bcs, const void* img_buf, size_t img_size) {
     std::vector<unsigned char> out_buf(img_size);
     std::memcpy(static_cast<void*>(out_buf.data()),img_buf,img_size);
     cv::Mat mat(240,352,CV_32FC3,out_buf.data());
+    cv::Mat resized;
     // resize to desired dimension matching with the model & convert to tensor
-    cv::resize(mat, mat, cv::Size(BCS_IMAGE_WIDTH,BCS_IMAGE_HEIGHT));
+    cv::resize(mat, resized, cv::Size(BCS_IMAGE_WIDTH,BCS_IMAGE_HEIGHT));
     std::vector<float> bcs_tensor_buf(BCS_TENSOR_BUFFER_SIZE);
-    std::memcpy(static_cast<void*>(bcs_tensor_buf.data()), static_cast<const void*>(mat.data),BCS_TENSOR_BUFFER_SIZE*sizeof(float));
+    std::memcpy(static_cast<void*>(bcs_tensor_buf.data()), static_cast<const void*>(resized.data),BCS_TENSOR_BUFFER_SIZE*sizeof(float));
     cppflow::tensor input_tensor(bcs_tensor_buf, {BCS_IMAGE_WIDTH,BCS_IMAGE_HEIGHT,3});
     input_tensor = cppflow::expand_dims(input_tensor, 0);
     
@@ -193,22 +203,28 @@ private:
 
         const VolatileCascadeStoreWithStringKey::ObjectType *vcss_value = reinterpret_cast<const VolatileCascadeStoreWithStringKey::ObjectType *>(value_ptr);
         const FrameData *frame = reinterpret_cast<const FrameData*>(vcss_value->blob.bytes);
-        dbg_default_trace("frame photo {} @ {}", frame->photo_id, frame->timestamp);
+        if (std::is_base_of<IHasMessageID,std::decay_t<decltype(*vcss_value)>>::value) {
+            dbg_default_trace("frame photo {} (message id:{}) @ {}", frame->photo_id, vcss_value->get_message_id(), frame->timestamp);
+        }
 
         // Inference threads
         uint32_t cow_id;
-        float bcs; 
-        std::thread cow_id_inference(infer_cow_id, &cow_id, frame->data, sizeof(frame->data));
-        std::thread bcs_inference(infer_bcs, &bcs, frame->data, sizeof(frame->data));
-        cow_id_inference.join();
-        bcs_inference.join();
-        
-        dbg_default_trace("frame photo {} is processed.", frame->photo_id);
+        float bcs;
+        // std::thread cow_id_inference(infer_cow_id, &cow_id, frame->data, sizeof(frame->data));
+        infer_cow_id(&cow_id, frame->data, sizeof(frame->data));
+        // std::thread bcs_inference(infer_bcs, &bcs, frame->data, sizeof(frame->data));
+        infer_bcs(&bcs,frame->data, sizeof(frame->data));
+        // cow_id_inference.join();
+        // bcs_inference.join();
+
+        if (std::is_base_of<IHasMessageID,std::decay_t<decltype(*vcss_value)>>::value) {
+            dbg_default_trace("frame photo {} (message id:{}) is processed.", frame->photo_id, vcss_value->get_message_id());
+        }
 #ifdef ENABLE_EVALUATION
         if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
             global_timestamp_logger.log(TLT_COMPUTE_INFERRED,
                                         typed_ctxt->get_service_client_ref().get_my_id(),
-                                        reinterpret_cast<const ObjectWithStringKey*>(value_ptr)->get_message_id(),
+                                        vcss_value->get_message_id(),
                                         get_walltime());
         }
 #endif

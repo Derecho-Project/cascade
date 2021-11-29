@@ -31,9 +31,15 @@ static void print_help(const std::string& cmd) {
     std::cout << "Usage:" << std::endl;
     std::cout << "Run as a perf server:\n"
               << "\t" << cmd << " server <frame_path> [ip:port, default to 127.0.0.1:" << PERFTEST_PORT << "]"
+              << "\t\tframe_path - the folder that contains the frames."
               << std::endl;
     std::cout << "Run as a perf client:\n"
-              << "\t" << cmd << " client <trigger_put|put_and_forget> <pathname> <max rate> <duration in secs> <list of concurrent clients>"
+              << "\t" << cmd << " client <trigger_put|put_and_forget> <pathname> <max rate> <duration in secs> <flush_delay> <list of concurrent clients>"
+              << "\t\tpathname - the frontend "
+              << "\t\tmax rate - the maxmimum message rate "
+              << "\t\tduration - the time span of sending period (in seconds)"
+              << "\t\tflush delay - the time (in seconds) to wait before asking the nodes to flush their timestamp log"
+              << "\t\tclients list - the perf clients in the format of ip[:port], the default port number is " << PERFTEST_PORT
               << std::endl;
     return;
 }
@@ -93,20 +99,22 @@ static int do_server(int argc, char** argv) {
         uint64_t next_ns = (start_sec)*1e9;
         uint64_t stop_ns = next_ns + duration_sec*1e9;
         uint64_t interval_ns = 1e9/max_operation_per_second;
+        dbg_default_trace("perf request received with\n\tpathname:{}\n\tis_trigger:{}\n\tmax_ops:{}\n\tstart_sec:{}\n\tduration_sec:{}",
+                pathname,is_trigger,max_operation_per_second,start_sec,duration_sec);
 #ifdef ENABLE_EVALUATION
         uint64_t message_id = capi.get_my_id()*static_cast<uint64_t>(1000000000);
 #endif
         // - send frames at given rate
         while (next_ns <= stop_ns) {
-            int64_t sleep_us = (next_ns - static_cast<int64_t>(get_walltime()))/1e3;
-            if (sleep_us > 1) {
-                usleep(sleep_us);
+            uint64_t now_ns = get_walltime();
+            if (now_ns < (next_ns + 1000)) {
+                usleep(static_cast<useconds_t>(next_ns - now_ns)/1000);
             }
             next_ns += interval_ns;
             // - send a frame.
             std::size_t object_index = get_walltime()%frames.size();
             while (frames.at(object_index).bytes_size() > payload_size) {
-                std::cout << "object-" << object_index << " has " 
+                std::cerr << "object-" << object_index << " has "
                           << frames.at(object_index).bytes_size() << " bytes,"
                           << " which is too large for maximum p2p request payload size ("
                           << payload_size << "). Skip it." << std::endl;
@@ -116,19 +124,22 @@ static int do_server(int argc, char** argv) {
             if (std::is_base_of<IHasMessageID,std::decay_t<decltype(frames.at(object_index))>>::value) {
                 frames.at(object_index).set_message_id(message_id++);
                 dbg_default_trace("set frame message_id:{}",frames.at(object_index).get_message_id());
-            } else {
-                dbg_default_trace("message id is not set.");
             }
 #endif
+            dbg_default_trace("Sending frame:{}, message_id:{}",object_index,frames.at(object_index).get_message_id());
             capi.trigger_put(frames.at(object_index));
 #ifdef ENABLE_EVALUATION
             global_timestamp_logger.log(TLT_DAIRYFARMDEMO(0),capi.get_my_id(),frames.at(object_index).get_message_id(),get_walltime());
 #endif
+            dbg_default_trace("Sent frame:{}, message_id{}",object_index,frames.at(object_index).get_message_id());
         }
+        dbg_default_trace("perf finished successfully.");
         return true;
     });
 #ifdef ENABLE_EVALUATION
     rpc_server.bind("flush_timestamp_log", [&capi](const std::string& output_filename,bool flush_server) {
+        dbg_default_trace("flush request received with filename:{}, flush_server:{}",
+                output_filename, flush_server);
         global_timestamp_logger.flush(output_filename);
 
         if (flush_server) {
@@ -182,6 +193,8 @@ static int do_server(int argc, char** argv) {
             }
         }
 
+        dbg_default_trace("flush request finished.");
+
         return true;
     });
 #endif //ENABLE_EVALUATION
@@ -216,13 +229,19 @@ static bool check_rpc_futures(std::map<std::pair<std::string,uint16_t>,std::futu
 }
 
 static int do_client(int argc, char** argv) {
+    if (argc < 8) {
+        std::cerr << "Invalid command." << std::endl;
+        print_help(argv[0]);
+        return 0;
+    }
     bool trigger_mode = (std::string("trigger_put") == argv[2]);
     std::string pathname(argv[3]);
     uint64_t max_rate_ops = std::stoul(argv[4]);
     uint64_t duration_sec = std::stoul(argv[5]);
+    uint64_t flush_delay = std::stoul(argv[6])*1000000ull;
 
     std::vector<std::pair<std::string,uint16_t>> perf_servers;
-    for (int i=6;i<argc;i++) {
+    for (int i=7;i<argc;i++) {
         std::string ip;
         uint16_t port;
         auto colpos = std::string(argv[i]).find(':');
@@ -248,6 +267,8 @@ static int do_client(int argc, char** argv) {
     }
     // send perf
     for (auto& kv:connections) {
+        dbg_default_trace("Sending perf request with pathname:{}\n\ttrigger_mode:{}\n\tmax_rate_ops:{}\n\tstart_sec:{}\n\tduration_sec:{}\nto:{}:{}",
+            pathname,trigger_mode,max_rate_ops,start_sec,duration_sec,std::get<0>(kv.first),std::get<1>(kv.first));
         futures.emplace(kv.first,kv.second->async_call("perf",
                                                        pathname,
                                                        trigger_mode,
@@ -255,15 +276,20 @@ static int do_client(int argc, char** argv) {
                                                        start_sec,
                                                        duration_sec));
     }
+    dbg_default_trace("Waiting for perf results.");
     check_rpc_futures(std::move(futures));
-    usleep(1000000); // sleep for 1 second.
+    dbg_default_trace("perf results received, and delay flush for {} seconds.", flush_delay/1e6);
+    usleep(static_cast<useconds_t>(flush_delay));
     // dump timestamps
     bool is_first_client = true;
     for (auto& kv:connections) {
+        dbg_default_trace("Flushing timestamp@{}:{}, is_first_client:{}.",std::get<0>(kv.first), std::get<1>(kv.first), is_first_client);
         futures.emplace(kv.first,kv.second->async_call("flush_timestamp_log","perf.log",is_first_client));
         is_first_client = false;
     }
+    dbg_default_trace("Waiting for flush results.");
     check_rpc_futures(std::move(futures));
+    dbg_default_trace("Timestamp flushed.");
     // destruct clients.
     return 0;
 }
