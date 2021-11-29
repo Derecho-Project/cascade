@@ -303,7 +303,8 @@ void initialize(ICascadeContext* ctxt) {
     // Serialized config options (example of 30% memory fraction)
     // TODO: configure gpu settings, link: https://serizba.github.io/cppflow/quickstart.html#gpu-config-options
     // std::vector<uint8_t> config{0x32,0x9,0x9,0x9a,0x99,0x99,0x99,0x99,0x99,0xb9,0x3f};
-    std::vector<uint8_t> config{0x32,0xb,0x9,0x9a,0x99,0x99,0x99,0x99,0x99,0xb9,0x3f,0x20,0x1};
+    // std::vector<uint8_t> config{0x32,0xb,0x9,0xcd,0xcc,0xcc,0xcc,0xcc,0xcc,0xec,0x3f,0x20,0x1};
+    std::vector<uint8_t> config{DEFAULT_TFE_CONFIG};
     // Create new options with your configuration
     TFE_ContextOptions* options = TFE_NewContextOptions();
     TFE_ContextOptionsSetConfig(options, config.data(), config.size(), cppflow::context::get_status());
