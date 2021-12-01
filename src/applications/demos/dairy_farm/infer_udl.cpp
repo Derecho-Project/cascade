@@ -262,14 +262,17 @@ private:
                 result.get();
 #ifdef ENABLE_EVALUATION
                 if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
-                    dbg_default_trace("finish trigger put obj (key:{}, id{}).", obj.get_key_ref(), obj.get_message_id());
+                    dbg_default_trace("finish trigger put obj (key:{}, id:{}).", obj.get_key_ref(), obj.get_message_id());
                 }
 #endif
             } 
             else {
 #ifdef ENABLE_EVALUATION
+                dbg_default_trace("std::is_base_of<IHasMessageID,ObjectWithStringKey>::value=={}!!!",std::is_base_of<IHasMessageID,ObjectWithStringKey>::value);
                 if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
                     dbg_default_trace("put output obj (key:{}, id:{}).", obj.get_key_ref(), obj.get_message_id());
+                } else {
+                    dbg_default_trace("std::is_base_of<IHasMessageID,ObjectWithStringKey>::value=={}!!!",std::is_base_of<IHasMessageID,ObjectWithStringKey>::value);
                 }
 #endif
                 auto result = typed_ctxt->get_service_client_ref().put(obj);
@@ -279,7 +282,7 @@ private:
                 }
 #ifdef ENABLE_EVALUATION
                 if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
-                    dbg_default_trace("finish put obj (key:{}, id{}).", obj.get_key_ref(), obj.get_message_id());
+                    dbg_default_trace("finish put obj (key:{}, id:{}).", obj.get_key_ref(), obj.get_message_id());
                 }
 #endif
             }
