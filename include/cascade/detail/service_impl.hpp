@@ -532,10 +532,12 @@ derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::trigger_put(
         if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index){
             auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
             node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
+            dbg_default_trace("trigger_put to node {}",node_id);
             return subgroup_handle.template p2p_send<RPC_NAME(trigger_put)>(node_id,value);
         } else {
             auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
             node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
+            dbg_default_trace("trigger_put to node {}",node_id);
             return subgroup_handle.template p2p_send<RPC_NAME(trigger_put)>(node_id,value);
         }
     } else {
@@ -543,6 +545,7 @@ derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::trigger_put(
         // call as an external client (ExternalClientCaller).
         auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
         node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
+        dbg_default_trace("trigger_put to node {}",node_id);
         return caller.template p2p_send<RPC_NAME(trigger_put)>(node_id,value);
     }
 }
