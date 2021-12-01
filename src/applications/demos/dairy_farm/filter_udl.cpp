@@ -88,15 +88,26 @@ class DairyFarmFilterOCDPO: public OffCriticalDataPathObserver {
                 
                 // if true, use trigger put; otherwise, use normal put
                 if (iter->second) {
+                    if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
+                        dbg_default_trace("trigger put output obj (key:{}, id:{}).", obj.get_key_ref(), obj.get_message_id());
+                    }
                     auto result = typed_ctxt->get_service_client_ref().trigger_put(obj);
                     result.get();
-                    dbg_default_debug("finish put obj with key({})", obj_key);
+                    if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
+                        dbg_default_trace("finish trigger put obj (key:{}, id{}).", obj.get_key_ref(), obj.get_message_id());
+                    }
                 } 
                 else {
+                    if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
+                        dbg_default_trace("put output obj (key:{}, id:{}).", obj.get_key_ref(), obj.get_message_id());
+                    }
                     auto result = typed_ctxt->get_service_client_ref().put(obj);
                     for (auto& reply_future:result.get()) {
                         auto reply = reply_future.second.get();
                         dbg_default_debug("node({}) replied with version:({:x},{}us)",reply_future.first,std::get<0>(reply),std::get<1>(reply));
+                    }
+                    if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
+                        dbg_default_trace("finish put obj (key:{}, id{}).", obj.get_key_ref(), obj.get_message_id());
                     }
                 }
             }
