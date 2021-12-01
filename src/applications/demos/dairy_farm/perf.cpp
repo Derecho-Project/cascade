@@ -168,7 +168,7 @@ static int do_server(int argc, char** argv) {
             }
             // do flush_timestamp_log
             // TODO: this should be done in a more elegant way using template expansion 
-#define DUMP_TIMPSTAMP(subgroup_type) \
+#define DUMP_TIMESTAMP(subgroup_type) \
                     { \
                         uint32_t num_shard = capi.template get_number_of_shards<subgroup_type>(std::get<1>(subgroup)); \
                         while(num_shard>0) { \
@@ -179,13 +179,13 @@ static int do_server(int argc, char** argv) {
             for (const auto& subgroup:subgroups) {
                 switch(std::get<0>(subgroup)) {
                 case 0:
-                    DUMP_TIMPSTAMP(VolatileCascadeStoreWithStringKey);
+                    DUMP_TIMESTAMP(VolatileCascadeStoreWithStringKey);
                     break;
                 case 1:
-                    DUMP_TIMPSTAMP(PersistentCascadeStoreWithStringKey);
+                    DUMP_TIMESTAMP(PersistentCascadeStoreWithStringKey);
                     break;
                 case 2:
-                    DUMP_TIMPSTAMP(TriggerCascadeNoStoreWithStringKey);
+                    DUMP_TIMESTAMP(TriggerCascadeNoStoreWithStringKey);
                     break;
                 default:
                     std::cerr << "Invalid subgroup type index:" << std::get<0>(subgroup) << std::endl;
