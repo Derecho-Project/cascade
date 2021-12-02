@@ -168,6 +168,18 @@ static int do_server(int argc, char** argv) {
             }
             // do flush_timestamp_log
             // TODO: this should be done in a more elegant way using template expansion 
+#ifdef DUMP_TIMESTAMP_WORKAROUND
+#define DUMP_TIMESTAMP(subgroup_type) \
+                    { \
+                        uint32_t num_shard = capi.template get_number_of_shards<subgroup_type>(std::get<1>(subgroup)); \
+                        while(num_shard>0) { \
+                            for (auto& nid: capi.template get_shard_members<subgroup_type>(std::get<1>(subgroup),--num_shard)) { \
+                                auto result = capi.template dump_timestamp_workaround<subgroup_type>(output_filename, std::get<1>(subgroup), num_shard, nid); \
+                                result.get(); \
+                            } \
+                        } \
+                    }
+#else//DUMP_TIMESTAMP_WORKAROUND
 #define DUMP_TIMESTAMP(subgroup_type) \
                     { \
                         uint32_t num_shard = capi.template get_number_of_shards<subgroup_type>(std::get<1>(subgroup)); \
@@ -176,6 +188,7 @@ static int do_server(int argc, char** argv) {
                             result.get(); \
                         } \
                     }
+#endif//DUMP_TIMESTAMP_WORKAROUND
             for (const auto& subgroup:subgroups) {
                 switch(std::get<0>(subgroup)) {
                 case 0:
