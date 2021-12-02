@@ -68,6 +68,7 @@ endif()
 
 # enable evaluation
 set (ENABLE_EVALUATION 1)
+set (DUMP_TIMESTAMP_WORKAROUND 1)
 
 if (ENABLE_EVALUATION)
     find_package(rpclib 2.3.0 REQUIRED)

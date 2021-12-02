@@ -519,6 +519,14 @@ void VolatileCascadeStore<KT,VT,IK,IV>::ordered_dump_timestamp_log(const std::st
     global_timestamp_logger.flush(filename);
     debug_leave_func();
 }
+#ifdef DUMP_TIMESTAMP_WORKAROUND
+template<typename KT, typename VT, KT* IK, VT* IV>
+void VolatileCascadeStore<KT,VT,IK,IV>::dump_timestamp_log_workaround(const std::string& filename) const {
+    debug_enter_func_with_args("filename={}",filename);
+    global_timestamp_logger.flush(filename);
+    debug_leave_func();
+}
+#endif
 #endif//ENABLE_EVALUATION
 
 template<typename KT, typename VT, KT* IK, VT* IV>
@@ -1190,6 +1198,15 @@ void PersistentCascadeStore<KT,VT,IK,IV,ST>::ordered_dump_timestamp_log(const st
     global_timestamp_logger.flush(filename);
     debug_leave_func();
 }
+
+#ifdef DUMP_TIMESTAMP_WORKAROUND
+template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+void PersistentCascadeStore<KT,VT,IK,IV,ST>::dump_timestamp_log_workaround(const std::string& filename) const {
+    debug_enter_func_with_args("filename={}",filename);
+    global_timestamp_logger.flush(filename);
+    debug_leave_func();
+}
+#endif
 #endif//ENABLE_EVALUATION
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
@@ -1389,6 +1406,14 @@ void TriggerCascadeNoStore<KT,VT,IK,IV>::ordered_dump_timestamp_log(const std::s
     global_timestamp_logger.flush(filename);
     debug_leave_func();
 }
+#ifdef DUMP_TIMESTAMP_WORKAROUND
+template<typename KT, typename VT, KT* IK, VT* IV>
+void TriggerCascadeNoStore<KT,VT,IK,IV>::dump_timestamp_log_workaround(const std::string& filename) const {
+    debug_enter_func_with_args("filename={}",filename);
+    global_timestamp_logger.flush(filename);
+    debug_leave_func();
+}
+#endif
 #endif//ENABLE_EVALUATION
 
 template<typename KT, typename VT, KT* IK, VT* IV>
