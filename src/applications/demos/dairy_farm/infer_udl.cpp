@@ -54,6 +54,8 @@ private:
     // search structure
 	ANNkd_tree*	kdTree = nullptr;
 
+    static std::mutex init_mutex;
+
     at::Tensor to_tensor(const cv::Mat& mat, bool unsqueeze=false, int unsqueeze_dim=0) {
         at::Tensor tensor_image = torch::from_blob(mat.data, {mat.rows,mat.cols,3}, at::kByte);
         if (unsqueeze) {
@@ -101,6 +103,7 @@ private:
     
 public:
     InferenceEngine(const std::string& module_file, const std::string& knn_file, const std::string& label_file) {
+        std::lock_guard lck(init_mutex);
         load_module(module_file);
         load_knn(knn_file);
         load_labels(label_file);
@@ -141,6 +144,8 @@ public:
         debug_leave_func();
     }
 };
+
+std::mutex InferenceEngine::init_mutex;
 
 void infer_cow_id(uint32_t* cow_id, const void* img_buf, size_t img_size) {
     static thread_local InferenceEngine cow_id_ie(CONF_COWID_MODULE, CONF_COWID_KNN, CONF_COWID_LABEL);
