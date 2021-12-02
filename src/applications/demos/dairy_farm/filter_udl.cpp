@@ -1,5 +1,6 @@
 #include <cascade/user_defined_logic_interface.hpp>
 #include <iostream>
+#include <mutex>
 #include <vector>
 #include <opencv2/opencv.hpp>
 #include <cppflow/cppflow.h>
@@ -28,6 +29,7 @@ std::string get_description() {
 
 class DairyFarmFilterOCDPO: public OffCriticalDataPathObserver {
     std::mutex p2p_send_mutex;
+    static std::mutex init_mutex;
 
     virtual void operator () (const std::string& key_string,
                               const uint32_t prefix_length,
@@ -47,7 +49,11 @@ class DairyFarmFilterOCDPO: public OffCriticalDataPathObserver {
         }
 #endif
         /* step 1: load the model */ 
-        static thread_local cppflow::model model(CONF_FILTER_MODEL);
+        static thread_local std::unique_ptr<cppflow::model> model;
+        if (!model){
+            std::lock_guard lck(init_mutex);
+            model = std::make_unique<cppflow::model>(CONF_FILTER_MODEL);
+        }
         /* step 2: Load the image & convert to tensor */
         const ObjectWithStringKey *tcss_value = reinterpret_cast<const ObjectWithStringKey *>(value_ptr);
         const FrameData *frame = reinterpret_cast<const FrameData*>(tcss_value->blob.bytes);
@@ -60,7 +66,7 @@ class DairyFarmFilterOCDPO: public OffCriticalDataPathObserver {
         input_tensor = cppflow::expand_dims(input_tensor, 0);
         
         /* step 3: Predict */
-        cppflow::tensor output = model({{"serving_default_conv2d_3_input:0", input_tensor}},{"StatefulPartitionedCall:0"})[0];
+        cppflow::tensor output = (*model)({{"serving_default_conv2d_3_input:0", input_tensor}},{"StatefulPartitionedCall:0"})[0];
         
         /* step 4: Send intermediate results to the next tier if image frame is meaningful */
         // prediction < 0.35 indicates strong possibility that the image frame captures full contour of the cow
@@ -130,6 +136,7 @@ public:
     }
 };
 
+std::mutex DairyFarmFilterOCDPO::init_mutex;
 std::shared_ptr<OffCriticalDataPathObserver> DairyFarmFilterOCDPO::ocdpo_ptr;
 
 void initialize(ICascadeContext* ctxt) {
