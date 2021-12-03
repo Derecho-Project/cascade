@@ -140,7 +140,7 @@ namespace cascade {
         virtual const VT get(const KT& key, const persistent::version_t& ver, bool exact=false) const = 0;
         /**
          * get(const KT&, const uint64_t& ts_us)
-         * 
+         *
          * Get a value by key and timestamp.
          *
          * Please note that the current Persistent<T> in derecho will reconstruct the state at 'ts_us' from the
@@ -196,8 +196,8 @@ namespace cascade {
         /**
          * op_list_keys_by_time(const uint64_t& ts_us, const std::string& op_path)
          *
-         * List keys in the object pool by timestamp 
-         * 
+         * List keys in the object pool by timestamp
+         *
          * Please note that the current Persistent<T> in derecho will reconstruct the state at 'ts_us' from the
          * beginning of the log entry, which is extremely inefficient. TODO: use checkpoint cache to accelerate that
          * process.
@@ -246,7 +246,7 @@ namespace cascade {
          *
          * Put object as a trigger. This call will not cause a store but only trigger an off-critical data path
          * computation. Please note that this call should be handled in p2p processing thread.
-         * 
+         *
          * @param value - the object to trig
          */
         virtual void trigger_put(const VT& value) const = 0;
@@ -308,7 +308,7 @@ namespace cascade {
 
     /**
      * template volatile cascade stores.
-     * 
+     *
      * VolatileCascadeStore is highly efficient by manage all the data only in the memory without implementing the heavy
      * log mechanism. Reading by version or time will always return invlaid value.
      */
@@ -329,7 +329,7 @@ namespace cascade {
         CriticalDataPathObserver<VolatileCascadeStore<KT,VT,IK,IV>>* cascade_watcher_ptr;
         /* cascade context */
         ICascadeContext* cascade_context_ptr;
-        
+
         REGISTER_RPC_FUNCTIONS(VolatileCascadeStore,
                                P2P_TARGETS(
                                    put,
@@ -445,7 +445,7 @@ namespace cascade {
             uint32_t    op;
             char        first_data_byte;
         };
-        
+
         std::map<KT,VT> kv_map;
 
         //////////////////////////////////////////////////////////////////////////
@@ -500,7 +500,7 @@ namespace cascade {
 
     /**
      * template for persistent cascade stores.
-     * 
+     *
      * PersistentCascadeStore is full-fledged implementation with log mechansim. Data can be stored in different
      * persistent devices including file system(persistent::ST_FILE) or SPDK(persistent::ST_SPDK). Please note that the
      * data is cached in memory too.
@@ -518,7 +518,7 @@ namespace cascade {
         CriticalDataPathObserver<PersistentCascadeStore<KT,VT,IK,IV>>* cascade_watcher_ptr;
         /* cascade context */
         ICascadeContext* cascade_context_ptr;
-        
+
         REGISTER_RPC_FUNCTIONS(PersistentCascadeStore,
                                P2P_TARGETS(
                                    put,
@@ -598,6 +598,134 @@ namespace cascade {
 
         // destructor
         virtual ~PersistentCascadeStore();
+    };
+
+    /**
+     * This subgroup type creates a node that stores signed hashes in a persistent log.
+     * It is expected that the key type KT matches the key type for a PersistentCascadeStore
+     * that stores the actual data, and the value type VT is some kind of byte array that
+     * can hold a hash (e.g. std::array<uint8_t, 32>.
+     *
+     * This is actually just a copy of PersistentCascadeStore that inherits SignedPersistentFields
+     * to enable signatures on the persistent key-value map. It would be nice if I could reuse the
+     * code for all the put/get methods without copying and pasting it.
+     */
+    template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST=persistent::ST_FILE>
+    class SignatureCascadeStore : public ICascadeStore<KT, VT, IK, IV>,
+                                public mutils::ByteRepresentable,
+                                public derecho::SignedPersistentFields,
+                                public derecho::GroupReference {
+    private:
+        /** Derecho group reference */
+        using derecho::GroupReference::group;
+        /** Watcher */
+        CriticalDataPathObserver<SignatureCascadeStore<KT, VT, IK, IV>>* cascade_watcher_ptr;
+        /** Cascade context (off-critical-path manager) */
+        ICascadeContext* cascade_context_ptr;
+        bool internal_ordered_put(const VT& value);
+        /**
+         * Persistent core that stores hashes, which will be signed because of SignedPersistentFields.
+         */
+        persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST> persistent_core;
+
+    public:
+        /* Specific to SignatureStore, not part of the Cascade interface */
+
+        /**
+         * Retrieves the signature and the previous signed version that is logged
+         * with the object identified by key at version ver. Returns an empty signature
+         * and an invalid version if there is no version ver.
+         * @param key The key identifying the object to retrieve a signature for
+         * @param ver The desired version of the object
+         */
+        std::tuple<std::vector<uint8_t>, persistent::version_t> get_signature(const KT& key, const persistent::version_t& ver, bool exact = false) const;
+        std::tuple<std::vector<uint8_t>, persistent::version_t> ordered_get_signature(const KT&);
+
+        /* CascadeStore interface */
+
+    #ifdef ENABLE_EVALUATION
+        virtual void dump_timestamp_log(const std::string& filename) const override;
+    #endif  //ENABLE_EVALUATION
+        virtual void trigger_put(const VT& value) const override;
+        virtual std::tuple<persistent::version_t, uint64_t> put(const VT& value) const override;
+        virtual void put_and_forget(const VT& value) const override;
+    #ifdef ENABLE_EVALUATION
+        virtual double perf_put(const uint32_t max_payload_size, const uint64_t duration_sec) const override;
+    #endif  //ENABLE_EVALUATION
+        virtual std::tuple<persistent::version_t, uint64_t> remove(const KT& key) const override;
+        virtual const VT get(const KT& key, const persistent::version_t& ver, bool exact = false) const override;
+        virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) const override;
+        virtual std::vector<KT> list_keys(const persistent::version_t& ver) const override;
+        virtual std::vector<KT> op_list_keys(const persistent::version_t& ver, const std::string& op_path) const override;
+        virtual std::vector<KT> list_keys_by_time(const uint64_t& ts_us) const override;
+        virtual std::vector<KT> op_list_keys_by_time(const uint64_t& ts_us, const std::string& op_path) const override;
+        virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, bool exact = false) const override;
+        virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us) const override;
+        virtual std::tuple<persistent::version_t, uint64_t> ordered_put(const VT& value) override;
+        virtual void ordered_put_and_forget(const VT& value) override;
+        virtual std::tuple<persistent::version_t, uint64_t> ordered_remove(const KT& key) override;
+        virtual const VT ordered_get(const KT& key) override;
+        virtual std::vector<KT> ordered_list_keys() override;
+        virtual uint64_t ordered_get_size(const KT& key) override;
+    #ifdef ENABLE_EVALUATION
+        virtual void ordered_dump_timestamp_log(const std::string& filename) override;
+    #endif  //ENABLE_EVALUATION
+
+        REGISTER_RPC_FUNCTIONS(SignatureCascadeStore,
+                            P2P_TARGETS(
+                                    put,
+                                    put_and_forget,
+    #ifdef ENABLE_EVALUATION
+                                    perf_put,
+    #endif  //ENABLE_EVALUATION
+                                    remove,
+                                    get,
+                                    get_signature,
+                                    get_by_time,
+                                    list_keys,
+                                    op_list_keys,
+                                    list_keys_by_time,
+                                    op_list_keys_by_time,
+                                    get_size,
+                                    get_size_by_time,
+                                    trigger_put
+    #ifdef ENABLE_EVALUATION
+                                    ,
+                                    dump_timestamp_log
+    #endif  //ENABLE_EVALUATION
+                                    ),
+                            ORDERED_TARGETS(
+                                    ordered_put,
+                                    ordered_put_and_forget,
+                                    ordered_remove,
+                                    ordered_get,
+                                    ordered_get_signature,
+                                    ordered_list_keys,
+                                    ordered_get_size
+    #ifdef ENABLE_EVALUATION
+                                    ,
+                                    ordered_dump_timestamp_log
+    #endif  //ENABLE_EVALUATION
+                                    ));
+
+        /* Serialization support, with a custom deserializer to get the context pointers from the registry */
+        DEFAULT_SERIALIZE(persistent_core);
+
+        DEFAULT_DESERIALIZE_NOALLOC(SignatureCascadeStore);
+
+        static std::unique_ptr<SignatureCascadeStore> from_bytes(mutils::DeserializationManager* dsm, char const* buf);
+
+        /* Constructors */
+        //Initial constructor, creates Persistent object
+        SignatureCascadeStore(persistent::PersistentRegistry* persistent_registry,
+                            CriticalDataPathObserver<SignatureCascadeStore<KT, VT, IK, IV>>* watcher = nullptr,
+                            ICascadeContext* context = nullptr);
+        //Deserialization constructor, moves Persistent object
+        SignatureCascadeStore(persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST>&& deserialized_persistent_core,
+                            CriticalDataPathObserver<SignatureCascadeStore<KT, VT, IK, IV>>* watcher = nullptr,
+                            ICascadeContext* context = nullptr);
+
+        virtual ~SignatureCascadeStore();
     };
 
     /**
@@ -780,7 +908,7 @@ namespace cascade {
         CriticalDataPathObserver<TriggerCascadeNoStore<KT,VT,IK,IV>>* cascade_watcher_ptr;
         /* cascade context */
         ICascadeContext* cascade_context_ptr;
-        
+
         REGISTER_RPC_FUNCTIONS(TriggerCascadeNoStore,
                                P2P_TARGETS(
                                    put,
@@ -855,13 +983,13 @@ namespace cascade {
     };
 
     /**
-     * get_pathname(): retrieve the pathname, a.k.a prefix from a key. 
+     * get_pathname(): retrieve the pathname, a.k.a prefix from a key.
      * A pathname identifies the object pool this object belongs to.
      *
      * @tparam KeyType - Type of the Key
      * @param  key     - key
      *
-     * @return pathname. An empty string returns for invalid key types and invalid keys. 
+     * @return pathname. An empty string returns for invalid key types and invalid keys.
      */
     template <typename KeyType>
     inline std::string get_pathname(const KeyType& key);

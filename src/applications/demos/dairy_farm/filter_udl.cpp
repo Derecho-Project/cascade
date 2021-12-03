@@ -37,22 +37,22 @@ class DairyFarmFilterOCDPO: public OffCriticalDataPathObserver {
                               uint32_t worker_id) override {
         // TODO: test if there is a cow in the incoming frame.
         auto* typed_ctxt = dynamic_cast<CascadeContext<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey,TriggerCascadeNoStoreWithStringKey>*>(ctxt);
-        /* step 1: load the model */ 
+        /* step 1: load the model */
         static thread_local cppflow::model model(CONF_FILTER_MODEL);
         /* step 2: Load the image & convert to tensor */
         const TriggerCascadeNoStoreWithStringKey::ObjectType *tcss_value = reinterpret_cast<const TriggerCascadeNoStoreWithStringKey::ObjectType *>(value_ptr);
         const FrameData *frame = reinterpret_cast<const FrameData*>(tcss_value->blob.bytes);
         dbg_default_trace("frame photoid is: "+std::to_string(frame->photo_id));
         dbg_default_trace("frame timestamp is: "+std::to_string(frame->timestamp));
-    
+
         std::vector<float> tensor_buf(FILTER_TENSOR_BUFFER_SIZE);
         std::memcpy(static_cast<void*>(tensor_buf.data()),static_cast<const void*>(frame->data), sizeof(frame->data));
         cppflow::tensor input_tensor(std::move(tensor_buf), {IMAGE_WIDTH,IMAGE_HEIGHT,3});
         input_tensor = cppflow::expand_dims(input_tensor, 0);
-        
+
         /* step 3: Predict */
         cppflow::tensor output = model({{"serving_default_conv2d_3_input:0", input_tensor}},{"StatefulPartitionedCall:0"})[0];
-        
+
         /* step 4: Send intermediate results to the next tier if image frame is meaningful */
         // prediction < 0.35 indicates strong possibility that the image frame captures full contour of the cow
         float prediction = output.get_data<float>()[0];
@@ -63,13 +63,13 @@ class DairyFarmFilterOCDPO: public OffCriticalDataPathObserver {
                 std::string obj_key = iter->first + frame_idx;
                 VolatileCascadeStoreWithStringKey::ObjectType obj(obj_key,tcss_value->blob.bytes,tcss_value->blob.size);
                 std::lock_guard<std::mutex> lock(p2p_send_mutex);
-                
+
                 // if true, use trigger put; otherwise, use normal put
                 if (iter->second) {
                     auto result = typed_ctxt->get_service_client_ref().trigger_put(obj);
                     result.get();
                     dbg_default_debug("finish put obj with key({})", obj_key);
-                } 
+                }
                 else {
                     auto result = typed_ctxt->get_service_client_ref().put(obj);
                     for (auto& reply_future:result.get()) {
@@ -113,7 +113,7 @@ void initialize(ICascadeContext* ctxt) {
     TFE_ContextOptionsSetConfig(options, config.data(), config.size(), cppflow::context::get_status());
     // Replace the global context with your options
     cppflow::get_global_context() = cppflow::context(options);
-#endif 
+#endif
     DairyFarmFilterOCDPO::initialize();
 }
 

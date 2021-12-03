@@ -43,7 +43,7 @@ find_package(derecho REQUIRED)
 find_package(nlohmann_json 3.2.0 REQUIRED)
 
 #opencv
-find_package(OpenCV QUIET)
+find_package(OpenCV)
 
 set(CMAKE_REQUIRED_DEFINITIONS -DFUSE_USE_VERSION=30)
 include(CheckIncludeFiles)

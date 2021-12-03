@@ -8,7 +8,7 @@
 #define CONF_VCS_UINT64KEY_LAYOUT "CASCADE/VOLATILECASCADESTORE/UINT64/layout"
 #define CONF_VCS_STRINGKEY_LAYOUT "CASCADE/VOLATILECASCADESTORE/STRING/layout"
 #define CONF_PCS_UINT64KEY_LAYOUT "CASCADE/PERSISTENTCASCADESTORE/UINT64/layout"
-#define CONF_PCS_STRINGKEY_LAYOUT "CASCADE/PERSISTENTCASCADESTORE/STRING/layout" 
+#define CONF_PCS_STRINGKEY_LAYOUT "CASCADE/PERSISTENTCASCADESTORE/STRING/layout"
 
 namespace derecho {
 namespace cascade {
@@ -32,6 +32,12 @@ using TriggerCascadeNoStoreWithStringKey = TriggerCascadeNoStore<
                                                 &ObjectWithStringKey::IK,
                                                 &ObjectWithStringKey::IV>;
 
+using SignatureCascadeStoreWithStringKey = SignatureCascadeStore<
+                                                std::remove_cv_t<std::remove_reference_t<decltype(((ObjectWithStringKey*)nullptr)->get_key_ref())>>,
+                                                ObjectWithStringKey,
+                                                &ObjectWithStringKey::IK,
+                                                &ObjectWithStringKey::IV,ST_FILE>;
+
 using DefaultServiceType = Service<VolatileCascadeStoreWithStringKey,
                                    PersistentCascadeStoreWithStringKey,
                                    TriggerCascadeNoStoreWithStringKey>;
@@ -39,5 +45,17 @@ using DefaultServiceType = Service<VolatileCascadeStoreWithStringKey,
 using DefaultCascadeContextType = CascadeContext<VolatileCascadeStoreWithStringKey,
                                                  PersistentCascadeStoreWithStringKey,
                                                  TriggerCascadeNoStoreWithStringKey>;
+
+/* It would be nice to hide the SignatureCascadeStore from the Service's template
+ * parameters, and only add it to the Group's template parameters (from inside the
+ * Service constructor), but I can't figure out how to do that without needing to
+ * copy-and-paste the entire implementation of Service into a template specialization
+ */
+using ChainServiceType = Service<PersistentCascadeStoreWithStringKey,
+                                 SignatureCascadeStoreWithStringKey>;
+
+using ChainContextType = CascadeContext<PersistentCascadeStoreWithStringKey,
+                                        SignatureCascadeStoreWithStringKey>;
+
 } // namespace cascade
 } // namespace derecho
