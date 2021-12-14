@@ -6,115 +6,12 @@
 #include <derecho/conf/conf.hpp>
 #include <derecho/utils/logger.hpp>
 #include <dlfcn.h>
-#include <type_traits>
+
+#include "server.hpp"
 
 #define PROC_NAME "cascade_server"
 
 using namespace derecho::cascade;
-
-#ifndef NDEBUG
-inline void dump_layout(const json& layout) {
-    int tid = 0;
-    for (const auto& pertype:layout) {
-        int sidx = 0;
-        for (const auto& persubgroup:pertype ) {
-            dbg_default_trace("subgroup={}.{},layout={}.",tid,sidx,persubgroup.dump());
-            sidx ++;
-        }
-        tid ++;
-    }
-}
-#endif//NDEBUG
-
-/**
- * Define the CDPO
- * @tparam CascadeType  the subgroup type
- * @tparam IS_TRIGGER   If true, this is triggered only on p2p message critical data path, otherwise, on ordered send
- *                      message critical data path.
- */
-template <typename CascadeType>
-class CascadeServiceCDPO: public CriticalDataPathObserver<CascadeType> {
-    virtual void operator() (const uint32_t sgidx,
-                             const uint32_t shidx,
-                             const typename CascadeType::KeyType& key,
-                             const typename CascadeType::ObjectType& value,
-                             ICascadeContext* cascade_ctxt,
-                             bool is_trigger = false) override {
-        if constexpr (std::is_convertible<typename CascadeType::KeyType,std::string>::value) {
-
-            auto* ctxt = dynamic_cast<
-                CascadeContext<
-                    VolatileCascadeStoreWithStringKey,
-                    PersistentCascadeStoreWithStringKey,
-                    TriggerCascadeNoStoreWithStringKey>*
-                >(cascade_ctxt);
-            size_t pos = key.rfind(PATH_SEPARATOR);
-            std::string prefix;
-            if (pos != std::string::npos) {
-                // important: we need to keep the trailing PATH_SEPARATOR
-                prefix = key.substr(0,pos+1);
-            }
-            auto handlers = ctxt->get_prefix_handlers(prefix);
-            if (handlers.empty()) {
-                return;
-            }
-            // filter for normal put (put/put_and_forget)
-            bool new_actions = is_trigger;
-            if (!is_trigger) {
-                auto shard_members = ctxt->get_service_client_ref().template get_shard_members<CascadeType>(sgidx,shidx);
-                bool icare = (shard_members[std::hash<std::string>{}(key)%shard_members.size()] == ctxt->get_service_client_ref().get_my_id());
-                for(auto& per_prefix: handlers) {
-                    // per_prefix.first is the matching prefix
-                    // per_prefix.second is a set of handlers
-                    for (auto it=per_prefix.second.cbegin();it!=per_prefix.second.cend();) {
-                        // it->first is handler uuid
-                        // it->second is a 3-tuple of shard dispatcher,ocdpo,and outputs;
-                        switch(std::get<0>(it->second)) {
-                        case DataFlowGraph::VertexShardDispatcher::ONE:
-                            if (icare) {
-                                new_actions = true;
-                                it++;
-                            } else {
-                                per_prefix.second.erase(it++);
-                            }
-                            break;
-                        case DataFlowGraph::VertexShardDispatcher::ALL:
-                            new_actions = true;
-                            it++;
-                            break;
-                        default:
-                            per_prefix.second.erase(it++);
-                            break;
-                        }
-                    }
-                }
-            }
-            if (!new_actions) { 
-                return;
-            }
-            // copy data
-            auto value_ptr = std::make_shared<typename CascadeType::ObjectType>(value);
-            // create actions
-            for(auto& per_prefix : handlers) {
-                // per_prefix.first is the matching prefix
-                // per_prefix.second is a set of handlers
-                for (const auto& handler : per_prefix.second) {
-                    // handler.first is handler uuid
-                    // handler.second is a 3-tuple of shard dispatcher,ocdpo,and outputs;
-                    Action action(
-                            key,
-                            per_prefix.first.size(),
-                            value.get_version(),
-                            std::get<1>(handler.second), // ocdpo
-                            value_ptr,
-                            std::get<2>(handler.second)  // outputs
-                    );
-                    ctxt->post(std::move(action),is_trigger);
-                }
-            }
-        }
-    }
-};
 
 namespace derecho::cascade {
 // specialize create_null_object_cb for Cascade Types...
@@ -134,9 +31,9 @@ int main(int argc, char** argv) {
         dbg_default_warn("Cannot set proc name to {}.", PROC_NAME);
     }
 
-    CascadeServiceCDPO<VolatileCascadeStoreWithStringKey> cdpo_vcss;
-    CascadeServiceCDPO<PersistentCascadeStoreWithStringKey> cdpo_pcss;
-    CascadeServiceCDPO<TriggerCascadeNoStoreWithStringKey> cdpo_tcss;
+    CascadeServiceCDPO<VolatileCascadeStoreWithStringKey, DefaultCascadeContextType> cdpo_vcss;
+    CascadeServiceCDPO<PersistentCascadeStoreWithStringKey, DefaultCascadeContextType> cdpo_pcss;
+    CascadeServiceCDPO<TriggerCascadeNoStoreWithStringKey, DefaultCascadeContextType> cdpo_tcss;
 
     auto meta_factory = [](persistent::PersistentRegistry* pr, derecho::subgroup_id_t, ICascadeContext* context_ptr) {
         // critical data path for metadata service is currently disabled. But we can leverage it later for object pool

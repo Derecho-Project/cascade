@@ -17,7 +17,8 @@ namespace derecho {
 namespace cascade {
 
     /**
-     * The off-critical data path handler API
+     * Interface for the Cascade Context, which is defined in service.hpp
+     * It works as the container for all "off-critical-path" logic.
      */
     class ICascadeContext: public derecho::DeserializationContext {};
 
@@ -618,15 +619,15 @@ namespace cascade {
     private:
         /** Derecho group reference */
         using derecho::GroupReference::group;
+        /**
+         * Persistent core that stores hashes, which will be signed because of SignedPersistentFields.
+         */
+        persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST> persistent_core;
         /** Watcher */
         CriticalDataPathObserver<SignatureCascadeStore<KT, VT, IK, IV>>* cascade_watcher_ptr;
         /** Cascade context (off-critical-path manager) */
         ICascadeContext* cascade_context_ptr;
         bool internal_ordered_put(const VT& value);
-        /**
-         * Persistent core that stores hashes, which will be signed because of SignedPersistentFields.
-         */
-        persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST> persistent_core;
 
     public:
         /* Specific to SignatureStore, not part of the Cascade interface */
