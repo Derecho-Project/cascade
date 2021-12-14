@@ -103,12 +103,12 @@ template <typename... CascadeTypes>
 std::unique_ptr<Service<CascadeTypes...>> Service<CascadeTypes...>::service_ptr;
 
 template <typename... CascadeTypes>
-void Service<CascadeTypes...>::start(const std::vector<DeserializationContext*>& dsms, 
+void Service<CascadeTypes...>::start(const std::vector<DeserializationContext*>& dsms,
         derecho::cascade::Factory<CascadeMetadataService<CascadeTypes...>> metadata_factory,
         derecho::cascade::Factory<CascadeTypes>... factories) {
     if (!service_ptr) {
         service_ptr = std::make_unique<Service<CascadeTypes...>>(dsms, metadata_factory, factories...);
-    } 
+    }
 }
 
 template <typename... CascadeTypes>
@@ -132,7 +132,7 @@ ServiceClient<CascadeTypes...>::ServiceClient(derecho::Group<CascadeMetadataServ
     group_ptr(_group_ptr) {
     if (group_ptr == nullptr) {
         this->external_group_ptr = std::make_unique<derecho::ExternalGroup<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>>();
-    } 
+    }
 }
 
 template <typename... CascadeTypes>
@@ -181,18 +181,18 @@ std::vector<node_id_t> ServiceClient<CascadeTypes...>::get_shard_members(uint32_
     }
 }
 
-/**
- * disable the APIs exposing subgroup_id, which are originally designed for internal use.
+
 template <typename... CascadeTypes>
 template <typename SubgroupType>
-uint32_t ServiceClient<CascadeTypes...>::get_number_of_subgroups() {
+uint32_t ServiceClient<CascadeTypes...>::get_number_of_subgroups() const {
     if (group_ptr != nullptr) {
-        //TODO: how to get the number of subgroups of a given type?
+        return group_ptr->template get_num_subgroups<SubgroupType>();
     } else {
         return external_group_ptr->template get_number_of_subgroups<SubgroupType>();
     }
 }
-
+/**
+ * disable the APIs exposing subgroup_id, which are originally designed for internal use.
 template <typename... CascadeTypes>
 uint32_t ServiceClient<CascadeTypes...>::get_number_of_shards(derecho::subgroup_id_t subgroup_id) {
     if (group_ptr != nullptr) {
@@ -719,7 +719,7 @@ derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> ServiceClien
         // call as an external client (ExternalClientCaller).
         auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
         node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
-        return caller.template p2p_send<RPC_NAME(get)>(node_id,key,version,false); 
+        return caller.template p2p_send<RPC_NAME(get)>(node_id,key,version,false);
     }
 }
 
@@ -1090,14 +1090,14 @@ std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename Subg
 
 template <typename... CascadeTypes>
 auto ServiceClient<CascadeTypes...>::list_keys(
-        const persistent::version_t& version, 
+        const persistent::version_t& version,
         const std::string& object_pool_pathname) {
     volatile uint32_t subgroup_type_index,subgroup_index,shard_index;
     std::tie(subgroup_type_index,subgroup_index,shard_index) = this->template key_to_shard(object_pool_pathname+"/_");
     return this->template type_recursive_list_keys<CascadeTypes...>(subgroup_type_index,version,object_pool_pathname);
 }
 
-template <typename ReturnType>  
+template <typename ReturnType>
 inline ReturnType wait_for_future(derecho::rpc::QueryResults<ReturnType>& result){
     // iterate through ReplyMap
     for (auto& reply_future: result.get()) {
@@ -1175,7 +1175,7 @@ auto ServiceClient<CascadeTypes...>::type_recursive_list_keys_by_time(
 }
 
 template <typename... CascadeTypes>
-template <typename SubgroupType> 
+template <typename SubgroupType>
 std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>> ServiceClient<CascadeTypes...>::__list_keys_by_time(
                 const uint64_t& ts_us, const std::string& object_pool_pathname){
     auto opm = find_object_pool(object_pool_pathname);
@@ -1301,7 +1301,7 @@ derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceCl
 template <typename... CascadeTypes>
 ObjectPoolMetadata<CascadeTypes...> ServiceClient<CascadeTypes...>::find_object_pool(const std::string& pathname) {
     std::shared_lock<std::shared_mutex> rlck(object_pool_metadata_cache_mutex);
-    
+
     auto components = str_tokenizer(pathname);
     std::string prefix;
     for (const auto& comp: components) {
@@ -1584,7 +1584,7 @@ Action CascadeContext<CascadeTypes...>::action_queue::action_buffer_dequeue(std:
     return ret;
 }
 
-/* shutdown the action buffer */ 
+/* shutdown the action buffer */
 template <typename... CascadeTypes>
 void CascadeContext<CascadeTypes...>::action_queue::notify_all() {
     action_buffer_data_cv.notify_all();

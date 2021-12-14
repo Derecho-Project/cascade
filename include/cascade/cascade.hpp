@@ -634,11 +634,30 @@ namespace cascade {
         /**
          * Retrieves the signature and the previous signed version that is logged
          * with the object identified by key at version ver. Returns an empty signature
-         * and an invalid version if there is no version ver.
+         * and an invalid version if there is no version ver, or if an exact match is
+         * requested and version ver does not correspond to an update to the requested key.
+         *
          * @param key The key identifying the object to retrieve a signature for
          * @param ver The desired version of the object
+         * @param exact True if the version requested must be an exact match, false if the
+         * method should return the signature on the nearest version (before ver) that
+         * contains an update to the specified key.
+         * @return A pair of values: the signature, and the previous persistent version
+         * included in this signature.
          */
-        std::tuple<std::vector<uint8_t>, persistent::version_t> get_signature(const KT& key, const persistent::version_t& ver, bool exact = false) const;
+        std::tuple<std::vector<uint8_t>, persistent::version_t> get_signature(const KT& key,
+                                                                              const persistent::version_t& ver,
+                                                                              bool exact = false) const;
+        /**
+         * Ordered (subgroup-internal) version of get_signature, which is called by get_signature
+         * if the caller requested the "current version" of the object rather than a specific
+         * past version. This will return the signature on the latest signed version, not
+         * necessarily the latest in-memory version, so clients should wait until the latest
+         * version has finished persisting if they want to get the "current" signature.
+         *
+         * @param key The key identifying the object to retrieve a signature for
+         * @return The signature, and the previous persistent version included in the signature
+         */
         std::tuple<std::vector<uint8_t>, persistent::version_t> ordered_get_signature(const KT&);
 
         /* CascadeStore interface */

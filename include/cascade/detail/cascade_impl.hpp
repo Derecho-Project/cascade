@@ -1700,8 +1700,26 @@ std::tuple<std::vector<uint8_t>, persistent::version_t> SignatureCascadeStore<KT
     if (ver != CURRENT_VERSION) {
         std::vector<uint8_t> signature(persistent_core.getSignatureSize());
         persistent::version_t previous_signed_version;
-        //How do we ensure "ver" corresponds to a log entry with the desired key?
-        bool signature_found = persistent_core.getSignature(ver, signature.data(), previous_signed_version);
+        //Hopefully, the user kept track of which log version corresponded to the "put" for this key,
+        //and the entry at the requested version is an object with the correct key
+        bool signature_found = persistent_core.template getDeltaSignature<VT>(
+                ver, [&key](const VT& deltaEntry) {
+                    return deltaEntry.get_key_ref() == key;
+                },
+                signature.data(), previous_signed_version);
+        //If an inexact match is requested, we need to search backward until we find the newest entry
+        //prior to "ver" that contains the requested key. This is slow, but I can't think of a better way.
+        if(!signature_found && !exact) {
+            persistent::version_t search_ver = ver - 1;
+            while(search_ver > 0 && !signature_found) {
+                signature_found = persistent_core.template getDeltaSignature<VT>(
+                ver, [&key](const VT& deltaEntry) {
+                    return deltaEntry.get_key_ref() == key;
+                },
+                signature.data(), previous_signed_version);
+                search_ver--;
+            }
+        }
         debug_leave_func();
         if(signature_found) {
             return {signature, previous_signed_version};
@@ -1721,21 +1739,30 @@ template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 std::tuple<std::vector<uint8_t>, persistent::version_t> SignatureCascadeStore<KT,VT,IK,IV,ST>::ordered_get_signature(
     const KT& key) {
     debug_enter_func_with_args("key={}",key);
+    //If the requested key isn't in the map, return an empty signature
+    if(persistent_core->kv_map.find(key) == persistent_core->kv_map.end()){
+        return {std::vector<uint8_t>{}, persistent::INVALID_VERSION};
+    }
 
     persistent::version_t current_signed_version = persistent_core.getLastPersistedVersion();
-    //The latest entry in the log might not relate to the key we are looking for
-    //We need to search backward until we find the newest entry that is a delta
-    //containing [OPID:PUT] [value with this key]
-
+    //The latest entry in the log might not relate to the key we are looking for, so
+    //we need to traverse backward until we find the newest entry that is a "put" for that key
     std::vector<uint8_t> signature(persistent_core.getSignatureSize());
-    persistent::version_t previous_signed_version;
-    bool signature_found = persistent_core.getSignature(current_signed_version, signature.data(), previous_signed_version);
+    persistent::version_t previous_signed_version = persistent::INVALID_VERSION;
+    bool signature_found = false;
+    while(!signature_found) {
+        //This must work eventually, since the key is in the map
+        signature_found = persistent_core.template getDeltaSignature<VT>(
+            current_signed_version,
+            [&key](const VT& deltaEntry) {
+                return deltaEntry.get_key_ref() == key;
+            },
+            signature.data(), previous_signed_version);
+        current_signed_version--;
+    }
 
     debug_leave_func();
-    if(signature_found)
-        return {signature, previous_signed_version};
-    else
-        return {std::vector<uint8_t>{}, persistent::INVALID_VERSION};
+    return {signature, previous_signed_version};
 }
 
 ///////////////////////////////////////////////////////////////////////////////
