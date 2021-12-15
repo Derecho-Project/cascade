@@ -13,7 +13,7 @@ private:
     static std::shared_ptr<OffCriticalDataPathObserver> singleton_ptr;
 
     std::pair<uint32_t, uint32_t> get_my_shard(ChainContextType* cascade_context) {
-        const ChainServiceClient& service_client = cascade_context->get_service_client_ref();
+        ChainServiceClient& service_client = cascade_context->get_service_client_ref();
         const node_id_t my_id = service_client.get_my_id();
         const uint32_t num_storage_subgroups = service_client.get_number_of_subgroups<PersistentCascadeStoreWithStringKey>();
         for(uint32_t subgroup_index = 0; subgroup_index < num_storage_subgroups; ++subgroup_index) {

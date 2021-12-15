@@ -1014,6 +1014,44 @@ namespace cascade {
     template <typename KeyType>
     inline std::string get_pathname(const KeyType& key);
 
+
+/* Type-trait-like templates that help to identify each of the CascadeStore types
+ * without knowing their specific specialization. Use them like std::is_array:
+ * is_signature_store<SubgroupType> will be std::true_type if SubgroupType is some
+ * specialization of SignatureCascadeStore, and std::false_type otherwise
+ */
+
+/**
+ * Provides a member constant value equal to true if the template parameter
+ * matches PersistentCascadeStore, equal to false otherwise.
+ */
+template <typename>
+struct is_persistent_store : std::false_type {};
+
+template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+struct is_persistent_store<PersistentCascadeStore<KT, VT, IK, IV, ST>> : std::true_type {};
+
+/**
+ * Provides a member constant value equal to true if the template parameter
+ * matches VolatileCascadeStore, equal to false otherwise.
+ */
+template <typename>
+struct is_volatile_store : std::false_type {};
+
+template <typename KT, typename VT, KT* IK, VT* IV>
+struct is_volatile_store<VolatileCascadeStore<KT, VT, IK, IV>> : std::true_type {};
+
+/**
+ * Provides a member constant value equal to true if the template parameter
+ * matches SignatureCascadeStore, equal to false otherwise.
+ */
+template<typename>
+struct is_signature_store : std::false_type {};
+
+template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+struct is_signature_store<SignatureCascadeStore<KT, VT, IK, IV, ST>> : std::true_type {};
+
+
 } // namespace cascade
 } // namespace derecho
 #include "detail/cascade_impl.hpp"

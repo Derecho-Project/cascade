@@ -1218,6 +1218,32 @@ auto ServiceClient<CascadeTypes...>::list_keys_by_time(const uint64_t& ts_us, co
     std::tie(subgroup_type_index,subgroup_index,shard_index) = this->template key_to_shard(object_pool_pathname+"/_");
     return this->template type_recursive_list_keys_by_time<CascadeTypes...>(subgroup_type_index,ts_us,object_pool_pathname);
 }
+template <typename... CascadeTypes>
+template<typename SubgroupType>
+std::enable_if_t<is_signature_store<SubgroupType>::value, derecho::rpc::QueryResults<std::tuple<std::vector<uint8_t>, persistent::version_t>>>
+ServiceClient<CascadeTypes...>::get_signature(const typename SubgroupType::KeyType& key, const persistent::version_t& version,
+                uint32_t subgroup_index, uint32_t shard_index) {
+    if (group_ptr != nullptr) {
+        std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
+        if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
+            // do a p2p get_signature as a member (Replicated).
+            auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
+            return subgroup_handle.template p2p_send<RPC_NAME(get_signature)>(group_ptr->get_my_id(),key,version,false);
+        } else {
+            // do normal get_signature as a non member (ExternalCaller).
+            auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
+            node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
+            return subgroup_handle.template p2p_send<RPC_NAME(get_signature)>(node_id,key,version,false);
+        }
+    } else {
+        std::lock_guard<std::mutex> lck(this->external_group_ptr_mutex);
+        // call as an external client (ExternalClientCaller).
+        auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
+        node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
+        return caller.template p2p_send<RPC_NAME(get_signature)>(node_id,key,version,false);
+    }
+}
+
 
 template <typename... CascadeTypes>
 void ServiceClient<CascadeTypes...>::refresh_object_pool_metadata_cache() {

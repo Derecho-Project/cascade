@@ -951,6 +951,30 @@ namespace cascade {
         auto list_keys_by_time(const uint64_t& ts_us, const std::string& object_pool_pathname);
 
         /**
+         * "get_signature" retrieves the signature on a particular key for a particular update.
+         * It can only be used with subgroups of type SignatureCascadeStore, which sign each update.
+         *
+         * @tparam SubgroupType The specific type of subgroup to communicate with; should be one of the
+         * CascadeTypes and be a specialization of SignatureCascadeStore<KT,VT,IK,IV>
+         *
+         * @param key               the object key
+         * @param version           if version is CURRENT_VERSION, this request will fire an ordered send to get the
+         *                          signature on the latest version of the key. Otherwise, it will try to read the
+         *                          object's signature at version, assuming version corresponds to a valid version
+         *                          of the object.
+         * @param subgroup_index    the subgroup index of SubgroupType to communicate with
+         * @param shard_index       the shard index to communicate with
+         *
+         * @return A future for a tuple containing (signature, previous_version) where previous_version is the
+         * previous persistent-log version included in this signature. Note that it is not necessarily
+         * the previous version of the object.
+         */
+        template<typename SubgroupType>
+        std::enable_if_t<is_signature_store<SubgroupType>::value, derecho::rpc::QueryResults<std::tuple<std::vector<uint8_t>, persistent::version_t>>>
+        get_signature(const typename SubgroupType::KeyType& key, const persistent::version_t& version,
+                uint32_t subgroup_index, uint32_t shard_index);
+
+        /**
          * Object Pool Management API: refresh object pool cache
          */
         void refresh_object_pool_metadata_cache();
