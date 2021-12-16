@@ -15,15 +15,15 @@ add_custom_command(TARGET console_printer_udl POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/console_printer_cfg
     ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/run.sh.tmp
-    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n0/run.sh 
+    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n0/run.sh
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/run.sh.tmp
-    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n1/run.sh 
+    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n1/run.sh
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/run.sh.tmp
-    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n2/run.sh 
+    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n2/run.sh
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/run.sh.tmp
-    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n3/run.sh 
+    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n3/run.sh
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/run.sh.tmp
-    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n4/run.sh 
+    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n4/run.sh
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/layout.json.tmp
     ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n0/layout.json
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/layout.json.tmp
@@ -35,25 +35,25 @@ add_custom_command(TARGET console_printer_udl POST_BUILD
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/layout.json.tmp
     ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n4/layout.json
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/dfgs.json.tmp
-    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n0/dfgs.json 
+    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n0/dfgs.json
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/dfgs.json.tmp
-    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n1/dfgs.json 
+    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n1/dfgs.json
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/dfgs.json.tmp
-    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n2/dfgs.json 
+    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n2/dfgs.json
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/dfgs.json.tmp
-    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n3/dfgs.json 
+    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n3/dfgs.json
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/dfgs.json.tmp
-    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n4/dfgs.json 
+    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n4/dfgs.json
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/udl_dlls.cfg.tmp
-    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n0/udl_dlls.cfg 
+    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n0/udl_dlls.cfg
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/udl_dlls.cfg.tmp
-    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n1/udl_dlls.cfg 
+    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n1/udl_dlls.cfg
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/udl_dlls.cfg.tmp
-    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n2/udl_dlls.cfg 
+    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n2/udl_dlls.cfg
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/udl_dlls.cfg.tmp
-    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n3/udl_dlls.cfg 
+    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n3/udl_dlls.cfg
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/udl_dlls.cfg.tmp
-    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n4/udl_dlls.cfg 
+    ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg/n4/udl_dlls.cfg
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/console_printer_cfg/run.sh.tmp
             ${CMAKE_CURRENT_SOURCE_DIR}/console_printer_cfg/layout.json.tmp
             ${CMAKE_CURRENT_SOURCE_DIR}/console_printer_cfg/dfgs.json.tmp

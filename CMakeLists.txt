@@ -9,7 +9,7 @@ set(cascade_build_VERSION 0.9.1)
 
 # C++ STANDARD
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_FLAGS "-fPIC")
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 if (${USE_VERBS_API})
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUSE_VERBS_API")
 endif()
@@ -25,19 +25,41 @@ if ( NOT DEFINED CMAKE_INSTALL_LIBDIR )
     set( CMAKE_INSTALL_LIBDIR lib )
 endif ()
 
+if ( NOT DEFINED CMAKE_INSTALL_INCLUDEDIR )
+    set( CMAKE_INSTALL_INCLUDEDIR include )
+endif ( )
+
+# The mutils package exports its location information in the "old" way,
+# with INCLUDE_DIRS and LIBRARIES variables
+
 # mutils_FOUND
 # mutils_INCLUDE_DIRS
 # mutils_LIBRARIES
 find_package(mutils REQUIRED)
+if(mutils_FOUND)
+    message(STATUS "Found mutils in ${mutils_INCLUDE_DIRS}")
+    include_directories(${mutils_INCLUDE_DIRS})
+endif()
 
 # spdlog_FOUND
-find_package(spdlog REQUIRED)
+find_package(spdlog 1.3.1 REQUIRED)
 
 # openssl_FOUND
 find_package(OpenSSL REQUIRED)
 
 # derecho
-find_package(derecho REQUIRED)
+find_package(derecho CONFIG REQUIRED)
+
+# Derecho exports an IMPORT target, following the "new" way of
+# doing things, but for some reason we still need to do this
+# in order for some of the sub-components of Cascade to compile.
+# Ideally, if every target that needs the Derecho headers declares
+# its dependency on the IMPORT target derecho::derecho (i.e. with
+# target_link_libraries), they will each automatically include the
+# Derecho headers from the location specified by that target
+if(derecho_FOUND)
+    include_directories(${derecho_INCLUDE_DIRS})
+endif()
 
 # json
 find_package(nlohmann_json 3.2.0 REQUIRED)
@@ -92,9 +114,10 @@ add_library(cascade SHARED
 #    $<TARGET_OBJECTS:utils>)
 
 target_link_libraries(cascade
-    ${derecho_LIBRARIES}
+    derecho::derecho
+    spdlog::spdlog
     ${mutils_LIBRARIES}
-    ${OPENSSL_LIBRARIES})
+    OpenSSL::Crypto)
 set_target_properties(cascade PROPERTIES
     SOVERSION ${cascade_VERSION}
     VERSION ${cascade_build_VERSION}
