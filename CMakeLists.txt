@@ -41,6 +41,9 @@ if(mutils_FOUND)
     include_directories(${mutils_INCLUDE_DIRS})
 endif()
 
+# Cascade includes a custom Find module for GNU Readline (required by client.cpp)
+find_package(Readline REQUIRED)
+
 # spdlog_FOUND
 find_package(spdlog 1.3.1 REQUIRED)
 
@@ -92,6 +95,7 @@ endif()
 set (ENABLE_EVALUATION 1)
 
 if (ENABLE_EVALUATION)
+    # provides the import target rpclib::rpc
     find_package(rpclib 2.3.0 REQUIRED)
 endif()
 

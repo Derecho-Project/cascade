@@ -45,7 +45,13 @@ target_include_directories(client PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
 )
-target_link_libraries(client cascade readline rpc)
+target_include_directories(client PUBLIC
+    $<BUILD_INTERFACE:${Readline_INCLUDE_DIRS}>
+)
+target_link_libraries(client cascade ${Readline_LIBRARIES})
+if(ENABLE_EVALUATION)
+    target_link_libraries(client rpclib::rpc)
+endif()
 set_target_properties(client PROPERTIES OUTPUT_NAME cascade_client)
 
 add_executable(chain_client chain_client.cpp perftest.cpp)
@@ -55,7 +61,10 @@ target_include_directories(chain_client PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
 )
-target_link_libraries(chain_client cascade readline rpc)
+target_link_libraries(chain_client cascade ${Readline_LIBRARIES})
+if(ENABLE_EVALUATION)
+    target_link_libraries(chain_client rpclib::rpc)
+endif()
 set_target_properties(chain_client PROPERTIES OUTPUT_NAME cascadechain_client)
 
 
