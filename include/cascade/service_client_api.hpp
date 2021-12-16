@@ -13,6 +13,7 @@ namespace cascade {
  */
 using ServiceClientAPI = ServiceClient<VolatileCascadeStoreWithStringKey,
                                        PersistentCascadeStoreWithStringKey,
+                                       SignatureCascadeStoreWithStringKey,
                                        TriggerCascadeNoStoreWithStringKey>;
 
 /**

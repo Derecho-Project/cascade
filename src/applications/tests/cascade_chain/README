@@ -1,0 +1,3 @@
+This test folder contains the configurations needed to start running Cascade as a CascadeChain service.
+At the moment, it doesn't contain any code to compile, because the sha_hash_udl is included within the cascade/service/ folder.
+It provides a CMake build target that copies the configuration files into the output folder.

@@ -40,19 +40,16 @@ using SignatureCascadeStoreWithStringKey = SignatureCascadeStore<
 
 using DefaultServiceType = Service<VolatileCascadeStoreWithStringKey,
                                    PersistentCascadeStoreWithStringKey,
+                                   SignatureCascadeStoreWithStringKey,
                                    TriggerCascadeNoStoreWithStringKey>;
 
 using DefaultCascadeContextType = CascadeContext<VolatileCascadeStoreWithStringKey,
                                                  PersistentCascadeStoreWithStringKey,
+                                                 SignatureCascadeStoreWithStringKey,
                                                  TriggerCascadeNoStoreWithStringKey>;
 
 // Specializations for CascadeChain
-/*
- * It would be nice to hide the SignatureCascadeStore from the Service's template
- * parameters, and only add it to the Group's template parameters (from inside the
- * Service constructor), but I can't figure out how to do that without needing to
- * copy-and-paste the entire implementation of Service into a template specialization
- */
+// For now, these will not be used, and we'll just add SignatureCascadeStore to the default service
 using ChainServiceType = Service<PersistentCascadeStoreWithStringKey,
                                  SignatureCascadeStoreWithStringKey>;
 
