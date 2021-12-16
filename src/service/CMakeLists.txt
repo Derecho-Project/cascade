@@ -66,6 +66,7 @@ target_include_directories(sha_hash_udl PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
 )
+target_link_libraries(sha_hash_udl derecho::derecho OpenSSL::Crypto)
 
 if (${HAS_FUSE})
     add_executable(fuse_client fuse_client.cpp)
