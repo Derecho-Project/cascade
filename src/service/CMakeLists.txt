@@ -31,7 +31,7 @@ target_include_directories(chain_server PRIVATE
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
 )
 target_link_libraries(chain_server cascade dl)
-set_target_properties(chain_server server PROPERTIES OUTPUT_NAME cascadechain_server)
+set_target_properties(chain_server PROPERTIES OUTPUT_NAME cascadechain_server)
 add_custom_command(TARGET chain_server POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/cfg
     ${CMAKE_CURRENT_BINARY_DIR}/cfg
