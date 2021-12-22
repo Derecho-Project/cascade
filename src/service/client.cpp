@@ -124,6 +124,8 @@ static void print_cyan(std::string msg) {
         ft <VolatileCascadeStoreWithStringKey>(__VA_ARGS__); \
     } else if ((x) == "PCSS") { \
         ft <PersistentCascadeStoreWithStringKey>(__VA_ARGS__); \
+    } else if ((x) == "SCSS") { \
+        ft <SignatureCascadeStoreWithStringKey>(__VA_ARGS__); \
     } else if ((x) == "TCSS") { \
         ft <TriggerCascadeNoStoreWithStringKey>(__VA_ARGS__); \
     } else { \
@@ -198,7 +200,7 @@ void create_object_pool(ServiceClientAPI& capi, const std::string& id, uint32_t 
     auto result = capi.template create_object_pool<SubgroupType>(id,subgroup_index);
     check_put_and_remove_result(result);
     std::cout << "create_object_pool is done." << std::endl;
-} 
+}
 
 template <typename SubgroupType>
 void trigger_put(ServiceClientAPI& capi, const std::string& key, const std::string& value, uint32_t subgroup_index, uint32_t shard_index) {
@@ -215,7 +217,7 @@ void trigger_put(ServiceClientAPI& capi, const std::string& key, const std::stri
     obj.blob = Blob(value.c_str(),value.length());
     derecho::rpc::QueryResults<void> result = capi.template trigger_put<SubgroupType>(obj, subgroup_index, shard_index);
     result.get();
-   
+
     std::cout << "trigger_put is done." << std::endl;
 }
 
@@ -226,7 +228,7 @@ void op_trigger_put(ServiceClientAPI& capi, const std::string& key, const std::s
     obj.blob = Blob(value.c_str(),value.length());
     derecho::rpc::QueryResults<void> result = capi.trigger_put(obj);
     result.get();
-   
+
     std::cout << "op_trigger_put is done." << std::endl;
 }
 
@@ -252,7 +254,7 @@ void collective_trigger_put(ServiceClientAPI& capi, const std::string& key, cons
         kv.second.get();
         std::cout << "Finish sending to node " << kv.first << std::endl;
     }
-   
+
     std::cout << "collective_trigger_put is done." << std::endl;
 
 }
@@ -474,7 +476,7 @@ void list_data_in_subgroup(ServiceClientAPI& capi, uint32_t subgroup_index, pers
     std::vector<typename SubgroupType::KeyType> keys;
     std::vector<CascadeShardLinq<SubgroupType, ServiceClientAPI>> shard_linq_list;
 
-    std::unordered_map<uint32_t, std::vector<typename SubgroupType::KeyType>> shardidx_to_keys; 
+    std::unordered_map<uint32_t, std::vector<typename SubgroupType::KeyType>> shardidx_to_keys;
 
     for (auto &obj : from_subgroup<SubgroupType, ServiceClientAPI>(shardidx_to_keys, shard_linq_list, capi, subgroup_index, version).toStdVector()) {
         std::cout << "Found:" << obj << std::endl;
@@ -605,9 +607,9 @@ ssize_t find_command(const std::vector<command_entry_t>& command_list, const std
 
 
 bool shell_is_active = true;
-#define SUBGROUP_TYPE_LIST "VCSS|PCSS|TCSS"
+#define SUBGROUP_TYPE_LIST "VCSS|PCSS|SCSS|TCSS"
 #define SHARD_MEMBER_SELECTION_POLICY_LIST "FirstMember|LastMember|Random|FixedRandom|RoundRobin|UserSpecified"
-std::vector<command_entry_t> commands = 
+std::vector<command_entry_t> commands =
 {
     {
         "General Commands","","",command_handler_t()
@@ -1093,6 +1095,55 @@ std::vector<command_entry_t> commands =
         }
     },
     {
+        "get_signature",
+        "Get an object's signature (by version).",
+        "get_signature <key> <subgroup_index> <shard_index> [ version(default:current version) ]\n"
+            "Note that this can only target the SCSS (signatures) subgroup type",
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+            if (cmd_tokens.size() < 4) {
+                print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
+                return false;
+            }
+            uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[2]));
+            uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
+            persistent::version_t version = CURRENT_VERSION;
+            if (cmd_tokens.size() >= 5) {
+                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[4]));
+            }
+            auto query_result = capi.get_signature<SignatureCascadeStoreWithStringKey>(cmd_tokens[1], version, subgroup_index, shard_index);
+            //std::tuple doesn't have an operator<<, so I have to customize check_get_result here
+             for (auto& reply_future : query_result.get()) {
+                auto reply = reply_future.second.get();
+                std::cout << "node(" << reply_future.first << ") replied with value: (" << std::get<0>(reply) << "," << std::get<1>(reply) << ")" << std::endl;
+            }
+            return true;
+        }
+    },
+    {
+        "op_get_signature",
+        "Get an object's signature from the object pool (by version).",
+        "op_get_signature <key> [ version(default:current version) ]\n"
+            "Note that Cascade will automatically decide the subgroup to contact based on the key's prefix, "
+            "but only object pools hosted on a SignatureCascadeStore subgroup will have signatures.",
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+            if (cmd_tokens.size() < 2) {
+                print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
+                return false;
+            }
+            persistent::version_t version = CURRENT_VERSION;
+            if (cmd_tokens.size() >= 3) {
+                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[2]));
+            }
+            auto query_result = capi.get_signature(cmd_tokens[1], version);
+            //std::tuple doesn't have an operator<<, so I have to customize check_get_result here
+             for (auto& reply_future : query_result.get()) {
+                auto reply = reply_future.second.get();
+                std::cout << "node(" << reply_future.first << ") replied with value: (" << std::get<0>(reply) << "," << std::get<1>(reply) << ")" << std::endl;
+            }
+            return true;
+        }
+    },
+    {
         "list_keys",
         "list the object keys in a shard (by version).",
         "list_keys <type> <subgroup_index> <shard_index> [ version(default:current version) ]\n"
@@ -1199,7 +1250,7 @@ std::vector<command_entry_t> commands =
             }
             uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
             uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
-  
+
             persistent::version_t version_start = INVALID_VERSION;
             persistent::version_t version_end = INVALID_VERSION;
             if (cmd_tokens.size() >= 6) {
@@ -1224,7 +1275,7 @@ std::vector<command_entry_t> commands =
             }
             uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
             uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
-  
+
             uint64_t start = 0;
             uint64_t end = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
             if (cmd_tokens.size() >= 6) {
@@ -1462,7 +1513,7 @@ int main(int argc,char** argv) {
 #ifdef ENABLE_EVALUATION
     // start working thread.
     PerfTestServer pts(capi);
-#endif 
+#endif
     if (argc == 1) {
         // by default, we use the interactive shell.
         interactive_test(capi);

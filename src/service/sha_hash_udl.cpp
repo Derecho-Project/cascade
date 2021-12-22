@@ -115,6 +115,8 @@ public:
     }
 };
 
+std::shared_ptr<OffCriticalDataPathObserver> ShaHashObserver::singleton_ptr;
+
 /* ----------------------- UDL Interface ----------------------- */
 
 std::string get_uuid() {

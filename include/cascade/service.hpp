@@ -974,6 +974,52 @@ namespace cascade {
         get_signature(const typename SubgroupType::KeyType& key, const persistent::version_t& version,
                 uint32_t subgroup_index, uint32_t shard_index);
 
+    protected:
+        /**
+         * "type_recursive_get_signature" is a helper function for internal use only.
+         * @param type_index        the index of the subgroup type in the CascadeTypes... list. The FirstType,
+         *                          SecondType, .../ RestTypes should be in the same order.
+         * @param key               the key
+         * @param version           the version
+         * @param subgroup_index    the subgroup index in the subgroup type designated by type_index
+         * @param shard_index       the shard index
+         *
+         * @return a future for the (signature, previous_version) tuple.
+         */
+        template <typename KeyType, typename FirstType, typename SecondType, typename... RestTypes>
+        derecho::rpc::QueryResults<std::tuple<std::vector<uint8_t>, persistent::version_t>> type_recursive_get_signature(
+                uint32_t type_index,
+                const KeyType& key,
+                const persistent::version_t& version,
+                uint32_t subgroup_index,
+                uint32_t shard_index);
+
+        template <typename KeyType, typename LastType>
+        derecho::rpc::QueryResults<std::tuple<std::vector<uint8_t>, persistent::version_t>> type_recursive_get_signature(
+                uint32_t type_index,
+                const KeyType& key,
+                const persistent::version_t& version,
+                uint32_t subgroup_index,
+                uint32_t shard_index);
+    public:
+        /**
+         * object pool version of get_signature
+         *
+         * @tparam SubgroupType The specific type of subgroup to communicate with; should be one of the
+         * CascadeTypes and be a specialization of SignatureCascadeStore<KT,VT,IK,IV>
+         * @param key The key identifying an object to get the signature for. The key's object pool prefix
+         *            will be used to determine which subgroup and shard to contact
+         * @param version The version of the key to get the signature for
+         * @return A future for a tuple containing (signature, previous_version) where previous_version is the
+         * previous persistent-log version included in this signature. Note that it is not necessarily
+         * the previous version of the object.
+         */
+        template <typename KeyType>
+        derecho::rpc::QueryResults<std::tuple<std::vector<uint8_t>, persistent::version_t>> get_signature(
+                const KeyType& key,
+                const persistent::version_t& version = CURRENT_VERSION);
+
+
         /**
          * Object Pool Management API: refresh object pool cache
          */

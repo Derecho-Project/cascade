@@ -438,9 +438,7 @@ template <typename ObjectType>
 derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::put(
         const ObjectType& value) {
     // STEP 1 - get key
-    if constexpr (!std::is_base_of_v<ICascadeObject<std::string>,ObjectType>) {
-        throw derecho::derecho_exception(std::string("ServiceClient<>::put() only support object of type ICascadeObject<std::string>,but we get ") + typeid(ObjectType).name());
-    }
+    static_assert(std::is_base_of_v<ICascadeObject<std::string>,ObjectType>, "ServiceClient<>::put() only supports object of type ICascadeObject<std::string>");
 
     // STEP 2 - get shard
     uint32_t subgroup_type_index,subgroup_index,shard_index;
@@ -509,13 +507,10 @@ template <typename... CascadeTypes>
 template <typename ObjectType>
 void ServiceClient<CascadeTypes...>::put_and_forget(const ObjectType& value) {
     // STEP 1 - get key
-    if constexpr (!std::is_base_of_v<ICascadeObject<std::string>,ObjectType>) {
-        throw derecho::derecho_exception(__PRETTY_FUNCTION__ + std::string(" only supports object of type ICascadeObject<std::string>,but we get ") + typeid(ObjectType).name());
-    }
+    static_assert(std::is_base_of_v<ICascadeObject<std::string>, ObjectType>, "put_and_forget(value) only supports objects of type ICascadeObject<std::string>");
 
     // STEP 2 - get shard
-    uint32_t subgroup_type_index,subgroup_index,shard_index;
-    std::tie(subgroup_type_index,subgroup_index,shard_index) = this->template key_to_shard(value.get_key_ref());
+    const auto [subgroup_type_index, subgroup_index, shard_index] = this->template key_to_shard(value.get_key_ref());
 
     // STEP 3 - call recursive put_and_forget
     this->template type_recursive_put_and_forget<ObjectType,CascadeTypes...>(subgroup_type_index,value,subgroup_index,shard_index);
@@ -580,9 +575,7 @@ template <typename ObjectType>
 derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::trigger_put(
         const ObjectType& value) {
     // STEP 1 - get key
-    if constexpr (!std::is_base_of_v<ICascadeObject<std::string>,ObjectType>) {
-        throw derecho::derecho_exception(__PRETTY_FUNCTION__ + std::string(" only supports object of type ICascadeObject<std::string>,but we get ") + typeid(ObjectType).name());
-    }
+    static_assert(std::is_base_of_v<ICascadeObject<std::string>,ObjectType>, "trigger_put(value) only supports objects of type ICascadeObject<std::string>");
 
     // STEP 2 - get shard
     uint32_t subgroup_type_index,subgroup_index,shard_index;
@@ -683,9 +676,7 @@ template <typename KeyType>
 derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::remove(
         const KeyType& key) {
     // STEP 1 - get key
-    if constexpr (!std::is_convertible_v<KeyType,std::string>) {
-        throw derecho::derecho_exception(__PRETTY_FUNCTION__ + std::string(" only supports string key,but we get ") + typeid(KeyType).name());
-    }
+    static_assert(std::is_convertible_v<KeyType, std::string>, "remove(key, version) only supports string keys");
 
     // STEP 2 - get shard
     uint32_t subgroup_type_index,subgroup_index,shard_index;
@@ -760,9 +751,7 @@ auto ServiceClient<CascadeTypes...>::get(
         const KeyType& key,
         const persistent::version_t& version) {
     // STEP 1 - get key
-    if constexpr (!std::is_convertible_v<KeyType,std::string>) {
-        throw derecho::derecho_exception(__PRETTY_FUNCTION__ + std::string(" only supports string key,but we get ") + typeid(KeyType).name());
-    }
+    static_assert(std::is_convertible_v<KeyType, std::string>, "get(key, version) only supports string keys");
 
     // STEP 2 - get shard
     uint32_t subgroup_type_index,subgroup_index,shard_index;
@@ -836,13 +825,10 @@ auto ServiceClient<CascadeTypes...>::get_by_time(
         const KeyType& key,
         const uint64_t& ts_us) {
     // STEP 1 - get key
-    if constexpr (!std::is_convertible_v<KeyType,std::string>) {
-        throw derecho::derecho_exception(__PRETTY_FUNCTION__ + std::string(" only supports string key,but we get ") + typeid(KeyType).name());
-    }
+    static_assert(std::is_convertible_v<KeyType,std::string>, "get_by_time(key, ts_us) only supports string keys");
 
     // STEP 2 - get shard
-    uint32_t subgroup_type_index,subgroup_index,shard_index;
-    std::tie(subgroup_type_index,subgroup_index,shard_index) = this->template key_to_shard(key);
+    const auto [subgroup_type_index, subgroup_index, shard_index] = this->template key_to_shard(key);
 
     // STEP 3 - call recursive get_by_time
     return this->template type_recursive_get_by_time<KeyType,CascadeTypes...>(subgroup_type_index,key,ts_us,subgroup_index,shard_index);
@@ -912,13 +898,10 @@ derecho::rpc::QueryResults<uint64_t> ServiceClient<CascadeTypes...>::get_size(
         const KeyType& key,
         const persistent::version_t& version) {
     // STEP 1 - verify the keys
-    if constexpr (!std::is_convertible_v<KeyType,std::string>) {
-        throw derecho::derecho_exception(__PRETTY_FUNCTION__ + std::string(" only supports string key,but we get ") + typeid(KeyType).name());
-    }
+    static_assert(std::is_convertible_v<KeyType,std::string>, "get_size(key, version) only supports string keys");
 
     // STEP 2 - get shard
-    uint32_t subgroup_type_index,subgroup_index,shard_index;
-    std::tie(subgroup_type_index,subgroup_index,shard_index) = this->template key_to_shard(key);
+    const auto [subgroup_type_index, subgroup_index, shard_index] = this->template key_to_shard(key);
 
     // STEP 3 - call recursive get
     return this->template type_recursive_get_size<KeyType,CascadeTypes...>(subgroup_type_index,key,version,subgroup_index,shard_index);
@@ -988,13 +971,10 @@ derecho::rpc::QueryResults<uint64_t> ServiceClient<CascadeTypes...>::get_size_by
         const KeyType& key,
         const uint64_t& ts_us) {
     // STEP 1 - verify the keys
-    if constexpr (!std::is_convertible_v<KeyType,std::string>) {
-        throw derecho::derecho_exception(__PRETTY_FUNCTION__ + std::string(" only supports string key,but we get ") + typeid(KeyType).name());
-    }
+    static_assert(std::is_convertible_v<KeyType,std::string>, "get_size_by_time(key, ts_us) only supports string keys");
 
     // STEP 2 - get shard
-    uint32_t subgroup_type_index,subgroup_index,shard_index;
-    std::tie(subgroup_type_index,subgroup_index,shard_index) = this->template key_to_shard(key);
+    const auto [subgroup_type_index, subgroup_index, shard_index] = this->template key_to_shard(key);
 
     // STEP 3 - call recursive get
     return this->template type_recursive_get_size_by_time<KeyType,CascadeTypes...>(subgroup_type_index,key,ts_us,subgroup_index,shard_index);
@@ -1222,8 +1202,9 @@ template <typename... CascadeTypes>
 template<typename SubgroupType>
 std::enable_if_t<is_signature_store<SubgroupType>::value, derecho::rpc::QueryResults<std::tuple<std::vector<uint8_t>, persistent::version_t>>>
 ServiceClient<CascadeTypes...>::get_signature(const typename SubgroupType::KeyType& key, const persistent::version_t& version,
-                uint32_t subgroup_index, uint32_t shard_index) {
-    if (group_ptr != nullptr) {
+                                              uint32_t subgroup_index, uint32_t shard_index) {
+    static_assert(is_signature_store<SubgroupType>::value, "get_signature can only be called on subgroups of type SignatureCascadeStore<KT,VT,IK,IV>");
+    if(group_ptr != nullptr) {
         std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
         if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
             // do a p2p get_signature as a member (Replicated).
@@ -1242,6 +1223,57 @@ ServiceClient<CascadeTypes...>::get_signature(const typename SubgroupType::KeyTy
         node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
         return caller.template p2p_send<RPC_NAME(get_signature)>(node_id,key,version,false);
     }
+}
+
+template <typename... CascadeTypes>
+template <typename KeyType, typename FirstType, typename SecondType, typename... RestTypes>
+derecho::rpc::QueryResults<std::tuple<std::vector<uint8_t>, persistent::version_t>> ServiceClient<CascadeTypes...>::type_recursive_get_signature(
+        uint32_t type_index,
+        const KeyType& key,
+        const persistent::version_t& version,
+        uint32_t subgroup_index,
+        uint32_t shard_index) {
+    if (type_index == 0) {
+        //This must be a runtime check, not a static_assert, because type_index is a runtime value
+        if constexpr(is_signature_store<FirstType>::value) {
+            return this->template get_signature<FirstType>(key,version,subgroup_index,shard_index);
+        } else {
+            throw derecho::derecho_exception("get_signature can only be called on objects stored in SignatureCascadeStore subgroups");
+        }
+    } else {
+        return this->template type_recursive_get_signature<KeyType,SecondType,RestTypes...>(type_index-1,key,version,subgroup_index,shard_index);
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename KeyType, typename LastType>
+derecho::rpc::QueryResults<std::tuple<std::vector<uint8_t>, persistent::version_t>> ServiceClient<CascadeTypes...>::type_recursive_get_signature(
+        uint32_t type_index,
+        const KeyType& key,
+        const persistent::version_t& version,
+        uint32_t subgroup_index,
+        uint32_t shard_index) {
+    if (type_index == 0) {
+        if constexpr(is_signature_store<LastType>::value) {
+            return this->template get_signature<LastType>(key,version,subgroup_index,shard_index);
+        } else {
+            throw derecho::derecho_exception("get_signature can only be called on objects stored in SignatureCascadeStore subgroups");
+        }
+    } else {
+        throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) + ": type index is out of boundary.");
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename KeyType>
+derecho::rpc::QueryResults<std::tuple<std::vector<uint8_t>, persistent::version_t>> ServiceClient<CascadeTypes...>::get_signature(
+        const KeyType& key,
+        const persistent::version_t& version) {
+    static_assert(std::is_convertible_v<KeyType, std::string>, "get_signature(key, version) only supports string keys");
+
+    const auto [subgroup_type_index,subgroup_index,shard_index] = this->template key_to_shard(key);
+
+    return this->template type_recursive_get_signature<KeyType,CascadeTypes...>(subgroup_type_index,key,version,subgroup_index,shard_index);
 }
 
 
