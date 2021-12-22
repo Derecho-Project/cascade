@@ -101,6 +101,7 @@ public class ClientTest {
                     case "quit":
                     case "exit":
                         System.exit(0);
+                        break;
                     case "list_all_members":
                         // list all members in the group.
                         System.out.println("Top Derecho Group members = " + client.getMembers());
@@ -256,9 +257,10 @@ public class ClientTest {
                         arr = splited[2].getBytes();
                         bbkey = ByteBuffer.allocateDirect(arr.length);
                         bbkey.put(arr);
-                        QueryResults<ByteBuffer> qrb = client.get(type, bbkey, version, subgroupIndex, shardIndex);
-                        Map<Integer, ByteBuffer> data = qrb.get();
-                        for (ByteBuffer bb : data.values()) {
+                        QueryResults<CascadeObject> qrb = client.get(type, bbkey, version, subgroupIndex, shardIndex);
+                        Map<Integer, CascadeObject> data = qrb.get();
+                        for (CascadeObject obj : data.values()) {
+                            ByteBuffer bb = obj.object;
                             byte b[] = new byte[bb.capacity()];
                             for (int i = 0;i < bb.capacity(); i++){
                                 b[i] = bb.get(i);
@@ -287,7 +289,8 @@ public class ClientTest {
                         bbkey.put(arr);
                         qrb = client.getByTime(type, bbkey, timestamp, subgroupIndex, shardIndex);
                         data = qrb.get();
-                        for (ByteBuffer bb : data.values()) {
+                        for (CascadeObject obj : data.values()) {
+                            ByteBuffer bb = obj.object;
                             byte b[] = new byte[bb.capacity()];
                             for (int i = 0;i < bb.capacity(); i++){
                                 b[i] = bb.get(i);
