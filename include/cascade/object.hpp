@@ -27,14 +27,14 @@ namespace cascade{
 
 class Blob : public mutils::ByteRepresentable {
 public:
-    char* bytes;
+    const char* bytes;
     std::size_t size;
-    bool is_temporary;
+    bool        is_emplaced;
 
     // constructor - copy to own the data
     Blob(const char* const b, const decltype(size) s);
 
-    Blob(char* b, const decltype(size) s, bool temporary);
+    Blob(const char* b, const decltype(size) s, bool temporary);
 
     // copy constructor - copy to own the data
     Blob(const Blob& other);
@@ -65,11 +65,11 @@ public:
 
     static std::unique_ptr<Blob> from_bytes(mutils::DeserializationManager*, const char* const v);
 
-    mutils::context_ptr<Blob> from_bytes_noalloc(
+    static mutils::context_ptr<Blob> from_bytes_noalloc(
         mutils::DeserializationManager* ctx,
         const char* const v);
 
-    mutils::context_ptr<Blob> from_bytes_noalloc_const(
+    static mutils::context_ptr<Blob> from_bytes_noalloc_const(
         mutils::DeserializationManager* ctx,
         const char* const v);
 };
@@ -79,8 +79,15 @@ public:
 class ObjectWithUInt64Key : public mutils::ByteRepresentable,
                             public ICascadeObject<uint64_t>,
                             public IKeepTimestamp,
-                            public IVerifyPreviousVersion {
+                            public IVerifyPreviousVersion
+#ifdef ENABLE_EVALUATION
+                            , public IHasMessageID
+#endif
+                            {
 public:
+#ifdef ENABLE_EVALUATION
+    mutable uint64_t                                    message_id;
+#endif
     mutable persistent::version_t                       version;
     mutable uint64_t                                    timestamp_us;
     mutable persistent::version_t                       previous_version; // previous version, INVALID_VERSION for the first version
@@ -94,13 +101,18 @@ public:
     ObjectWithUInt64Key(const uint64_t _key, 
                         const Blob& _blob);
 
-    // constructor 0.5 : copy constructor
-    ObjectWithUInt64Key(const persistent::version_t _version,
+    // constructor 0.5 : copy/emplace constructor
+    ObjectWithUInt64Key(
+#ifdef ENABLE_EVALUATION
+                        const uint64_t _message_id,
+#endif
+                        const persistent::version_t _version,
                         const uint64_t _timestamp_us,
                         const persistent::version_t _previous_version,
                         const persistent::version_t _previous_version_by_key,
                         const uint64_t _key,
-                        const Blob& _blob);
+                        const Blob& _blob,
+                        bool  is_emplaced = false);
 
     // constructor 1 : copy constructor
     ObjectWithUInt64Key(const uint64_t _key,
@@ -108,7 +120,11 @@ public:
                         const std::size_t _s);
 
     // constructor 1.5 : copy constructor
-    ObjectWithUInt64Key(const persistent::version_t _version,
+    ObjectWithUInt64Key(
+#ifdef ENABLE_EVALUATION
+                        const uint64_t _message_id,
+#endif
+                        const persistent::version_t _version,
                         const uint64_t _timestamp_us,
                         const persistent::version_t _previous_version,
                         const persistent::version_t _previous_version_by_key,
@@ -136,8 +152,24 @@ public:
     virtual uint64_t get_timestamp() const override;
     virtual void set_previous_version(persistent::version_t prev_ver, persistent::version_t prev_ver_by_key) const override;
     virtual bool verify_previous_version(persistent::version_t prev_ver, persistent::version_t prev_ver_by_key) const override;
+#ifdef ENABLE_EVALUATION
+    virtual void set_message_id(uint64_t id) const override;
+    virtual uint64_t get_message_id() const override;
+#endif
 
-    DEFAULT_SERIALIZATION_SUPPORT(ObjectWithUInt64Key, version, timestamp_us, previous_version, previous_version_by_key, key, blob);
+    // Deprecated: the default no_alloc deserializers are NOT zero-copy!!!
+    // DEFAULT_SERIALIZATION_SUPPORT(ObjectWithUInt64Key, version, timestamp_us, previous_version, previous_version_by_key, key, blob);
+    std::size_t to_bytes(char* v) const;
+    std::size_t bytes_size() const;
+    void post_object(const std::function<void(char const* const, std::size_t)>& f) const;
+    void ensure_registerd(mutils::DeserializationManager&) {}
+    static std::unique_ptr<ObjectWithUInt64Key> from_bytes(mutils::DeserializationManager*, const char* const v);
+    static mutils::context_ptr<ObjectWithUInt64Key> from_bytes_noalloc(
+        mutils::DeserializationManager* ctx,
+        const char* const v);
+    static mutils::context_ptr<const ObjectWithUInt64Key> from_bytes_noalloc_const(
+        mutils::DeserializationManager* ctx,
+        const char* const v);
 
     // IK and IV for volatile cascade store
     static uint64_t IK;
@@ -172,8 +204,15 @@ inline std::ostream& operator<<(std::ostream& out, const ObjectWithUInt64Key& o)
 class ObjectWithStringKey : public mutils::ByteRepresentable,
                             public ICascadeObject<std::string>,
                             public IKeepTimestamp,
-                            public IVerifyPreviousVersion {
+                            public IVerifyPreviousVersion
+#ifdef ENABLE_EVALUATION
+                            ,public IHasMessageID
+#endif
+                            {
 public:
+#ifdef ENABLE_EVALUATION
+    mutable uint64_t                                    message_id;
+#endif
     mutable persistent::version_t                       version;                // object version
     mutable uint64_t                                    timestamp_us;           // timestamp in microsecond
     mutable persistent::version_t                       previous_version;       // previous version, INVALID_VERSION for the first version.
@@ -187,13 +226,18 @@ public:
     ObjectWithStringKey(const std::string& _key, 
                         const Blob& _blob);
 
-    // constructor 0.5 : copy constructor
-    ObjectWithStringKey(const persistent::version_t _version,
+    // constructor 0.5 : copy/in-place constructor
+    ObjectWithStringKey(
+#ifdef ENABLE_EVALUATION
+                        const uint64_t message_id,
+#endif
+                        const persistent::version_t _version,
                         const uint64_t _timestamp_us,
                         const persistent::version_t _previous_version,
                         const persistent::version_t _previous_version_by_key,
                         const std::string& _key,
-                        const Blob& _blob);
+                        const Blob& _blob,
+                        bool  is_emplaced = false);
 
     // constructor 1 : copy consotructor
     ObjectWithStringKey(const std::string& _key,
@@ -201,7 +245,11 @@ public:
                         const std::size_t _s);
 
     // constructor 1.5 : copy constructor
-    ObjectWithStringKey(const persistent::version_t _version,
+    ObjectWithStringKey(
+#ifdef ENABLE_EVALUATION
+                        const uint64_t message_id,
+#endif
+                        const persistent::version_t _version,
                         const uint64_t _timestamp_us,
                         const persistent::version_t _previous_version,
                         const persistent::version_t _previous_version_by_key,
@@ -229,8 +277,23 @@ public:
     virtual uint64_t get_timestamp() const override;
     virtual void set_previous_version(persistent::version_t prev_ver, persistent::version_t perv_ver_by_key) const override;
     virtual bool verify_previous_version(persistent::version_t prev_ver, persistent::version_t perv_ver_by_key) const override;
+#ifdef ENABLE_EVALUATION
+    virtual void set_message_id(uint64_t id) const override;
+    virtual uint64_t get_message_id() const override;
+#endif
 
-    DEFAULT_SERIALIZATION_SUPPORT(ObjectWithStringKey, version, timestamp_us, previous_version, previous_version_by_key, key, blob);
+//    DEFAULT_SERIALIZATION_SUPPORT(ObjectWithStringKey, version, timestamp_us, previous_version, previous_version_by_key, key, blob);
+    std::size_t to_bytes(char* v) const;
+    std::size_t bytes_size() const;
+    void post_object(const std::function<void(char const* const, std::size_t)>& f) const;
+    void ensure_registerd(mutils::DeserializationManager&) {}
+    static std::unique_ptr<ObjectWithStringKey> from_bytes(mutils::DeserializationManager*, const char* const v);
+    static mutils::context_ptr<ObjectWithStringKey> from_bytes_noalloc(
+        mutils::DeserializationManager* ctx,
+        const char* const v);
+    static mutils::context_ptr<const ObjectWithStringKey> from_bytes_noalloc_const(
+        mutils::DeserializationManager* ctx,
+        const char* const v);
 
     // IK and IV for volatile cascade store
     static std::string IK;
@@ -238,7 +301,11 @@ public:
 };
 
 inline std::ostream& operator<<(std::ostream& out, const ObjectWithStringKey& o) {
-    out << "ObjectWithStringKey{ver: 0x" << std::hex << o.version << std::dec 
+    out << "ObjectWithStringKey{" 
+#ifdef ENABLE_EVALUATION
+        << "msg_id: " << o.message_id
+#endif
+        << "ver: 0x" << std::hex << o.version << std::dec 
         << ", ts: " << o.timestamp_us
         << ", prev_ver: " << std::hex << o.previous_version << std::dec
         << ", prev_ver_by_key: " << std::hex << o.previous_version_by_key << std::dec

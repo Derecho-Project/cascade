@@ -23,18 +23,25 @@ list_subgroup_members [subgroup_id] [shard_index]\n\tlist members in shard by su
 set_member_selection_policy <type> <subgroup_index> <shard_index> <policy> [user_specified_node_id]\n\tset member selection policy\n\
 get_member_selection_policy <type> [subgroup_index] [shard_index]\n\tget member selection policy\n\
 put <type> <key> <value> [subgroup_index] [shard_index]\n\tput an object\n\
+trigger_put <type> <key> <value> [subgroup_index] [shard_index]\n\tput an object\n\
 remove <type> <key> [subgroup_index] [shard_index]\n\tremove an object\n\
 get <type> <key> [version] [subgroup_index] [shard_index]\n\tget an object(by version)\n\
 get_by_time <type> <key> <ts_us> [subgroup_index] [shard_index]\n\tget an object by timestamp\n\
+create_object_pool <type> <pathname> <subgroup_index>\n\t create an object pool\n\
+list_object_pools\n\tlist object pools\n\
+get_object_pool <pathname>\n\tget object pool by pathname\n\
 quit|exit\n\texit the client.\n\
 help\n\tprint this message.\n\
 \n\
-type:=VCSU|VCSS|PCSU|PCSS\n\
+type:=VolatileCascadeStoreWithStringKey|\n\
+      PersistentCascadeStoreWithStringKey|\n\
+      TriggerCascadeNoStoreWithStringKey\n\
 policy:=FirstMember|LastMember|Random|FixedRandom|RoundRobin|UserSpecified\n\
 "
 
     while(True):
-        subgroup_index = 0
+        # set subgroup index to UINT32_MAX
+        subgroup_index = 0xFFFFFFFF
         shard_index = 0
 
         s = input("cmd> ")
@@ -132,9 +139,25 @@ policy:=FirstMember|LastMember|Random|FixedRandom|RoundRobin|UserSpecified\n\
             if(len(sl) >= 6):
                 shard_index = int(sl[5])
 
-            b = a.put(sl[1], sl[2], bytes(sl[3],'utf-8'), subgroup_index, shard_index)
+            b = a.put(sl[1], sl[2], bytes(sl[3],'utf-8'), subgroup_index=subgroup_index, shard_index=shard_index)
             print(b.get_result())
             continue
+
+        if(sl[0] == 'trigger_put'):
+            if(len(sl) < 4):
+                print("Invalid format")
+                continue
+            
+            if(len(sl) >= 5):
+                subgroup_index = int(sl[4])
+
+            if(len(sl) >= 6):
+                shard_index = int(sl[5])
+
+            a.trigger_put(sl[1], sl[2], bytes(sl[3],'utf-8'), subgroup_index=subgroup_index, shard_index=shard_index)
+            print("Trigger put sent.")
+            continue
+            
 
         if(sl[0] == 'get'):
             if(len(sl) < 3):
@@ -152,7 +175,7 @@ policy:=FirstMember|LastMember|Random|FixedRandom|RoundRobin|UserSpecified\n\
             if(len(sl) >= 6):
                 shard_index = int(sl[5])
 
-            b = a.get(sl[1], sl[2], version, subgroup_index, shard_index)
+            b = a.get(sl[1], sl[2], version, subgroup_index=subgroup_index, shard_index=shard_index)
 
             print(b.get_result())
             
@@ -169,7 +192,7 @@ policy:=FirstMember|LastMember|Random|FixedRandom|RoundRobin|UserSpecified\n\
             if(len(sl) >= 5):
                 shard_index = int(sl[4])
 
-            b = a.remove(sl[1], sl[2], subgroup_index, shard_index)
+            b = a.remove(sl[1], sl[2], subgroup_index=subgroup_index, shard_index=shard_index)
             print(b.get_result())
             continue
         
@@ -189,10 +212,33 @@ policy:=FirstMember|LastMember|Random|FixedRandom|RoundRobin|UserSpecified\n\
             if(len(sl) >= 6):
                 shard_index = int(sl[5])
 
-            b = a.get_by_time(sl[1], sl[2], ts_us, subgroup_index, shard_index)
+            b = a.get_by_time(sl[1], sl[2], ts_us, subgroup_index=subgroup_index, shard_index=shard_index)
             print(b.get_result())
             continue
 
+        if(sl[0] == 'create_object_pool'):
+            if(len(sl) < 4):
+                print("Invalid format")
+                continue
+
+            subgroup_index = int(sl[3])
+
+            b = a.create_object_pool(sl[1], sl[2], subgroup_index)
+            print(b.get_result())
+            continue
+        
+        if(sl[0] == 'list_object_pools'):
+            print("Refreshed object pools:"+str(a.list_object_pools()))
+            continue
+
+        if(sl[0] == 'get_object_pool'):
+            if (len(sl)<2):
+                print("Invalid format")
+                continue
+
+            opm = a.get_object_pool(sl[1])
+            print(opm)
+            continue
 
 if __name__ == "__main__":
     main2()

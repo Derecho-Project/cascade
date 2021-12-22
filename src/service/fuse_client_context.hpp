@@ -10,6 +10,7 @@
 #include <nlohmann/json.hpp>
 #include <derecho/utils/logger.hpp>
 #include <time.h>
+#include "cascade/object_pool_metadata.hpp"
 
 
 namespace derecho {
@@ -28,6 +29,8 @@ typedef enum {
     CASCADE_TYPE,
     SUBGROUP,
     SHARD,
+    CASCADE_OBJECTPOOL,
+    OBJECTPOOLPATH,
     KEY,
     META,
 } INodeType;
@@ -80,11 +83,15 @@ public:
     }
 };
 
+
 template <typename CascadeType, typename ServiceClientType>
 class SubgroupINode;
 
 template <typename CascadeType, typename ServiceClientType>
 class ShardINode;
+
+template <typename CascadeType, typename ServiceClientType>
+class ObjectPoolPathINode;
 
 template <typename CascadeType, typename ServiceClientType>
 class KeyINode;
@@ -94,6 +101,9 @@ class RootMetaINode;
 
 template <typename CascadeType, typename ServiceClientType>
 class ShardMetaINode;
+
+template <typename CascadeType, typename ServiceClientType>
+class ObjectPoolMetaINode;
 
 template <typename CascadeType, typename ServiceClientType>
 class CascadeTypeINode : public FuseClientINode {
@@ -106,10 +116,10 @@ public:
 
     /** initialize */
     void initialize(const json& group_layout, std::unique_ptr<ServiceClientType>& capi_ptr) {
-        this->display_name = group_layout["type_alias"];
+        this->display_name = group_layout[derecho::json_type_alias_field];
 
         uint32_t sidx=0;
-        for (auto subgroup_it:group_layout[JSON_CONF_LAYOUT]) {
+        for (auto subgroup_it:group_layout[derecho::json_layout_field]) {
             // TODO: add metadata file/key file for each folder here.
             children.emplace_back(std::make_unique<SubgroupINode<CascadeType, ServiceClientType>>(sidx,reinterpret_cast<fuse_ino_t>(this)));
             size_t num_shards = subgroup_it[MIN_NODES_BY_SHARD].size();
@@ -217,6 +227,9 @@ public:
 
     // TODO: rethinking about the consistency
     virtual std::map<std::string,fuse_ino_t> get_dir_entries() override {
+        std::cout << "\033[1;31m"
+              << "SHARD INODE"
+              << "\033[0m" << std::endl;
         dbg_default_trace("[{}]entering {}.",gettid(),__func__);
         std::map<std::string,fuse_ino_t> ret_map;
         /** we always retrieve the key list for a shard inode because the data is highly dynamic */
@@ -335,6 +348,209 @@ public:
     }
 };
 
+// ObjectPool INode
+template <typename ServiceClientType>
+class RootObjectPoolINode : public FuseClientINode {
+    const time_t update_interval;
+    std::unique_ptr<ServiceClientType>& capi_ptr;
+    time_t last_update_sec;
+    std::string contents;
+    std::shared_mutex mutex;
+    /**
+     * update the metadata. need write lock.
+     */
+    void update_contents () {
+        auto objectpools = capi_ptr->list_object_pools(true);
+        contents = "number of objectpool in cascade service: " + std::to_string(objectpools.size()) + ".\nObjectpool paths: ";
+        for (auto& objectpool_path : objectpools) {
+            contents += objectpool_path + ",";
+        }
+        contents += "\n";
+    }
+public:
+    RootObjectPoolINode (std::unique_ptr<ServiceClientType>& _capi_ptr) :
+        update_interval (2), // membership refreshed in 2 seconds.
+        capi_ptr (_capi_ptr), 
+        last_update_sec(0) {
+        this->type = INodeType::CASCADE_OBJECTPOOL;
+        this->display_name = "Cascade_ObjectPool";
+        this->parent = FUSE_ROOT_ID;
+    }
+
+    virtual uint64_t get_file_size() override {
+        struct timespec now;
+        std::shared_lock rlck(mutex);
+        clock_gettime(CLOCK_REALTIME, &now);
+        if (now.tv_sec > (last_update_sec + update_interval)){
+            rlck.unlock();
+            std::unique_lock wlck(mutex);
+            clock_gettime(CLOCK_REALTIME, &now);
+            if (now.tv_sec > (last_update_sec + update_interval)){
+                update_contents();
+            }
+            return contents.size();
+        } 
+        return contents.size();
+    }
+
+    virtual uint64_t read_file(FileBytes* file_bytes) override {
+        struct timespec now;
+        std::shared_lock rlck(mutex);
+        clock_gettime(CLOCK_REALTIME, &now);
+        if (now.tv_sec > (last_update_sec + update_interval)){
+            rlck.unlock();
+            std::unique_lock wlck(mutex);
+            clock_gettime(CLOCK_REALTIME, &now);
+            if (now.tv_sec > (last_update_sec + update_interval)){
+                update_contents();
+            }
+            file_bytes->size = contents.size();
+            file_bytes->bytes = strdup(contents.c_str());
+        } else {
+            file_bytes->size = contents.size();
+            file_bytes->bytes = strdup(contents.c_str());
+        }
+        return 0;
+    }
+};
+
+
+
+
+template <typename CascadeType, typename ServiceClientType>
+class ObjectPoolPathINode : public FuseClientINode {
+public:
+    const std::string object_pool_pathname;
+    std::unique_ptr<ServiceClientType>& capi_ptr;
+    std::map<typename CascadeType::KeyType, fuse_ino_t> opkey_to_ino;
+
+    ObjectPoolPathINode (std::string op_pathname, fuse_ino_t pino, std::unique_ptr<ServiceClientType>& _capi_ptr) : 
+        object_pool_pathname (op_pathname), capi_ptr(_capi_ptr) {
+        this->type = INodeType::OBJECTPOOLPATH;
+        this->display_name = "object_pool-" + object_pool_pathname;
+        this->parent = pino;
+        RootObjectPoolINode<ServiceClientType>* p_objectpool_inode = reinterpret_cast<RootObjectPoolINode<ServiceClientType>*>(pino);
+        this->children.emplace_back(std::make_unique<ObjectPoolMetaINode<CascadeType, ServiceClientType>>(op_pathname, capi_ptr));
+    }
+
+    virtual std::map<std::string,fuse_ino_t> get_dir_entries() override {
+        std::cout << "\033[1;31m"
+              << "Object Pool INODE"
+              << "\033[0m" << std::endl;
+        dbg_default_trace("\n\n   OBJECT POOL [{}]entering {}.",gettid(),__func__);
+        std::map<std::string,fuse_ino_t> ret_map;
+        ObjectPoolMetadata op_metadata = capi_ptr->template find_object_pool(this->object_pool_pathname);
+        uint32_t subgroup_index = op_metadata.subgroup_index;
+        uint32_t shards = capi_ptr->template get_number_of_shards<CascadeType>(subgroup_index);
+        for (uint32_t shard_index; shard_index < shards; shard_index ++){
+            auto result =  capi_ptr->template list_keys<CascadeType>(CURRENT_VERSION, subgroup_index, this->shard_index);
+            for (auto& reply_future:result.get()) {
+                auto reply = reply_future.second.get();
+                std::unique_lock wlck(this->children_mutex);
+                for (auto& key: reply) {
+                    /** TODO: Optimize. 
+                     * 1. this parsing step is not efficient.
+                     * 2. same key been re-accessed on every obj pool */
+                    std::string key_pathname = get_pathname<typename CascadeType::KeyType>(key);
+                    if ( key_pathname == this->object_pool_pathname && opkey_to_ino.find(key) == opkey_to_ino.end()) {
+                        this->children.emplace_back(std::make_unique<KeyINode<CascadeType, ServiceClientType>>(key,reinterpret_cast<fuse_ino_t>(this),capi_ptr));
+                        opkey_to_ino[key] = reinterpret_cast<fuse_ino_t>(this->children.back().get());
+                    }
+                }
+            }
+        }
+        dbg_default_trace("[{}]leaving {}.",gettid(),__func__);
+        return FuseClientINode::get_dir_entries();
+    }
+};
+
+template <typename CascadeType, typename ServiceClientType>
+class ObjectPoolMetaINode : public FuseClientINode {
+private:
+    const std::string   object_pool_pathname;
+    const uint32_t      subgroup_type_index; 
+    const uint32_t      subgroup_index;
+    const sharding_policy_t sharding_policy;
+    // std::unordered_map<std::string,uint32_t>    object_locations;
+    bool                deleted;
+    const time_t update_interval;
+    std::unique_ptr<ServiceClientType>& capi_ptr;
+    time_t last_update_sec;
+    std::string contents;
+    std::shared_mutex mutex;
+    /**
+     * update the metadata. need write lock.
+     */
+    void update_contents () {
+        ObjectPoolMetadata op_metadata = capi_ptr->template find_object_pool(this->object_pool_pathname);
+        // this->object_locations = op_metadata.object_locations;
+        this->deleted = op_metadata.deleted;
+        contents = "object pool pathname: " + object_pool_pathname + ".\nis deleted" + std::to_string(deleted) + "\n";
+        auto policy = op_metadata.sharding_policy;
+        contents += "Sharding policy:";
+        switch(sharding_policy) {
+        case HASH:
+            contents += "Hashing\n";
+            break;
+        case RANGE:
+            contents += "Range\n";
+            break;
+        default:
+            contents += "Unknown\n";
+            break;
+        }
+        
+    }
+public:
+    ObjectPoolMetaINode (const std::string _op_pathname, std::unique_ptr<ServiceClientType>& _capi_ptr) :
+        object_pool_pathname(_op_pathname),
+        update_interval (2), // object pool refreshed in 2 seconds.
+        capi_ptr (_capi_ptr), 
+        last_update_sec(0) {
+        this->type = INodeType::META;
+        this->display_name = META_FILE_NAME;
+    }
+
+    virtual uint64_t get_file_size() override {
+        struct timespec now;
+        std::shared_lock rlck(mutex);
+        clock_gettime(CLOCK_REALTIME, &now);
+        if (now.tv_sec > (last_update_sec + update_interval)){
+            rlck.unlock();
+            std::unique_lock wlck(mutex);
+            clock_gettime(CLOCK_REALTIME, &now);
+            if (now.tv_sec > (last_update_sec + update_interval)){
+                update_contents();
+            }
+            return contents.size();
+        } 
+        return contents.size();
+    }
+
+    virtual uint64_t read_file(FileBytes* file_bytes) override {
+        struct timespec now;
+        std::shared_lock rlck(mutex);
+        clock_gettime(CLOCK_REALTIME, &now);
+        if (now.tv_sec > (last_update_sec + update_interval)){
+            rlck.unlock();
+            std::unique_lock wlck(mutex);
+            clock_gettime(CLOCK_REALTIME, &now);
+            if (now.tv_sec > (last_update_sec + update_interval)){
+                update_contents();
+            }
+            file_bytes->size = contents.size();
+            file_bytes->bytes = strdup(contents.c_str());
+        } else {
+            file_bytes->size = contents.size();
+            file_bytes->bytes = strdup(contents.c_str());
+        }
+        return 0;
+    }
+};
+
+
+
+
 template <typename CascadeType, typename ServiceClientType>
 class KeyINode : public FuseClientINode {
 public:
@@ -416,6 +632,9 @@ private:
     /** Metadata */
     RootMetaINode<ServiceClient<CascadeTypes...>> metadata_inode;
 
+    /** ObjectPool */
+    RootObjectPoolINode<ServiceClient<CascadeTypes...>> objectpool_inode;
+
     /** fill inodes */
     void populate_inodes(const json& group_layout) {
         if (!group_layout.is_array()) {
@@ -438,7 +657,8 @@ private:
 public:
     FuseClientContext() :
         capi_ptr(std::make_unique<ServiceClient<CascadeTypes...>>()),
-        metadata_inode(capi_ptr){}
+        metadata_inode(capi_ptr),
+        objectpool_inode(capi_ptr){}
     /** initialize */
     void initialize(const json& group_layout) {
         dbg_default_debug("[{}]entering {} .", gettid(), __func__);
@@ -459,6 +679,7 @@ public:
                     ret_map.emplace(v.display_name,reinterpret_cast<fuse_ino_t>(&v));
                 });
             ret_map.emplace(metadata_inode.display_name,reinterpret_cast<fuse_ino_t>(&this->metadata_inode));
+            ret_map.emplace(objectpool_inode.display_name,reinterpret_cast<fuse_ino_t>(&this->objectpool_inode));
         } else {
             FuseClientINode* pfci = reinterpret_cast<FuseClientINode*>(ino);
             ret_map = pfci->get_dir_entries(); // RVO
@@ -496,6 +717,18 @@ public:
                 // TODO:
                 break;
             case INodeType::CASCADE_TYPE:
+                stbuf.st_mode = S_IFDIR | 0755;
+                stbuf.st_size = pfci->get_file_size();
+                stbuf.st_blocks = (stbuf.st_size+FUSE_CLIENT_BLK_SIZE-1)/FUSE_CLIENT_BLK_SIZE;
+                stbuf.st_blksize = FUSE_CLIENT_BLK_SIZE;
+                break;
+            case INodeType::CASCADE_OBJECTPOOL:
+                stbuf.st_mode = S_IFDIR | 0755;
+                stbuf.st_size = pfci->get_file_size();
+                stbuf.st_blocks = (stbuf.st_size+FUSE_CLIENT_BLK_SIZE-1)/FUSE_CLIENT_BLK_SIZE;
+                stbuf.st_blksize = FUSE_CLIENT_BLK_SIZE;
+                break;
+            case INodeType::OBJECTPOOLPATH:
                 stbuf.st_mode = S_IFDIR | 0755;
                 stbuf.st_size = pfci->get_file_size();
                 stbuf.st_blocks = (stbuf.st_size+FUSE_CLIENT_BLK_SIZE-1)/FUSE_CLIENT_BLK_SIZE;

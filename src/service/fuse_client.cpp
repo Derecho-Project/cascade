@@ -28,14 +28,25 @@
  */
 
 using namespace derecho::cascade;
-using FuseClientContextType = FuseClientContext<VCSU,VCSS,PCSU,PCSS>;
+using FuseClientContextType = FuseClientContext<VolatileCascadeStoreWithStringKey, PersistentCascadeStoreWithStringKey>;
 
 #define FCC(p) static_cast<FuseClientContextType*>(p)
 #define FCC_REQ(req) FCC(fuse_req_userdata(req))
 
 static void fs_init(void* userdata, struct fuse_conn_info *conn) {
     dbg_default_trace("entering {}.",__func__);
-    FCC(userdata)->initialize(json::parse(derecho::getConfString(CONF_GROUP_LAYOUT)));
+    if (derecho::hasCustomizedConfKey(CONF_LAYOUT_JSON_LAYOUT)) {
+        FCC(userdata)->initialize(json::parse(derecho::getConfString(CONF_LAYOUT_JSON_LAYOUT)));
+    } else if (derecho::hasCustomizedConfKey(CONF_LAYOUT_JSON_LAYOUT_FILE)){
+        nlohmann::json layout_array;
+        std::ifstream json_file(derecho::getConfString(CONF_LAYOUT_JSON_LAYOUT_FILE));
+        if (!json_file) {
+            dbg_default_error("Cannot load json configuration from file: {}", derecho::getConfString(CONF_LAYOUT_JSON_LAYOUT_FILE));
+            throw derecho::derecho_exception("Cannot load json configuration from file.");
+        }
+        json_file >> layout_array;
+        FCC(userdata)->initialize(layout_array);
+    }
     dbg_default_trace("leaving {}.",__func__);
 }
 
@@ -157,10 +168,24 @@ static const struct fuse_lowlevel_ops fs_ops = {
     .init       = fs_init,
     .destroy    = fs_destroy,
     .lookup     = fs_lookup,
+    .forget     = NULL,
     .getattr    = fs_getattr,
+    .setattr    = NULL,
+    .readlink   = NULL,
+    .mknod      = NULL,
+    .mkdir      = NULL,
+    .unlink     = NULL,
+    .rmdir      = NULL,
+    .symlink    = NULL,
+    .rename     = NULL,
+    .link       = NULL,
     .open       = fs_open,
     .read       = fs_read,
+    .write      = NULL,
+    .flush      = NULL,
     .release    = fs_release,
+    .fsync      = NULL,
+    .opendir    = NULL,
     .readdir    = fs_readdir,
 };
 
@@ -177,7 +202,9 @@ static const struct fuse_lowlevel_ops fs_ops = {
  */
 void prepare_derecho_conf_file() {
     char cwd[4096];
+#pragma GCC diagnostic ignored "-Wunused-result"
     getcwd(cwd,4096);
+#pragma GCC diagnostic pop
     sprintf(cwd+strlen(cwd), "/derecho.cfg");
     setenv("DERECHO_CONF_FILE", cwd, false);
     dbg_default_debug("Using derecho config file:{}.", getenv("DERECHO_CONF_FILE"));
@@ -187,7 +214,7 @@ int main(int argc, char** argv) {
     prepare_derecho_conf_file();
 
     struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
-    struct fuse_session *se;
+    struct fuse_session *se = nullptr;
     struct fuse_cmdline_opts opts;
     int ret = -1;
 

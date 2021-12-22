@@ -134,7 +134,7 @@ public class PerfTestClient {
     /**
      * Send the put request to the server. 
      */
-    void send(ServiceType type, int msgCnt, Client client, long key, ByteBuffer val) {
+    void send(ServiceType type, int msgCnt, Client client, String key, ByteBuffer val) {
         // occupy an idle tx slot
         if (maxPendingOps > 0) {
             idleTxSlotLock.lock();
@@ -245,9 +245,9 @@ public class PerfTestClient {
 
             // send!
             for (int i = 0; i < numMessages; ++i) {
-                long key = randomize_key(i) % maxDistinctObjects;
+                String key = "k" + (randomize_key(i) % maxDistinctObjects);
                 // System.out.println("key: "+key);
-                cs.send(ServiceType.PCSU, i, client, key, bb);
+                cs.send(ServiceType.PCSS, i, client, key, bb);
             }
 
 
@@ -277,9 +277,9 @@ public class PerfTestClient {
 
             // send!
             for (int i = 0; i < numMessages; ++i) {
-                long key = randomize_key(i) % maxDistinctObjects;
+                String key = "" + (randomize_key(i) % maxDistinctObjects);
                 // System.out.println("key: "+key);
-                cs.send(ServiceType.VCSU, i, client, key, bb);
+                cs.send(ServiceType.VCSS, i, client, key, bb);
             }
 
             // wait for the polling thread to finish
