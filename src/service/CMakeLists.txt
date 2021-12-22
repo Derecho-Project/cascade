@@ -54,5 +54,5 @@ if (${HAS_FUSE})
             RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 endif()
 
-# add_subdirectory(python)
-# add_subdirectory(java)
+add_subdirectory(python)
+add_subdirectory(java)
