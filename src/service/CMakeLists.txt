@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.10.0)
 set(CMAKE_DISABLE_SOURCE_CHANGES ON)
 set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 
-add_library(service OBJECT service.cpp)
+add_library(service OBJECT service.cpp data_flow_graph.cpp)
 target_include_directories(service PRIVATE
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
@@ -23,14 +23,14 @@ add_custom_command(TARGET server POST_BUILD
     ${CMAKE_CURRENT_BINARY_DIR}/cfg
 )
 
-add_executable(client client.cpp)
+add_executable(client client.cpp perftest.cpp)
 target_include_directories(client PRIVATE
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
 )
-target_link_libraries(client cascade readline)
+target_link_libraries(client cascade readline rpc)
 set_target_properties(client PROPERTIES OUTPUT_NAME cascade_client)
 
 if (${HAS_FUSE})
@@ -54,6 +54,5 @@ if (${HAS_FUSE})
             RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 endif()
 
-add_subdirectory(data_path_logic)
 add_subdirectory(python)
 add_subdirectory(java)

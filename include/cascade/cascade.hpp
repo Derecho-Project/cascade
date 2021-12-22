@@ -46,12 +46,14 @@ namespace cascade {
          * @param key
          * @param value
          * @param cascade_ctxt - The cascade context to be used later
+         * @param is_trigger true for critical data path of p2p_send; otherwise, the critical data path of ordered_send.
          */
         virtual void operator () (const uint32_t subgroup_idx,
                                   const uint32_t shard_idx,
                                   const typename CascadeType::KeyType& key,
                                   const typename CascadeType::ObjectType& value,
-                                  ICascadeContext* cascade_ctxt) {}
+                                  ICascadeContext* cascade_ctxt,
+                                  bool is_trigger = false) {}
     };
 
     /**
@@ -86,6 +88,26 @@ namespace cascade {
          * @return a tuple including version number (version_t) and a timestamp in microseconds.
          */
         virtual std::tuple<persistent::version_t,uint64_t> put(const VT& value) const = 0;
+        /**
+         * put_and_forget(const VT&)
+         *
+         * Put a value. VT must implement ICascadeObject interface. The key is given in value and retrieved by
+         * ICascadeObject::get_key_ref()
+         *
+         * @param value
+         */
+        virtual void put_and_forget(const VT& value) const = 0;
+#ifdef ENABLE_EVALUATION
+        /**
+         * perf_put is used to evaluate the performance of an internal shard
+         *
+         * @param max_payload_size the maximum size of the payload.
+         * @param duration_sec duration of the test
+         *
+         * @return ops
+         */
+        virtual double perf_put(const uint32_t max_payload_size,const uint64_t duration_sec) const = 0;
+#endif
         /**
          * remove(const KT&)
          *
@@ -145,6 +167,19 @@ namespace cascade {
          */
         virtual std::vector<KT> list_keys(const persistent::version_t& ver) const = 0;
         /**
+         * op_list_keys(const persistent::version_t& ver, const std::string& op_path)
+         *
+         * List keys by object pool
+         * @param ver - Version, if version  == CURRENT_VERSION, get the latest list of keys.
+         *              Please note that the current Persistent<T> in derecho will reconstruct the state at 'ver' from
+         *              the beginning of the log entry if 'ver' != CURRENT_VERSION, which is extremely inefficient.
+         *              TODO: use checkpoint cache to accelerate that process.
+         * @param op_path  - object pool pathname
+         *
+         * @return a list of keys.
+         */
+        virtual std::vector<KT> op_list_keys(const persistent::version_t& ver, const std::string& op_path) const = 0;
+        /**
          * list_keys_by_time(const uint64_t&)
          *
          * List keys by timestamp
@@ -158,6 +193,21 @@ namespace cascade {
          * @return a list of keys.
          */
         virtual std::vector<KT> list_keys_by_time(const uint64_t& ts_us) const = 0;
+        /**
+         * op_list_keys_by_time(const uint64_t& ts_us, const std::string& op_path)
+         *
+         * List keys in the object pool by timestamp 
+         * 
+         * Please note that the current Persistent<T> in derecho will reconstruct the state at 'ts_us' from the
+         * beginning of the log entry, which is extremely inefficient. TODO: use checkpoint cache to accelerate that
+         * process.
+         *
+         * @param ts_us - timestamp in microsecond
+         * @param op_path  - object pool pathname
+         *
+         * @return a list of keys.
+         */
+        virtual std::vector<KT> op_list_keys_by_time(const uint64_t& ts_us, const std::string& op_path) const = 0;
         /**
          * get_size(const KT&,const persistent::version_t&,bool)
          *
@@ -191,6 +241,35 @@ namespace cascade {
          * @return the size of serialized value.
          */
         virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us) const = 0;
+        /**
+         * trigger_put(const VT& value)
+         *
+         * Put object as a trigger. This call will not cause a store but only trigger an off-critical data path
+         * computation. Please note that this call should be handled in p2p processing thread.
+         * 
+         * @param value - the object to trig
+         */
+        virtual void trigger_put(const VT& value) const = 0;
+#ifdef ENABLE_EVALUATION
+        /**
+         * dump_timestamp_log(const std::string& filename)
+         *
+         * Dump the timestamp log to a local file specified by "filename"
+         *
+         * @param filename - the name of the timestamp log.
+         */
+        virtual void dump_timestamp_log(const std::string& filename) const = 0;
+#ifdef DUMP_TIMESTAMP_WORKAROUND
+        /**
+         * dump_timestamp_log_workaround(const std::string& filename)
+         *
+         * Dump the timestamp log to a local file specified by "filename"
+         *
+         * @param filename - the name of the timestamp log.
+         */
+        virtual void dump_timestamp_log_workaround(const std::string& filename) const = 0;
+#endif
+#endif//ENABLE_EVALUATION
 
     protected:
         /**
@@ -199,6 +278,11 @@ namespace cascade {
          * @return a tuple including version number (version_t) and a timestamp in microseconds.
          */
         virtual std::tuple<persistent::version_t,uint64_t> ordered_put(const VT& value) = 0;
+        /**
+         * ordered_put_and_forget
+         * @param value
+         */
+        virtual void ordered_put_and_forget(const VT& value) = 0;
         /**
          * ordered_remove
          * @param key
@@ -220,6 +304,16 @@ namespace cascade {
          * ordered_get_size
          */
         virtual uint64_t ordered_get_size(const KT& key) = 0;
+#ifdef ENABLE_EVALUATION
+        /**
+         * ordered_dump_timestamp_log(const std::string& filename)
+         *
+         * Dump the timestamp log to a local file specified by "filename"
+         *
+         * @param filename - the name of the timestamp log.
+         */
+        virtual void ordered_dump_timestamp_log(const std::string& filename) = 0;
+#endif//ENABLE_EVALUATION
     };
 
     /**
@@ -232,6 +326,8 @@ namespace cascade {
     class VolatileCascadeStore : public ICascadeStore<KT, VT, IK, IV>,
                                  public mutils::ByteRepresentable,
                                  public derecho::GroupReference {
+    private:
+        bool internal_ordered_put(const VT& value);
     public:
         /* group reference */
         using derecho::GroupReference::group;
@@ -247,32 +343,68 @@ namespace cascade {
         REGISTER_RPC_FUNCTIONS(VolatileCascadeStore,
                                P2P_TARGETS(
                                    put,
+                                   put_and_forget,
+#ifdef ENABLE_EVALUATION
+                                   perf_put,
+#endif
                                    remove,
                                    get,
                                    get_by_time,
                                    list_keys,
+                                   op_list_keys,
                                    list_keys_by_time,
+                                   op_list_keys_by_time,
                                    get_size,
-                                   get_size_by_time),
+                                   get_size_by_time,
+                                   trigger_put
+#ifdef ENABLE_EVALUATION
+                                   ,dump_timestamp_log
+#ifdef DUMP_TIMESTAMP_WORKAROUND
+                                   ,dump_timestamp_log_workaround
+#endif
+#endif//ENABLE_EVALUATION
+                               ),
                                ORDERED_TARGETS(
                                    ordered_put,
+                                   ordered_put_and_forget,
                                    ordered_remove,
                                    ordered_get,
                                    ordered_list_keys,
-                                   ordered_get_size));
+                                   ordered_get_size
+#ifdef ENABLE_EVALUATION
+                                   ,ordered_dump_timestamp_log
+#endif//ENABLE_EVALUATION
+                               ));
+#ifdef ENABLE_EVALUATION
+        virtual void dump_timestamp_log(const std::string& filename) const override;
+#ifdef DUMP_TIMESTAMP_WORKAROUND
+        virtual void dump_timestamp_log_workaround(const std::string& filename) const override;
+#endif
+#endif//ENABLE_EVALUATION
+        virtual void trigger_put(const VT& value) const override;
         virtual std::tuple<persistent::version_t,uint64_t> put(const VT& value) const override;
+#ifdef ENABLE_EVALUATION
+        virtual double perf_put(const uint32_t max_payload_size,const uint64_t duration_sec) const override;
+#endif//ENABLE_EVALUATION
+        virtual void put_and_forget(const VT& value) const override;
         virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) const override;
         virtual const VT get(const KT& key, const persistent::version_t& ver, bool exact=false) const override;
         virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) const override;
         virtual std::vector<KT> list_keys(const persistent::version_t& ver) const override;
+        virtual std::vector<KT> op_list_keys(const persistent::version_t& ver, const std::string& op_path) const override;
         virtual std::vector<KT> list_keys_by_time(const uint64_t& ts_us) const override;
+        virtual std::vector<KT> op_list_keys_by_time(const uint64_t& ts_us, const std::string& op_path) const override;
         virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, bool exact=false) const override;
         virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us) const override;
         virtual std::tuple<persistent::version_t,uint64_t> ordered_put(const VT& value) override;
+        virtual void ordered_put_and_forget(const VT& value) override;
         virtual std::tuple<persistent::version_t,uint64_t> ordered_remove(const KT& key) override;
         virtual const VT ordered_get(const KT& key) override;
         virtual std::vector<KT> ordered_list_keys() override;
         virtual uint64_t ordered_get_size(const KT& key) override;
+#ifdef ENABLE_EVALUATION
+        virtual void ordered_dump_timestamp_log(const std::string& filename) override;
+#endif//ENABLE_EVALUATION
 
         // serialization support
         DEFAULT_SERIALIZE(kv_map,update_version);
@@ -394,6 +526,8 @@ namespace cascade {
                                    public mutils::ByteRepresentable,
                                    public derecho::PersistsFields,
                                    public derecho::GroupReference {
+    private:
+        bool internal_ordered_put(const VT& value);
     public:
         using derecho::GroupReference::group;
         persistent::Persistent<DeltaCascadeStoreCore<KT,VT,IK,IV>,ST> persistent_core;
@@ -404,32 +538,68 @@ namespace cascade {
         REGISTER_RPC_FUNCTIONS(PersistentCascadeStore,
                                P2P_TARGETS(
                                    put,
+                                   put_and_forget,
+#ifdef ENABLE_EVALUATION
+                                   perf_put,
+#endif//ENABLE_EVALUATION
                                    remove,
                                    get,
                                    get_by_time,
                                    list_keys,
+                                   op_list_keys,
                                    list_keys_by_time,
+                                   op_list_keys_by_time,
                                    get_size,
-                                   get_size_by_time),
+                                   get_size_by_time,
+                                   trigger_put
+#ifdef ENABLE_EVALUATION
+                                   ,dump_timestamp_log
+#ifdef DUMP_TIMESTAMP_WORKAROUND
+                                   ,dump_timestamp_log_workaround
+#endif
+#endif//ENABLE_EVALUATION
+                               ),
                                ORDERED_TARGETS(
                                    ordered_put,
+                                   ordered_put_and_forget,
                                    ordered_remove,
                                    ordered_get,
                                    ordered_list_keys,
-                                   ordered_get_size));
+                                   ordered_get_size
+#ifdef ENABLE_EVALUATION
+                                   ,ordered_dump_timestamp_log
+#endif//ENABLE_EVALUATION
+                                   ));
+#ifdef ENABLE_EVALUATION
+        virtual void dump_timestamp_log(const std::string& filename) const override;
+#ifdef DUMP_TIMESTAMP_WORKAROUND
+        virtual void dump_timestamp_log_workaround(const std::string& filename) const override;
+#endif
+#endif//ENABLE_EVALUATION
+        virtual void trigger_put(const VT& value) const override;
         virtual std::tuple<persistent::version_t,uint64_t> put(const VT& value) const override;
+        virtual void put_and_forget(const VT& value) const override;
+#ifdef ENABLE_EVALUATION
+        virtual double perf_put(const uint32_t max_payload_size,const uint64_t duration_sec) const override;
+#endif//ENABLE_EVALUATION
         virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) const override;
         virtual const VT get(const KT& key, const persistent::version_t& ver, bool exact=false) const override;
         virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) const override;
         virtual std::vector<KT> list_keys(const persistent::version_t& ver) const override;
+        virtual std::vector<KT> op_list_keys(const persistent::version_t& ver, const std::string& op_path) const override;
         virtual std::vector<KT> list_keys_by_time(const uint64_t& ts_us) const override;
+        virtual std::vector<KT> op_list_keys_by_time(const uint64_t& ts_us, const std::string& op_path) const override;
         virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, bool exact=false) const override;
         virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us) const override;
         virtual std::tuple<persistent::version_t,uint64_t> ordered_put(const VT& value) override;
+        virtual void ordered_put_and_forget(const VT& value) override;
         virtual std::tuple<persistent::version_t,uint64_t> ordered_remove(const KT& key) override;
         virtual const VT ordered_get(const KT& key) override;
         virtual std::vector<KT> ordered_list_keys() override;
         virtual uint64_t ordered_get_size(const KT& key) override;
+#ifdef ENABLE_EVALUATION
+        virtual void ordered_dump_timestamp_log(const std::string& filename) override;
+#endif//ENABLE_EVALUATION
 
         // serialization support
         DEFAULT_SERIALIZE(persistent_core);
@@ -578,6 +748,151 @@ namespace cascade {
          */
         virtual bool verify_previous_version(persistent::version_t prev_ver, persistent::version_t prev_ver_by_key) const = 0;
     };
+
+    /**
+     * If the VT type for PersistentCascadeStore/VolatileCascadeStore implements IValidator inferface, its 'validate'
+     * method will be called on 'ordered_put' with the current k/v map to verify if the object can be added to the
+     * existing k/v map pool.
+     *
+     * For example, a VT object can override the default 'overwriting' behaviour by refusing an object whose key has
+     * already existed in the kv_map.
+     */
+    template <typename KT, typename VT>
+    class IValidator {
+    public:
+        virtual bool validate(const std::map<KT,VT>& kv_map) const = 0;
+    };
+
+#ifdef ENABLE_EVALUATION
+    /**
+     * TODO:
+     * If the VT template of PersistentCascadeStore implements IKeepPreviousVersion interface, its 'set_message_id'
+     * method is used to set an id dedicated for evaluation purpose, which is different from the key. The
+     * 'get_message_id' methdo is used to retrieve its id.
+     */
+    class IHasMessageID {
+    public:
+        /**
+         * set_message_id
+         * @param message id
+         */
+        virtual void set_message_id(uint64_t id) const = 0;
+        /**
+         * get_message_id
+         * @return message id
+         */
+        virtual uint64_t get_message_id() const = 0;
+    };
+#endif
+
+    /**
+     * Template for cascade trigger store
+     *
+     * @tparam KT   key type
+     * @tparam VT   value type
+     * @tparam IK   a pointer to invalid key
+     * @tparam IV   a pointer to invalid value
+     */
+    template <typename KT, typename VT, KT* IK, VT* IV>
+    class TriggerCascadeNoStore : public ICascadeStore<KT,VT,IK,IV>,
+                                  public mutils::ByteRepresentable,
+                                  public derecho::GroupReference {
+    public:
+        using derecho::GroupReference::group;
+        CriticalDataPathObserver<TriggerCascadeNoStore<KT,VT,IK,IV>>* cascade_watcher_ptr;
+        /* cascade context */
+        ICascadeContext* cascade_context_ptr;
+        
+        REGISTER_RPC_FUNCTIONS(TriggerCascadeNoStore,
+                               P2P_TARGETS(
+                                   put,
+                                   put_and_forget,
+#ifdef ENABLE_EVALUATION
+                                   perf_put,
+#endif
+                                   remove,
+                                   get,
+                                   get_by_time,
+                                   list_keys,
+                                   op_list_keys,
+                                   list_keys_by_time,
+                                   op_list_keys_by_time,
+                                   get_size,
+                                   get_size_by_time,
+                                   trigger_put
+#ifdef ENABLE_EVALUATION
+                                   ,dump_timestamp_log
+#ifdef DUMP_TIMESTAMP_WORKAROUND
+                                   ,dump_timestamp_log_workaround
+#endif
+#endif
+                                   ),
+                               ORDERED_TARGETS(
+                                   ordered_put,
+                                   ordered_put_and_forget,
+                                   ordered_remove,
+                                   ordered_get,
+                                   ordered_list_keys,
+                                   ordered_get_size
+#ifdef ENABLE_EVALUATION
+                                   ,ordered_dump_timestamp_log
+#endif
+                                   ));
+#ifdef ENABLE_EVALUATION
+        virtual void dump_timestamp_log(const std::string& filename) const override;
+#ifdef DUMP_TIMESTAMP_WORKAROUND
+        virtual void dump_timestamp_log_workaround(const std::string& filename) const override;
+#endif
+#endif//ENABLE_EVALUATION
+        virtual void trigger_put(const VT& value) const override;
+        virtual std::tuple<persistent::version_t,uint64_t> put(const VT& value) const override;
+        virtual void put_and_forget(const VT& value) const override;
+#ifdef ENABLE_EVALUATION
+        virtual double perf_put(const uint32_t max_payload_size,const uint64_t duration_sec) const override;
+#endif//ENABLE_EVALUATION
+        virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) const override;
+        virtual const VT get(const KT& key, const persistent::version_t& ver, bool exact=false) const override;
+        virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) const override;
+        virtual std::vector<KT> list_keys(const persistent::version_t& ver) const override;
+        virtual std::vector<KT> op_list_keys(const persistent::version_t& ver, const std::string& op_path) const override;
+        virtual std::vector<KT> list_keys_by_time(const uint64_t& ts_us) const override;
+        virtual std::vector<KT> op_list_keys_by_time(const uint64_t& ts_us, const std::string& op_path) const override;
+        virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, bool exact=false) const override;
+        virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us) const override;
+        virtual std::tuple<persistent::version_t,uint64_t> ordered_put(const VT& value) override;
+        virtual void ordered_put_and_forget(const VT& value) override;
+        virtual std::tuple<persistent::version_t,uint64_t> ordered_remove(const KT& key) override;
+        virtual const VT ordered_get(const KT& key) override;
+        virtual std::vector<KT> ordered_list_keys() override;
+        virtual uint64_t ordered_get_size(const KT& key) override;
+#ifdef ENABLE_EVALUATION
+        virtual void ordered_dump_timestamp_log(const std::string& filename) override;
+#endif//ENABLE_EVALUATION
+
+        // serialization support
+        virtual std::size_t to_bytes(char* v) const override {return 0;}
+        virtual void post_object(const std::function<void(char const* const, std::size_t)>&) const override {}
+        virtual std::size_t bytes_size() const {return 0;}
+        static std::unique_ptr<TriggerCascadeNoStore<KT,VT,IK,IV>> from_bytes(mutils::DeserializationManager*,const char*);
+        static mutils::context_ptr<TriggerCascadeNoStore<KT,VT,IK,IV>> from_bytes_noalloc(mutils::DeserializationManager*,char const*);
+        void ensure_registered(mutils::DeserializationManager&) {}
+
+        // constructors
+        TriggerCascadeNoStore(CriticalDataPathObserver<TriggerCascadeNoStore<KT,VT,IK,IV>>* cw=nullptr,
+                       ICascadeContext* cc=nullptr);
+    };
+
+    /**
+     * get_pathname(): retrieve the pathname, a.k.a prefix from a key. 
+     * A pathname identifies the object pool this object belongs to.
+     *
+     * @tparam KeyType - Type of the Key
+     * @param  key     - key
+     *
+     * @return pathname. An empty string returns for invalid key types and invalid keys. 
+     */
+    template <typename KeyType>
+    inline std::string get_pathname(const KeyType& key);
 
 } // namespace cascade
 } // namespace derecho

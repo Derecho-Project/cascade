@@ -17,16 +17,8 @@ public class ClientTest {
     public static final void main1() {
         Client client = new Client();
         System.out.println(client.getMembers());
-        System.out.println(client.getShardMembers(ServiceType.VCSU, 0, 0));
         System.out.println(client.getShardMembers(ServiceType.VCSS, 0, 0));
-        System.out.println(client.getShardMembers(ServiceType.PCSU, 0, 0));
         System.out.println(client.getShardMembers(ServiceType.PCSS, 0, 0));
-        /** deprecated: we want to hide subgroup id from the user.
-        System.out.println(client.getShardMembers(0, 0));
-        System.out.println(client.getShardMembers(1, 0));
-        System.out.println(client.getShardMembers(2, 0));
-        System.out.println(client.getShardMembers(3, 0));
-        **/
     }
 
     /**
@@ -37,10 +29,6 @@ public class ClientTest {
      */
     public static ServiceType stringToType(String str) {
         switch (str) {
-            case "VCSU":
-                return ServiceType.VCSU;
-            case "PCSU":
-                return ServiceType.PCSU;
             case "VCSS":
                 return ServiceType.VCSS;
             case "PCSS":
@@ -86,7 +74,7 @@ public class ClientTest {
             + "remove <type> <key> [subgroup_index] [shard_index]\n\tremove an object\n"
             + "get <type> <key> [version] [subgroup_index] [shard_index]\n\tget an object(by version)\n"
             + "get_by_time <type> <key> <ts_us> [subgroup_index] [shard_index]\n\tget an object by timestamp\n"
-            + "quit|exit\n\texit the client.\n" + "help\n\tprint this message.\n" + "\n" + "type:=VCSU|VCSS|PCSU|PCSS\n"
+            + "quit|exit\n\texit the client.\n" + "help\n\tprint this message.\n" + "\n" + "type:=VCSS|PCSS\n"
             + "policy:=FirstMember|LastMember|Random|FixedRandom|RoundRobin|UserSpecified\n" + "";
 
     /**

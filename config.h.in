@@ -1,5 +1,7 @@
 #cmakedefine HAS_FUSE
 #cmakedefine HAS_BOOLINQ
 #cmakedefine HAS_MXNET_CPP
-#cmakedefine HAS_NVIDIA_GPU
+#cmakedefine ENABLE_GPU
 #cmakedefine ENABLE_EVALUATION
+#cmakedefine DUMP_TIMESTAMP_WORKAROUND
+#define PATH_SEPARATOR '/'

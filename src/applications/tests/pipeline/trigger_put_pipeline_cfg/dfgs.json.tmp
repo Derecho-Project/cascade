@@ -1,0 +1,20 @@
+[
+    {
+        "id": "200c8278-2e1c-11ec-a3d7-0242ac110002",
+        "desc": "trigger pipeline DFG",
+        "graph": [
+            {
+                "pathname": "/stage0",
+                "user_defined_logic_list": ["b82ad3ee-254c-11ec-b081-0242ac110002"],
+                "user_defined_logic_config_list": [{"stage":0}],
+                "destinations": [{"/stage1" : "trigger_put" }]
+            },
+            {
+                "pathname": "/stage1",
+                "user_defined_logic_list": ["b82ad3ee-254c-11ec-b081-0242ac110002"],
+                "user_defined_logic_config_list": [{"stage":1}],
+                "destinations": [{}]
+            }
+        ]
+    }
+]

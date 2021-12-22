@@ -8,20 +8,18 @@ The cascade service comes with four pre-defined subgroup types: `VCSU`, `VCSS`, 
 
 Once the cascade service is configured and started, the application can store and retrieve the data using the client API defined in [`service_client_api.hpp`](https://github.com/Derecho-Project/cascade/blob/master/include/cascade/service_client_api.hpp). Core to the client API is an `external client` talking to the Cascade services with an efficient RDMA data path. Please check [`client.cpp`](https://github.com/Derecho-Project/cascade/blob/master/src/service/client.cpp) for how to use the client API.
 
-Cascade service also allows the application to insert logic on the data path. In order for that, the application needs to implement the cascade server API in [`service_server_api.hpp`](https://github.com/Derecho-Project/cascade/blob/master/include/cascade/service_server_api.hpp). We provide an example implementation in [`ondata_library_example.cpp`](https://github.com/Derecho-Project/cascade/blob/master/src/service/ondata_library_example.cpp).
+Cascade service allows the application to insert logic on the data path, named as User Defined Logic or *UDL*. In order for that, the application needs to implement the cascade server API defined in [`user_defined_logic_interface.hpp`](https://github.com/Derecho-Project/cascade/blob/master/include/cascade/user_defined_logic_interface.hpp). We provide examples in [applications/tests/user_defined_logic](https://github.com/Derecho-Project/cascade/tree/master/src/applications/tests/user_defined_logic), showing how to create the *UDL* dynamic library files. To load the *UDL* dynamic libraries, the application needs to list the *UDL* .so files line by line in `udl_dlls.cfg` located in the current working directory of the server binary. Here is an example for the `udl_dlls.cfg`.
+```
+dll_folder_1/udl_a.so
+dll_folder_2/udl_b.so
+dll_folder_2/udl_C.so
+```
 
 # Configuring Cascade Service
 Cascade derives Derecho's configuration file. Besides the derecho configurations, Cascade added a section called `[CASCADE]` in the same file to configure the Cascade service. There are only two options in this section: `ondata_library` and `group_layout`. `ondata_library` specifies the dynamic library containing the server APIs implementation. `group_layout` specifies the group, subgroup, and shard layout of the cascade service. Please read the comments below for how to describe a layout. 
 
 ```
 [CASCADE]
-# Cascade server allows application-defined behavior. The behavior is divided into two parts: one is on-critical data
-# path, the other is off-critical data path. The behavior API is defined in <cascade/service_server_api.hpp>. An
-# application using this feature needs to implement that API and create a shared library. And then tell the server
-# where to find it by "ondata_library". We show a reference implementation in cascade source code:
-#     <cascade_source>/src/service/ondata_library_exmaple.cpp
-# "ondata_library" is defaulted to empty
-ondata_library = 
 # Specify group layout here. The layout specifies the following items:
 # - How many subgroups of corresponding type (see note below) to create?
 # - For each subgroup, how many shards to create?
