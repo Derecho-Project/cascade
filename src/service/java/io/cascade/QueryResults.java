@@ -23,7 +23,7 @@ public class QueryResults<T> {
 
     /**
      * The mode of the future. 0 for Bundle type (put, remove), 1 for ByteBuffer
-     * type (get, get by time).
+     * type (get, get by time), 2 for List<ByteBuffer> type (list keys).
      */
     public int mode;
 
