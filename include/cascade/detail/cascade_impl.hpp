@@ -1670,7 +1670,8 @@ SignatureCascadeStore<KT,VT,IK,IV,ST>::SignatureCascadeStore(
                                                        return std::make_unique<DeltaCascadeStoreCore<KT,VT,IK,IV>>();
                                                    },
                                                    nullptr,
-                                                   pr),
+                                                   pr,
+                                                   true), //enable signatures
                                                cascade_watcher_ptr(cw),
                                                cascade_context_ptr(cc) {
 }

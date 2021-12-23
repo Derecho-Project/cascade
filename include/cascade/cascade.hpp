@@ -620,7 +620,8 @@ namespace cascade {
         /** Derecho group reference */
         using derecho::GroupReference::group;
         /**
-         * Persistent core that stores hashes, which will be signed because of SignedPersistentFields.
+         * Persistent core that stores hashes, which will be signed because Persistent<T> is
+         * constructed with signatures=true.
          */
         persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST> persistent_core;
         /** Watcher */
