@@ -1710,10 +1710,11 @@ std::tuple<std::vector<uint8_t>, persistent::version_t> SignatureCascadeStore<KT
         //If an inexact match is requested, we need to search backward until we find the newest entry
         //prior to "ver" that contains the requested key. This is slow, but I can't think of a better way.
         if(!signature_found && !exact) {
+            dbg_default_debug("get_signature: Inexact match requested, searching for {} at version 0x{:x}", key, ver);
             persistent::version_t search_ver = ver - 1;
             while(search_ver > 0 && !signature_found) {
                 signature_found = persistent_core.template getDeltaSignature<VT>(
-                ver, [&key](const VT& deltaEntry) {
+                search_ver, [&key](const VT& deltaEntry) {
                     return deltaEntry.get_key_ref() == key;
                 },
                 signature.data(), previous_signed_version);
@@ -1741,6 +1742,7 @@ std::tuple<std::vector<uint8_t>, persistent::version_t> SignatureCascadeStore<KT
     debug_enter_func_with_args("key={}",key);
     //If the requested key isn't in the map, return an empty signature
     if(persistent_core->kv_map.find(key) == persistent_core->kv_map.end()){
+        debug_leave_func();
         return {std::vector<uint8_t>{}, persistent::INVALID_VERSION};
     }
 
@@ -1752,6 +1754,7 @@ std::tuple<std::vector<uint8_t>, persistent::version_t> SignatureCascadeStore<KT
     bool signature_found = false;
     while(!signature_found) {
         //This must work eventually, since the key is in the map
+        dbg_default_debug("ordered_get_signature: Looking for signature at version 0x{:x}", current_signed_version);
         signature_found = persistent_core.template getDeltaSignature<VT>(
             current_signed_version,
             [&key](const VT& deltaEntry) {
