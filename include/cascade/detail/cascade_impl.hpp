@@ -1209,12 +1209,7 @@ PersistentCascadeStore<KT,VT,IK,IV,ST>::PersistentCascadeStore(
                                                persistent::PersistentRegistry* pr,
                                                CriticalDataPathObserver<PersistentCascadeStore<KT,VT,IK,IV>>* cw,
                                                ICascadeContext* cc):
-                                               persistent_core(
-                                                   [](){
-                                                       return std::make_unique<DeltaCascadeStoreCore<KT,VT,IK,IV>>();
-                                                   },
-                                                   nullptr,
-                                                   pr),
+                                               persistent_core(pr),
                                                cascade_watcher_ptr(cw),
                                                cascade_context_ptr(cc) {
 }
@@ -1665,13 +1660,7 @@ SignatureCascadeStore<KT,VT,IK,IV,ST>::SignatureCascadeStore(
                                                persistent::PersistentRegistry* pr,
                                                CriticalDataPathObserver<SignatureCascadeStore<KT,VT,IK,IV>>* cw,
                                                ICascadeContext* cc):
-                                               persistent_core(
-                                                   [](){
-                                                       return std::make_unique<DeltaCascadeStoreCore<KT,VT,IK,IV>>();
-                                                   },
-                                                   nullptr,
-                                                   pr,
-                                                   true), //enable signatures
+                                               persistent_core(pr, true), //enable signatures
                                                cascade_watcher_ptr(cw),
                                                cascade_context_ptr(cc) {
 }
