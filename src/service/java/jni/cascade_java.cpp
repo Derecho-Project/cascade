@@ -293,7 +293,7 @@ derecho::cascade::ObjectWithStringKey *translate_str_obj(JNIEnv *env, jobject ke
     derecho::cascade::ObjectWithStringKey *cas_obj = new derecho::cascade::ObjectWithStringKey();
     cas_obj->key = translate_str_key(env, key);
     cas_obj->blob = derecho::cascade::Blob(buf, len);
-    cas_obj->blob.is_temporary = 1;
+    cas_obj->blob.is_emplaced = 1;
 
     return cas_obj;
 }
@@ -607,7 +607,7 @@ void create_object_from_query(JNIEnv *env, jlong handle, jobject hashmap, std::f
 #ifndef NDEBUG
     std::cout << "finishing get results from query results" << std::endl;
     std::cout.flush();
-#ifndef NDEBUG
+#endif
     for (auto &reply_pair : result->get())
     {
         // translate the key to Java through Integer class
@@ -730,7 +730,7 @@ JNIEXPORT jobject JNICALL Java_io_cascade_QueryResults_getReplyMap(JNIEnv *env, 
         jmethodID obj_constructor = env->GetMethodID(obj_class, "<init>", "(JJJLjava/nio/ByteBuffer;)V"); // TODO: the correct constructor
         return env->NewObject(obj_class, obj_constructor, static_cast<jlong>(obj.version), static_cast<jlong>(obj.timestamp_us), static_cast<jlong>(obj.previous_version_by_key), new_byte_buf);
     };
-
+*/
     auto s_f = [env](derecho::cascade::ObjectWithStringKey obj) {
 // #ifndef NDEBUG
 //         std::cout << "converting objects with string keys!" << std::endl;
@@ -741,24 +741,24 @@ JNIEXPORT jobject JNICALL Java_io_cascade_QueryResults_getReplyMap(JNIEnv *env, 
 
         // Set temporary to be 1 so that obj will not be destructed at the end of this function.
         // This is used to avoid copying when allocating buffers.
-        obj.blob.is_temporary = 1;
+        obj.blob.is_emplaced = 1;
 
 #ifndef NDEBUG
         std::cout << "processing at s f!" << size << " " << std::endl;
 
-        std::cout << "is temporary" << obj.blob.is_temporary << std::endl;
+        std::cout << "is temporary" << obj.blob.is_emplaced << std::endl;
 #endif
 
-        jobject new_byte_buf = allocate_byte_buffer(env, data, size);
+        jobject new_byte_buf = allocate_byte_buffer(env, (char *)data, size);
         jclass obj_class = env->FindClass("io/cascade/CascadeObject");
         jmethodID obj_constructor = env->GetMethodID(obj_class, "<init>", "(JJJLjava/nio/ByteBuffer;)V"); // TODO: the correct constructor
         return env->NewObject(obj_class, obj_constructor, static_cast<jlong>(obj.version), static_cast<jlong>(obj.timestamp_us), static_cast<jlong>(obj.previous_version_by_key), new_byte_buf);
     };
 
-        env->SetByteArrayRegion(data_byte_arr, 0, size, reinterpret_cast<const jbyte *>(data));
+        //env->SetByteArrayRegion(data_byte_arr, 0, size, reinterpret_cast<const jbyte *>(data));
 
         // lambda that translates into a list of byte buffers and receives a vector of uint64 keys.
-    auto u64_vf = [env](std::vector<uint64_t> obj) {
+/*    auto u64_vf = [env](std::vector<uint64_t> obj) {
 #ifndef NDEBUG
         std::cout << "calling u64_vf! " << std::endl;
         std::cout.flush();
@@ -784,7 +784,7 @@ JNIEXPORT jobject JNICALL Java_io_cascade_QueryResults_getReplyMap(JNIEnv *env, 
         }
         return arr_obj;
     };
-
+*/
 
     // lambda that translates into a list of byte buffers and receives a vector of string keys.
     auto s_vf = [env](std::vector<std::string> obj) {
@@ -851,10 +851,11 @@ JNIEXPORT jobject JNICALL Java_io_cascade_QueryResults_getReplyMap(JNIEnv *env, 
         {
         case 0:
         case 1:
-            create_object_from_query<std::vector<uint64_t>>(env, handle, hash_map_object, u64_vf);
+/*            create_object_from_query<std::vector<uint64_t>>(env, handle, hash_map_object, u64_vf);
             break;
         case 2:
         case 3:
+*/
 #ifndef NDEBUG
             std::cout << "did go here!" << std::endl;
             std::cout.flush();
