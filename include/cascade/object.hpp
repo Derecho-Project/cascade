@@ -98,7 +98,7 @@ public:
     // bool operator==(const ObjectWithUInt64Key& other);
 
     // constructor 0 : copy constructor
-    ObjectWithUInt64Key(const uint64_t _key, 
+    ObjectWithUInt64Key(const uint64_t _key,
                         const Blob& _blob);
 
     // constructor 0.5 : copy/emplace constructor
@@ -192,11 +192,11 @@ inline std::ostream& operator<<(std::ostream& out, const Blob& b) {
 }
 
 inline std::ostream& operator<<(std::ostream& out, const ObjectWithUInt64Key& o) {
-    out << "ObjectWithUInt64Key{ver: 0x" << std::hex << o.version << std::dec 
-        << ", ts(us): " << o.timestamp_us 
+    out << "ObjectWithUInt64Key{ver: 0x" << std::hex << o.version << std::dec
+        << ", ts(us): " << o.timestamp_us
         << ", prev_ver: " << std::hex << o.previous_version << std::dec
         << ", prev_ver_by_key: " << std::hex << o.previous_version_by_key << std::dec
-        << ", id:" << o.key 
+        << ", id:" << o.key
         << ", data:" << o.blob << "}";
     return out;
 }
@@ -223,10 +223,32 @@ public:
     // bool operator==(const ObjectWithStringKey& other);
 
     // constructor 0 : copy constructor
-    ObjectWithStringKey(const std::string& _key, 
+    /**
+     * Creates an ObjectWithStringKey by copying an existing Blob.
+     * All of the other fields will be initialized to invalid values.
+     * @param _key The new object's key
+     * @param _blob The data to store in the new object, which will be
+     * copied into a new Blob.
+     */
+    ObjectWithStringKey(const std::string& _key,
                         const Blob& _blob);
 
     // constructor 0.5 : copy/in-place constructor
+    /**
+     * Creates an ObjectWithStringKey with the provided values for all the fields,
+     * including the key and the value. If parameter is_emplaced is true, the new
+     * object's Blob will be constructed in "emplaced" mode, meaning it shares
+     * ownership of the bytes in the parameter Blob rather than copying them into a
+     * new buffer.
+     * @param message_id If the macro ENABLE_EVALUATION is defined, the object's message ID
+     * @param _version The object's version
+     * @param _timestamp_us The object's timestamp, in microseconds
+     * @param _previous_version The version of the previous entry in the persistent log
+     * @param _previous_version_by_key The previous persistent version for an entry with the same key as this object
+     * @param _key The object's key
+     * @param _blob The data to store in the object
+     * @param is_emplaced True if the object's Blob should share memory with the parameter _blob
+     */
     ObjectWithStringKey(
 #ifdef ENABLE_EVALUATION
                         const uint64_t message_id,
@@ -240,11 +262,30 @@ public:
                         bool  is_emplaced = false);
 
     // constructor 1 : copy consotructor
+    /**
+     * Creates an ObjectWithStringKey by copying the provided byte buffer into
+     * a new Blob. All the other fields will be initialized to invalid values.
+     * @param _key The new object's key
+     * @param _b A pointer to the beginning of the byte buffer to copy
+     * @param _s The size of the byte buffer
+     */
     ObjectWithStringKey(const std::string& _key,
                         const char* const _b,
                         const std::size_t _s);
 
     // constructor 1.5 : copy constructor
+    /**
+     * Creates an ObjectWithStringKey by copying the provided byte buffer into
+     * a new Blob, and initializing the other fields to the provided values.
+     * @param message_id If the macro ENABLE_EVALUATION is defined, the object's message ID
+     * @param _version The object's version
+     * @param _timestamp_us The object's timestamp, in microseconds
+     * @param _previous_version The version of the previous entry in the persistent log
+     * @param _previous_version_by_key The previous persistent version for an entry with the same key as this object
+     * @param _key The object's key
+     * @param _b A pointer to the beginning of the byte buffer to copy
+     * @param _s The size of the byte buffer
+     */
     ObjectWithStringKey(
 #ifdef ENABLE_EVALUATION
                         const uint64_t message_id,
@@ -260,12 +301,21 @@ public:
     // TODO: we need a move version for the deserializer.
 
     // constructor 2 : move constructor
+    /**
+     * Move constructor; takes ownership of the data stored in other.
+     */
     ObjectWithStringKey(ObjectWithStringKey&& other);
 
     // constructor 3 : copy constructor
+    /**
+     * Copy constructor; copies every field of the other ObjectWithStringKey
+     */
     ObjectWithStringKey(const ObjectWithStringKey& other);
 
     // constructor 4 : default invalid constructor
+    /**
+     * Default constructor; initializes every field to invalid values.
+     */
     ObjectWithStringKey();
 
     virtual const std::string& get_key_ref() const override;
@@ -301,15 +351,15 @@ public:
 };
 
 inline std::ostream& operator<<(std::ostream& out, const ObjectWithStringKey& o) {
-    out << "ObjectWithStringKey{" 
+    out << "ObjectWithStringKey{"
 #ifdef ENABLE_EVALUATION
-        << "msg_id: " << o.message_id
+        << "msg_id: " << o.message_id << " "
 #endif
-        << "ver: 0x" << std::hex << o.version << std::dec 
+        << "ver: 0x" << std::hex << o.version << std::dec
         << ", ts: " << o.timestamp_us
         << ", prev_ver: " << std::hex << o.previous_version << std::dec
         << ", prev_ver_by_key: " << std::hex << o.previous_version_by_key << std::dec
-        << ", id:" << o.key 
+        << ", id:" << o.key
         << ", data:" << o.blob << "}";
     return out;
 }

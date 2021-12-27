@@ -6,33 +6,9 @@
 namespace derecho {
 namespace cascade {
 
-// using ChainServiceClient = ServiceClient<PersistentCascadeStoreWithStringKey, SignatureCascadeStoreWithStringKey>;
-using ServiceClientAPI = ServiceClient<VolatileCascadeStoreWithStringKey,
-                                       PersistentCascadeStoreWithStringKey,
-                                       SignatureCascadeStoreWithStringKey,
-                                       TriggerCascadeNoStoreWithStringKey>;
-
 class ShaHashObserver : public OffCriticalDataPathObserver {
 private:
     static std::shared_ptr<OffCriticalDataPathObserver> singleton_ptr;
-
-    std::pair<uint32_t, uint32_t> get_my_shard(DefaultCascadeContextType* cascade_context) {
-        ServiceClientAPI& service_client = cascade_context->get_service_client_ref();
-        const node_id_t my_id = service_client.get_my_id();
-        const uint32_t num_storage_subgroups = service_client.get_number_of_subgroups<PersistentCascadeStoreWithStringKey>();
-        for(uint32_t subgroup_index = 0; subgroup_index < num_storage_subgroups; ++subgroup_index) {
-            const uint32_t num_shards = service_client.get_number_of_shards<PersistentCascadeStoreWithStringKey>(subgroup_index);
-
-            for(uint32_t shard_num = 0; shard_num < num_shards; shard_num++) {
-                std::vector<node_id_t> shard_members = service_client.get_shard_members<PersistentCascadeStoreWithStringKey>(
-                        subgroup_index, shard_num);
-                if(std::find(shard_members.begin(), shard_members.end(), my_id) != shard_members.end()) {
-                    return {subgroup_index, shard_num};
-                }
-            }
-        }
-        return {0, 0};
-    }
 
 public:
     ShaHashObserver(ICascadeContext* context) {
@@ -78,24 +54,35 @@ public:
         for(const auto& dest_trigger_pair : outputs) {
             //If the current object's key is /object_pool/key_name, create the "parallel" key /signature_pool/key_name
             std::string destination_key = dest_trigger_pair.first + key_without_object_pool;
-
-            //Apparently there is no ObjectWithStringKey constructor that's not a copy constructor?
-            ObjectWithStringKey hash_object;
-            hash_object.key = destination_key;
-            hash_object.set_version(version);
-            //Annoyingly, this will copy hash_bytes into Blob, then copy Blob into hash_object
-            //Also, since Blob uses the old, wrong char* as a "byte buffer",
-            //but Hasher users unsigned char*, I have this unnecessary cast
-            hash_object.blob = Blob((char*)hash_bytes, sha_hasher.get_hash_size());
+            std::unique_ptr<ObjectWithStringKey> hash_object;
+            if(!value_object) {
+                std::cerr << "WARNING: Object to hash was not an ObjectWithStringKey, signed hash object will not be able to copy all the fields" << std::endl;
+                hash_object = std::make_unique<ObjectWithStringKey>(
+                        destination_key, (char*)hash_bytes, sha_hasher.get_hash_size());
+                hash_object->set_version(version);
+            } else {
+                //Make a hash object that's mostly a copy of value_object, except the key is
+                //destination_key and the blob data is hash_bytes. Although I think the
+                //version and timestamp will be overwritten by the receiving subgroup anyway.
+                hash_object = std::make_unique<ObjectWithStringKey>(
+                        value_object->message_id,
+                        value_object->version,
+                        value_object->timestamp_us,
+                        value_object->previous_version,
+                        value_object->previous_version_by_key,
+                        destination_key,
+                        (char*)hash_bytes, //once Blob stores unsigned char like it should, get rid of this cast
+                        sha_hasher.get_hash_size());
+            }
             DefaultCascadeContextType* typed_context = dynamic_cast<DefaultCascadeContextType*>(context);
             if(typed_context) {
                 if(dest_trigger_pair.second) {
                     std::cout << "WARNING: Doing a trigger_put on an update hash, which means the hash will not be signed. "
                               << "This is probably not what you wanted." << std::endl;
-                    auto result = typed_context->get_service_client_ref().trigger_put(hash_object);
+                    auto result = typed_context->get_service_client_ref().trigger_put(*hash_object);
                     result.get();
                 } else {
-                    typed_context->get_service_client_ref().put_and_forget(hash_object);
+                    typed_context->get_service_client_ref().put_and_forget(*hash_object);
                 }
             } else {
                 std::cerr << "ERROR: ShaHashObserver is running on a server where the context type does not match "
