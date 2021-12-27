@@ -36,7 +36,7 @@ public class StreamTest {
      */
     public static void main1(){
         Client client = new Client();
-        ShardSupplier supplier = new ShardSupplier(client, ServiceType.PCSU, 0, 0, -1);
+        ShardSupplier supplier = new ShardSupplier(client, ServiceType.PCSS, 0, 0, -1);
         while (!supplier.build()){
             try{
                 Thread.sleep(1000);
@@ -73,10 +73,6 @@ public class StreamTest {
      */
     public static ServiceType stringToType(String str) {
         switch (str) {
-            case "VCSU":
-                return ServiceType.VCSU;
-            case "PCSU":
-                return ServiceType.PCSU;
             case "VCSS":
                 return ServiceType.VCSS;
             case "PCSS":
@@ -89,7 +85,7 @@ public class StreamTest {
     /** Testing the use of SubgroupSupplier. */
     public static void main2(){
         Client client = new Client();
-        SubgroupSupplier supplier = new SubgroupSupplier(client, ServiceType.PCSU, 0, -1);
+        SubgroupSupplier supplier = new SubgroupSupplier(client, ServiceType.PCSS, 0, -1);
         supplier.build();
         
         Stream.generate(supplier)
@@ -106,7 +102,7 @@ public class StreamTest {
         byte[] arr = str.getBytes();
         ByteBuffer bb = ByteBuffer.allocateDirect(arr.length);
         bb.put(arr);
-        VersionSupplier supplier = new VersionSupplier(client, ServiceType.PCSU, 1, 0, bb, -1);
+        VersionSupplier supplier = new VersionSupplier(client, ServiceType.PCSS, 1, 0, bb, -1);
         Stream.generate(supplier)
               .limit(supplier.size())
               .map(StreamTest::byteBufferToString)
@@ -116,7 +112,7 @@ public class StreamTest {
     /** Testing the use of ShardTimeSupplier. */
     public static void main4(){
         Client client = new Client();
-        ShardTimeSupplier supplier = new ShardTimeSupplier(client, ServiceType.PCSU, 0, 0, 1612579232912819L);
+        ShardTimeSupplier supplier = new ShardTimeSupplier(client, ServiceType.PCSS, 0, 0, 1612579232912819L);
         supplier.build();
         
         Stream.generate(supplier)
