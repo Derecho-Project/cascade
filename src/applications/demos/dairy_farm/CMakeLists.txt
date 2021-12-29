@@ -20,6 +20,20 @@ if (OPENCV_CORE_FOUND)
         $<BUILD_INTERFACE:${OpenCV_INCLUDE_DIRS}>
     )
     target_link_libraries(dairy_farm_client cascade ${OpenCV_LIBS})
+    # dairy farm perf test
+    add_executable(dairy_farm_perf perf.cpp)
+    target_include_directories(dairy_farm_perf PRIVATE
+        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
+        $<BUILD_INTERFACE:${OpenCV_INCLUDE_DIRS}>
+    )
+    if (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9)
+        target_link_libraries(dairy_farm_perf cascade rpc ${OpenCV_LIBS})
+    else ()
+        target_link_libraries(dairy_farm_perf cascade rpc stdc++fs ${OpenCV_LIBS})
+    endif()
 endif()
 
 if (TENSORFLOW_LIB_FOUND AND CPPFLOW_FOUND AND OPENCV_CORE_FOUND AND ANN_LIB_FOUND AND TORCH_FOUND)
@@ -56,11 +70,11 @@ if (TENSORFLOW_LIB_FOUND AND CPPFLOW_FOUND AND OPENCV_CORE_FOUND AND ANN_LIB_FOU
         $<BUILD_INTERFACE:${OpenCV_INCLUDE_DIRS}>
     )
     target_link_libraries(infer_udl cascade ${TENSORFLOW_LIB_FOUND} ${TORCH_LIBRARIES} ${OpenCV_LIBS} ANN)
-    if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/bcs-inference-model.tar.gz" AND
+    if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/bcs-model.tar.gz" AND
         EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/cow-id-model.tar.gz")
         add_custom_command(TARGET infer_udl POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/bcs-inference-model.tar.gz
-            ${CMAKE_CURRENT_BINARY_DIR}/bcs-inference-model.tar.gz
+            COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/bcs-model.tar.gz
+            ${CMAKE_CURRENT_BINARY_DIR}/bcs-model.tar.gz
             COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/cow-id-model.tar.gz
             ${CMAKE_CURRENT_BINARY_DIR}/cow-id-model.tar.gz
             COMMENT "prepare infer_udl"
@@ -98,6 +112,16 @@ if (TENSORFLOW_LIB_FOUND AND CPPFLOW_FOUND AND OPENCV_CORE_FOUND AND ANN_LIB_FOU
         ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n3/dfgs.json 
         COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/dfgs.json.tmp
         ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n4/dfgs.json 
+        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/layout.json.tmp
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n0/layout.json 
+        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/layout.json.tmp
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n1/layout.json 
+        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/layout.json.tmp
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n2/layout.json 
+        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/layout.json.tmp
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n3/layout.json 
+        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/layout.json.tmp
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n4/layout.json 
         COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/udl_dlls.cfg.tmp
         ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n0/udl_dlls.cfg 
         COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/udl_dlls.cfg.tmp
@@ -108,26 +132,26 @@ if (TENSORFLOW_LIB_FOUND AND CPPFLOW_FOUND AND OPENCV_CORE_FOUND AND ANN_LIB_FOU
         ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n3/udl_dlls.cfg 
         COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/udl_dlls.cfg.tmp
         ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n4/udl_dlls.cfg 
-        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/model
-        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n0/filter_model
-        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/model
-        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n1/filter_model
-        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/model
-        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n2/filter_model
-        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/model
-        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n3/filter_model
-        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/model
-        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n4/filter_model
-        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/model_orig
-        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n0/infer_model
-        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/model_orig
-        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n1/infer_model
-        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/model_orig
-        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n2/infer_model
-        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/model_orig
-        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n3/infer_model
-        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/model_orig
-        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n4/infer_model
+        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/filter-model
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n0/filter-model
+        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/filter-model
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n1/filter-model
+        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/filter-model
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n2/filter-model
+        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/filter-model
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n3/filter-model
+        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/filter-model
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n4/filter-model
+        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/bcs-model
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n0/bcs-model
+        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/bcs-model
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n1/bcs-model
+        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/bcs-model
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n2/bcs-model
+        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/bcs-model
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n3/bcs-model
+        COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/bcs-model
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n4/bcs-model
         COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cow-id-model
         ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n0/cow-id-model
         COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cow-id-model
@@ -145,6 +169,7 @@ if (TENSORFLOW_LIB_FOUND AND CPPFLOW_FOUND AND OPENCV_CORE_FOUND AND ANN_LIB_FOU
                 ${CMAKE_CURRENT_SOURCE_DIR}/video_receive.py
         COMMENT "prepare dairy farm demo configuration"
     )
+    
 else()
     message (STATUS "Skipping diary farm demo... to enable it, please install the following packages")
     if (NOT TENSORFLOW_LIB_FOUND)
@@ -163,3 +188,14 @@ else()
         message (STATUS "* libtorch c binding")
     endif()
 endif()
+
+# storage_udl
+add_library(storage_udl SHARED storage_udl.cpp)
+target_include_directories(storage_udl PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
+    $<BUILD_INTERFACE:${OpenCV_INCLUDE_DIRS}>
+)
+target_link_libraries(storage_udl cascade)

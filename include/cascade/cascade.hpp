@@ -260,6 +260,16 @@ namespace cascade {
          * @param filename - the name of the timestamp log.
          */
         virtual void dump_timestamp_log(const std::string& filename) const = 0;
+#ifdef DUMP_TIMESTAMP_WORKAROUND
+        /**
+         * dump_timestamp_log_workaround(const std::string& filename)
+         *
+         * Dump the timestamp log to a local file specified by "filename"
+         *
+         * @param filename - the name of the timestamp log.
+         */
+        virtual void dump_timestamp_log_workaround(const std::string& filename) const = 0;
+#endif
 #endif//ENABLE_EVALUATION
 
     protected:
@@ -350,6 +360,9 @@ namespace cascade {
                                    trigger_put
 #ifdef ENABLE_EVALUATION
                                    ,dump_timestamp_log
+#ifdef DUMP_TIMESTAMP_WORKAROUND
+                                   ,dump_timestamp_log_workaround
+#endif
 #endif//ENABLE_EVALUATION
                                ),
                                ORDERED_TARGETS(
@@ -365,6 +378,9 @@ namespace cascade {
                                ));
 #ifdef ENABLE_EVALUATION
         virtual void dump_timestamp_log(const std::string& filename) const override;
+#ifdef DUMP_TIMESTAMP_WORKAROUND
+        virtual void dump_timestamp_log_workaround(const std::string& filename) const override;
+#endif
 #endif//ENABLE_EVALUATION
         virtual void trigger_put(const VT& value) const override;
         virtual std::tuple<persistent::version_t,uint64_t> put(const VT& value) const override;
@@ -539,6 +555,9 @@ namespace cascade {
                                    trigger_put
 #ifdef ENABLE_EVALUATION
                                    ,dump_timestamp_log
+#ifdef DUMP_TIMESTAMP_WORKAROUND
+                                   ,dump_timestamp_log_workaround
+#endif
 #endif//ENABLE_EVALUATION
                                ),
                                ORDERED_TARGETS(
@@ -554,6 +573,9 @@ namespace cascade {
                                    ));
 #ifdef ENABLE_EVALUATION
         virtual void dump_timestamp_log(const std::string& filename) const override;
+#ifdef DUMP_TIMESTAMP_WORKAROUND
+        virtual void dump_timestamp_log_workaround(const std::string& filename) const override;
+#endif//DUMP_TIMESTAMP_WORKAROUND
 #endif//ENABLE_EVALUATION
         virtual void trigger_put(const VT& value) const override;
         virtual std::tuple<persistent::version_t,uint64_t> put(const VT& value) const override;
@@ -666,6 +688,9 @@ namespace cascade {
 
     #ifdef ENABLE_EVALUATION
         virtual void dump_timestamp_log(const std::string& filename) const override;
+    #ifdef DUMP_TIMESTAMP_WORKAROUND
+        virtual void dump_timestamp_log_workaround(const std::string& filename) const override;
+    #endif  //DUMP_TIMESTAMP_WORKAROUND
     #endif  //ENABLE_EVALUATION
         virtual void trigger_put(const VT& value) const override;
         virtual std::tuple<persistent::version_t, uint64_t> put(const VT& value) const override;
@@ -949,6 +974,9 @@ namespace cascade {
                                    trigger_put
 #ifdef ENABLE_EVALUATION
                                    ,dump_timestamp_log
+#ifdef DUMP_TIMESTAMP_WORKAROUND
+                                   ,dump_timestamp_log_workaround
+#endif
 #endif
                                    ),
                                ORDERED_TARGETS(
@@ -964,6 +992,9 @@ namespace cascade {
                                    ));
 #ifdef ENABLE_EVALUATION
         virtual void dump_timestamp_log(const std::string& filename) const override;
+#ifdef DUMP_TIMESTAMP_WORKAROUND
+        virtual void dump_timestamp_log_workaround(const std::string& filename) const override;
+#endif
 #endif//ENABLE_EVALUATION
         virtual void trigger_put(const VT& value) const override;
         virtual std::tuple<persistent::version_t,uint64_t> put(const VT& value) const override;

@@ -49,6 +49,14 @@ JNIEXPORT jobject JNICALL Java_io_cascade_Client_getMemberSelectionPolicy
 
 /*
  * Class:     io_cascade_Client
+ * Method:    getNumberOfShards
+ * Signature: (Lio/cascade/ServiceType;J)J
+ */
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_getNumberOfShards
+  (JNIEnv *, jobject, jobject, jlong);
+
+/*
+ * Class:     io_cascade_Client
  * Method:    putInternal
  * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;Ljava/nio/ByteBuffer;)J
  */
@@ -78,6 +86,22 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_getInternalByTime
  */
 JNIEXPORT jlong JNICALL Java_io_cascade_Client_removeInternal
   (JNIEnv *, jobject, jobject, jlong, jlong, jobject);
+
+/*
+ * Class:     io_cascade_Client
+ * Method:    listKeysInternal
+ * Signature: (Lio/cascade/ServiceType;JJJ)J
+ */
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_listKeysInternal
+  (JNIEnv *, jobject, jobject, jlong, jlong, jlong);
+
+/*
+ * Class:     io_cascade_Client
+ * Method:    listKeysByTimeInternal
+ * Signature: (Lio/cascade/ServiceType;JJJ)J
+ */
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_listKeysByTimeInternal
+  (JNIEnv *, jobject, jobject, jlong, jlong, jlong);
 
 #ifdef __cplusplus
 }

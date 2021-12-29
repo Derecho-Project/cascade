@@ -93,6 +93,7 @@ endif()
 
 # enable evaluation
 set (ENABLE_EVALUATION 1)
+set (DUMP_TIMESTAMP_WORKAROUND 1)
 
 if (ENABLE_EVALUATION)
     # provides the import target rpclib::rpc

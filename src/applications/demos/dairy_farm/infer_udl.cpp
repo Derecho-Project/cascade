@@ -7,7 +7,8 @@
 #include <cppflow/cppflow.h>
 #include <torch/script.h>
 #include <ANN/ANN.h>
-#include "demo_udl.hpp"		
+#include "demo_udl.hpp"
+#include "time_probes.hpp"
 
 namespace derecho{
 namespace cascade{
@@ -45,13 +46,15 @@ private:
     ANNpoint img_emb;
 
     // near neighbor indices
-    ANNidxArray nnIdx;		
+    ANNidxArray nnIdx = nullptr;
 
     // near neighbor distances
-	ANNdistArray dists;	
+	ANNdistArray dists = nullptr;
     
-    // search structure				
-	ANNkd_tree*	kdTree;					
+    // search structure
+	ANNkd_tree*	kdTree = nullptr;
+
+    static std::mutex init_mutex;
 
     at::Tensor to_tensor(const cv::Mat& mat, bool unsqueeze=false, int unsqueeze_dim=0) {
         at::Tensor tensor_image = torch::from_blob(mat.data, {mat.rows,mat.cols,3}, at::kByte);
@@ -100,6 +103,7 @@ private:
     
 public:
     InferenceEngine(const std::string& module_file, const std::string& knn_file, const std::string& label_file) {
+        std::lock_guard lck(init_mutex);
         load_module(module_file);
         load_knn(knn_file);
         load_labels(label_file);
@@ -126,12 +130,22 @@ public:
     } 
 
     ~InferenceEngine() {
-        delete[] nnIdx;
-        delete[] dists;
-        delete kdTree;
+        debug_enter_func();
+        if (nnIdx) {
+            delete[] nnIdx;
+        }
+        if (dists) {
+            delete[] dists;
+        }
+        if (kdTree) {
+            delete kdTree;
+        }
         annClose();
+        debug_leave_func();
     }
 };
+
+std::mutex InferenceEngine::init_mutex;
 
 void infer_cow_id(uint32_t* cow_id, const void* img_buf, size_t img_size) {
     static thread_local InferenceEngine cow_id_ie(CONF_COWID_MODULE, CONF_COWID_KNN, CONF_COWID_LABEL);
@@ -139,8 +153,9 @@ void infer_cow_id(uint32_t* cow_id, const void* img_buf, size_t img_size) {
     std::memcpy(static_cast<void*>(out_buf.data()),img_buf,img_size);
     cv::Mat mat(240,352,CV_32FC3,out_buf.data());
     // resize to desired dimension matching with the model
-    cv::resize(mat, mat, cv::Size(COW_ID_IMAGE_WIDTH,COW_ID_IMAGE_HEIGHT));
-    *cow_id = cow_id_ie.infer(mat);
+    cv::Mat resized;
+    cv::resize(mat, resized, cv::Size(COW_ID_IMAGE_WIDTH,COW_ID_IMAGE_HEIGHT));
+    *cow_id = cow_id_ie.infer(resized);
 }
 
 #define BCS_IMAGE_HEIGHT           (300)
@@ -156,10 +171,11 @@ void infer_bcs(float* bcs, const void* img_buf, size_t img_size) {
     std::vector<unsigned char> out_buf(img_size);
     std::memcpy(static_cast<void*>(out_buf.data()),img_buf,img_size);
     cv::Mat mat(240,352,CV_32FC3,out_buf.data());
+    cv::Mat resized;
     // resize to desired dimension matching with the model & convert to tensor
-    cv::resize(mat, mat, cv::Size(BCS_IMAGE_WIDTH,BCS_IMAGE_HEIGHT));
+    cv::resize(mat, resized, cv::Size(BCS_IMAGE_WIDTH,BCS_IMAGE_HEIGHT));
     std::vector<float> bcs_tensor_buf(BCS_TENSOR_BUFFER_SIZE);
-    std::memcpy(static_cast<void*>(bcs_tensor_buf.data()), static_cast<const void*>(mat.data),BCS_TENSOR_BUFFER_SIZE*sizeof(float));
+    std::memcpy(static_cast<void*>(bcs_tensor_buf.data()), static_cast<const void*>(resized.data),BCS_TENSOR_BUFFER_SIZE*sizeof(float));
     cppflow::tensor input_tensor(bcs_tensor_buf, {BCS_IMAGE_WIDTH,BCS_IMAGE_HEIGHT,3});
     input_tensor = cppflow::expand_dims(input_tensor, 0);
     
@@ -167,7 +183,7 @@ void infer_bcs(float* bcs, const void* img_buf, size_t img_size) {
     cppflow::tensor output = model({{"serving_default_conv2d_5_input:0", input_tensor}},{"StatefulPartitionedCall:0"})[0];
     float prediction = output.get_data<float>()[0];
     *bcs = prediction;
-    std::cout << "prediction is: " << std::to_string(prediction) << std::endl;
+    dbg_default_trace("bcs prediction is: {}", prediction);
 }
 
 class DairyFarmInferOCDPO: public OffCriticalDataPathObserver {
@@ -182,42 +198,103 @@ private:
                               ICascadeContext* ctxt,
                               uint32_t worker_id) override {
         auto* typed_ctxt = dynamic_cast<DefaultCascadeContextType*>(ctxt);
+#ifdef ENABLE_EVALUATION
+        if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
+            global_timestamp_logger.log(TLT_COMPUTE_TRIGGERED,
+                                        typed_ctxt->get_service_client_ref().get_my_id(),
+                                        reinterpret_cast<const ObjectWithStringKey*>(value_ptr)->get_message_id(),
+                                        get_walltime());
+        }
+#endif
 
         const VolatileCascadeStoreWithStringKey::ObjectType *vcss_value = reinterpret_cast<const VolatileCascadeStoreWithStringKey::ObjectType *>(value_ptr);
         const FrameData *frame = reinterpret_cast<const FrameData*>(vcss_value->blob.bytes);
-        dbg_default_trace("frame photoid is: "+std::to_string(frame->photo_id));
-        dbg_default_trace("frame timestamp is: "+std::to_string(frame->timestamp));
+        if (std::is_base_of<IHasMessageID,std::decay_t<decltype(*vcss_value)>>::value) {
+            dbg_default_trace("frame photo {} (message id:{}) @ {}", frame->photo_id, vcss_value->get_message_id(), frame->timestamp);
+        }
 
         // Inference threads
         uint32_t cow_id;
-        float bcs; 
-        std::thread cow_id_inference(infer_cow_id, &cow_id, frame->data, sizeof(frame->data));
-        std::thread bcs_inference(infer_bcs, &bcs, frame->data, sizeof(frame->data));
-        cow_id_inference.join();
-        bcs_inference.join();
-        
+#ifdef ENABLE_EVALUATION
+        if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
+            cow_id = static_cast<uint32_t>(reinterpret_cast<const ObjectWithStringKey*>(value_ptr)->get_message_id());
+        } else {
+            cow_id = 37;
+        }
+#else
+        cow_id = 37;
+#endif
+        float bcs;
+        // std::thread cow_id_inference(infer_cow_id, &cow_id, frame->data, sizeof(frame->data));
+        // infer_cow_id(&cow_id, frame->data, sizeof(frame->data));
+        // std::thread bcs_inference(infer_bcs, &bcs, frame->data, sizeof(frame->data));
+        infer_bcs(&bcs,frame->data, sizeof(frame->data));
+        // cow_id_inference.join();
+        // bcs_inference.join();
+
+        if (std::is_base_of<IHasMessageID,std::decay_t<decltype(*vcss_value)>>::value) {
+            dbg_default_trace("frame photo {} (message id:{}) is processed.", frame->photo_id, vcss_value->get_message_id());
+        }
+#ifdef ENABLE_EVALUATION
+        if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
+            global_timestamp_logger.log(TLT_COMPUTE_INFERRED,
+                                        typed_ctxt->get_service_client_ref().get_my_id(),
+                                        vcss_value->get_message_id(),
+                                        get_walltime());
+        }
+#endif
         // put the result to next tier
         std::string frame_key = key_string.substr(prefix_length);
         std::string obj_value = std::to_string(bcs) + "_" + std::to_string(frame->timestamp);
         for (auto iter = outputs.begin(); iter != outputs.end(); ++iter) {
             std::string obj_key = iter->first + frame_key + PATH_SEPARATOR + std::to_string(cow_id);
             PersistentCascadeStoreWithStringKey::ObjectType obj(obj_key,obj_value.c_str(),obj_value.size());
+#ifdef ENABLE_EVALUATION
+            if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
+                obj.set_message_id(vcss_value->get_message_id());
+            }
+#endif
             std::lock_guard<std::mutex> lock(p2p_send_mutex);
 
             // if true, use trigger put; otherwise, use normal put
             if (iter->second) {
+#ifdef ENABLE_EVALUATION
+                if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
+                    dbg_default_trace("trigger put output obj (key:{}, id:{}).", obj.get_key_ref(), obj.get_message_id());
+                }
+#endif
                 auto result = typed_ctxt->get_service_client_ref().trigger_put(obj);
                 result.get();
-                dbg_default_debug("finish trigger put with key({})",obj_key);
+#ifdef ENABLE_EVALUATION
+                if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
+                    dbg_default_trace("finish trigger put obj (key:{}, id:{}).", obj.get_key_ref(), obj.get_message_id());
+                }
+#endif
             } 
             else {
-                auto result = typed_ctxt->get_service_client_ref().put(obj);
-                for (auto& reply_future:result.get()) {
-                    auto reply = reply_future.second.get();
-                    dbg_default_debug("node({}) replied with version:({:x},{}us)",reply_future.first,std::get<0>(reply),std::get<1>(reply));
+#ifdef ENABLE_EVALUATION
+                if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
+                    dbg_default_trace("put output obj (key:{}, id:{}).", obj.get_key_ref(), obj.get_message_id());
                 }
+#endif
+                typed_ctxt->get_service_client_ref().put_and_forget(obj);
+#ifdef ENABLE_EVALUATION
+                if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
+                    dbg_default_trace("finish put obj (key:{}, id:{}).", obj.get_key_ref(), obj.get_message_id());
+                }
+#endif
             }
         }
+
+#ifdef ENABLE_EVALUATION
+        if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
+            global_timestamp_logger.log(TLT_COMPUTE_FORWARDED,
+                                        typed_ctxt->get_service_client_ref().get_my_id(),
+                                        reinterpret_cast<const ObjectWithStringKey*>(value_ptr)->get_message_id(),
+                                        get_walltime());
+        }
+#endif
+
     }
 
     static std::shared_ptr<OffCriticalDataPathObserver> ocdpo_ptr;
@@ -246,7 +323,8 @@ void initialize(ICascadeContext* ctxt) {
     // Serialized config options (example of 30% memory fraction)
     // TODO: configure gpu settings, link: https://serizba.github.io/cppflow/quickstart.html#gpu-config-options
     // std::vector<uint8_t> config{0x32,0x9,0x9,0x9a,0x99,0x99,0x99,0x99,0x99,0xb9,0x3f};
-    std::vector<uint8_t> config{0x32,0xb,0x9,0x9a,0x99,0x99,0x99,0x99,0x99,0xb9,0x3f,0x20,0x1};
+    // std::vector<uint8_t> config{0x32,0xb,0x9,0xcd,0xcc,0xcc,0xcc,0xcc,0xcc,0xec,0x3f,0x20,0x1};
+    std::vector<uint8_t> config{DEFAULT_TFE_CONFIG};
     // Create new options with your configuration
     TFE_ContextOptions* options = TFE_NewContextOptions();
     TFE_ContextOptionsSetConfig(options, config.data(), config.size(), cppflow::context::get_status());

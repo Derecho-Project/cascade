@@ -299,6 +299,7 @@ namespace cascade {
         InvalidPolicy = -1
     };
     #define DEFAULT_SHARD_MEMBER_SELECTION_POLICY (ShardMemberSelectionPolicy::FirstMember)
+    // #define DEFAULT_SHARD_MEMBER_SELECTION_POLICY (ShardMemberSelectionPolicy::RoundRobin)
 
     template <typename T> struct do_hash {};
 
@@ -1091,6 +1092,21 @@ namespace cascade {
          */
         template <typename SubgroupType>
         std::vector<std::unique_ptr<derecho::rpc::QueryResults<void>>> dump_timestamp(const std::string& filename, const std::string& object_pool_pathname);
+#ifdef DUMP_TIMESTAMP_WORKAROUND
+        /**
+         * Dump the timestamp log entries into a file on a specific node.
+         *
+         * @param filename         - the output filename
+         * @param subgroup_index   - the subgroup index
+         * @param shard_index      - the shard index
+         * @param node_id          - the given node id.
+         *
+         * @return a vector of query results.
+         */
+        template <typename SubgroupType>
+        derecho::rpc::QueryResults<void> dump_timestamp_workaround(const std::string& filename, const uint32_t subgroup_index, const uint32_t shard_index, const node_id_t node_id);
+#endif
+
         /**
          * Evaluate the ordered put performance inside a shard. Please note that those put does not involve the
          * external client data path.

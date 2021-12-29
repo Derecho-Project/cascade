@@ -1,6 +1,11 @@
 #include <cascade/cascade.hpp>
 #include <cascade/service.hpp>
 #include <cascade/service_types.hpp>
+//
+// We should add a cascade service library side-by-side to libcascade.so to include the client-side implementations for
+// cascade service client. Right now, we put some of the implementations (create_null_object_cb<>, e.g.) as inline
+// functions in service_client_api.hpp. It's not a good design, which should change later.
+#include <cascade/service_client_api.hpp>
 #include <cascade/object.hpp>
 #include <sys/prctl.h>
 #include <derecho/conf/conf.hpp>
@@ -13,6 +18,9 @@
 
 using namespace derecho::cascade;
 
+/**
+ * This part has moved to service_client_api.hpp
+ *
 namespace derecho::cascade {
 // specialize create_null_object_cb for Cascade Types...
 using opm_t = ObjectPoolMetadata<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey,SignatureCascadeStoreWithStringKey,TriggerCascadeNoStoreWithStringKey>;
@@ -24,6 +32,7 @@ opm_t create_null_object_cb<std::string,opm_t,&opm_t::IK,&opm_t::IV>(const std::
     return opm;
 }
 }
+**/
 
 int main(int argc, char** argv) {
     // set proc name

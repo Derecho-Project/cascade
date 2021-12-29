@@ -275,7 +275,7 @@ std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::op_list_keys(const persistent
         std::remove_if(
             ret.begin(),
             ret.end(),
-            [&](const KT key) { return op_path != get_pathname<KT>(key);}
+            [&](const KT key) { return (get_pathname<KT>(key).find(op_path) != 0);}
         ),
         ret.end()
     );
@@ -501,6 +501,7 @@ void VolatileCascadeStore<KT,VT,IK,IV>::trigger_put(const VT& value) const {
 #ifdef ENABLE_EVALUATION
 template<typename KT, typename VT, KT* IK, VT* IV>
 void VolatileCascadeStore<KT,VT,IK,IV>::dump_timestamp_log(const std::string& filename) const {
+    debug_enter_func_with_args("filename={}",filename);
     derecho::Replicated<VolatileCascadeStore>& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
     auto result = subgroup_handle.template ordered_send<RPC_NAME(ordered_dump_timestamp_log)>(filename);
     auto& replies = result.get();
@@ -508,13 +509,24 @@ void VolatileCascadeStore<KT,VT,IK,IV>::dump_timestamp_log(const std::string& fi
         volatile uint32_t _ = r;
         _ = _;
     }
+    debug_leave_func();
     return;
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
 void VolatileCascadeStore<KT,VT,IK,IV>::ordered_dump_timestamp_log(const std::string& filename) {
+    debug_enter_func_with_args("filename={}",filename);
     global_timestamp_logger.flush(filename);
+    debug_leave_func();
 }
+#ifdef DUMP_TIMESTAMP_WORKAROUND
+template<typename KT, typename VT, KT* IK, VT* IV>
+void VolatileCascadeStore<KT,VT,IK,IV>::dump_timestamp_log_workaround(const std::string& filename) const {
+    debug_enter_func_with_args("filename={}",filename);
+    global_timestamp_logger.flush(filename);
+    debug_leave_func();
+}
+#endif
 #endif//ENABLE_EVALUATION
 
 template<typename KT, typename VT, KT* IK, VT* IV>
@@ -977,7 +989,7 @@ std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::op_list_keys(const persi
         std::remove_if(
             ret.begin(),
             ret.end(),
-            [&](const KT key) { return op_path != get_pathname<KT>(key);}
+            [&](const KT key) { return (get_pathname<KT>(key).find(op_path) != 0);}
         ),
         ret.end()
     );
@@ -1014,7 +1026,7 @@ std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::op_list_keys_by_time(con
         auto kv_map = persistent_core.get(hlc)->kv_map;
         std::vector<KT> key_list;
         for(auto& kv:kv_map) {
-            if (op_path == get_pathname<KT>(kv.first) ){
+            if (get_pathname<KT>(kv.first).find(op_path) == 0 ){
                 key_list.push_back(kv.first);
             }
         }
@@ -1168,6 +1180,7 @@ void PersistentCascadeStore<KT,VT,IK,IV,ST>::trigger_put(const VT& value) const 
 #ifdef ENABLE_EVALUATION
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void PersistentCascadeStore<KT,VT,IK,IV,ST>::dump_timestamp_log(const std::string& filename) const {
+    debug_enter_func_with_args("filename={}",filename);
     derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
     auto result = subgroup_handle.template ordered_send<RPC_NAME(ordered_dump_timestamp_log)>(filename);
     auto& replies = result.get();
@@ -1175,13 +1188,25 @@ void PersistentCascadeStore<KT,VT,IK,IV,ST>::dump_timestamp_log(const std::strin
         volatile uint32_t _ = r;
         _ = _;
     }
+    debug_leave_func();
     return;
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void PersistentCascadeStore<KT,VT,IK,IV,ST>::ordered_dump_timestamp_log(const std::string& filename) {
+    debug_enter_func_with_args("filename={}",filename);
     global_timestamp_logger.flush(filename);
+    debug_leave_func();
 }
+
+#ifdef DUMP_TIMESTAMP_WORKAROUND
+template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+void PersistentCascadeStore<KT,VT,IK,IV,ST>::dump_timestamp_log_workaround(const std::string& filename) const {
+    debug_enter_func_with_args("filename={}",filename);
+    global_timestamp_logger.flush(filename);
+    debug_leave_func();
+}
+#endif
 #endif//ENABLE_EVALUATION
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
@@ -1633,6 +1658,14 @@ template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void SignatureCascadeStore<KT,VT,IK,IV,ST>::ordered_dump_timestamp_log(const std::string& filename) {
     global_timestamp_logger.flush(filename);
 }
+#ifdef DUMP_TIMESTAMP_WORKAROUND
+template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+void SignatureCascadeStore<KT,VT,IK,IV,ST>::dump_timestamp_log_workaround(const std::string& filename) const {
+    debug_enter_func_with_args("filename={}",filename);
+    global_timestamp_logger.flush(filename);
+    debug_leave_func();
+}
+#endif//DUMP_TIMESTAMP_WORKAROUND
 #endif//ENABLE_EVALUATION
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
@@ -1892,6 +1925,7 @@ void TriggerCascadeNoStore<KT,VT,IK,IV>::trigger_put(const VT& value) const {
 
 template<typename KT, typename VT, KT* IK, VT* IV>
 void TriggerCascadeNoStore<KT,VT,IK,IV>::dump_timestamp_log(const std::string& filename) const {
+    debug_enter_func_with_args("filename={}",filename);
     derecho::Replicated<TriggerCascadeNoStore>& subgroup_handle = group->template get_subgroup<TriggerCascadeNoStore>(this->subgroup_index);
     auto result = subgroup_handle.template ordered_send<RPC_NAME(ordered_dump_timestamp_log)>(filename);
     auto& replies = result.get();
@@ -1899,13 +1933,24 @@ void TriggerCascadeNoStore<KT,VT,IK,IV>::dump_timestamp_log(const std::string& f
         volatile uint32_t _ = r;
         _ = _;
     }
+    debug_leave_func();
     return;
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
 void TriggerCascadeNoStore<KT,VT,IK,IV>::ordered_dump_timestamp_log(const std::string& filename) {
+    debug_enter_func_with_args("filename={}",filename);
     global_timestamp_logger.flush(filename);
+    debug_leave_func();
 }
+#ifdef DUMP_TIMESTAMP_WORKAROUND
+template<typename KT, typename VT, KT* IK, VT* IV>
+void TriggerCascadeNoStore<KT,VT,IK,IV>::dump_timestamp_log_workaround(const std::string& filename) const {
+    debug_enter_func_with_args("filename={}",filename);
+    global_timestamp_logger.flush(filename);
+    debug_leave_func();
+}
+#endif
 #endif//ENABLE_EVALUATION
 
 template<typename KT, typename VT, KT* IK, VT* IV>

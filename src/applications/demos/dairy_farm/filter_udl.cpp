@@ -1,9 +1,11 @@
 #include <cascade/user_defined_logic_interface.hpp>
 #include <iostream>
+#include <mutex>
 #include <vector>
 #include <opencv2/opencv.hpp>
 #include <cppflow/cppflow.h>
 #include "demo_udl.hpp"
+#include "time_probes.hpp"
 
 namespace derecho{
 namespace cascade{
@@ -27,6 +29,7 @@ std::string get_description() {
 
 class DairyFarmFilterOCDPO: public OffCriticalDataPathObserver {
     std::mutex p2p_send_mutex;
+    static std::mutex init_mutex;
 
     virtual void operator () (const std::string& key_string,
                               const uint32_t prefix_length,
@@ -35,12 +38,24 @@ class DairyFarmFilterOCDPO: public OffCriticalDataPathObserver {
                               const std::unordered_map<std::string,bool>& outputs,
                               ICascadeContext* ctxt,
                               uint32_t worker_id) override {
-        // TODO: test if there is a cow in the incoming frame.
-        auto* typed_ctxt = dynamic_cast<CascadeContext<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey,TriggerCascadeNoStoreWithStringKey>*>(ctxt);
+        // test if there is a cow in the incoming frame.
+        auto* typed_ctxt = dynamic_cast<DefaultCascadeContextType*>(ctxt);
+#ifdef ENABLE_EVALUATION
+        if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
+            global_timestamp_logger.log(TLT_FRONTEND_TRIGGERED,
+                                        typed_ctxt->get_service_client_ref().get_my_id(),
+                                        reinterpret_cast<const ObjectWithStringKey*>(value_ptr)->get_message_id(),
+                                        get_walltime());
+        }
+#endif
         /* step 1: load the model */
-        static thread_local cppflow::model model(CONF_FILTER_MODEL);
+        static thread_local std::unique_ptr<cppflow::model> model;
+        if (!model){
+            std::lock_guard lck(init_mutex);
+            model = std::make_unique<cppflow::model>(CONF_FILTER_MODEL);
+        }
         /* step 2: Load the image & convert to tensor */
-        const TriggerCascadeNoStoreWithStringKey::ObjectType *tcss_value = reinterpret_cast<const TriggerCascadeNoStoreWithStringKey::ObjectType *>(value_ptr);
+        const ObjectWithStringKey *tcss_value = reinterpret_cast<const ObjectWithStringKey *>(value_ptr);
         const FrameData *frame = reinterpret_cast<const FrameData*>(tcss_value->blob.bytes);
         dbg_default_trace("frame photoid is: "+std::to_string(frame->photo_id));
         dbg_default_trace("frame timestamp is: "+std::to_string(frame->timestamp));
@@ -51,34 +66,62 @@ class DairyFarmFilterOCDPO: public OffCriticalDataPathObserver {
         input_tensor = cppflow::expand_dims(input_tensor, 0);
 
         /* step 3: Predict */
-        cppflow::tensor output = model({{"serving_default_conv2d_3_input:0", input_tensor}},{"StatefulPartitionedCall:0"})[0];
+        cppflow::tensor output = (*model)({{"serving_default_conv2d_3_input:0", input_tensor}},{"StatefulPartitionedCall:0"})[0];
 
         /* step 4: Send intermediate results to the next tier if image frame is meaningful */
         // prediction < 0.35 indicates strong possibility that the image frame captures full contour of the cow
         float prediction = output.get_data<float>()[0];
-        std::cout << "prediction: " << prediction << std::endl;
+        // std::cout << "prediction: " << prediction << std::endl;
+#ifdef ENABLE_EVALUATION
+        if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
+            global_timestamp_logger.log(TLT_FRONTEND_PREDICTED,
+                                        typed_ctxt->get_service_client_ref().get_my_id(),
+                                        tcss_value->get_message_id(),
+                                        get_walltime());
+        }
+#endif
         if (prediction < FILTER_THRESHOLD) {
             std::string frame_idx = key_string.substr(prefix_length);
             for (auto iter = outputs.begin(); iter != outputs.end(); ++iter) {
                 std::string obj_key = iter->first + frame_idx;
-                VolatileCascadeStoreWithStringKey::ObjectType obj(obj_key,tcss_value->blob.bytes,tcss_value->blob.size);
+                ObjectWithStringKey obj(obj_key,tcss_value->blob.bytes,tcss_value->blob.size);
+#ifdef ENABLE_EVALUATION
+                if (std::is_base_of<IHasMessageID,std::decay_t<ObjectWithStringKey>>::value) {
+                    obj.set_message_id(tcss_value->get_message_id());
+                }
+#endif
                 std::lock_guard<std::mutex> lock(p2p_send_mutex);
 
                 // if true, use trigger put; otherwise, use normal put
                 if (iter->second) {
+                    if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
+                        dbg_default_trace("trigger put output obj (key:{}, id:{}).", obj.get_key_ref(), obj.get_message_id());
+                    }
                     auto result = typed_ctxt->get_service_client_ref().trigger_put(obj);
                     result.get();
-                    dbg_default_debug("finish put obj with key({})", obj_key);
+                    if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
+                        dbg_default_trace("finish trigger put obj (key:{}, id{}).", obj.get_key_ref(), obj.get_message_id());
+                    }
                 }
                 else {
-                    auto result = typed_ctxt->get_service_client_ref().put(obj);
-                    for (auto& reply_future:result.get()) {
-                        auto reply = reply_future.second.get();
-                        dbg_default_debug("node({}) replied with version:({:x},{}us)",reply_future.first,std::get<0>(reply),std::get<1>(reply));
+                    if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
+                        dbg_default_trace("put output obj (key:{}, id:{}).", obj.get_key_ref(), obj.get_message_id());
+                    }
+                    typed_ctxt->get_service_client_ref().put_and_forget(obj);
+                    if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
+                        dbg_default_trace("finish put obj (key:{}, id{}).", obj.get_key_ref(), obj.get_message_id());
                     }
                 }
             }
         }
+#ifdef ENABLE_EVALUATION
+        if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
+            global_timestamp_logger.log(TLT_FRONTEND_FORWARDED,
+                                        typed_ctxt->get_service_client_ref().get_my_id(),
+                                        tcss_value->get_message_id(),
+                                        get_walltime());
+        }
+#endif
     }
 
     static std::shared_ptr<OffCriticalDataPathObserver> ocdpo_ptr;
@@ -93,6 +136,7 @@ public:
     }
 };
 
+std::mutex DairyFarmFilterOCDPO::init_mutex;
 std::shared_ptr<OffCriticalDataPathObserver> DairyFarmFilterOCDPO::ocdpo_ptr;
 
 void initialize(ICascadeContext* ctxt) {
@@ -107,7 +151,7 @@ void initialize(ICascadeContext* ctxt) {
     // Serialized config options (example of 30% memory fraction)
     // TODO: configure gpu settings, link: https://serizba.github.io/cppflow/quickstart.html#gpu-config-options
     // std::vector<uint8_t> config{0x32,0x9,0x9,0x9a,0x99,0x99,0x99,0x99,0x99,0xb9,0x3f};
-    std::vector<uint8_t> config{0x32,0xb,0x9,0x9a,0x99,0x99,0x99,0x99,0x99,0xb9,0x3f,0x20,0x1};
+    std::vector<uint8_t> config{DEFAULT_TFE_CONFIG};
     // Create new options with your configuration
     TFE_ContextOptions* options = TFE_NewContextOptions();
     TFE_ContextOptionsSetConfig(options, config.data(), config.size(), cppflow::context::get_status());

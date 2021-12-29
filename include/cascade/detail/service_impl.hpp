@@ -527,10 +527,12 @@ derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::trigger_put(
         if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index){
             auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
             node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
+            dbg_default_trace("trigger_put to node {}",node_id);
             return subgroup_handle.template p2p_send<RPC_NAME(trigger_put)>(node_id,value);
         } else {
             auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
             node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
+            dbg_default_trace("trigger_put to node {}",node_id);
             return subgroup_handle.template p2p_send<RPC_NAME(trigger_put)>(node_id,value);
         }
     } else {
@@ -538,6 +540,7 @@ derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::trigger_put(
         // call as an external client (ExternalClientCaller).
         auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
         node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
+        dbg_default_trace("trigger_put to node {}",node_id);
         return caller.template p2p_send<RPC_NAME(trigger_put)>(node_id,value);
     }
 }
@@ -1454,6 +1457,25 @@ std::vector<std::unique_ptr<derecho::rpc::QueryResults<void>>> ServiceClient<Cas
         }
     }
     return result;
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::dump_timestamp_workaround(const std::string& filename, const uint32_t subgroup_index, const uint32_t shard_index, const node_id_t node_id) {
+    if (group_ptr != nullptr) {
+        std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
+        if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
+            auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
+            return subgroup_handle.template p2p_send<RPC_NAME(dump_timestamp_log_workaround)>(node_id, filename);
+        } else {
+            auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
+            return subgroup_handle.template p2p_send<RPC_NAME(dump_timestamp_log_workaround)>(node_id,filename);
+        }
+    } else {
+        std::lock_guard<std::mutex> lck(this->external_group_ptr_mutex);
+        auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
+        return caller.template p2p_send<RPC_NAME(dump_timestamp_log_workaround)>(node_id,filename);
+    }
 }
 
 template <typename... CascadeTypes>

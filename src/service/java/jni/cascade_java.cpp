@@ -266,9 +266,9 @@ public:
 std::string translate_str_key(JNIEnv *env, jobject key)
 {
     // get long key from byte buffer
-// #ifndef NDEBUG
-//     std::cout << "translating string key!" << std::endl;
-// #endif
+#ifndef NDEBUG
+    std::cout << "translating string key!" << std::endl;
+#endif
 
     // get the key and store it in a string
     char *key_buf = static_cast<char *>(env->GetDirectBufferAddress(key));
@@ -285,14 +285,15 @@ derecho::cascade::ObjectWithStringKey *translate_str_obj(JNIEnv *env, jobject ke
     // get val from byte buffer
     const char *buf = static_cast<const char *>(env->GetDirectBufferAddress(val));
     jlong len = env->GetDirectBufferCapacity(val);
-// #ifndef NDEBUG
-//     std::cout << "translating string object!" << std::endl;
-// #endif
+#ifndef NDEBUG
+    std::cout << "translating string object!" << std::endl;
+#endif
 
     // translate the object.
     derecho::cascade::ObjectWithStringKey *cas_obj = new derecho::cascade::ObjectWithStringKey();
     cas_obj->key = translate_str_key(env, key);
     cas_obj->blob = derecho::cascade::Blob(buf, len);
+    cas_obj->blob.is_emplaced = 1;
 
     return cas_obj;
 }
@@ -311,23 +312,27 @@ derecho::cascade::ObjectWithStringKey *translate_str_obj(JNIEnv *env, jobject ke
 template <typename T>
 jlong put(std::function<typename T::ObjectType *(JNIEnv *, jobject, jobject)> f, JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong subgroup_index, jlong shard_index, jobject key, jobject val)
 {
-// #ifndef NDEBUG
-//     std::cout << "entering jlong put! Here am I! " << std::endl;
+#ifndef NDEBUG
+    std::cout << "entering jlong put! Here am I! " << std::endl;
 
-//     char *key_buf = static_cast<char *>(env->GetDirectBufferAddress(key));
-//     jlong len = env->GetDirectBufferCapacity(key);
-//     for (int i = 0; i < len; ++i){
-//         printf("%d,", key_buf[i]);
-//     }
-//     printf("\n");
-// #endif
+    char *key_buf = static_cast<char *>(env->GetDirectBufferAddress(key));
+    jlong len = env->GetDirectBufferCapacity(key);
+    for (int i = 0; i < len; ++i){
+        printf("%d,", key_buf[i]);
+    }
+    printf("\n");
+#endif
     // translate Java objects to C++ objects.
     typename T::ObjectType *obj = f(env, key, val);
-    // std::cout << "putting! " << subgroup_index << " " << shard_index << std::endl;
+#ifndef NDEBUG
+    std::cout << "putting! " << subgroup_index << " " << shard_index << std::endl;
+#endif
     // execute the put
     derecho::rpc::QueryResults<std::tuple<persistent::version_t, uint64_t>> res = capi->put<T>(*obj, subgroup_index, shard_index);
     //store the result in a handler and return it!
-    // std::cout << "finished put!" << std::endl;
+#ifndef NDEBUG
+    std::cout << "finished put!" << std::endl;
+#endif
     QueryResultHolder<std::tuple<persistent::version_t, uint64_t>> *qrh = new QueryResultHolder<std::tuple<persistent::version_t, uint64_t>>(res);
     return reinterpret_cast<jlong>(qrh);
 }
@@ -343,7 +348,7 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_putInternal(JNIEnv *env, jobject 
     int service_val = get_value(env, service_type);
 
 #ifndef NDEBUG
-    // std::cout << "service value:" << service_val << std::endl;
+    std::cout << "service value:" << service_val << std::endl;
 #endif
 
     // executing the put
@@ -367,9 +372,9 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_putInternal(JNIEnv *env, jobject 
 template <typename T>
 jlong get(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong subgroup_index, jlong shard_index, jobject key, jlong ver, std::function<typename T::KeyType(JNIEnv *, jobject)> f)
 {
-// #ifndef NDEBUG
-//     std::cout << "start get!" << std::endl;
-// #endif
+#ifndef NDEBUG
+    std::cout << "start get!" << std::endl;
+#endif
     // translate the key
     typename T::KeyType obj = f(env, key);
     // execute get
@@ -386,9 +391,9 @@ jlong get(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong subgroup_
  */
 JNIEXPORT jlong JNICALL Java_io_cascade_Client_getInternal(JNIEnv *env, jobject obj, jobject service_type, jlong subgroup_index, jlong shard_index, jobject key, jlong version)
 {
-// #ifndef NDEBUG
-//     std::cout << "start get internal!" << std::endl;
-// #endif
+#ifndef NDEBUG
+    std::cout << "start get internal!" << std::endl;
+#endif
     derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
     int service_val = get_value(env, service_type);
 
@@ -475,6 +480,113 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_removeInternal(JNIEnv *env, jobje
 }
 
 /**
+ * Helper function to list all keys in a cascade shard.
+ * @param env the Java environment to find JVM.
+ * @param capi the service client API for this client.
+ * @param version the upper bound of the versions of all keys to look for.
+ * @param subgroup_index the subgroup index to get the object.
+ * @param shard_index the subgroup index to get the object.
+ * @return a handle of the future that stores the vector of all keys.
+ */
+template <typename T>
+jlong list_keys(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong version, jlong subgroup_index, jlong shard_index)
+{
+    // execute list keys
+    derecho::rpc::QueryResults<std::vector<typename T::KeyType>> res = capi->list_keys<T>(version, subgroup_index, shard_index);
+#ifndef NDEBUG
+    std::cout << "acquired list keys!" << std::endl;
+#endif
+    // store the results in a handle
+    QueryResultHolder<std::vector<typename T::KeyType>> *qrh = new QueryResultHolder<std::vector<typename T::KeyType>>(res);
+    return reinterpret_cast<jlong>(qrh);
+}
+
+/*
+ * Class:     io_cascade_Client
+ * Method:    listKeysInternal
+ * Signature: (Lio/cascade/ServiceType;JJJ)J
+ */
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_listKeysInternal
+  (JNIEnv * env, jobject obj, jobject service_type, jlong version, jlong subgroup_index, jlong shard_index){
+    derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
+#ifndef NDEBUG
+    std::cout << "called list keys internal!" << std::endl;
+    std::cout.flush();
+#endif
+    int service_val = get_value(env, service_type);
+
+    // translate the type into string
+    std::string real_type = type_arr[service_val];
+
+    on_subgroup_type(real_type, return list_keys, env, capi, version, subgroup_index, shard_index);
+
+    // impossible
+    return -1;
+}
+
+/**
+ * Helper function to list all keys in a cascade shard by timestamp.
+ * @param env the Java environment to find JVM.
+ * @param capi the service client API for this client.
+ * @param timestamp the upper bound of the timestamps of all keys to look for.
+ * @param subgroup_index the subgroup index to get the object.
+ * @param shard_index the subgroup index to get the object.
+ * @return a handle of the future that stores the vector of all keys.
+ */
+template <typename T>
+jlong list_keys_by_time(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong timestamp, jlong subgroup_index, jlong shard_index)
+{
+    // execute list keys
+    derecho::rpc::QueryResults<std::vector<typename T::KeyType>> res = capi->list_keys_by_time<T>(timestamp, subgroup_index, shard_index);
+#ifndef NDEBUG
+    std::cout << "acquired list keys by time!" << std::endl;
+#endif
+    // store the results in a handle
+    QueryResultHolder<std::vector<typename T::KeyType>> *qrh = new QueryResultHolder<std::vector<typename T::KeyType>>(res);
+    return reinterpret_cast<jlong>(qrh);
+}
+
+/*
+ * Class:     io_cascade_Client
+ * Method:    listKeysByTimeInternal
+ * Signature: (Lio/cascade/ServiceType;JJJ)J
+ */
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_listKeysByTimeInternal
+  (JNIEnv * env, jobject obj, jobject service_type, jlong timestamp, jlong subgroup_index, jlong shard_index){
+    derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
+#ifndef NDEBUG
+    std::cout << "called list keys internal!" << std::endl;
+    std::cout.flush();
+#endif
+    int service_val = get_value(env, service_type);
+
+    // translate the type into string
+    std::string real_type = type_arr[service_val];
+    on_subgroup_type(real_type, return list_keys_by_time, env, capi, timestamp, subgroup_index, shard_index);
+
+    // impossible
+    return -1;
+}
+
+/*
+ * Class:     io_cascade_Client
+ * Method:    getNumberOfShards
+ * Signature: (Lio/cascade/ServiceType;J)J
+ */
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_getNumberOfShards
+  (JNIEnv * env, jobject obj, jobject service_type, jlong subgroup_index){
+    derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
+    int service_val = get_value(env, service_type);
+
+    // translate the type into string
+    std::string real_type = type_arr[service_val];
+    on_subgroup_type(real_type, return capi->get_number_of_shards, subgroup_index);
+
+    // impossible
+    return -1;
+
+}
+/**
  * Put objects acquired from the future into a Java hash map.
  * @param env the Java environment
  * @param handle the handle for the query result future
@@ -492,6 +604,10 @@ void create_object_from_query(JNIEnv *env, jlong handle, jobject hashmap, std::f
     typedef QueryResultHolder<T> query;
     query *qrh = reinterpret_cast<query *>(handle);
     derecho::rpc::QueryResults<T> *result = qrh->get_result();
+#ifndef NDEBUG
+    std::cout << "finishing get results from query results" << std::endl;
+    std::cout.flush();
+#endif
     for (auto &reply_pair : result->get())
     {
         // translate the key to Java through Integer class
@@ -500,7 +616,7 @@ void create_object_from_query(JNIEnv *env, jlong handle, jobject hashmap, std::f
         jobject integer_object = env->NewObject(integer_class, integer_constructor, static_cast<jint>(reply_pair.first));
 
 #ifndef NDEBUG
-        // std::cout << "trying to get the promise..." << std::endl;
+        std::cout << "trying to get the promise..." << std::endl;
 #endif
 
         // translate the value using lambda
@@ -510,6 +626,38 @@ void create_object_from_query(JNIEnv *env, jlong handle, jobject hashmap, std::f
         // put the key value pair into the hashmap
         env->CallObjectMethod(hashmap, map_put, integer_object, java_obj);
     }
+}
+
+/**
+ * Helper function to allocate a Java direct byte buffer from C++ pointers with no copy (sometimes does not work).
+ * @param env the Java environment
+ * @param ptr the content of the byte buffer to allocate
+ * @param size the size of the byte buffer
+ * @return the Java direct byte buffer object
+ */
+jobject allocate_byte_buffer(JNIEnv *env, void *ptr, int size){
+    jobject direct_buffer_obj = env->NewDirectByteBuffer(ptr, static_cast<jlong>(size));
+    return direct_buffer_obj;
+}
+
+/**
+ * Helper function to allocate a Java direct byte buffer from C++ pointers with copy.
+ * @param env the Java environment
+ * @param ptr the content of the byte buffer to allocate
+ * @param size the size of the byte buffer
+ * @return the Java direct byte buffer object
+ */
+jobject allocate_byte_buffer_by_copy(JNIEnv *env, void *ptr, int size){
+    jbyteArray data_byte_arr = env->NewByteArray(size);
+    env->SetByteArrayRegion(data_byte_arr, 0, size, reinterpret_cast<jbyte *>(ptr));
+
+    jclass byte_buffer_cls = env->FindClass("java/nio/ByteBuffer");
+    // create and return a new direct byte buffer
+    jmethodID alloc_mid = env->GetStaticMethodID(byte_buffer_cls, "allocateDirect", "(I)Ljava/nio/ByteBuffer;");
+    jobject byte_buf_obj = env->CallStaticObjectMethod(byte_buffer_cls, alloc_mid, static_cast<jint>(size));
+    jmethodID put_mid = env->GetMethodID(byte_buffer_cls, "put", "([B)Ljava/nio/ByteBuffer;");
+    env->CallObjectMethod(byte_buf_obj, put_mid, data_byte_arr);
+    return byte_buf_obj;
 }
 
 /*
@@ -535,23 +683,25 @@ JNIEXPORT jobject JNICALL Java_io_cascade_QueryResults_getReplyMap(JNIEnv *env, 
 
     int type_val = get_value(env, type);
 
-// #ifndef NDEBUG
-//     std::cout << "in reply map: value is " << type_val << " and mode is " << (int)mode << std::endl;
-// #endif
+#ifndef NDEBUG
+    std::cout << "in reply map: value is " << type_val << " and mode is " << (int)mode << std::endl;
+#endif
+
+
     // lambda that translates into bundle types
     auto bundle_f = [env](std::tuple<persistent::version_t, uint64_t> obj) {
 
-// #ifndef NDEBUG   
-//         std::cout << "converting bundles with string keys!" << std::endl;
-// #endif
+#ifndef NDEBUG   
+        std::cout << "converting bundles with string keys!" << std::endl;
+#endif
 
         // get the version and timestamp pair
         persistent::version_t ver = std::get<0>(obj);
         uint64_t timestamp = std::get<1>(obj);
 
-// #ifndef NDEBUG
-//         std::cout << "version: " << ver << "; timestamp: " << timestamp << std::endl;
-// #endif
+#ifndef NDEBUG
+        std::cout << "version: " << ver << "; timestamp: " << timestamp << std::endl;
+#endif
 
         // creates the bundle object
         jclass bundle_class = env->FindClass("io/cascade/Bundle");
@@ -559,22 +709,26 @@ JNIEXPORT jobject JNICALL Java_io_cascade_QueryResults_getReplyMap(JNIEnv *env, 
         return env->NewObject(bundle_class, bundle_constructor, static_cast<jlong>(ver), static_cast<jlong>(timestamp));
     };
 
+
     // lambda that translates into byte buffer types and receives objects with uint64 keys.
 /*    auto u64_f = [env](derecho::cascade::ObjectWithUInt64Key obj) {
         char *data = obj.blob.bytes;
         std::size_t size = obj.blob.size;
 
-        // initialize the Java byte array
-        jbyteArray data_byte_arr = env->NewByteArray(size);
-        env->SetByteArrayRegion(data_byte_arr, 0, size, reinterpret_cast<jbyte *>(data));
+#ifndef NDEBUG
+        std::cout << "processing at u64 f!" << size << " " << std::endl;
+#endif
+        // Set temporary to be 1 so that obj will not be destructed at the end of this function.
+        // This is used to avoid copying when allocating buffers.
+        obj.blob.is_temporary = 1;
 
-        jclass byte_buffer_cls = env->FindClass("java/nio/ByteBuffer");
-        // create and return a new direct byte buffer
-        jmethodID alloc_mid = env->GetStaticMethodID(byte_buffer_cls, "allocateDirect", "(I)Ljava/nio/ByteBuffer;");
-        jobject byte_buf_obj = env->CallStaticObjectMethod(byte_buffer_cls, alloc_mid, static_cast<jint>(size));
-        jmethodID put_mid = env->GetMethodID(byte_buffer_cls, "put", "([B)Ljava/nio/ByteBuffer;");
-        env->CallObjectMethod(byte_buf_obj, put_mid, data_byte_arr);
-        return byte_buf_obj;
+#ifndef NDEBUG
+        std::cout << "is temporary" << obj.blob.is_temporary << std::endl;
+#endif
+        jobject new_byte_buf = allocate_byte_buffer(env, data, size);
+        jclass obj_class = env->FindClass("io/cascade/CascadeObject");
+        jmethodID obj_constructor = env->GetMethodID(obj_class, "<init>", "(JJJLjava/nio/ByteBuffer;)V"); // TODO: the correct constructor
+        return env->NewObject(obj_class, obj_constructor, static_cast<jlong>(obj.version), static_cast<jlong>(obj.timestamp_us), static_cast<jlong>(obj.previous_version_by_key), new_byte_buf);
     };
 */
     auto s_f = [env](derecho::cascade::ObjectWithStringKey obj) {
@@ -585,26 +739,98 @@ JNIEXPORT jobject JNICALL Java_io_cascade_QueryResults_getReplyMap(JNIEnv *env, 
         const char *data = obj.blob.bytes;
         std::size_t size = obj.blob.size;
 
-        // initialize the java byte array
-        jbyteArray data_byte_arr = env->NewByteArray(size);
+        // Set temporary to be 1 so that obj will not be destructed at the end of this function.
+        // This is used to avoid copying when allocating buffers.
+        obj.blob.is_emplaced = 1;
 
-        env->SetByteArrayRegion(data_byte_arr, 0, size, reinterpret_cast<const jbyte *>(data));
+#ifndef NDEBUG
+        std::cout << "processing at s f!" << size << " " << std::endl;
 
-        jclass byte_buffer_cls = env->FindClass("java/nio/ByteBuffer");
-        // create and return a new direct byte buffer
-        jmethodID alloc_mid = env->GetStaticMethodID(byte_buffer_cls, "allocateDirect", "(I)Ljava/nio/ByteBuffer;");
-        jobject byte_buf_obj = env->CallStaticObjectMethod(byte_buffer_cls, alloc_mid, static_cast<jint>(size));
-        jmethodID put_mid = env->GetMethodID(byte_buffer_cls, "put", "([B)Ljava/nio/ByteBuffer;");
-        env->CallObjectMethod(byte_buf_obj, put_mid, data_byte_arr);
-        return byte_buf_obj;
+        std::cout << "is temporary" << obj.blob.is_emplaced << std::endl;
+#endif
+
+        jobject new_byte_buf = allocate_byte_buffer(env, (char *)data, size);
+        jclass obj_class = env->FindClass("io/cascade/CascadeObject");
+        jmethodID obj_constructor = env->GetMethodID(obj_class, "<init>", "(JJJLjava/nio/ByteBuffer;)V"); // TODO: the correct constructor
+        return env->NewObject(obj_class, obj_constructor, static_cast<jlong>(obj.version), static_cast<jlong>(obj.timestamp_us), static_cast<jlong>(obj.previous_version_by_key), new_byte_buf);
     };
+
+        //env->SetByteArrayRegion(data_byte_arr, 0, size, reinterpret_cast<const jbyte *>(data));
+
+        // lambda that translates into a list of byte buffers and receives a vector of uint64 keys.
+/*    auto u64_vf = [env](std::vector<uint64_t> obj) {
+#ifndef NDEBUG
+        std::cout << "calling u64_vf! " << std::endl;
+        std::cout.flush();
+#endif
+        // create a Java array list
+        jclass arr_list_cls = env->FindClass("java/util/ArrayList");
+        jmethodID arr_init_mid = env->GetMethodID(arr_list_cls, "<init>", "()V");
+        jobject arr_obj = env->NewObject(arr_list_cls, arr_init_mid);
+
+        // list add method
+        jclass list_cls = env->FindClass("java/util/List");
+        jmethodID list_add_mid = env->GetMethodID(list_cls, "add", "(Ljava/lang/Object;)Z");
+
+        // fill everything in
+        std::vector<uint64_t>::iterator it = obj.begin();
+        while (it != obj.end())
+        {
+            std::string s_val = std::to_string(*it);
+            jobject direct_buffer_obj = allocate_byte_buffer_by_copy(env, &s_val[0], s_val.length());
+            
+            env->CallObjectMethod(arr_obj, list_add_mid, direct_buffer_obj);
+            it++;
+        }
+        return arr_obj;
+    };
+*/
+
+    // lambda that translates into a list of byte buffers and receives a vector of string keys.
+    auto s_vf = [env](std::vector<std::string> obj) {
+#ifndef NDEBUG
+        std::cout << "calling s_vf! " << std::endl;
+        std::cout.flush();
+#endif
+        // create a Java array list
+        jclass arr_list_cls = env->FindClass("java/util/ArrayList");
+        jmethodID arr_init_mid = env->GetMethodID(arr_list_cls, "<init>", "()V");
+        jobject arr_obj = env->NewObject(arr_list_cls, arr_init_mid);
+
+        // list add method
+        jclass list_cls = env->FindClass("java/util/List");
+        jmethodID list_add_mid = env->GetMethodID(list_cls, "add", "(Ljava/lang/Object;)Z");
+
+        // fill everything in
+        std::vector<std::string>::iterator it = obj.begin();
+        while (it != obj.end())
+        {
+#ifndef NDEBUG
+            std::cout << "key: " << *it << " ";
+#endif
+            jobject direct_buffer_obj = allocate_byte_buffer_by_copy(env, &(*it)[0], (*it).length());
+            // jobject direct_buffer_obj = env->NewDirectByteBuffer(&(*it), (*it).length());
+            
+            env->CallObjectMethod(arr_obj, list_add_mid, direct_buffer_obj);
+            it++;
+        }
+#ifndef NDEBUG
+        std::cout << std::endl;
+        std::cout << "finished calling s_vf!" << std::endl;
+        std::cout.flush();
+#endif
+        return arr_obj;
+    };
+
 
     // get different reply maps base on mode
     switch (mode)
     {
+    // bundle
     case 0:
         create_object_from_query<std::tuple<persistent::version_t, uint64_t>>(env, handle, hash_map_object, bundle_f);
         break;
+    // buffers
     case 1:
         switch (type_val)
         {
@@ -616,6 +842,25 @@ JNIEXPORT jobject JNICALL Java_io_cascade_QueryResults_getReplyMap(JNIEnv *env, 
         case 3:
 */
             create_object_from_query<const derecho::cascade::ObjectWithStringKey>(env, handle, hash_map_object, s_f);
+            break;
+        }
+        break;
+    // vectors of buffers
+    case 2:
+        switch (type_val)
+        {
+        case 0:
+        case 1:
+/*            create_object_from_query<std::vector<uint64_t>>(env, handle, hash_map_object, u64_vf);
+            break;
+        case 2:
+        case 3:
+*/
+#ifndef NDEBUG
+            std::cout << "did go here!" << std::endl;
+            std::cout.flush();
+#endif
+            create_object_from_query<std::vector<std::string>>(env, handle, hash_map_object, s_vf);
             break;
         }
         break;

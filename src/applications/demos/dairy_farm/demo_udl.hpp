@@ -9,6 +9,24 @@
 #include <fstream>
 #include <string>
 
+/**
+ * Tensor Flow GPU configuration
+ * configure gpu settings
+ * link: https://serizba.github.io/cppflow/quickstart.html#gpu-config-options
+ */
+#define INIT_10PCT_GROWTH   0x32,0xb,0x9,0x9a,0x99,0x99,0x99,0x99,0x99,0xb9,0x3f,0x20,0x1
+#define INIT_20PCT_GROWTH   0x32,0xb,0x9,0x9a,0x99,0x99,0x99,0x99,0x99,0xc9,0x3f,0x20,0x1
+#define INIT_30PCT_GROWTH   0x32,0xb,0x9,0x34,0x33,0x33,0x33,0x33,0x33,0xd3,0x3f,0x20,0x1
+#define INIT_40PCT_GROWTH   0x32,0xb,0x9,0x9a,0x99,0x99,0x99,0x99,0x99,0xd9,0x3f,0x20,0x1
+#define INIT_50PCT_GROWTH   0x32,0xb,0x9,0x0,0x0,0x0,0x0,0x0,0x0,0xe0,0x3f,0x20,0x1
+#define INIT_60PCT_GROWTH   0x32,0xb,0x9,0x34,0x33,0x33,0x33,0x33,0x33,0xe3,0x3f,0x20,0x1
+#define INIT_70PCT_GROWTH   0x32,0xb,0x9,0x67,0x66,0x66,0x66,0x66,0x66,0xe6,0x3f,0x20,0x1
+#define INIT_80PCT_GROWTH   0x32,0xb,0x9,0x9a,0x99,0x99,0x99,0x99,0x99,0xe9,0x3f,0x20,0x1
+#define INIT_90PCT_GROWTH   0x32,0xb,0x9,0xcd,0xcc,0xcc,0xcc,0xcc,0xcc,0xec,0x3f,0x20,0x1
+#define INIT_90PCT_NOGROW   0x32,0x9,0x9,0xcd,0xcc,0xcc,0xcc,0xcc,0xcc,0xec,0x3f
+
+#define DEFAULT_TFE_CONFIG  INIT_90PCT_GROWTH
+
 #define PHOTO_HEIGHT    (240)
 #define PHOTO_WIDTH     (352)
 #define PHOTO_OUTPUT_BUFFER_SIZE    (PHOTO_HEIGHT*PHOTO_WIDTH*3*sizeof(float))
@@ -51,7 +69,7 @@ typedef struct __attribute__ ((packed)) {
     uint64_t    put_us;
 } CloseLoopReport;
 
-inline TriggerCascadeNoStoreWithStringKey::ObjectType get_photo_object(const char* key, const char* photo_file, uint64_t photo_id = 0ul) {
+inline ObjectWithStringKey get_photo_object(const char* key, const char* photo_file, uint64_t photo_id = 0ul) {
     int fd;
     struct stat st;
     void* file_data;
@@ -59,18 +77,18 @@ inline TriggerCascadeNoStoreWithStringKey::ObjectType get_photo_object(const cha
     // open and map file
     if(stat(photo_file, &st) || access(photo_file, R_OK)) {
         std::cerr << "file " << photo_file << " is not readable." << std::endl;
-        return TriggerCascadeNoStoreWithStringKey::ObjectType::IV;
+        return ObjectWithStringKey::IV;
     }
 
     if((S_IFMT & st.st_mode) != S_IFREG) {
         std::cerr << photo_file << " is not a regular file." << std::endl;
-        return TriggerCascadeNoStoreWithStringKey::ObjectType::IV;
+        return ObjectWithStringKey::IV;
     }
 
     if((fd = open(photo_file, O_RDONLY)) < 0) {
         std::cerr << "Failed to open file(" << photo_file << ") in readonly mode with "
                   << "error:" << strerror(errno) << "." << std::endl;
-        return TriggerCascadeNoStoreWithStringKey::ObjectType::IV;
+        return ObjectWithStringKey::IV;
     }
 
     if((file_data = mmap(nullptr, st.st_size, PROT_READ, MAP_PRIVATE | MAP_POPULATE,
@@ -78,7 +96,7 @@ inline TriggerCascadeNoStoreWithStringKey::ObjectType get_photo_object(const cha
        == MAP_FAILED) {
         std::cerr << "Failed to map file(" << photo_file << ") with "
                   << "error:" << strerror(errno) << "." << std::endl;
-        return TriggerCascadeNoStoreWithStringKey::ObjectType::IV;
+        return ObjectWithStringKey::IV;
     }
 
     // load data
@@ -88,7 +106,7 @@ inline TriggerCascadeNoStoreWithStringKey::ObjectType get_photo_object(const cha
     preprocess_photo(file_data,st.st_size,reinterpret_cast<void*>(frame_data.data),PHOTO_OUTPUT_BUFFER_SIZE);
     std::string frame_name(key);
     // create Object
-    TriggerCascadeNoStoreWithStringKey::ObjectType ret("/dairy_farm/front_end/"+frame_name, reinterpret_cast<const char*>(&frame_data),sizeof(frame_data));
+    ObjectWithStringKey ret("/dairy_farm/front_end/"+frame_name, reinterpret_cast<const char*>(&frame_data),sizeof(frame_data));
 
     // release resources;
     munmap(file_data, st.st_size);
