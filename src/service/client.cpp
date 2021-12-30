@@ -783,7 +783,7 @@ std::vector<command_entry_t> commands =
         }
     },
     {
-        "Object Maniputlation Commands","","",command_handler_t()
+        "Object Manipulation Commands","","",command_handler_t()
     },
     {
         "put",
