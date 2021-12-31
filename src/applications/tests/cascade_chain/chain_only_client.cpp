@@ -126,13 +126,13 @@ std::map<std::string, std::map<persistent::version_t, ObjectSignature>> cached_s
 //Verifier for the service's public key. Initialized after startup by a command.
 std::unique_ptr<openssl::Verifier> service_verifier;
 
-// Use this command once at the beginning of a test to create the two object pools for storage and signatures
-// Right now it assumes there will only be a single subgroup (index 0) of each type
 /**
- * Command that initializes the two object pools needed to run the CascadeChain service.
- * This should only be run once, at the beginning of a test. Right now it assumes there
- * will only be a single PCSS subgroup and a single SCSS subgroup, so it creates both
- * object pools on subgroup index 0.
+ * Command that configures both the client and the servers with the two object pools
+ * needed to run the CascadeChain service. It must be run before running any other client
+ * commands, to set the values of storage_pool_name and signature_pool_name. It also queries
+ * the servers to see if the object pools exist and, if not, it creates them. Right now it
+ * assumes there will only be a single PCSS subgroup and a single SCSS subgroup, so it
+ * creates both object pools on subgroup index 0.
  *
  * Expected arguments: [storage-pool-name] [signature-pool-name]
  */
@@ -147,8 +147,15 @@ bool setup_object_pools(ServiceClientAPI& client, const std::vector<std::string>
     } else {
         signature_pool_name = "/signatures";
     }
-    create_object_pool<PersistentCascadeStoreWithStringKey>(client, storage_pool_name, 0);
-    create_object_pool<SignatureCascadeStoreWithStringKey>(client, signature_pool_name, 0);
+    auto storage_opm = client.find_object_pool(storage_pool_name);
+    //find_object_pool returns ObjectPoolMetadata::IV if the object pool cannot be found
+    if(!storage_opm.is_valid()) {
+        create_object_pool<PersistentCascadeStoreWithStringKey>(client, storage_pool_name, 0);
+    }
+    auto signatures_opm = client.find_object_pool(signature_pool_name);
+    if(!signatures_opm.is_valid()) {
+        create_object_pool<SignatureCascadeStoreWithStringKey>(client, signature_pool_name, 0);
+    }
     return true;
 }
 
@@ -205,7 +212,7 @@ bool put_with_signature(ServiceClientAPI& client, const std::vector<std::string>
     }
     //Step 2: Wait a little bit for the signature to be finished
     //TODO: replace this with a more explicit check or callback
-    std::this_thread::sleep_for(std::chrono::seconds(1));
+    std::this_thread::sleep_for(std::chrono::seconds(2));
     //Step 3: Get the hash object for the "latest version" of the key, and figure out what version got assigned to it
     std::string signature_key = signature_pool_name + delimiter + key_suffix;
     derecho::rpc::QueryResults<const ObjectWithStringKey> get_result = client.get(signature_key);
@@ -213,7 +220,7 @@ bool put_with_signature(ServiceClientAPI& client, const std::vector<std::string>
     std::cout << "Node " << get_result.get().begin()->first << " reports that the latest version of the hash for "
               << key_suffix << " is " << hash_object.get_version() << std::endl;
     //Save the hash, so we don't have to compute it ourselves in order to verify the signature
-    signature_record.object_hash = hash_object.blob;
+    signature_record.object_hash = std::move(hash_object.blob);
     signature_record.signature_version = hash_object.get_version();
     //Step 4: Get the signature for this version. Query by version to avoid races with other clients.
     auto signature_result = client.get_signature(signature_key, signature_record.signature_version);
@@ -224,6 +231,36 @@ bool put_with_signature(ServiceClientAPI& client, const std::vector<std::string>
     signature_record.signature_previous_version = std::get<1>(signature_reply);
     //Now store the entire signature record in the cache
     cached_signatures_by_key[signature_record.key_suffix].emplace(signature_record.object_version, signature_record);
+    return true;
+}
+
+/**
+ * Command to manually add a signature (and hash) to the client's cache, for
+ * recovering when the put_with_signature command fails. Assumes you already know
+ * both the desired version of the object and the equivalent version of the hash
+ * object in the signatures subgroup (which will not be the same as the object's
+ * version).
+ *
+ * Expected arguments: <key-suffix> <object-version> <hash-version>
+ */
+bool cache_signature(ServiceClientAPI& client, const std::vector<std::string>& cmd_tokens) {
+    if(cmd_tokens.size() < 4) {
+        print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
+        return false;
+    }
+    std::string key_suffix = cmd_tokens[1];
+    persistent::version_t object_version = std::stol(cmd_tokens[2]);
+    persistent::version_t hash_version = std::stol(cmd_tokens[3]);
+    //Get the hash (although I guess we could compute the same hash locally)
+    auto hash_get_result = client.get(signature_pool_name + delimiter + key_suffix, hash_version);
+    ObjectWithStringKey hash_object = hash_get_result.get().begin()->second.get();
+    cached_signatures_by_key[key_suffix][object_version].object_hash = std::move(hash_object.blob);
+    cached_signatures_by_key[key_suffix][object_version].signature_version = hash_object.get_version();
+    //Get the signature on that version
+    auto signature_get_result = client.get_signature(signature_pool_name + delimiter + key_suffix, hash_version);
+    std::tuple<std::vector<uint8_t>, persistent::version_t> signature_reply = signature_get_result.get().begin()->second.get();
+    cached_signatures_by_key[key_suffix][object_version].signature = std::get<0>(signature_reply);
+    cached_signatures_by_key[key_suffix][object_version].signature_previous_version = std::get<1>(signature_reply);
     return true;
 }
 
@@ -377,6 +414,10 @@ std::vector<command_entry_t> commands = {
          "put_with_signature <key-suffix> <value-string>\n"
          "Note: key-suffix should not include an object pool path; the object pool will be chosen automatically",
          &put_with_signature},
+        {"cache_signature",
+         "Retrieve and cache a signature for a particular version of an object",
+         "cache_signature <key-suffix> <object-version> <signature-version>",
+         &cache_signature},
         {"op_remove",
          "Remove an object from an object pool.",
          "op_remove <key>\n"

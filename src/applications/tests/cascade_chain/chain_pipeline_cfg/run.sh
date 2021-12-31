@@ -1,7 +1,7 @@
 #!/bin/bash
 
 SERVER_BIN=../../../../../service/cascade_server
-CLIENT_BIN=../chain_only_client
+CLIENT_BIN=../../chain_only_client
 
 if [ $# != 1 ]; then
     echo "USAGE <client/server>"

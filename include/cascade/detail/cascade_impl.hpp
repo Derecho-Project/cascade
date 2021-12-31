@@ -1569,8 +1569,8 @@ bool SignatureCascadeStore<KT,VT,IK,IV,ST>::internal_ordered_put(const VT& value
         value.set_timestamp(std::get<1>(version_and_timestamp));
     }
     if (this->persistent_core->ordered_put(value,this->persistent_core.getLatestVersion()) == false) {
-        // verification failed. S we return invalid versions.
-        debug_leave_func_with_value("version=0x{:x},timestamp={}",std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp));
+        // verification failed. So we return invalid versions.
+        debug_leave_func_with_value("version=0x{:x},timestamp={}",persistent::INVALID_VERSION,0);
         return false;
     }
     if (cascade_watcher_ptr) {
@@ -1580,6 +1580,7 @@ bool SignatureCascadeStore<KT,VT,IK,IV,ST>::internal_ordered_put(const VT& value
             group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index).get_shard_num(),
             value.get_key_ref(), value, cascade_context_ptr);
     }
+    debug_leave_func_with_value("version=0x{:x},timestamp={}",std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp));
     return true;
 }
 
