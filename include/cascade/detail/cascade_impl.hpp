@@ -686,6 +686,7 @@ bool DeltaCascadeStoreCore<KT,VT,IK,IV>::ordered_put(const VT& value, persistent
     // call validator
     if constexpr (std::is_base_of<IValidator<KT,VT>,VT>::value) {
         if(!value.validate(this->kv_map)) {
+            debug_leave_func_with_value("accepted={}",false);
             return false;
         }
     }
@@ -700,6 +701,7 @@ bool DeltaCascadeStoreCore<KT,VT,IK,IV>::ordered_put(const VT& value, persistent
         }
         if (!verify_result) {
             // reject the package if verify failed.
+            debug_leave_func_with_value("accepted={}",false);
             return false;
         }
     }
@@ -717,6 +719,7 @@ bool DeltaCascadeStoreCore<KT,VT,IK,IV>::ordered_put(const VT& value, persistent
     this->delta.set_data_len(mutils::bytes_size(value));
     // apply_ordered_put
     apply_ordered_put(value);
+    debug_leave_func_with_value("accepted={}",true);
     return true;
 }
 
