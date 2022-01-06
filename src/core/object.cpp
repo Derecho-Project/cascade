@@ -78,7 +78,7 @@ Blob::Blob(const Blob& other) :
     }
 }
 
-Blob::Blob(Blob&& other) : 
+Blob::Blob(Blob&& other) :
     bytes(other.bytes), size(other.size), is_emplaced(false) {
     other.bytes = nullptr;
     other.size = 0;
@@ -109,7 +109,7 @@ Blob& Blob::operator=(const Blob& other) {
     size = other.size;
     if(size > 0) {
         // char* t_bytes = PAGE_ALIGNED_NEW(size);
-        char* t_bytes = new char[size]; 
+        char* t_bytes = new char[size];
         memcpy(t_bytes, other.bytes, size);
         bytes = t_bytes;
     } else {
@@ -161,7 +161,7 @@ bool ObjectWithUInt64Key::is_valid() const {
 
 // constructor 0 : copy constructor
 ObjectWithUInt64Key::ObjectWithUInt64Key(const uint64_t _key,
-                                         const Blob& _blob) : 
+                                         const Blob& _blob) :
     version(persistent::INVALID_VERSION),
     timestamp_us(0),
     previous_version(INVALID_VERSION),
@@ -188,7 +188,7 @@ ObjectWithUInt64Key::ObjectWithUInt64Key(
     timestamp_us(_timestamp_us),
     previous_version(_previous_version),
     previous_version_by_key(_previous_version_by_key),
-    key(_key), 
+    key(_key),
     blob(_blob.bytes,_blob.size,emplaced) {}
 
 // constructor 1 : copy consotructor
@@ -331,7 +331,7 @@ std::size_t ObjectWithUInt64Key::to_bytes(char* v) const {
 }
 
 std::size_t ObjectWithUInt64Key::bytes_size() const {
-    return 
+    return
 #ifdef ENABLE_EVALUATION
            mutils::bytes_size(message_id) +
 #endif
@@ -463,7 +463,7 @@ bool ObjectWithStringKey::is_valid() const {
 }
 
 // constructor 0 : copy constructor
-ObjectWithStringKey::ObjectWithStringKey(const std::string& _key, 
+ObjectWithStringKey::ObjectWithStringKey(const std::string& _key,
                                          const Blob& _blob) :
 #ifdef ENABLE_EVALUATION
     message_id(0),
@@ -493,12 +493,12 @@ ObjectWithStringKey::ObjectWithStringKey(
     timestamp_us(_timestamp_us),
     previous_version(_previous_version),
     previous_version_by_key(_previous_version_by_key),
-    key(_key), 
+    key(_key),
     blob(_blob.bytes,_blob.size,emplaced) {}
 
 // constructor 1 : copy consotructor
 ObjectWithStringKey::ObjectWithStringKey(const std::string& _key,
-                                         const char* const _b, 
+                                         const char* const _b,
                                          const std::size_t _s) :
 #ifdef ENABLE_EVALUATION
     message_id(0),
@@ -528,7 +528,7 @@ ObjectWithStringKey::ObjectWithStringKey(
     timestamp_us(_timestamp_us),
     previous_version(_previous_version),
     previous_version_by_key(_previous_version_by_key),
-    key(_key), 
+    key(_key),
     blob(_b, _s) {}
 
 // constructor 2 : move constructor
@@ -556,7 +556,7 @@ ObjectWithStringKey::ObjectWithStringKey(const ObjectWithStringKey& other) :
     blob(other.blob) {}
 
 // constructor 4 : default invalid constructor
-ObjectWithStringKey::ObjectWithStringKey() : 
+ObjectWithStringKey::ObjectWithStringKey() :
 #ifdef ENABLE_EVALUATION
     message_id(0),
 #endif
@@ -565,6 +565,19 @@ ObjectWithStringKey::ObjectWithStringKey() :
     previous_version(INVALID_VERSION),
     previous_version_by_key(INVALID_VERSION),
     key() {}
+
+ObjectWithStringKey& ObjectWithStringKey::operator=(ObjectWithStringKey&& other) {
+#ifdef ENABLE_EVALUATION
+    message_id = other.message_id;
+#endif
+    version = other.version;
+    timestamp_us = other.timestamp_us;
+    previous_version = other.previous_version;
+    previous_version_by_key = other.previous_version_by_key;
+    key = std::move(other.key);
+    blob = std::move(other.blob);
+    return *this;
+}
 
 const std::string& ObjectWithStringKey::get_key_ref() const {
     return this->key;

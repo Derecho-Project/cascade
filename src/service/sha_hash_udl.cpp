@@ -62,14 +62,16 @@ public:
                 hash_object->set_version(version);
             } else {
                 //Make a hash object that's mostly a copy of value_object, except the key is
-                //destination_key and the blob data is hash_bytes. Although I think the
-                //version and timestamp will be overwritten by the receiving subgroup anyway.
+                //destination_key and the blob data is hash_bytes.
+                //Unfortunately, the version and timestamp will be overwritten when they are
+                //received, and the previous versions must be set to INVALID_VERSION in order
+                //to pass verify_previous_version.
                 hash_object = std::make_unique<ObjectWithStringKey>(
                         value_object->message_id,
                         value_object->version,
                         value_object->timestamp_us,
-                        value_object->previous_version,
-                        value_object->previous_version_by_key,
+                        INVALID_VERSION, //value_object->previous_version,
+                        INVALID_VERSION, //value_object->previous_version_by_key,
                         destination_key,
                         (char*)hash_bytes, //once Blob stores unsigned char like it should, get rid of this cast
                         sha_hasher.get_hash_size());

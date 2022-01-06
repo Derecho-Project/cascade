@@ -318,6 +318,9 @@ public:
      */
     ObjectWithStringKey();
 
+    /** Move assignment operator; matches move constructor. */
+    ObjectWithStringKey& operator=(ObjectWithStringKey&& other);
+
     virtual const std::string& get_key_ref() const override;
     virtual bool is_null() const override;
     virtual bool is_valid() const override;
