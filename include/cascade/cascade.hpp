@@ -672,6 +672,19 @@ namespace cascade {
         std::tuple<std::vector<uint8_t>, persistent::version_t> get_signature(const KT& key,
                                                                               const persistent::version_t& ver,
                                                                               bool exact = false) const;
+
+        /**
+         * Retrieves the signature and the previous signed version that is in the log at
+         * version ver, regardless of which key it is associated with. Since the log
+         * interleaves updates to different keys, it may be necessary to get a "previous
+         * signed version" (to validate a signature) without knowing which key it is for.
+         *
+         * @param ver The version (of some object) to get a signature for
+         * @return A pair of values: the signature, and the previous persistent version
+         * included in this signature.
+         */
+        std::tuple<std::vector<uint8_t>, persistent::version_t> get_signature_by_version(const persistent::version_t& ver) const;
+
         /**
          * Ordered (subgroup-internal) version of get_signature, which is called by get_signature
          * if the caller requested the "current version" of the object rather than a specific
@@ -727,6 +740,7 @@ namespace cascade {
                                     remove,
                                     get,
                                     get_signature,
+                                    get_signature_by_version,
                                     get_by_time,
                                     list_keys,
                                     op_list_keys,

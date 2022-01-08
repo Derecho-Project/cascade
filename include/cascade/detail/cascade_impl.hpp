@@ -1764,6 +1764,25 @@ std::tuple<std::vector<uint8_t>, persistent::version_t> SignatureCascadeStore<KT
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+std::tuple<std::vector<uint8_t>, persistent::version_t> SignatureCascadeStore<KT,VT,IK,IV,ST>::get_signature_by_version(
+    const persistent::version_t& ver) const {
+    debug_enter_func_with_args("ver=0x{:x}", ver);
+    if(ver == CURRENT_VERSION) {
+        debug_leave_func_with_value("get_signature_by_version does not yet support CURRENT_VERSION ({})", CURRENT_VERSION);
+        return {std::vector<uint8_t>{}, persistent::INVALID_VERSION};
+    }
+    std::vector<uint8_t> signature(persistent_core.getSignatureSize());
+    persistent::version_t previous_signed_version;
+    if(persistent_core.getSignature(ver, signature.data(), previous_signed_version)) {
+        debug_leave_func_with_value("signature found, previous_signed_version=0x{:x}", previous_signed_version);
+        return {signature, previous_signed_version};
+    } else {
+        debug_leave_func();
+        return {std::vector<uint8_t>{}, persistent::INVALID_VERSION};
+    }
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 std::tuple<std::vector<uint8_t>, persistent::version_t> SignatureCascadeStore<KT,VT,IK,IV,ST>::ordered_get_signature(
     const KT& key) {
     debug_enter_func_with_args("key={}",key);

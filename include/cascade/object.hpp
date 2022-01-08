@@ -217,6 +217,18 @@ public:
     mutable uint64_t                                    timestamp_us;           // timestamp in microsecond
     mutable persistent::version_t                       previous_version;       // previous version, INVALID_VERSION for the first version.
     mutable persistent::version_t                       previous_version_by_key; // previous version by key, INVALID_VERSION for the first value of the key.
+    /**
+     * If CascadeChain (signatures) are enabled, and this object represents data,
+     * this field contains the version of the "signature object" (signed hash object)
+     * that corresponds to this version of this object. In other words, you can
+     * retrieve the signature for this object (at this version) by calling
+     * get_signature() on the signatures subgroup with the same key suffix and
+     * requesting the version signature_corresponding_version.
+     *
+     * This field always starts as INVALID_VERSION and will be set off the critical
+     * path by ShaHashObserver once the signature object has been created.
+     */
+    mutable persistent::version_t                       signature_corresponding_version;
     std::string                                         key;                     // object_id
     Blob                                                blob;                    // the object data
 
@@ -239,12 +251,14 @@ public:
      * including the key and the value. If parameter is_emplaced is true, the new
      * object's Blob will be constructed in "emplaced" mode, meaning it shares
      * ownership of the bytes in the parameter Blob rather than copying them into a
-     * new buffer.
+     * new buffer. This constructor is used by the deserialization functions.
      * @param message_id If the macro ENABLE_EVALUATION is defined, the object's message ID
      * @param _version The object's version
      * @param _timestamp_us The object's timestamp, in microseconds
      * @param _previous_version The version of the previous entry in the persistent log
      * @param _previous_version_by_key The previous persistent version for an entry with the same key as this object
+     * @param _signature_corresponding_version The version of the corresponding signature object for this
+     * object, if signatures are enabled
      * @param _key The object's key
      * @param _blob The data to store in the object
      * @param is_emplaced True if the object's Blob should share memory with the parameter _blob
@@ -257,6 +271,7 @@ public:
                         const uint64_t _timestamp_us,
                         const persistent::version_t _previous_version,
                         const persistent::version_t _previous_version_by_key,
+                        const persistent::version_t _signature_corresponding_version,
                         const std::string& _key,
                         const Blob& _blob,
                         bool  is_emplaced = false);
@@ -335,6 +350,9 @@ public:
     virtual uint64_t get_message_id() const override;
 #endif
 
+    void set_signature_version(persistent::version_t ver) const;
+    persistent::version_t get_signature_version() const;
+
 //    DEFAULT_SERIALIZATION_SUPPORT(ObjectWithStringKey, version, timestamp_us, previous_version, previous_version_by_key, key, blob);
     std::size_t to_bytes(char* v) const;
     std::size_t bytes_size() const;
@@ -362,8 +380,9 @@ inline std::ostream& operator<<(std::ostream& out, const ObjectWithStringKey& o)
         << ", ts: " << o.timestamp_us
         << ", prev_ver: " << std::hex << o.previous_version << std::dec
         << ", prev_ver_by_key: " << std::hex << o.previous_version_by_key << std::dec
-        << ", id:" << o.key
-        << ", data:" << o.blob << "}";
+        << ", signature_corresponding_version: " << std::hex << o.signature_corresponding_version << std::dec
+        << ", id: " << o.key
+        << ", data: " << o.blob << "}";
     return out;
 }
 

@@ -975,6 +975,23 @@ namespace cascade {
         get_signature(const typename SubgroupType::KeyType& key, const persistent::version_t& version,
                 uint32_t subgroup_index, uint32_t shard_index);
 
+        /**
+         * get_signature_by_version retrieves the signature on a particular update in the log,
+         * regardless of which key it is associated with. It can only be used with subgroups of type
+         * SignatureCascadeStore, which sign each update.
+         *
+         * @tparam SubgroupType The specific type of subgroup to communicate with; should be one of the
+         * CascadeTypes and be a specialization of SignatureCascadeStore<KT,VT,IK,IV>
+         *
+         * @param version           The version to retrieve a signature for
+         * @param subgroup_index    the subgroup index of SubgroupType to communicate with
+         * @param shard_index       the shard index to communicate with
+         */
+        template<typename SubgroupType>
+        std::enable_if_t<is_signature_store<SubgroupType>::value, derecho::rpc::QueryResults<std::tuple<std::vector<uint8_t>, persistent::version_t>>>
+        get_signature_by_version(const persistent::version_t& version, uint32_t subgroup_index, uint32_t shard_index);
+
+
     protected:
         /**
          * "type_recursive_get_signature" is a helper function for internal use only.
@@ -1002,6 +1019,20 @@ namespace cascade {
                 const persistent::version_t& version,
                 uint32_t subgroup_index,
                 uint32_t shard_index);
+
+        template <typename FirstType, typename SecondType, typename... RestTypes>
+        derecho::rpc::QueryResults<std::tuple<std::vector<uint8_t>, persistent::version_t>> type_recursive_get_signature_by_version(
+                uint32_t type_index,
+                const persistent::version_t& version,
+                uint32_t subgroup_index,
+                uint32_t shard_index);
+
+        template <typename LastType>
+        derecho::rpc::QueryResults<std::tuple<std::vector<uint8_t>, persistent::version_t>> type_recursive_get_signature_by_version(
+                uint32_t type_index,
+                const persistent::version_t& version,
+                uint32_t subgroup_index,
+                uint32_t shard_index);
     public:
         /**
          * object pool version of get_signature
@@ -1020,6 +1051,20 @@ namespace cascade {
                 const KeyType& key,
                 const persistent::version_t& version = CURRENT_VERSION);
 
+        /**
+         * Object Pool version of get_signature_by_version. The key will only be used to determine which
+         * shard of which object pool to contact; a signature will then be retrieved for the exact version
+         * requested from that shard, regardless of whether that version records an update for that key.
+         * This behavior is necessary in order to retrieve the proper "previous signature" for an update
+         * when multiple keys are stored in the same shard.
+         *
+         * @param key The key for an object in the pool that the caller wants a signature from
+         * @param version The version (of any key in that pool) to get a signature for
+         */
+        template <typename KeyType>
+        derecho::rpc::QueryResults<std::tuple<std::vector<uint8_t>, persistent::version_t>> get_signature_by_version(
+                const KeyType& key,
+                const persistent::version_t& version);
 
         /**
          * Object Pool Management API: refresh object pool cache

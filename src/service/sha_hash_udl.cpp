@@ -56,25 +56,20 @@ public:
             std::string destination_key = dest_trigger_pair.first + key_without_object_pool;
             std::unique_ptr<ObjectWithStringKey> hash_object;
             if(!value_object) {
-                std::cerr << "WARNING: Object to hash was not an ObjectWithStringKey, signed hash object will not be able to copy all the fields" << std::endl;
+                std::cerr << "WARNING: Object to hash was not an ObjectWithStringKey" << std::endl;
                 hash_object = std::make_unique<ObjectWithStringKey>(
                         destination_key, (char*)hash_bytes, sha_hasher.get_hash_size());
-                hash_object->set_version(version);
+                hash_object->set_signature_version(version);
             } else {
-                //Make a hash object that's mostly a copy of value_object, except the key is
-                //destination_key and the blob data is hash_bytes.
-                //Unfortunately, the version and timestamp will be overwritten when they are
-                //received, and the previous versions must be set to INVALID_VERSION in order
-                //to pass verify_previous_version.
+                // It would be nice if we could set the hash object's version to exactly the
+                // same as this object's version. Unfortunately, the object will be assigned
+                // a new version when it is received by SignatureCascadeStore, and that behavior
+                // can't be changed. Instead, we will save this object's version in the
+                // hash object's signature_corresponding_version header, and then later
+                // save the hash object's version in this object's signature_corresponding_version header.
                 hash_object = std::make_unique<ObjectWithStringKey>(
-                        value_object->message_id,
-                        value_object->version,
-                        value_object->timestamp_us,
-                        INVALID_VERSION, //value_object->previous_version,
-                        INVALID_VERSION, //value_object->previous_version_by_key,
-                        destination_key,
-                        (char*)hash_bytes, //once Blob stores unsigned char like it should, get rid of this cast
-                        sha_hasher.get_hash_size());
+                        destination_key, (char*)hash_bytes, sha_hasher.get_hash_size());
+                hash_object->set_signature_version(version);
             }
             DefaultCascadeContextType* typed_context = dynamic_cast<DefaultCascadeContextType*>(context);
             if(typed_context) {
@@ -84,7 +79,11 @@ public:
                     auto result = typed_context->get_service_client_ref().trigger_put(*hash_object);
                     result.get();
                 } else {
-                    typed_context->get_service_client_ref().put_and_forget(*hash_object);
+                    auto query_results = typed_context->get_service_client_ref().put(*hash_object);
+                    //Wait for the reply from the signature pool, which will contain the version assigned to the hash object
+                    auto version_timestamp = query_results.get().begin()->second.get();
+                    //Add this version to the data object's headers so we can find the signature
+                    value_object->set_signature_version(std::get<0>(version_timestamp));
                 }
             } else {
                 std::cerr << "ERROR: ShaHashObserver is running on a server where the context type does not match "

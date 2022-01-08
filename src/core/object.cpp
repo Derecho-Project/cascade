@@ -472,6 +472,7 @@ ObjectWithStringKey::ObjectWithStringKey(const std::string& _key,
     timestamp_us(0),
     previous_version(INVALID_VERSION),
     previous_version_by_key(INVALID_VERSION),
+    signature_corresponding_version(INVALID_VERSION),
     key(_key),
     blob(_blob) {}
 // constructor 0.5 : copy/in-place constructor
@@ -483,6 +484,7 @@ ObjectWithStringKey::ObjectWithStringKey(
                                          const uint64_t _timestamp_us,
                                          const persistent::version_t _previous_version,
                                          const persistent::version_t _previous_version_by_key,
+                                         const persistent::version_t _signature_corresponding_version,
                                          const std::string& _key,
                                          const Blob& _blob,
                                          const bool emplaced) :
@@ -493,6 +495,7 @@ ObjectWithStringKey::ObjectWithStringKey(
     timestamp_us(_timestamp_us),
     previous_version(_previous_version),
     previous_version_by_key(_previous_version_by_key),
+    signature_corresponding_version(_signature_corresponding_version),
     key(_key),
     blob(_blob.bytes,_blob.size,emplaced) {}
 
@@ -507,6 +510,7 @@ ObjectWithStringKey::ObjectWithStringKey(const std::string& _key,
     timestamp_us(0),
     previous_version(INVALID_VERSION),
     previous_version_by_key(INVALID_VERSION),
+    signature_corresponding_version(INVALID_VERSION),
     key(_key),
     blob(_b, _s) {}
 // constructor 1.5 : copy constructor
@@ -528,6 +532,7 @@ ObjectWithStringKey::ObjectWithStringKey(
     timestamp_us(_timestamp_us),
     previous_version(_previous_version),
     previous_version_by_key(_previous_version_by_key),
+    signature_corresponding_version(INVALID_VERSION),
     key(_key),
     blob(_b, _s) {}
 
@@ -540,6 +545,7 @@ ObjectWithStringKey::ObjectWithStringKey(ObjectWithStringKey&& other) :
     timestamp_us(other.timestamp_us),
     previous_version(other.previous_version),
     previous_version_by_key(other.previous_version_by_key),
+    signature_corresponding_version(other.signature_corresponding_version),
     key(other.key),
     blob(std::move(other.blob)) {}
 
@@ -552,6 +558,7 @@ ObjectWithStringKey::ObjectWithStringKey(const ObjectWithStringKey& other) :
     timestamp_us(other.timestamp_us),
     previous_version(other.previous_version),
     previous_version_by_key(other.previous_version_by_key),
+    signature_corresponding_version(other.signature_corresponding_version),
     key(other.key),
     blob(other.blob) {}
 
@@ -564,6 +571,7 @@ ObjectWithStringKey::ObjectWithStringKey() :
     timestamp_us(0),
     previous_version(INVALID_VERSION),
     previous_version_by_key(INVALID_VERSION),
+    signature_corresponding_version(INVALID_VERSION),
     key() {}
 
 ObjectWithStringKey& ObjectWithStringKey::operator=(ObjectWithStringKey&& other) {
@@ -574,6 +582,7 @@ ObjectWithStringKey& ObjectWithStringKey::operator=(ObjectWithStringKey&& other)
     timestamp_us = other.timestamp_us;
     previous_version = other.previous_version;
     previous_version_by_key = other.previous_version_by_key;
+    signature_corresponding_version = other.signature_corresponding_version;
     key = std::move(other.key);
     blob = std::move(other.blob);
     return *this;
@@ -628,6 +637,15 @@ uint64_t ObjectWithStringKey::get_message_id() const {
 }
 #endif
 
+void ObjectWithStringKey::set_signature_version(persistent::version_t ver) const {
+    signature_corresponding_version = ver;
+}
+
+persistent::version_t ObjectWithStringKey::get_signature_version() const {
+    return signature_corresponding_version;
+}
+
+
 template <>
 ObjectWithStringKey create_null_object_cb<std::string,ObjectWithStringKey,&ObjectWithStringKey::IK,&ObjectWithStringKey::IV>(const std::string& key) {
     return ObjectWithStringKey(key,Blob{});
@@ -642,6 +660,7 @@ std::size_t ObjectWithStringKey::to_bytes(char* v) const {
     pos+=mutils::to_bytes(timestamp_us, v + pos);
     pos+=mutils::to_bytes(previous_version, v + pos);
     pos+=mutils::to_bytes(previous_version_by_key, v + pos);
+    pos+=mutils::to_bytes(signature_corresponding_version, v + pos);
     pos+=mutils::to_bytes(key, v + pos);
     pos+=mutils::to_bytes(blob, v + pos);
     return pos;
@@ -656,6 +675,7 @@ std::size_t ObjectWithStringKey::bytes_size() const {
            mutils::bytes_size(timestamp_us) +
            mutils::bytes_size(previous_version) +
            mutils::bytes_size(previous_version_by_key) +
+           mutils::bytes_size(signature_corresponding_version) +
            mutils::bytes_size(key) +
            mutils::bytes_size(blob);
 }
@@ -668,6 +688,7 @@ void ObjectWithStringKey::post_object(const std::function<void(char const* const
     mutils::post_object(f, timestamp_us);
     mutils::post_object(f, previous_version);
     mutils::post_object(f, previous_version_by_key);
+    mutils::post_object(f, signature_corresponding_version);
     mutils::post_object(f, key);
     mutils::post_object(f, blob);
 }
@@ -685,7 +706,9 @@ std::unique_ptr<ObjectWithStringKey> ObjectWithStringKey::from_bytes(mutils::Des
     auto p_previous_version = mutils::from_bytes_noalloc<persistent::version_t>(dsm,v + pos);
     pos += mutils::bytes_size(*p_previous_version);
     auto p_previous_version_by_key = mutils::from_bytes_noalloc<persistent::version_t>(dsm,v + pos);
-    pos += mutils::bytes_size(*p_previous_version);
+    pos += mutils::bytes_size(*p_previous_version_by_key);
+    auto p_signature_corresponding_version = mutils::from_bytes_noalloc<persistent::version_t>(dsm,v + pos);
+    pos += mutils::bytes_size(*p_signature_corresponding_version);
     auto p_key = mutils::from_bytes_noalloc<std::string>(dsm,v + pos);
     pos += mutils::bytes_size(*p_key);
     auto p_blob = mutils::from_bytes_noalloc<Blob>(dsm, v + pos);
@@ -698,6 +721,7 @@ std::unique_ptr<ObjectWithStringKey> ObjectWithStringKey::from_bytes(mutils::Des
         *p_timestamp_us,
         *p_previous_version,
         *p_previous_version_by_key,
+        *p_signature_corresponding_version,
         *p_key,
         *p_blob);
 }
@@ -717,7 +741,9 @@ mutils::context_ptr<ObjectWithStringKey> ObjectWithStringKey::from_bytes_noalloc
     auto p_previous_version = mutils::from_bytes_noalloc<persistent::version_t>(dsm,v + pos);
     pos += mutils::bytes_size(*p_previous_version);
     auto p_previous_version_by_key = mutils::from_bytes_noalloc<persistent::version_t>(dsm,v + pos);
-    pos += mutils::bytes_size(*p_previous_version);
+    pos += mutils::bytes_size(*p_previous_version_by_key);
+    auto p_signature_corresponding_version = mutils::from_bytes_noalloc<persistent::version_t>(dsm,v + pos);
+    pos += mutils::bytes_size(*p_signature_corresponding_version);
     auto p_key = mutils::from_bytes_noalloc<std::string>(dsm,v + pos);
     pos += mutils::bytes_size(*p_key);
     auto p_blob = mutils::from_bytes_noalloc<Blob>(dsm, v + pos);
@@ -730,8 +756,10 @@ mutils::context_ptr<ObjectWithStringKey> ObjectWithStringKey::from_bytes_noalloc
         *p_timestamp_us,
         *p_previous_version,
         *p_previous_version_by_key,
+        *p_signature_corresponding_version,
         *p_key,
-        *p_blob,true});
+        *p_blob,
+        true});
 }
 
 mutils::context_ptr<const ObjectWithStringKey> ObjectWithStringKey::from_bytes_noalloc_const(
@@ -749,7 +777,9 @@ mutils::context_ptr<const ObjectWithStringKey> ObjectWithStringKey::from_bytes_n
     auto p_previous_version = mutils::from_bytes_noalloc<persistent::version_t>(dsm,v + pos);
     pos += mutils::bytes_size(*p_previous_version);
     auto p_previous_version_by_key = mutils::from_bytes_noalloc<persistent::version_t>(dsm,v + pos);
-    pos += mutils::bytes_size(*p_previous_version);
+    pos += mutils::bytes_size(*p_previous_version_by_key);
+    auto p_signature_corresponding_version = mutils::from_bytes_noalloc<persistent::version_t>(dsm,v + pos);
+    pos += mutils::bytes_size(*p_signature_corresponding_version);
     auto p_key = mutils::from_bytes_noalloc<std::string>(dsm,v + pos);
     pos += mutils::bytes_size(*p_key);
     auto p_blob = mutils::from_bytes_noalloc<Blob>(dsm, v + pos);
@@ -762,6 +792,7 @@ mutils::context_ptr<const ObjectWithStringKey> ObjectWithStringKey::from_bytes_n
         *p_timestamp_us,
         *p_previous_version,
         *p_previous_version_by_key,
+        *p_signature_corresponding_version,
         *p_key,
         *p_blob,true});
 }
