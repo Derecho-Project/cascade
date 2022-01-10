@@ -1,6 +1,7 @@
 #include <cascade/service_types.hpp>
 #include <cascade/user_defined_logic_interface.hpp>
 #include <derecho/openssl/hash.hpp>
+
 #include <iostream>
 
 namespace derecho {
@@ -26,7 +27,8 @@ public:
                             uint32_t worker_id) override {
         openssl::Hasher sha_hasher(openssl::DigestAlgorithm::SHA256);
         sha_hasher.init();
-        uint8_t hash_bytes[sha_hasher.get_hash_size()];
+        const std::size_t hash_size = sha_hasher.get_hash_size();
+        uint8_t hash_bytes[hash_size];
         //Assume this observer is installed on a PersistentCascadeStoreWithStringKey
         const ObjectWithStringKey* const value_object = dynamic_cast<const ObjectWithStringKey* const>(value_ptr);
         if(value_object) {
@@ -42,10 +44,10 @@ public:
         } else {
             //This will work for any object, but it's slower
             const std::size_t value_size = mutils::bytes_size(*value_ptr);
-            char* value_bytes = new char[value_size];
-            mutils::to_bytes(*value_ptr, value_bytes);
+            std::unique_ptr<char[]> value_bytes = std::make_unique<char[]>(value_size);
+            mutils::to_bytes(*value_ptr, value_bytes.get());
             sha_hasher.add_bytes(&version, sizeof(version));
-            sha_hasher.add_bytes(value_bytes, value_size);
+            sha_hasher.add_bytes(value_bytes.get(), value_size);
         }
         sha_hasher.finalize(hash_bytes);
         //Assume prefix_length identifies the "object pool" prefix of key_string
@@ -57,7 +59,7 @@ public:
             //Create an ObjectWithStringKey for the hash
             //Once Blob and serialization use unsigned char* like they should, remove the cast to char*
             std::unique_ptr<ObjectWithStringKey> hash_object = std::make_unique<ObjectWithStringKey>(
-                    destination_key, (char*)hash_bytes, sha_hasher.get_hash_size());
+                    destination_key, (char*)hash_bytes, hash_size);
             //Use the "version" field of the hash object to inform SignatureCascadeStore of the corresponding data object version
             hash_object->set_version(version);
             DefaultCascadeContextType* typed_context = dynamic_cast<DefaultCascadeContextType*>(context);

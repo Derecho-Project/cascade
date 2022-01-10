@@ -11,6 +11,7 @@
 #include <cascade/utils.hpp>
 
 #include <derecho/openssl/signature.hpp>
+#include <derecho/openssl/hash.hpp>
 
 using namespace derecho::cascade;
 
@@ -185,8 +186,9 @@ bool load_service_key(ServiceClientAPI& client, const std::vector<std::string>& 
  */
 std::vector<uint8_t> compute_hash(const ObjectWithStringKey& data_obj) {
     openssl::Hasher object_hasher(openssl::DigestAlgorithm::SHA256);
-    std::vector<uint8_t> hash(object_hasher.get_hash_size());
     object_hasher.init();
+    //Note: get_hash_size() only works after init()
+    std::vector<uint8_t> hash(object_hasher.get_hash_size());
     object_hasher.add_bytes(&data_obj.version, sizeof(persistent::version_t));
     object_hasher.add_bytes(&data_obj.timestamp_us, sizeof(uint64_t));
     object_hasher.add_bytes(&data_obj.previous_version, sizeof(persistent::version_t));
@@ -212,6 +214,7 @@ bool verify_object_signature(const ObjectWithStringKey& hash, const std::vector<
     // Because DeltaCascadeStoreCore stores the hashes in deltas (which are just ObjectWithStringKeys),
     // the data that PersistentRegistry ends up signing is actually the to_bytes serialization of the entire
     // ObjectWithStringKey object, not just the hash.
+    std::cout << "Verifying signature on hash object " << hash << " with previous signature " << std::hex << previous_signature << std::dec << std::endl;
     std::size_t hash_object_size = mutils::bytes_size(hash);
     char bytes_of_hash_object[hash_object_size];
     mutils::to_bytes(hash, bytes_of_hash_object);
@@ -348,7 +351,7 @@ bool cache_signature(ServiceClientAPI& client, const std::vector<std::string>& c
         cached_signatures_by_key[key_suffix][object_version] = std::make_shared<ObjectSignature>();
         cached_signatures_by_key[key_suffix][object_version]->key_suffix = key_suffix;
         cached_signatures_by_key[key_suffix][object_version]->object_version = object_version;
-        //But how do we initialized object_previous_version?
+        //But how do we initialize object_previous_version?
     }
     //Get the hash - we can't compute the hash locally without knowing the object data
     auto hash_get_result = client.get(signature_pool_name + delimiter + key_suffix, object_version);
@@ -489,8 +492,8 @@ bool get_and_verify_object(ServiceClientAPI& client, const std::vector<std::stri
     }
     //Get the object
     auto get_result = client.get(storage_pool_name + delimiter + key_suffix, object_version);
-    check_get_result(get_result);
     ObjectWithStringKey stored_object = get_result.get().begin()->second.get();
+    std::cout << "node(" << get_result.get().begin()->first << ") replied with value:" << stored_object << std::endl;
     //Compute the hash of the object locally, since we don't trust the service
     std::vector<uint8_t> hash;
     auto cache_search_iter = cached_signatures_by_key[key_suffix].find(object_version);
@@ -721,7 +724,9 @@ inline void do_command(ServiceClientAPI& capi, const std::vector<std::string>& c
             print_red("unknown command:" + cmd_tokens[0]);
         }
     } catch(const derecho::derecho_exception& ex) {
-        print_red(std::string("Exception:") + ex.what());
+        print_red(std::string("Exception: ") + ex.what());
+    } catch(const std::exception& ex) {
+        print_red(std::string("Exception: ") + ex.what());
     } catch(...) {
         print_red("Unknown exception caught.");
     }
