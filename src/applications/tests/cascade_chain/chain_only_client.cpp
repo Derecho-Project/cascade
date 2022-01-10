@@ -180,6 +180,24 @@ bool load_service_key(ServiceClientAPI& client, const std::vector<std::string>& 
 }
 
 /**
+ * Helper function that computes the SHA256 hash of an ObjectWithStringKey
+ * in the same way that sha_hash_udl would compute it.
+ */
+std::vector<uint8_t> compute_hash(const ObjectWithStringKey& data_obj) {
+    openssl::Hasher object_hasher(openssl::DigestAlgorithm::SHA256);
+    std::vector<uint8_t> hash(object_hasher.get_hash_size());
+    object_hasher.init();
+    object_hasher.add_bytes(&data_obj.version, sizeof(persistent::version_t));
+    object_hasher.add_bytes(&data_obj.timestamp_us, sizeof(uint64_t));
+    object_hasher.add_bytes(&data_obj.previous_version, sizeof(persistent::version_t));
+    object_hasher.add_bytes(&data_obj.previous_version_by_key, sizeof(persistent::version_t));
+    object_hasher.add_bytes(data_obj.key.data(), data_obj.key.size());
+    object_hasher.add_bytes(data_obj.blob.bytes, data_obj.blob.size);
+    object_hasher.finalize(hash.data());
+    return hash;
+}
+
+/**
  * Helper function that verifies a chained signature on a hash of an object.
  * The hash must itself be stored in an ObjectWithStringKey, whose headers are
  * populated by the SignatureCascadeStore, in order to match signatures generated
@@ -227,7 +245,7 @@ bool put_with_signature(ServiceClientAPI& client, const std::vector<std::string>
     //The reply map will only have 1 entry
     auto put_reply = put_result.get().begin()->second.get();
     std::cout << "Node " << put_result.get().begin()->first << " finished putting the object, replied with version:"
-              << std::get<0>(put_reply) << ", ts_us:" << std::get<1>(put_reply) << std::endl;
+              << std::hex << std::get<0>(put_reply) << std::dec << ", ts_us:" << std::get<1>(put_reply) << std::endl;
     std::shared_ptr<ObjectSignature> signature_record = std::make_shared<ObjectSignature>();
     signature_record->key_suffix = key_suffix;
     signature_record->object_version = std::get<0>(put_reply);
@@ -242,43 +260,42 @@ bool put_with_signature(ServiceClientAPI& client, const std::vector<std::string>
     obj.version = signature_record->object_version;
     obj.previous_version_by_key = signature_record->object_previous_version;
     obj.timestamp_us = std::get<1>(put_reply);
-    //Step 2: Wait a little bit for the signature to be finished
-    //TODO: replace this with a more explicit check or callback
+    //Step 2: Wait a little bit for the signature to be finished, then retreive it from the signature group
+    //TODO: replace this with a notification sent from SignatureCascadeStore to the client
     std::this_thread::sleep_for(std::chrono::seconds(2));
-    //Step 3: Get the object we just put, which should now have its signature_corresponding_version header filled in
-    //TODO: Get a callback with the version instead, so we don't have to re-download the object data
-    derecho::rpc::QueryResults<const ObjectWithStringKey> get_result = client.get(obj.key, signature_record->object_version);
-    ObjectWithStringKey stored_object = get_result.get().begin()->second.get();
-    persistent::version_t signature_version = stored_object.get_signature_version();
-    std::cout << "Got the object from node " << get_result.get().begin()->first << " and its signature_corresponding_version is " << signature_version << std::endl;
-    signature_record->signature_version = signature_version;
-    //Step 4: Get the signature for this version. Query by version to avoid races with other clients.
     std::string signature_key = signature_pool_name + delimiter + key_suffix;
-    auto signature_result = client.get_signature(signature_key, signature_record->signature_version);
+    //Specify the desired version of the data object; SignatureCascadeStore will look up the corresponding hash object
+    auto signature_result = client.get_signature(signature_key, signature_record->object_version);
     std::tuple<std::vector<uint8_t>, persistent::version_t> signature_reply = signature_result.get().begin()->second.get();
-    std::cout << "Node " << signature_result.get().begin()->first << " replied with signature=" << std::hex << std::get<0>(signature_reply) << std::dec
-              << " and previous_signed_version=" << std::get<1>(signature_reply) << std::endl;
+    std::cout << "Node " << signature_result.get().begin()->first << " replied with signature=" << std::hex << std::get<0>(signature_reply)
+              << " and previous_signed_version=" << std::get<1>(signature_reply) << std::dec << std::endl;
     signature_record->signature = std::get<0>(signature_reply);
     signature_record->signature_previous_version = std::get<1>(signature_reply);
-    //Step 5: Get the hash object for this version, to find out what timestamp and previous_version_by_key it got
+
+    //Step 3: Get the hash object that corresponds to the data object, to find out what timestamp and previous_version_by_key it got
     //This is necessary because the signature includes the entire ObjectWithStringKey, not just the hash blob
     //If it was possible to fill in all the headers (including timestamp, etc), we could construct this object locally
-    auto hash_get_result = client.get(signature_key, signature_record->signature_version);
+    auto hash_get_result = client.get(signature_key, signature_record->object_version);
     ObjectWithStringKey hash_object = hash_get_result.get().begin()->second.get();
+    persistent::version_t signature_version = hash_object.get_version();
+    std::cout << "Got the hash object for data version " << std::hex << signature_record->object_version << std::dec << " from node "
+              << hash_get_result.get().begin()->first << " and its version is " << std::hex << signature_version << std::dec << std::endl;
+    signature_record->signature_version = signature_version;
+    //Step 4: Retrieve the same object we just put, to find out what its previous_version is
+    //This is wasteful, but it's the only way to fill in all the headers of the object so we can hash it locally
+    auto get_result = client.get(obj.key, obj.version);
+    ObjectWithStringKey stored_object = get_result.get().begin()->second.get();
+    obj.previous_version = stored_object.previous_version;
+    std::cout << "Got the object back from node " << get_result.get().begin()->first << " and its previous_version is "
+              << std::hex << stored_object.previous_version << std::dec << std::endl;
+    if(stored_object.previous_version_by_key != obj.previous_version_by_key) {
+        std::cout << "Oh no! The local cache did not have the right previous_version_by_key! We thought it was " << std::hex << obj.previous_version_by_key
+                  << " but Cascade recorded it as " << stored_object.previous_version_by_key << std::dec << std::endl;
+        obj.previous_version_by_key = stored_object.previous_version_by_key;
+        signature_record->object_previous_version = stored_object.previous_version_by_key;
+    }
     //Step 6: Compute the hash of the object locally, since we don't trust the service
-    openssl::Hasher object_hasher(openssl::DigestAlgorithm::SHA256);
-    std::vector<uint8_t> hash(object_hasher.get_hash_size());
-    //Same fields in the same order as sha_hash_udl
-    object_hasher.init();
-    object_hasher.add_bytes(&obj.version, sizeof(persistent::version_t));
-    object_hasher.add_bytes(&obj.timestamp_us, sizeof(uint64_t));
-    //Problem: We can't use the return value of put() to figure out the previous_version, just the previous_version_by_key.
-    //The get() of stored_object is necessary here.
-    object_hasher.add_bytes(&stored_object.previous_version, sizeof(persistent::version_t));
-    object_hasher.add_bytes(&obj.previous_version_by_key, sizeof(persistent::version_t));
-    object_hasher.add_bytes(obj.key.data(), obj.key.size());
-    object_hasher.add_bytes(obj.blob.bytes, obj.blob.size);
-    object_hasher.finalize(hash.data());
+    std::vector<uint8_t> hash = compute_hash(obj);
     if(memcmp(hash_object.blob.bytes, hash.data(), hash.size() != 0)) {
         print_red("Object hash stored in Cascade does not match object hash computed locally!");
         return false;
@@ -291,7 +308,7 @@ bool put_with_signature(ServiceClientAPI& client, const std::vector<std::string>
         auto signature_find_result = cached_signatures_by_version.find(signature_record->signature_previous_version);
         if(signature_find_result == cached_signatures_by_version.end()) {
             //This is why the service needs to send a message back to the client containing the signature for the previous log entry once a put is complete
-            std::cout << "Previous signature on version " << signature_record->signature_previous_version << " is not in the cache, retrieving it" << std::endl;
+            std::cout << "Previous signature on version " << std::hex << signature_record->signature_previous_version << std::dec << " is not in the cache, retrieving it" << std::endl;
             auto prev_signature_result = client.get_signature_by_version(signature_key, signature_record->signature_previous_version);
             prev_signature = std::get<0>(prev_signature_result.get().begin()->second.get());
             //It would be nice if we could put this signature in the cache, but that would require constructing a whole ObjectSignature record
@@ -315,42 +332,39 @@ bool put_with_signature(ServiceClientAPI& client, const std::vector<std::string>
 
 /**
  * Command to manually add a signature (and hash) to the client's cache, for
- * recovering when the put_with_signature command fails. Assumes you already know
- * both the desired version of the object and the equivalent version of the hash
- * object in the signatures subgroup (which will not be the same as the object's
- * version).
+ * recovering when the put_with_signature command fails or restarting a client
+ * with no in-memory state.
  *
- * Expected arguments: <key-suffix> <object-version> <hash-version>
+ * Expected arguments: <key-suffix> <object-version>
  */
 bool cache_signature(ServiceClientAPI& client, const std::vector<std::string>& cmd_tokens) {
-    if(cmd_tokens.size() < 4) {
+    if(cmd_tokens.size() < 3) {
         print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
         return false;
     }
     std::string key_suffix = cmd_tokens[1];
     persistent::version_t object_version = std::stol(cmd_tokens[2]);
-    persistent::version_t hash_version = std::stol(cmd_tokens[3]);
     if(cached_signatures_by_key[key_suffix][object_version] == nullptr) {
         cached_signatures_by_key[key_suffix][object_version] = std::make_shared<ObjectSignature>();
         cached_signatures_by_key[key_suffix][object_version]->key_suffix = key_suffix;
         cached_signatures_by_key[key_suffix][object_version]->object_version = object_version;
+        //But how do we initialized object_previous_version?
     }
     //Get the hash - we can't compute the hash locally without knowing the object data
-    auto hash_get_result = client.get(signature_pool_name + delimiter + key_suffix, hash_version);
+    auto hash_get_result = client.get(signature_pool_name + delimiter + key_suffix, object_version);
     ObjectWithStringKey hash_object = hash_get_result.get().begin()->second.get();
-    if(hash_object.get_version() != hash_version) {
-        print_red("Signature store did not contain a signed hash at version " + std::to_string(hash_version));
-        return false;
-    }
+    std::cout << "Got a hash object for data version " << std::hex << object_version << "; its version is " << hash_object.get_version() << std::dec << std::endl;
     cached_signatures_by_key[key_suffix][object_version]->signature_version = hash_object.get_version();
     cached_signatures_by_key[key_suffix][object_version]->hash_object = std::move(hash_object);
-    //Get the signature on the hash version
-    auto signature_get_result = client.get_signature(signature_pool_name + delimiter + key_suffix, hash_version);
+    //Get the signature
+    auto signature_get_result = client.get_signature(signature_pool_name + delimiter + key_suffix, object_version);
     std::tuple<std::vector<uint8_t>, persistent::version_t> signature_reply = signature_get_result.get().begin()->second.get();
+    std::cout << "Node " << signature_get_result.get().begin()->first << " replied with signature=" << std::hex << std::get<0>(signature_reply)
+              << " and previous_signed_version=" << std::get<1>(signature_reply) << std::dec << std::endl;
     cached_signatures_by_key[key_suffix][object_version]->signature = std::get<0>(signature_reply);
     cached_signatures_by_key[key_suffix][object_version]->signature_previous_version = std::get<1>(signature_reply);
     //Copy the pointer to this cache entry into the by-signature-version index
-    cached_signatures_by_version[hash_version] = cached_signatures_by_key[key_suffix][object_version];
+    cached_signatures_by_version[hash_object.get_version()] = cached_signatures_by_key[key_suffix][object_version];
     return true;
 }
 
@@ -376,6 +390,10 @@ bool verify_cached_signature(ServiceClientAPI& client, const std::vector<std::st
     persistent::version_t verify_version;
     if(cmd_tokens.size() >= 3) {
         verify_version = static_cast<persistent::version_t>(std::stol(cmd_tokens[2]));
+        if(cached_signatures_by_key[key_suffix].find(verify_version) == cached_signatures_by_key[key_suffix].end()) {
+            print_red("No signature in the cache for version " + std::to_string(verify_version));
+            return false;
+        }
     } else {
         verify_version = cached_signatures_by_key[key_suffix].rbegin()->first;
     }
@@ -398,8 +416,8 @@ bool verify_cached_signature(ServiceClientAPI& client, const std::vector<std::st
     } else {
         previous_signature = signature_find_iter->second->signature;
     }
-    bool verified = verify_object_signature(cached_signatures_by_key[key_suffix][verify_version]->hash_object,
-                                            cached_signatures_by_key[key_suffix][verify_version]->signature,
+    bool verified = verify_object_signature(cached_signatures_by_key[key_suffix].at(verify_version)->hash_object,
+                                            cached_signatures_by_key[key_suffix].at(verify_version)->signature,
                                             previous_signature);
     if(verified) {
         std::cout << "Key " << key_suffix << " has a valid signature on version " << verify_version
@@ -411,14 +429,13 @@ bool verify_cached_signature(ServiceClientAPI& client, const std::vector<std::st
 }
 
 /**
- * Command that retrieves the signature for a key at a particular signature version
- * (which is NOT the same as the key's version) and verifies it using the service's
- * public key and the signature for the previous version.
+ * Command that retrieves the signature for a key at a particular version and verifies
+ * it using the service's public key and the signature for the previous version.
  *
- * Expected arguments: <key-suffix> [signature-version]
+ * Expected arguments: <key-suffix> [object-version]
  *  key-suffix: The key identifying an object, without any object-pool prefix
- *  signature-version: The version, as recorded in the hash/signature object, to get
- *                     a signature for. Defaults to the current version if omitted.
+ *  signature-version: The version of the object to get a signature for.
+ *                     Defaults to the current version if omitted.
  */
 bool get_and_verify_signature(ServiceClientAPI& client, const std::vector<std::string>& cmd_tokens) {
     if(cmd_tokens.size() < 2) {
@@ -426,25 +443,80 @@ bool get_and_verify_signature(ServiceClientAPI& client, const std::vector<std::s
         return false;
     }
     std::string key_suffix = cmd_tokens[1];
-    persistent::version_t signature_version;
+    persistent::version_t object_version;
     if(cmd_tokens.size() >= 3) {
-        signature_version = static_cast<persistent::version_t>(std::stol(cmd_tokens[2]));
+        object_version = static_cast<persistent::version_t>(std::stol(cmd_tokens[2]));
     } else {
-        signature_version = CURRENT_VERSION;
+        object_version = CURRENT_VERSION;
     }
-    auto hash_query_result = client.get(signature_pool_name + delimiter + key_suffix, signature_version);
+    auto hash_query_result = client.get(signature_pool_name + delimiter + key_suffix, object_version);
     ObjectWithStringKey hash_object = hash_query_result.get().begin()->second.get();
-    auto sig_query_result = client.get_signature(signature_pool_name + delimiter + key_suffix, signature_version);
+    auto sig_query_result = client.get_signature(signature_pool_name + delimiter + key_suffix, object_version);
     const auto [signature, previous_signature_version] = sig_query_result.get().begin()->second.get();
     //Get the previous signature, which may or may not relate to this key (but will be in the same object pool)
     auto prev_sig_query_result = client.get_signature_by_version(signature_pool_name + delimiter + key_suffix, previous_signature_version);
     const auto [prev_signature, prev_prev_version] = prev_sig_query_result.get().begin()->second.get();
     bool verified = verify_object_signature(hash_object, signature, prev_signature);
     if(verified) {
-        std::cout << "Key " << key_suffix << " has a valid signature on hash-version " << signature_version
+        std::cout << "Key " << key_suffix << " has a valid signature on version " << object_version
                   << " with previous signature version " << previous_signature_version << std::endl;
     } else {
-        print_red("Key " + key_suffix + " had an invalid signature on hash-version " + std::to_string(signature_version));
+        print_red("Key " + key_suffix + " had an invalid signature on version " + std::to_string(object_version));
+    }
+    return verified;
+}
+
+/**
+ * Command that gets an object from the storage pool and its corresponding signature
+ * from the signature pool, then verifies the signature on the hash of the object.
+ *
+ * Expected arguments: <key-suffix> [object-version]
+ *  key-suffix: The key identifying an object, without any object-pool prefix
+ *  signature-version: The version of the object to get a signature for.
+ *                     Defaults to the current version if omitted.
+ */
+bool get_and_verify_object(ServiceClientAPI& client, const std::vector<std::string>& cmd_tokens) {
+    if(cmd_tokens.size() < 2) {
+        print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
+        return false;
+    }
+    std::string key_suffix = cmd_tokens[1];
+    persistent::version_t object_version;
+    if(cmd_tokens.size() >= 3) {
+        object_version = static_cast<persistent::version_t>(std::stol(cmd_tokens[2]));
+    } else {
+        object_version = CURRENT_VERSION;
+    }
+    //Get the object
+    auto get_result = client.get(storage_pool_name + delimiter + key_suffix, object_version);
+    check_get_result(get_result);
+    ObjectWithStringKey stored_object = get_result.get().begin()->second.get();
+    //Compute the hash of the object locally, since we don't trust the service
+    std::vector<uint8_t> hash;
+    auto cache_search_iter = cached_signatures_by_key[key_suffix].find(object_version);
+    if(cache_search_iter != cached_signatures_by_key[key_suffix].end()) {
+        hash = cache_search_iter->second->local_hash;
+    } else {
+        hash = compute_hash(stored_object);
+    }
+    //Get the hash from the service, because we need to know its header fields to compute the signature
+    auto hash_query_result = client.get(signature_pool_name + delimiter + key_suffix, object_version);
+    ObjectWithStringKey hash_object = hash_query_result.get().begin()->second.get();
+    if(memcmp(hash_object.blob.bytes, hash.data(), hash.size() != 0)) {
+        print_red("Object hash stored in Cascade does not match object hash computed locally!");
+        return false;
+    }
+    auto sig_query_result = client.get_signature(signature_pool_name + delimiter + key_suffix, object_version);
+    const auto [signature, previous_signature_version] = sig_query_result.get().begin()->second.get();
+    //Get the previous signature, which may or may not relate to this key (but will be in the same object pool)
+    auto prev_sig_query_result = client.get_signature_by_version(signature_pool_name + delimiter + key_suffix, previous_signature_version);
+    const auto [prev_signature, prev_prev_version] = prev_sig_query_result.get().begin()->second.get();
+    bool verified = verify_object_signature(hash_object, signature, prev_signature);
+    if(verified) {
+        std::cout << "Object has a valid signature on version " << object_version
+                  << " with previous signature version " << previous_signature_version << std::endl;
+    } else {
+        print_red("Object has an invalid signature on version " + std::to_string(object_version));
     }
     return verified;
 }
@@ -550,10 +622,20 @@ std::vector<command_entry_t> commands = {
          "put_with_signature <key-suffix> <value-string>\n"
          "Note: key-suffix should not include an object pool path; the object pool will be chosen automatically",
          &put_with_signature},
+        {"get_and_verify",
+         "Get an object and its signature from CascadeChain, then verify the signature",
+         "get_and_verify <key-suffix> [version(default:current version)]",
+         &get_and_verify_object},
         {"cache_signature",
          "Retrieve and cache a signature for a particular version of an object",
-         "cache_signature <key-suffix> <object-version> <signature-version>",
+         "cache_signature <key-suffix> [version(default:current version)]\n"
+         "Note: key-suffix should not include an object pool path; the object pool will be chosen automatically",
          &cache_signature},
+        {"get_and_verify_signature",
+         "Retrieve and verify a signature for a particular version of an object",
+         "get_and_verify_signature <key-suffix> [version(default:current version)]\n"
+         "Note: key-suffix should not include an object pool path; the object pool will be chosen automatically",
+         &get_and_verify_signature},
         {"op_remove",
          "Remove an object from an object pool.",
          "op_remove <key>\n"

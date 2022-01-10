@@ -1,10 +1,11 @@
 #pragma once
+#include "cascade/utils.hpp"
+
 #include <derecho/conf/conf.hpp>
 #include <memory>
 #include <map>
 #include <type_traits>
 #include <fstream>
-#include <cascade/utils.hpp>
 
 #ifdef ENABLE_EVALUATION
 #include <derecho/utils/time.h>
@@ -1263,6 +1264,7 @@ PersistentCascadeStore<KT,VT,IK,IV,ST>::~PersistentCascadeStore() {}
 // Note: Right now this is just a copy of the PersistentCascadeStore implementation
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 std::tuple<persistent::version_t,uint64_t> SignatureCascadeStore<KT,VT,IK,IV,ST>::put(const VT& value) const {
+    //Somehow ensure that only one replica does the UDL here
     debug_enter_func_with_args("value.get_key_ref()={}",value.get_key_ref());
     LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_PUT_START,group,value);
 
@@ -1270,7 +1272,6 @@ std::tuple<persistent::version_t,uint64_t> SignatureCascadeStore<KT,VT,IK,IV,ST>
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put)>(value);
     auto& replies = results.get();
     std::tuple<persistent::version_t,uint64_t> ret(CURRENT_VERSION,0);
-    // TODO: verfiy consistency ?
     for (auto& reply_pair : replies) {
         ret = reply_pair.second.get();
     }
@@ -1320,8 +1321,28 @@ template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 const VT SignatureCascadeStore<KT,VT,IK,IV,ST>::get(const KT& key, const persistent::version_t& ver, bool exact) const {
     debug_enter_func_with_args("key={},ver=0x{:x}",key,ver);
     if (ver != CURRENT_VERSION) {
-        debug_leave_func();
-        return persistent_core.template getDelta<VT>(ver, [&key,ver,exact,this](const VT& v){
+        //Translate ver from a data-object version to its corresponding signature-object version
+        persistent::version_t hash_version;
+        {
+            std::lock_guard<std::mutex> map_lock(version_map_mutex);
+            auto version_map_search = (*data_to_hash_version).upper_bound(ver);
+            if(version_map_search != (*data_to_hash_version).begin()) {
+                version_map_search--;
+                //The search iterator now points to the largest version <= ver, which is what we want
+                if(version_map_search->first == ver || !exact) {
+                    hash_version = version_map_search->second;
+                } else {
+                    debug_leave_func_with_value("invalid object; version 0x{:x} did not match with exact search", version_map_search->first);
+                    return *IV;
+                }
+            } else {
+                //The map is empty, so no objects have yet been stored here
+                debug_leave_func();
+                return *IV;
+            }
+        }
+        debug_leave_func_with_value("corresponding hash ver=0x{:x}", hash_version);
+        return persistent_core.template getDelta<VT>(hash_version, [&key,hash_version,exact,this](const VT& v){
                 if (key == v.get_key_ref()) {
                     return v;
                 } else {
@@ -1330,7 +1351,7 @@ const VT SignatureCascadeStore<KT,VT,IK,IV,ST>::get(const KT& key, const persist
                         return *IV;
                     } else {
                         // fall back to the slow path.
-                        auto versioned_state_ptr = persistent_core.get(ver);
+                        auto versioned_state_ptr = persistent_core.get(hash_version);
                         if (versioned_state_ptr->kv_map.find(key) != versioned_state_ptr->kv_map.end()) {
                             return versioned_state_ptr->kv_map.at(key);
                         }
@@ -1562,28 +1583,34 @@ void SignatureCascadeStore<KT,VT,IK,IV,ST>::ordered_put_and_forget(const VT& val
     debug_leave_func();
 }
 
-template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-bool SignatureCascadeStore<KT,VT,IK,IV,ST>::internal_ordered_put(const VT& value) {
-    std::tuple<persistent::version_t,uint64_t> version_and_timestamp = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index).get_current_version();
-    if constexpr (std::is_base_of<IKeepVersion,VT>::value) {
-        value.set_version(std::get<0>(version_and_timestamp));
+template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+bool SignatureCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put(const VT& value) {
+    static_assert(std::is_base_of_v<IKeepVersion, VT>, "SignatureCascadeStore can only be used with values that implement IKeepVersion");
+    std::tuple<persistent::version_t, uint64_t> hash_object_version_and_timestamp
+            = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index).get_current_version();
+    //Assume the input object's version field is currently set to its corresponding data object's version
+    persistent::version_t data_object_version = value.get_version();
+    value.set_version(std::get<0>(hash_object_version_and_timestamp));
+    if constexpr(std::is_base_of<IKeepTimestamp, VT>::value) {
+        value.set_timestamp(std::get<1>(hash_object_version_and_timestamp));
     }
-    if constexpr (std::is_base_of<IKeepTimestamp,VT>::value) {
-        value.set_timestamp(std::get<1>(version_and_timestamp));
+    //Store the mapping
+    {
+        std::lock_guard<std::mutex> map_lock(version_map_mutex);
+        data_to_hash_version->emplace(data_object_version, std::get<0>(hash_object_version_and_timestamp));
     }
-    if (this->persistent_core->ordered_put(value,this->persistent_core.getLatestVersion()) == false) {
+    if(this->persistent_core->ordered_put(value, this->persistent_core.getLatestVersion()) == false) {
         // verification failed. So we return invalid versions.
-        debug_leave_func_with_value("version=0x{:x},timestamp={}",persistent::INVALID_VERSION,0);
+        debug_leave_func_with_value("version=0x{:x},timestamp={}", persistent::INVALID_VERSION, 0);
         return false;
     }
-    if (cascade_watcher_ptr) {
+    if(cascade_watcher_ptr) {
         (*cascade_watcher_ptr)(
-            // group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index).get_subgroup_id(), // this is subgroup id
-            this->subgroup_index,
-            group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index).get_shard_num(),
-            value.get_key_ref(), value, cascade_context_ptr);
+                this->subgroup_index,
+                group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index).get_shard_num(),
+                value.get_key_ref(), value, cascade_context_ptr);
     }
-    debug_leave_func_with_value("version=0x{:x},timestamp={}",std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp));
+    debug_leave_func_with_value("version=0x{:x},timestamp={}", std::get<0>(hash_object_version_and_timestamp), std::get<1>(hash_object_version_and_timestamp));
     return true;
 }
 
@@ -1685,38 +1712,41 @@ std::vector<KT> SignatureCascadeStore<KT,VT,IK,IV,ST>::ordered_list_keys() {
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 std::unique_ptr<SignatureCascadeStore<KT,VT,IK,IV,ST>> SignatureCascadeStore<KT,VT,IK,IV,ST>::from_bytes(mutils::DeserializationManager* dsm, char const* buf) {
     auto persistent_core_ptr = mutils::from_bytes<persistent::Persistent<DeltaCascadeStoreCore<KT,VT,IK,IV>,ST>>(dsm,buf);
-    auto persistent_cascade_store_ptr =
-        std::make_unique<SignatureCascadeStore>(std::move(*persistent_core_ptr),
-                                                 dsm->registered<CriticalDataPathObserver<SignatureCascadeStore<KT,VT,IK,IV>>>()?&(dsm->mgr<CriticalDataPathObserver<SignatureCascadeStore<KT,VT,IK,IV>>>()):nullptr,
-                                                 dsm->registered<ICascadeContext>()?&(dsm->mgr<ICascadeContext>()):nullptr);
+    std::size_t persistent_core_size = mutils::bytes_size(*persistent_core_ptr);
+    auto version_map_ptr = mutils::from_bytes<persistent::Persistent<std::map<persistent::version_t, const persistent::version_t>>>(dsm, buf + persistent_core_size);
+    auto persistent_cascade_store_ptr
+            = std::make_unique<SignatureCascadeStore>(std::move(*persistent_core_ptr),
+                                                      std::move(*version_map_ptr),
+                                                      dsm->registered<CriticalDataPathObserver<SignatureCascadeStore<KT, VT, IK, IV>>>() ? &(dsm->mgr<CriticalDataPathObserver<SignatureCascadeStore<KT, VT, IK, IV>>>()) : nullptr,
+                                                      dsm->registered<ICascadeContext>() ? &(dsm->mgr<ICascadeContext>()) : nullptr);
     return persistent_cascade_store_ptr;
 }
 
-template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-SignatureCascadeStore<KT,VT,IK,IV,ST>::SignatureCascadeStore(
-                                               persistent::PersistentRegistry* pr,
-                                               CriticalDataPathObserver<SignatureCascadeStore<KT,VT,IK,IV>>* cw,
-                                               ICascadeContext* cc):
-                                               persistent_core(pr, true), //enable signatures
-                                               cascade_watcher_ptr(cw),
-                                               cascade_context_ptr(cc) {
-}
+template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+SignatureCascadeStore<KT, VT, IK, IV, ST>::SignatureCascadeStore(
+        persistent::PersistentRegistry* pr,
+        CriticalDataPathObserver<SignatureCascadeStore<KT, VT, IK, IV>>* cw,
+        ICascadeContext* cc)
+        : persistent_core(pr, true),  //enable signatures
+          data_to_hash_version(pr, false),
+          cascade_watcher_ptr(cw),
+          cascade_context_ptr(cc) {}
 
-template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-SignatureCascadeStore<KT,VT,IK,IV,ST>::SignatureCascadeStore(
-                                               persistent::Persistent<DeltaCascadeStoreCore<KT,VT,IK,IV>,ST>&&
-                                               _persistent_core,
-                                               CriticalDataPathObserver<SignatureCascadeStore<KT,VT,IK,IV>>* cw,
-                                               ICascadeContext* cc):
-                                               persistent_core(std::move(_persistent_core)),
-                                               cascade_watcher_ptr(cw),
-                                               cascade_context_ptr(cc) {
-}
+template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+SignatureCascadeStore<KT, VT, IK, IV, ST>::SignatureCascadeStore(
+        persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST>&& deserialized_persistent_core,
+        persistent::Persistent<std::map<persistent::version_t, const persistent::version_t>>&& deserialized_data_to_hash_version,
+        CriticalDataPathObserver<SignatureCascadeStore<KT, VT, IK, IV>>* cw,
+        ICascadeContext* cc)
+        : persistent_core(std::move(deserialized_persistent_core)),
+          data_to_hash_version(std::move(deserialized_data_to_hash_version)),
+          cascade_watcher_ptr(cw),
+          cascade_context_ptr(cc) {}
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 SignatureCascadeStore<KT,VT,IK,IV,ST>::~SignatureCascadeStore() {}
 
-/* --- The only part of SignatureCascadeStore that isn't copied and pasted --- */
+/* --- New methods only in SignatureCascadeStore, not copied from PersistentCascadeStore --- */
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 std::tuple<std::vector<uint8_t>, persistent::version_t> SignatureCascadeStore<KT,VT,IK,IV,ST>::get_signature(
@@ -1725,20 +1755,40 @@ std::tuple<std::vector<uint8_t>, persistent::version_t> SignatureCascadeStore<KT
     bool exact) const {
     debug_enter_func_with_args("key={},ver=0x{:x}",key,ver);
     if (ver != CURRENT_VERSION) {
+        //Translate ver from a data-object version to its corresponding signature-object version
+        persistent::version_t hash_version;
+        {
+            std::lock_guard<std::mutex> map_lock(version_map_mutex);
+            auto version_map_search = (*data_to_hash_version).upper_bound(ver);
+            if(version_map_search != (*data_to_hash_version).begin()) {
+                version_map_search--;
+                //The search iterator now points to the largest version <= ver, which is what we want
+                if(version_map_search->first == ver || !exact) {
+                    hash_version = version_map_search->second;
+                } else {
+                    debug_leave_func_with_value("invalid signature; version 0x{:x} did not match with exact search", version_map_search->first);
+                    return {std::vector<uint8_t>{}, persistent::INVALID_VERSION};
+                }
+            } else {
+                //The map is empty, so no objects have yet been stored here
+                debug_leave_func();
+                return {std::vector<uint8_t>{}, persistent::INVALID_VERSION};
+            }
+        }
         std::vector<uint8_t> signature(persistent_core.getSignatureSize());
         persistent::version_t previous_signed_version;
         //Hopefully, the user kept track of which log version corresponded to the "put" for this key,
         //and the entry at the requested version is an object with the correct key
         bool signature_found = persistent_core.template getDeltaSignature<VT>(
-                ver, [&key](const VT& deltaEntry) {
+                hash_version, [&key](const VT& deltaEntry) {
                     return deltaEntry.get_key_ref() == key;
                 },
                 signature.data(), previous_signed_version);
         //If an inexact match is requested, we need to search backward until we find the newest entry
-        //prior to "ver" that contains the requested key. This is slow, but I can't think of a better way.
+        //prior to hash_version that contains the requested key. This is slow, but I can't think of a better way.
         if(!signature_found && !exact) {
-            dbg_default_debug("get_signature: Inexact match requested, searching for {} at version 0x{:x}", key, ver);
-            persistent::version_t search_ver = ver - 1;
+            dbg_default_debug("get_signature: Inexact match requested, searching for {} at version 0x{:x}", key, hash_version);
+            persistent::version_t search_ver = hash_version - 1;
             while(search_ver > 0 && !signature_found) {
                 signature_found = persistent_core.template getDeltaSignature<VT>(
                 search_ver, [&key](const VT& deltaEntry) {

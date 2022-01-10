@@ -1,17 +1,19 @@
 #pragma once
-#include <map>
-#include <memory>
-#include <string>
-#include <time.h>
-#include <iostream>
-#include <tuple>
-#include <optional>
+
+#include "cascade/config.h"
 
 #include <derecho/core/derecho.hpp>
 #include <derecho/mutils-serialization/SerializationSupport.hpp>
 #include <derecho/persistent/Persistent.hpp>
 
-#include <cascade/config.h>
+#include <iostream>
+#include <map>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <time.h>
+#include <tuple>
 
 namespace derecho {
 namespace cascade {
@@ -629,15 +631,15 @@ namespace cascade {
      * that stores the actual data, and the value type VT is some kind of byte array that
      * can hold a hash (e.g. std::array<uint8_t, 32>.
      *
-     * This is actually just a copy of PersistentCascadeStore that inherits SignedPersistentFields
+     * This is mostly a copy of PersistentCascadeStore that just inherits SignedPersistentFields
      * to enable signatures on the persistent key-value map. It would be nice if I could reuse the
      * code for all the put/get methods without copying and pasting it.
      */
-    template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST=persistent::ST_FILE>
+    template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST = persistent::ST_FILE>
     class SignatureCascadeStore : public ICascadeStore<KT, VT, IK, IV>,
-                                public mutils::ByteRepresentable,
-                                public derecho::SignedPersistentFields,
-                                public derecho::GroupReference {
+                                  public mutils::ByteRepresentable,
+                                  public derecho::SignedPersistentFields,
+                                  public derecho::GroupReference {
     private:
         /** Derecho group reference */
         using derecho::GroupReference::group;
@@ -646,6 +648,19 @@ namespace cascade {
          * constructed with signatures=true.
          */
         persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST> persistent_core;
+        /**
+         * Map from data versions (version associated with an object stored in PersistentCascadeStore)
+         * to hash versions (version of the hash of that object stored in this SignatureCascadeStore).
+         * A new key-value entry is added each time a hash object is added with put(), but entries do not
+         * change once added.
+         */
+        persistent::Persistent<std::map<persistent::version_t, const persistent::version_t>> data_to_hash_version;
+        /**
+         * A mutex to control access to data_to_hash_version, since it may be simultaneously accessed by
+         * both a P2P get (to read) and an ordered put (to write). This wouldn't be necessary if we had a
+         * thread-safe list, since version mappings are append-only.
+         */
+        mutable std::mutex version_map_mutex;
         /** Watcher */
         CriticalDataPathObserver<SignatureCascadeStore<KT, VT, IK, IV>>* cascade_watcher_ptr;
         /** Cascade context (off-critical-path manager) */
@@ -657,12 +672,16 @@ namespace cascade {
 
         /**
          * Retrieves the signature and the previous signed version that is logged
-         * with the object identified by key at version ver. Returns an empty signature
-         * and an invalid version if there is no version ver, or if an exact match is
-         * requested and version ver does not correspond to an update to the requested key.
+         * with the object identified by key at version ver, where ver is the version
+         * of its corresponding *data object* (i.e. object with the same key suffix but
+         * an object-pool prefix located on PersistentCascadeStore). Note that the
+         * version of the corresponding hash object stored here will be different.
+         * Returns an empty signature and an invalid version if there is no version ver,
+         * or if an exact match is requested and version ver does not correspond to an
+         * update to the requested key.
          *
          * @param key The key identifying the object to retrieve a signature for
-         * @param ver The desired version of the object
+         * @param ver The version of the data object that is associated with the desired hash object
          * @param exact True if the version requested must be an exact match, false if the
          * method should return the signature on the nearest version (before ver) that
          * contains an update to the specified key.
@@ -712,6 +731,17 @@ namespace cascade {
         virtual double perf_put(const uint32_t max_payload_size, const uint64_t duration_sec) const override;
     #endif  //ENABLE_EVALUATION
         virtual std::tuple<persistent::version_t, uint64_t> remove(const KT& key) const override;
+        /**
+         * Gets the object that stores a hash of the data object matching key "key" (i.e.
+         * its key has the same suffix but a different object-pool prefix), at a specific
+         * version "ver" of the *data object*. The version of the hash object will not
+         * necessarily be equal to this version.
+         *
+         * @param key The key of the hash object to retrieve from this SignatureCascadeStore
+         * @param ver The version of the data object that is associated with the desired hash object
+         * @param exact True if the data-object version must match exactly, false if the hash
+         * of the closest-known version of the data object can be returned instead
+         */
         virtual const VT get(const KT& key, const persistent::version_t& ver, bool exact = false) const override;
         virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) const override;
         virtual std::vector<KT> list_keys(const persistent::version_t& ver) const override;
@@ -769,21 +799,22 @@ namespace cascade {
                                     ));
 
         /* Serialization support, with a custom deserializer to get the context pointers from the registry */
-        DEFAULT_SERIALIZE(persistent_core);
+        DEFAULT_SERIALIZE(persistent_core, data_to_hash_version);
 
         DEFAULT_DESERIALIZE_NOALLOC(SignatureCascadeStore);
 
         static std::unique_ptr<SignatureCascadeStore> from_bytes(mutils::DeserializationManager* dsm, char const* buf);
 
         /* Constructors */
-        //Initial constructor, creates Persistent object
+        //Initial constructor, creates Persistent objects
         SignatureCascadeStore(persistent::PersistentRegistry* persistent_registry,
-                            CriticalDataPathObserver<SignatureCascadeStore<KT, VT, IK, IV>>* watcher = nullptr,
-                            ICascadeContext* context = nullptr);
-        //Deserialization constructor, moves Persistent object
+                              CriticalDataPathObserver<SignatureCascadeStore<KT, VT, IK, IV>>* watcher = nullptr,
+                              ICascadeContext* context = nullptr);
+        //Deserialization constructor, moves Persistent objects
         SignatureCascadeStore(persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST>&& deserialized_persistent_core,
-                            CriticalDataPathObserver<SignatureCascadeStore<KT, VT, IK, IV>>* watcher = nullptr,
-                            ICascadeContext* context = nullptr);
+                              persistent::Persistent<std::map<persistent::version_t, const persistent::version_t>>&& deserialized_data_to_hash_version,
+                              CriticalDataPathObserver<SignatureCascadeStore<KT, VT, IK, IV>>* watcher = nullptr,
+                              ICascadeContext* context = nullptr);
 
         virtual ~SignatureCascadeStore();
     };
