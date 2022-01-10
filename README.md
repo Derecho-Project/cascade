@@ -26,11 +26,13 @@ Cascade is a C++17 cloud application framework powered by optimized RDMA data pa
 - A C++ compiler supporting C++17: GCC 8.3+
 - CMake 3.10 or newer
 - [Lohmann's json parser](https://github.com/nlohmann) v3.2.0 or newer
+- Readline library v7.0 or newer. On Ubuntu, use `apt install libreadline-dev` to install it.
+- RPC library [rpclib](https://github.com/rpclib/rpclib). For convenience, install it with [this script](scripts/prerequisites/install-rpclib.sh).
 - [libfuse](https://github.com/libfuse) v3.9.3 or newer (Optional for file system API)
 - [boolinq](https://github.com/k06a/boolinq) or newer (Optional for LINQ API)
 - Python 3.5 or newer and [pybind11](https://github.com/pybind/pybind11) (Optional for Python API)
 - OpenJDK 11.06 or newer. On Ubuntu, use `apt install openjdk-11-jdk` to install it. (Optional for Java API)
-- Derecho v2.0.1. Plesae follow this [document](http://github.com/Derecho-Project/derecho) to install Derecho. Note: this cascade version replies on Derecho commit 5cfd35f1e7481d2e67bef5df40999c8171af5cc5.
+- Derecho v2.2.2. Plesae follow this [document](http://github.com/Derecho-Project/derecho) to install Derecho. Note: this cascade version replies on Derecho commit 5db7cc8c4528b2997f02cce560732715495a25d7.
 
 ## Build Cascade
 1) Download Cascade Source Code
