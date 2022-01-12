@@ -1,21 +1,23 @@
 #define FUSE_USE_VERSION 31
-#include <fuse3/fuse_lowlevel.h>
-#include <unistd.h>
-#include <iostream>
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
 #include "fuse_client_context.hpp"
-#include <cascade/service_types.hpp>
+
+#include "cascade/service_types.hpp"
+
 #include <derecho/conf/conf.hpp>
 #include <derecho/utils/logger.hpp>
+
+#include <fuse3/fuse_lowlevel.h>
+#include <iostream>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 #define FUSE_CLIENT_DEV_ID  (0xCA7CADE)
 
 /**
  * fuse_client mount the cascade service to file system. This allows users to access cascade data with normal POSIX
  * filesystem API.
- * 
+ *
  * The data in cascade is organized this way:
  * <mount-point>/<site-name>/<subgroup-type>/<subgroup-index>/<shard-index>/<key>
  * "mount-point" is where the cascade data is mounted.
@@ -147,7 +149,7 @@ static void fs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, stru
     FileBytes* pfb = reinterpret_cast<FileBytes*>(fi->fh);
 
     dbg_default_trace("fs_read() with off:{}, size:{}, file_bytes:{}", off, size, pfb->size);
-    
+
     if (static_cast<size_t>(off) < pfb->size) {
         fuse_reply_buf(req, pfb->bytes+off, min(pfb->size - off, size));
     } else {

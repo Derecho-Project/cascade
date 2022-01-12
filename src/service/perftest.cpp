@@ -1,14 +1,16 @@
-#include <cascade/config.h>
+#include "cascade/config.h"
 #ifdef ENABLE_EVALUATION
 #include "perftest.hpp"
+
 #include <derecho/conf/conf.hpp>
 #include <derecho/core/detail/rpc_utils.hpp>
-#include <type_traits>
+#include <derecho/utils/time.h>
+
+#include <fstream>
 #include <optional>
 #include <queue>
-#include <derecho/utils/time.h>
+#include <type_traits>
 #include <unistd.h>
-#include <fstream>
 
 namespace derecho {
 namespace cascade {
@@ -112,7 +114,7 @@ bool PerfTestServer::eval_put(uint64_t max_operation_per_second,
                 window_slots --;
             }
             next_ns += interval_ns;
-            std::function<void(QueryResults<std::tuple<persistent::version_t,uint64_t>>&&)> future_appender = 
+            std::function<void(QueryResults<std::tuple<persistent::version_t,uint64_t>>&&)> future_appender =
                 [&futures,&futures_mutex,&futures_cv](QueryResults<std::tuple<persistent::version_t,uint64_t>>&& query_results){
                     std::unique_lock<std::mutex> lock{futures_mutex};
                     uint64_t timestamp_ns = get_walltime();
@@ -226,7 +228,7 @@ bool PerfTestServer::eval_trigger_put(uint64_t max_operation_per_second,
         global_timestamp_logger.log(TLT_EC_SENT,this->capi.get_my_id(),message_id,get_walltime());
         message_id ++;
     }
-    
+
     return true;
 }
 

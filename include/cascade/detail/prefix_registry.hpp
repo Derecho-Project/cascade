@@ -1,12 +1,13 @@
 #pragma once
 
+#include "cascade/config.h"
+
 #include <functional>
 #include <memory>
 #include <unordered_map>
 #include <vector>
 #include <mutex>
 #include <iostream>
-#include <cascade/config.h>
 
 namespace derecho {
 namespace cascade {
@@ -101,7 +102,7 @@ public:
      * @param path      - the full path.
      * @param collector - the lambda function to collect values for all prefixes of a string.
      *
-     * @return 
+     * @return
      */
     void collect_values_for_prefixes(const std::string& path,
             const std::function<void(const std::string& prefix,const std::shared_ptr<T>& value)>& collector) const;

@@ -1,17 +1,18 @@
 #pragma once
-#include <memory>
+#include "cascade/object_pool_metadata.hpp"
+#include "cascade/service_client_api.hpp"
+
+#include <derecho/utils/logger.hpp>
+#include <mutils-containers/KindMap.hpp>
+#include <nlohmann/json.hpp>
+
 #include <atomic>
+#include <fuse3/fuse_lowlevel.h>
+#include <limits>
+#include <memory>
 #include <mutex>
 #include <string>
-#include <limits>
-#include <mutils-containers/KindMap.hpp>
-#include <cascade/service_client_api.hpp>
-#include <fuse3/fuse_lowlevel.h>
-#include <nlohmann/json.hpp>
-#include <derecho/utils/logger.hpp>
 #include <time.h>
-#include "cascade/object_pool_metadata.hpp"
-
 
 namespace derecho {
 namespace cascade{
@@ -154,7 +155,7 @@ class RootMetaINode : public FuseClientINode {
 public:
     RootMetaINode (std::unique_ptr<ServiceClientType>& _capi_ptr) :
         update_interval (2), // membership refreshed in 2 seconds.
-        capi_ptr (_capi_ptr), 
+        capi_ptr (_capi_ptr),
         last_update_sec(0) {
         this->type = INodeType::META;
         this->display_name = META_FILE_NAME;
@@ -172,7 +173,7 @@ public:
                 update_contents();
             }
             return contents.size();
-        } 
+        }
         return contents.size();
     }
 
@@ -216,7 +217,7 @@ public:
     std::unique_ptr<ServiceClientType>& capi_ptr;
     std::map<typename CascadeType::KeyType, fuse_ino_t> key_to_ino;
 
-    ShardINode (uint32_t shidx, fuse_ino_t pino, std::unique_ptr<ServiceClientType>& _capi_ptr) : 
+    ShardINode (uint32_t shidx, fuse_ino_t pino, std::unique_ptr<ServiceClientType>& _capi_ptr) :
         shard_index (shidx), capi_ptr(_capi_ptr) {
         this->type = INodeType::SHARD;
         this->display_name = "shard-" + std::to_string(shidx);
@@ -305,7 +306,7 @@ public:
         shard_index(_shard_index),
         subgroup_index(_subgroup_index),
         update_interval (2), // membership refreshed in 2 seconds.
-        capi_ptr (_capi_ptr), 
+        capi_ptr (_capi_ptr),
         last_update_sec(0) {
         this->type = INodeType::META;
         this->display_name = META_FILE_NAME;
@@ -323,7 +324,7 @@ public:
                 update_contents();
             }
             return contents.size();
-        } 
+        }
         return contents.size();
     }
 
@@ -370,7 +371,7 @@ class RootObjectPoolINode : public FuseClientINode {
 public:
     RootObjectPoolINode (std::unique_ptr<ServiceClientType>& _capi_ptr) :
         update_interval (2), // membership refreshed in 2 seconds.
-        capi_ptr (_capi_ptr), 
+        capi_ptr (_capi_ptr),
         last_update_sec(0) {
         this->type = INodeType::CASCADE_OBJECTPOOL;
         this->display_name = "Cascade_ObjectPool";
@@ -389,7 +390,7 @@ public:
                 update_contents();
             }
             return contents.size();
-        } 
+        }
         return contents.size();
     }
 
@@ -424,7 +425,7 @@ public:
     std::unique_ptr<ServiceClientType>& capi_ptr;
     std::map<typename CascadeType::KeyType, fuse_ino_t> opkey_to_ino;
 
-    ObjectPoolPathINode (std::string op_pathname, fuse_ino_t pino, std::unique_ptr<ServiceClientType>& _capi_ptr) : 
+    ObjectPoolPathINode (std::string op_pathname, fuse_ino_t pino, std::unique_ptr<ServiceClientType>& _capi_ptr) :
         object_pool_pathname (op_pathname), capi_ptr(_capi_ptr) {
         this->type = INodeType::OBJECTPOOLPATH;
         this->display_name = "object_pool-" + object_pool_pathname;
@@ -448,7 +449,7 @@ public:
                 auto reply = reply_future.second.get();
                 std::unique_lock wlck(this->children_mutex);
                 for (auto& key: reply) {
-                    /** TODO: Optimize. 
+                    /** TODO: Optimize.
                      * 1. this parsing step is not efficient.
                      * 2. same key been re-accessed on every obj pool */
                     std::string key_pathname = get_pathname<typename CascadeType::KeyType>(key);
@@ -468,7 +469,7 @@ template <typename CascadeType, typename ServiceClientType>
 class ObjectPoolMetaINode : public FuseClientINode {
 private:
     const std::string   object_pool_pathname;
-    const uint32_t      subgroup_type_index; 
+    const uint32_t      subgroup_type_index;
     const uint32_t      subgroup_index;
     const sharding_policy_t sharding_policy;
     // std::unordered_map<std::string,uint32_t>    object_locations;
@@ -499,13 +500,13 @@ private:
             contents += "Unknown\n";
             break;
         }
-        
+
     }
 public:
     ObjectPoolMetaINode (const std::string _op_pathname, std::unique_ptr<ServiceClientType>& _capi_ptr) :
         object_pool_pathname(_op_pathname),
         update_interval (2), // object pool refreshed in 2 seconds.
-        capi_ptr (_capi_ptr), 
+        capi_ptr (_capi_ptr),
         last_update_sec(0) {
         this->type = INodeType::META;
         this->display_name = META_FILE_NAME;
@@ -523,7 +524,7 @@ public:
                 update_contents();
             }
             return contents.size();
-        } 
+        }
         return contents.size();
     }
 
@@ -556,7 +557,7 @@ class KeyINode : public FuseClientINode {
 public:
     typename CascadeType::KeyType key;
     std::unique_ptr<ServiceClientType>& capi_ptr;
-    KeyINode(typename CascadeType::KeyType& k, fuse_ino_t pino, std::unique_ptr<ServiceClientType>& _capi_ptr) : 
+    KeyINode(typename CascadeType::KeyType& k, fuse_ino_t pino, std::unique_ptr<ServiceClientType>& _capi_ptr) :
         key(k), capi_ptr(_capi_ptr) {
         dbg_default_trace("[{}]entering {}.", gettid(), __func__);
         this->type = INodeType::KEY;
@@ -770,7 +771,7 @@ public:
     int open_file(fuse_ino_t ino, struct fuse_file_info *fi) {
         dbg_default_debug("[{}]entering {} with ino={:x}.", gettid(), __func__, ino);
         FuseClientINode* pfci = reinterpret_cast<FuseClientINode*>(ino);
-        if (pfci->type != INodeType::KEY && 
+        if (pfci->type != INodeType::KEY &&
             pfci->type != INodeType::META) {
             return EISDIR;
         }

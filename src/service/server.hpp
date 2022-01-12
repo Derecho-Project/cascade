@@ -1,10 +1,12 @@
+#pragma once
+
+#include "cascade/cascade.hpp"
+#include "cascade/service.hpp"
+#include "cascade/service_types.hpp"
+#include "cascade/object.hpp"
+
 #include <string>
 #include <type_traits>
-
-#include <cascade/cascade.hpp>
-#include <cascade/service.hpp>
-#include <cascade/service_types.hpp>
-#include <cascade/object.hpp>
 
 
 #ifndef NDEBUG

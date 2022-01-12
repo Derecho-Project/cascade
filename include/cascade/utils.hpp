@@ -1,5 +1,7 @@
 #pragma once
 
+#include "cascade/config.h"
+
 #include <functional>
 #include <memory>
 #include <map>
@@ -9,7 +11,6 @@
 #include <condition_variable>
 #include <time.h>
 #include <thread>
-#include <cascade/config.h>
 
 namespace derecho {
 namespace cascade {

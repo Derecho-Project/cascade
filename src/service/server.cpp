@@ -1,18 +1,21 @@
-#include <cascade/cascade.hpp>
-#include <cascade/service.hpp>
-#include <cascade/service_types.hpp>
+#include "server.hpp"
+
+#include "cascade/cascade.hpp"
+#include "cascade/service.hpp"
+#include "cascade/service_types.hpp"
 //
 // We should add a cascade service library side-by-side to libcascade.so to include the client-side implementations for
 // cascade service client. Right now, we put some of the implementations (create_null_object_cb<>, e.g.) as inline
 // functions in service_client_api.hpp. It's not a good design, which should change later.
-#include <cascade/service_client_api.hpp>
-#include <cascade/object.hpp>
-#include <sys/prctl.h>
+#include "cascade/service_client_api.hpp"
+#include "cascade/object.hpp"
+
 #include <derecho/conf/conf.hpp>
 #include <derecho/utils/logger.hpp>
+
+#include <sys/prctl.h>
 #include <dlfcn.h>
 
-#include "server.hpp"
 
 #define PROC_NAME "cascade_server"
 

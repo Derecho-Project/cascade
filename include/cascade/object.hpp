@@ -1,4 +1,11 @@
 #pragma once
+#include "cascade/cascade.hpp"
+
+#include <derecho/conf/conf.hpp>
+#include <derecho/core/derecho.hpp>
+#include <derecho/mutils-serialization/SerializationSupport.hpp>
+#include <derecho/persistent/Persistent.hpp>
+
 #include <chrono>
 #include <iostream>
 #include <map>
@@ -10,12 +17,7 @@
 #include <optional>
 #include <tuple>
 
-#include <derecho/conf/conf.hpp>
-#include <derecho/core/derecho.hpp>
-#include <derecho/mutils-serialization/SerializationSupport.hpp>
-#include <derecho/persistent/Persistent.hpp>
 
-#include <cascade/cascade.hpp>
 
 using std::cout;
 using std::endl;

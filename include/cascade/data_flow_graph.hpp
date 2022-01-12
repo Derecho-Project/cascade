@@ -19,7 +19,7 @@ namespace cascade {
  *     "graph": [
  *         {
  *             "pathname": "/pool0/",
- *             "shard_dispatcher_list": [ 
+ *             "shard_dispatcher_list": [
  *                 "one",
  *                 "all"
  *             ],
@@ -48,10 +48,12 @@ namespace cascade {
  *     ];
  * }
  *
+ * Need a "one.fixed" and "one.random" dispatcher
+ *
  * Each DFG is composed of an ID, which is a UUID string, and a graph. The graph specifies the DFG structure using a
  * list of vertices. Each vertex has three mandatory and two optional attributes.
  *
- * 1) The MANDATORY "pathname" attribute specifies a folder for this vertex. 
+ * 1) The MANDATORY "pathname" attribute specifies a folder for this vertex.
  * 2) The OPTIONAL "shard_dispatcher_list" attribute specifies how a k/v pair is dispatched to shard members for each
  * of the UDLs. The only two options supported are "all" and "one", meaning that this k/v pair is handled by all members
  * or just one of the members. Cascade will randomly pick one of the node using key hash and node's rank in the shard.
@@ -59,11 +61,11 @@ namespace cascade {
  * 3) The MANDATORY "user_defined_logic_list" attribute gives a list of UDLs that should be registered for this vertex.
  * 4) The OPTIONAL "user_defined_logic_config_list" is for a list of the json configurations for all UDLs listed in
  * "user_Defined_logic_list".
- * 5) The "destinations" attribute lists the vertices where the output of UDLs should go. Each element of the 
+ * 5) The "destinations" attribute lists the vertices where the output of UDLs should go. Each element of the
  * "destinations" value is a dictionary specifying the vertex and the method (put/trigger_put).
  *
- * Please note that the lengthes of "destinations", "user_defined_logic_list", and "user_defined_logic_config_list" 
- * should match each other. 
+ * Please note that the lengthes of "destinations", "user_defined_logic_list", and "user_defined_logic_config_list"
+ * should match each other.
  */
 
 #define DFG_JSON_ID                     "id"
@@ -89,8 +91,8 @@ public:
     const std::string id;
     // description of the DFG
     const std::string description;
-    // the vertex table is a map 
-    // from pathname (or prefix) 
+    // the vertex table is a map
+    // from pathname (or prefix)
     // to its vertex structure.
     struct DataFlowGraphVertex {
         std::string pathname;
