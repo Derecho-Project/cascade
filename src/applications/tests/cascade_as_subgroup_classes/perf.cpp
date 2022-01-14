@@ -11,10 +11,10 @@
 #include <pthread.h>
 #include <list>
 #include <tuple>
-#include <unistd.h> 
-#include <sys/socket.h> 
-#include <stdlib.h> 
-#include <netinet/in.h> 
+#include <unistd.h>
+#include <sys/socket.h>
+#include <stdlib.h>
+#include <netinet/in.h>
 
 using namespace derecho::cascade;
 using derecho::ExternalClientCaller;
@@ -26,41 +26,41 @@ using PCS = PersistentCascadeStore<uint64_t,ObjectWithUInt64Key,&ObjectWithUInt6
 
 /* telnet server for server remote shutdown */
 void wait_for_shutdown(int port) {
-    int server_fd, new_socket; 
-    struct sockaddr_in address; 
-    int opt = 1; 
-    int addrlen = sizeof(address); 
-    char buffer[1024] = {0}; 
-    const char *response = "shutdown"; 
-       
-    // Creating socket file descriptor 
-    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) 
-    { 
-        perror("socket failed"); 
-        exit(EXIT_FAILURE); 
-    } 
-       
-    // Forcefully attaching socket to the port 8080 
-    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, 
-                                                  &opt, sizeof(opt))) 
-    { 
-        perror("setsockopt"); 
-        exit(EXIT_FAILURE); 
-    } 
-    address.sin_family = AF_INET; 
-    address.sin_addr.s_addr = INADDR_ANY; 
+    int server_fd, new_socket;
+    struct sockaddr_in address;
+    int opt = 1;
+    int addrlen = sizeof(address);
+    char buffer[1024] = {0};
+    const char *response = "shutdown";
+
+    // Creating socket file descriptor
+    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0)
+    {
+        perror("socket failed");
+        exit(EXIT_FAILURE);
+    }
+
+    // Forcefully attaching socket to the port 8080
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT,
+                                                  &opt, sizeof(opt)))
+    {
+        perror("setsockopt");
+        exit(EXIT_FAILURE);
+    }
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons( port );
-       
-    if (bind(server_fd, (struct sockaddr *)&address,  
-                                 sizeof(address))<0) 
-    { 
-        perror("bind failed"); 
-        exit(EXIT_FAILURE); 
-    } 
-    if (listen(server_fd, 3) < 0) 
-    { 
-        perror("listen"); 
-        exit(EXIT_FAILURE); 
+
+    if (bind(server_fd, (struct sockaddr *)&address,
+                                 sizeof(address))<0)
+    {
+        perror("bind failed");
+        exit(EXIT_FAILURE);
+    }
+    if (listen(server_fd, 3) < 0)
+    {
+        perror("listen");
+        exit(EXIT_FAILURE);
     }
 
     std::cout << "Press ENTER or send \"shutdown\" to TCP port " << port << " to gracefully shutdown." << std::endl;
@@ -83,7 +83,7 @@ void wait_for_shutdown(int port) {
             break;
         }
 
-        new_socket = accept(server_fd, (struct sockaddr *)&address,  
+        new_socket = accept(server_fd, (struct sockaddr *)&address,
                             (socklen_t*)&addrlen);
         if (new_socket < -1) {
             dbg_default_warn("failed to receive shutdown with error code:{}.",errno);
@@ -91,7 +91,7 @@ void wait_for_shutdown(int port) {
 
         int valread = read (new_socket, buffer, 1024);
         if(valread > 0 && strncmp("shutdown",buffer,strlen("shutdown")) == 0) {
-            send(new_socket , response , strlen(response) , 0 ); 
+            send(new_socket , response , strlen(response) , 0 );
             shutdown(new_socket, SHUT_RDWR);
             close(new_socket);
             break;
@@ -273,7 +273,7 @@ struct client_states {
             std::cout << this->send_tss[i] << "," << this->recv_tss[i] << "\t" << (this->recv_tss[i]-this->send_tss[i]) << std::endl;
         }
         */
-        
+
         uint64_t total_bytes = this->num_messages * this->message_size;
         uint64_t timespan_us = this->recv_tss[this->num_messages-1] - this->send_tss[0];
         double thp_MiBps,thp_ops,avg_latency_us,std_latency_us;
@@ -290,7 +290,7 @@ struct client_states {
             avg_latency_us = sum/this->num_messages;
             double ssum = 0.0;
             for(size_t i=0;i<num_messages;i++) {
-                ssum += ((this->recv_tss[i]-this->send_tss[i]-avg_latency_us) 
+                ssum += ((this->recv_tss[i]-this->send_tss[i]-avg_latency_us)
                         *(this->recv_tss[i]-this->send_tss[i]-avg_latency_us));
             }
             std_latency_us = sqrt(ssum/(this->num_messages + 1));
@@ -312,7 +312,7 @@ inline uint64_t randomize_key(uint64_t& in) {
     x ^= x << 17;
     return x;
 }
-    
+
 int do_client(int argc,char** args) {
 
     const uint64_t max_distinct_objects = 4096;
@@ -327,8 +327,8 @@ int do_client(int argc,char** args) {
     }
 
     /** 1 - create external client group*/
-    derecho::ExternalGroup<VCS,PCS> group;
-    
+    derecho::ExternalGroupClient<VCS,PCS> group;
+
     uint64_t msg_size = derecho::getConfUInt64(CONF_SUBGROUP_DEFAULT_MAX_PAYLOAD_SIZE);
     uint32_t my_node_id = derecho::getConfUInt32(CONF_DERECHO_LOCAL_ID);
 

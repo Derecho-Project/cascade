@@ -316,7 +316,7 @@ namespace cascade {
     class ServiceClient {
     private:
         // default caller as an external client.
-        std::unique_ptr<derecho::ExternalGroup<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>> external_group_ptr;
+        std::unique_ptr<derecho::ExternalGroupClient<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>> external_group_ptr;
         mutable std::mutex external_group_ptr_mutex;
         // caller as a group member.
         derecho::Group<CascadeMetadataService<CascadeTypes...>, CascadeTypes...>* group_ptr;

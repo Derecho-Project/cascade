@@ -133,7 +133,7 @@ template <typename... CascadeTypes>
 ServiceClient<CascadeTypes...>::ServiceClient(derecho::Group<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>* _group_ptr):
     group_ptr(_group_ptr) {
     if (group_ptr == nullptr) {
-        this->external_group_ptr = std::make_unique<derecho::ExternalGroup<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>>();
+        this->external_group_ptr = std::make_unique<derecho::ExternalGroupClient<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>>();
     }
 }
 
@@ -393,7 +393,7 @@ derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceCl
             auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
             return subgroup_handle.template ordered_send<RPC_NAME(ordered_put)>(value);
         } else {
-            // do normal put as a non member (ExternalCaller).
+            // do normal put as a non member (PeerCaller).
             auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
             node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
             return subgroup_handle.template p2p_send<RPC_NAME(put)>(node_id,value);
@@ -463,7 +463,7 @@ void ServiceClient<CascadeTypes...>::put_and_forget(
             auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
             subgroup_handle.template ordered_send<RPC_NAME(ordered_put_and_forget)>(value);
         } else {
-            // do normal put as a non member (ExternalCaller).
+            // do normal put as a non member (PeerCaller).
             auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
             node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
             subgroup_handle.template p2p_send<RPC_NAME(put_and_forget)>(node_id,value);
@@ -635,7 +635,7 @@ derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceCl
             return subgroup_handle.template ordered_send<RPC_NAME(ordered_remove)>(key);
         } else {
             auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
-            // do normal remove as a non member (ExternalCaller).
+            // do normal remove as a non member (PeerCaller).
             node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
             return subgroup_handle.template p2p_send<RPC_NAME(remove)>(node_id,key);
         }
@@ -705,7 +705,7 @@ derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> ServiceClien
             auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
             return subgroup_handle.template p2p_send<RPC_NAME(get)>(group_ptr->get_my_id(),key,version,false);
         } else {
-            // do normal put as a non member (ExternalCaller).
+            // do normal put as a non member (PeerCaller).
             auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
             node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
             return subgroup_handle.template p2p_send<RPC_NAME(get)>(node_id,key,version,false);
@@ -780,7 +780,7 @@ derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> ServiceClien
             auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
             return subgroup_handle.template p2p_send<RPC_NAME(get_by_time)>(group_ptr->get_my_id(),key,ts_us);
         } else {
-            // do normal put as a non member (ExternalCaller).
+            // do normal put as a non member (PeerCaller).
             auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
             node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
             return subgroup_handle.template p2p_send<RPC_NAME(get_by_time)>(node_id,key,ts_us);
@@ -853,7 +853,7 @@ derecho::rpc::QueryResults<uint64_t> ServiceClient<CascadeTypes...>::get_size(
             auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
             return subgroup_handle.template p2p_send<RPC_NAME(get_size)>(group_ptr->get_my_id(),key,version,false);
         } else {
-            // do normal put as a non member (ExternalCaller).
+            // do normal put as a non member (PeerCaller).
             auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
             node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
             return subgroup_handle.template p2p_send<RPC_NAME(get_size)>(node_id,key,version,false);
@@ -926,7 +926,7 @@ derecho::rpc::QueryResults<uint64_t> ServiceClient<CascadeTypes...>::get_size_by
             auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
             return subgroup_handle.template p2p_send<RPC_NAME(get_size_by_time)>(group_ptr->get_my_id(),key,ts_us);
         } else {
-            // do normal put as a non member (ExternalCaller).
+            // do normal put as a non member (PeerCaller).
             auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
             node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
             return subgroup_handle.template p2p_send<RPC_NAME(get_size_by_time)>(node_id,key,ts_us);
@@ -998,7 +998,7 @@ derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> ServiceC
             auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
             return subgroup_handle.template p2p_send<RPC_NAME(list_keys)>(group_ptr->get_my_id(),version);
         } else {
-            // do normal put as a non member (ExternalCaller).
+            // do normal put as a non member (PeerCaller).
             auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
             node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
             return subgroup_handle.template p2p_send<RPC_NAME(list_keys)>(node_id,version);
@@ -1119,7 +1119,7 @@ derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> ServiceC
             auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
             return subgroup_handle.template p2p_send<RPC_NAME(list_keys_by_time)>(group_ptr->get_my_id(),ts_us);
         } else {
-            // do normal put as a non member (ExternalCaller).
+            // do normal put as a non member (PeerCaller).
             auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
             node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
             return subgroup_handle.template p2p_send<RPC_NAME(list_keys_by_time)>(node_id,ts_us);
@@ -1179,7 +1179,7 @@ std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename Subg
                 auto shard_keys = subgroup_handle.template p2p_send<RPC_NAME(op_list_keys_by_time)>(group_ptr->get_my_id(),ts_us,object_pool_pathname);
                 result.emplace_back(std::make_unique<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>(std::move(shard_keys)));
             } else {
-                // do normal put as a non member (ExternalCaller).
+                // do normal put as a non member (PeerCaller).
                 auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
                 node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
                 auto shard_keys = subgroup_handle.template p2p_send<RPC_NAME(op_list_keys_by_time)>(node_id,ts_us,object_pool_pathname);
@@ -1216,7 +1216,7 @@ ServiceClient<CascadeTypes...>::get_signature(const typename SubgroupType::KeyTy
             auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
             return subgroup_handle.template p2p_send<RPC_NAME(get_signature)>(group_ptr->get_my_id(),key,version,false);
         } else {
-            // do normal get_signature as a non member (ExternalCaller).
+            // do normal get_signature as a non member (PeerCaller).
             auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
             node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
             return subgroup_handle.template p2p_send<RPC_NAME(get_signature)>(node_id,key,version,false);
@@ -1243,7 +1243,7 @@ ServiceClient<CascadeTypes...>::get_signature_by_version(const persistent::versi
             auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
             return subgroup_handle.template p2p_send<RPC_NAME(get_signature_by_version)>(group_ptr->get_my_id(),version);
         } else {
-            // do normal get_signature_by_version as a non member (ExternalCaller).
+            // do normal get_signature_by_version as a non member (PeerCaller).
             auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
             node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
             return subgroup_handle.template p2p_send<RPC_NAME(get_signature_by_version)>(node_id,version);

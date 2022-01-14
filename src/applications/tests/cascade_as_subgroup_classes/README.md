@@ -19,7 +19,7 @@ Press ENTER to shutdown...
 ## Starting client node
 ```
 test/cli_example_cfg/n2 $ ../../cli_example client
-Finished constructing ExternalGroup.
+Finished constructing ExternalGroupClient.
 Members in top derecho group:[ 0 1 ]
 Members in the single shard of Volatile Cascade Store:[ 0 ]
 Members in the single shard of Persistent Cascade Store:[ 1 ]
@@ -49,6 +49,6 @@ put finished with timestamp=12884901888,version=1585433193138330
 ```
 To get a value from the volatile store:
 ```
-cmd> vget 1000 
+cmd> vget 1000
 get finished with object:Object{ver: 0x300000000, ts: 1585433193138330, id:1000, data:[size:3, data: A A A]}
 ```

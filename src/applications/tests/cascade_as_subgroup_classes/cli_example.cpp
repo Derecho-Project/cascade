@@ -32,7 +32,7 @@ static std::vector<std::string> tokenize(std::string& line) {
 }
 
 static void client_help() {
-    static const char* HELP_STR = 
+    static const char* HELP_STR =
         "(v/p/t)put <object_id> <contents>\n"
         "    - Put an object\n"
         "(v/p)get <object_id> [-t timestamp_in_us | -v version_number]\n"
@@ -58,7 +58,7 @@ static void client_help() {
 // put_type = 0 : volatile
 // put_type = 1 : persistent
 // put_type = 2 : trigger
-static void client_put(derecho::ExternalGroup<VCS,PCS,TCS>& group,
+static void client_put(derecho::ExternalGroupClient<VCS,PCS,TCS>& group,
                        node_id_t member,
                        const std::vector<std::string>& tokens,
                        bool is_persistent) {
@@ -67,7 +67,7 @@ static void client_put(derecho::ExternalGroup<VCS,PCS,TCS>& group,
     }
 
     uint64_t key = std::stoll(tokens[1]);
-    
+
     //TODO: the previous_version should be used to enforce version check. INVALID_VERSION disables the feature.
     ObjectWithUInt64Key o(key,Blob(tokens[2].c_str(),tokens[2].size()));
 
@@ -87,7 +87,7 @@ static void client_put(derecho::ExternalGroup<VCS,PCS,TCS>& group,
     return;
 }
 
-static void client_trigger_put(derecho::ExternalGroup<VCS,PCS,TCS>& group,
+static void client_trigger_put(derecho::ExternalGroupClient<VCS,PCS,TCS>& group,
                                node_id_t member,
                                const std::vector<std::string>& tokens) {
     if (tokens.size() != 3) {
@@ -95,7 +95,7 @@ static void client_trigger_put(derecho::ExternalGroup<VCS,PCS,TCS>& group,
     }
 
     uint64_t key = std::stoll(tokens[1]);
-    
+
     ObjectWithUInt64Key o(key,Blob(tokens[2].c_str(),tokens[2].size()));
 
     ExternalClientCaller<TCS,std::remove_reference<decltype(group)>::type>& vcs_ec = group.get_subgroup_caller<TCS>();
@@ -106,7 +106,7 @@ static void client_trigger_put(derecho::ExternalGroup<VCS,PCS,TCS>& group,
 }
 
 // get
-static void client_get(derecho::ExternalGroup<VCS,PCS,TCS>& group,
+static void client_get(derecho::ExternalGroupClient<VCS,PCS,TCS>& group,
                        node_id_t member,
                        const std::vector<std::string>& tokens,
                        bool is_persistent) {
@@ -150,7 +150,7 @@ static void client_get(derecho::ExternalGroup<VCS,PCS,TCS>& group,
 }
 
 // list
-static void client_list(derecho::ExternalGroup<VCS,PCS,TCS>& group,
+static void client_list(derecho::ExternalGroupClient<VCS,PCS,TCS>& group,
                         node_id_t member,
                         const std::vector<std::string>& tokens,
                         bool is_persistent) {
@@ -193,7 +193,7 @@ static void client_list(derecho::ExternalGroup<VCS,PCS,TCS>& group,
 }
 
 // remove
-static void client_remove(derecho::ExternalGroup<VCS,PCS,TCS>& group,
+static void client_remove(derecho::ExternalGroupClient<VCS,PCS,TCS>& group,
                           node_id_t member,
                           const std::vector<std::string>& tokens,
                           bool is_persistent) {
@@ -202,7 +202,7 @@ static void client_remove(derecho::ExternalGroup<VCS,PCS,TCS>& group,
     }
 
     uint64_t key = std::stoll(tokens[1]);
-    
+
     if (is_persistent) {
         ExternalClientCaller<PCS,std::remove_reference<decltype(group)>::type>& pcs_ec = group.get_subgroup_caller<PCS>();
         auto result = pcs_ec.p2p_send<RPC_NAME(remove)>(member,key);
@@ -221,8 +221,8 @@ static void client_remove(derecho::ExternalGroup<VCS,PCS,TCS>& group,
 
 void do_client() {
     /** 1 - create external client group*/
-    derecho::ExternalGroup<VCS,PCS,TCS> group;
-    std::cout << "Finished constructing ExternalGroup." << std::endl;
+    derecho::ExternalGroupClient<VCS,PCS,TCS> group;
+    std::cout << "Finished constructing ExternalGroupClient." << std::endl;
 
     /** 2 - get members */
     std::vector<node_id_t> g_members = group.get_members();
