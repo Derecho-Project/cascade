@@ -71,7 +71,7 @@ public:
         mutils::DeserializationManager* ctx,
         const char* const v);
 
-    static mutils::context_ptr<Blob> from_bytes_noalloc_const(
+    static mutils::context_ptr<const Blob> from_bytes_noalloc_const(
         mutils::DeserializationManager* ctx,
         const char* const v);
 };

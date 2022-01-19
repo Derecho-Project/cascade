@@ -6,6 +6,7 @@
 #include "user_defined_logic_manager.hpp"
 
 #include <derecho/conf/conf.hpp>
+#include <derecho/core/notification.hpp>
 #include <derecho/persistent/PersistentInterface.hpp>
 #include <derecho/utils/time.h>
 
@@ -398,6 +399,13 @@ namespace cascade {
          *                   client to communicate with group members.
          */
         ServiceClient(derecho::Group<CascadeMetadataService<CascadeTypes...>, CascadeTypes...>* _group_ptr=nullptr);
+
+        /**
+         * Constructor to be used by an external client when the CascadeTypes have notification support enabled.
+         * In this case, the external client object needs to be passed a zero-argument factory function for each
+         * CascadeType.
+         */
+        ServiceClient(derecho::NoArgFactory<CascadeTypes>... client_factories);
         /**
          * Derecho group helpers: They derive the API in derecho::ExternalClient.
          * - get_my_id          return my local node id.
@@ -454,6 +462,48 @@ namespace cascade {
         std::tuple<ShardMemberSelectionPolicy,node_id_t> get_member_selection_policy(
                 uint32_t subgroup_index, uint32_t shard_index) const;
 
+        /**
+         * Registers a notification handler for notifications from a particular subgroup and shard.
+         * This simply exposes the derecho::ExternalClientCaller API for notifications, using the
+         * member selection policy for the specified subgroup/shard to determine which member to
+         * listen for notifications from.
+         * @tparam SubgroupType The type of subgroup to listen for notifications from; this type
+         * must extend derecho::NotificationSupport
+         * @param handler_func A function that will be called every time the ServiceClient receives
+         * a notification from the subgroup and shard
+         * @param subgroup_index The subgroup index to receive notifications from
+         * @param shard_index The shard index, within that subgroup, to receive notifications from
+         */
+        template <typename SubgroupType>
+        std::enable_if_t<std::is_base_of_v<derecho::NotificationSupport, SubgroupType>>
+        register_notification(std::function<void(const derecho::NotificationMessage&)> handler_func,
+                                   uint32_t subgroup_index, uint32_t shard_index);
+
+        /**
+         * Object-pool version of register_notification: Registers a notification handler for
+         * notifications related to a particular key.
+         * @param handler_func A function that will be called every time the ServiceClient receives
+         * a notification from the subgroup and shard that stores the specified key
+         * @param key The key to use to select a subgroup and shard
+         */
+        template <typename KeyType>
+        void register_notification(std::function<void(const derecho::NotificationMessage&)> handler_func,
+                                   const KeyType& key);
+
+    protected:
+        template <typename LastType>
+        void type_recursive_register_notification(uint32_t type_index,
+                                                  const std::function<void(const derecho::NotificationMessage&)>& func,
+                                                  uint32_t subgroup_index,
+                                                  uint32_t shard_index);
+
+        template <typename FirstType, typename SecondType, typename... RestTypes>
+        void type_recursive_register_notification(uint32_t type_index,
+                                                  const std::function<void(const derecho::NotificationMessage&)>& func,
+                                                  uint32_t subgroup_index,
+                                                  uint32_t shard_index);
+
+    public:
         /**
          * "put" writes an object to a given subgroup/shard.
          *

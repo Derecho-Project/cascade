@@ -138,6 +138,13 @@ ServiceClient<CascadeTypes...>::ServiceClient(derecho::Group<CascadeMetadataServ
 }
 
 template <typename... CascadeTypes>
+ServiceClient<CascadeTypes...>::ServiceClient(derecho::NoArgFactory<CascadeTypes>... factories) {
+    this->external_group_ptr = std::make_unique<derecho::ExternalGroupClient<CascadeMetadataService<CascadeTypes...>, CascadeTypes...>>(
+            []() { return std::make_unique<CascadeMetadataService<CascadeTypes...>>(nullptr); },
+            factories...);
+}
+
+template <typename... CascadeTypes>
 node_id_t ServiceClient<CascadeTypes...>::get_my_id() const {
     if (group_ptr != nullptr) {
         return group_ptr->get_my_id();
@@ -267,6 +274,70 @@ std::tuple<ShardMemberSelectionPolicy,node_id_t> ServiceClient<CascadeTypes...>:
     } else {
         return std::make_tuple(DEFAULT_SHARD_MEMBER_SELECTION_POLICY,INVALID_NODE_ID);
     }
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+std::enable_if_t<std::is_base_of_v<derecho::NotificationSupport, SubgroupType>>
+ServiceClient<CascadeTypes...>::register_notification(std::function<void(const derecho::NotificationMessage&)> func,
+                                                           uint32_t subgroup_index, uint32_t shard_index) {
+    if(group_ptr != nullptr) {
+        //Does it even make sense to do this for a ServiceClient that's a group member?
+        dbg_default_error("Unable to register a notification handler because this ServiceClient is running on a Cascade node. Notifications are only supported on External Clients.");
+    } else {
+        std::lock_guard<std::mutex> lck(this->external_group_ptr_mutex);
+        auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
+        node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index, shard_index);
+        caller.register_notification(func, node_id);
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename LastType>
+void ServiceClient<CascadeTypes...>::type_recursive_register_notification(
+        uint32_t type_index,
+        const std::function<void(const derecho::NotificationMessage&)>& func,
+        uint32_t subgroup_index,
+        uint32_t shard_index) {
+    if(type_index == 0) {
+        if constexpr(std::is_base_of_v<derecho::NotificationSupport, LastType>) {
+            this->template register_notification<LastType>(func, subgroup_index, shard_index);
+        } else {
+            throw derecho::derecho_exception("register_notification cannot be called on a subgroup type without NotificationSupport");
+        }
+    } else {
+        throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) + ": type index is out of boundary.");
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename FirstType, typename SecondType, typename... RestTypes>
+void ServiceClient<CascadeTypes...>::type_recursive_register_notification(
+        uint32_t type_index,
+        const std::function<void(const derecho::NotificationMessage&)>& func,
+        uint32_t subgroup_index,
+        uint32_t shard_index) {
+    if(type_index == 0) {
+        if constexpr(std::is_base_of_v<derecho::NotificationSupport, FirstType>) {
+            this->template register_notification<FirstType>(func, subgroup_index, shard_index);
+        } else {
+            throw derecho::derecho_exception("register_notification cannot be called on a subgroup type without NotificationSupport");
+        }
+    } else {
+        this->template type_recursive_register_notification<SecondType, RestTypes...>(type_index - 1, func, subgroup_index, shard_index);
+    }
+}
+
+template <typename...CascadeTypes>
+template <typename KeyType>
+void ServiceClient<CascadeTypes...>::register_notification(std::function<void(const derecho::NotificationMessage&)> handler_func,
+                                   const KeyType& key) {
+    static_assert(std::is_convertible_v<KeyType, std::string>, "register_notification(func, key) only supports string keys");
+
+    uint32_t subgroup_type_index,subgroup_index,shard_index;
+    std::tie(subgroup_type_index,subgroup_index,shard_index) = this->template key_to_shard(key);
+
+    type_recursive_register_notification<CascadeTypes...>(subgroup_type_index, handler_func, subgroup_index, shard_index);
 }
 
 template <typename... CascadeTypes>

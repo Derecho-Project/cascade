@@ -10,8 +10,8 @@
 #include <cascade/service_client_api.hpp>
 #include <cascade/utils.hpp>
 
-#include <derecho/openssl/signature.hpp>
 #include <derecho/openssl/hash.hpp>
+#include <derecho/openssl/signature.hpp>
 
 using namespace derecho::cascade;
 
@@ -218,6 +218,15 @@ bool verify_object_signature(const ObjectWithStringKey& hash, const std::vector<
     std::size_t hash_object_size = mutils::bytes_size(hash);
     char bytes_of_hash_object[hash_object_size];
     mutils::to_bytes(hash, bytes_of_hash_object);
+    std::ios normal_stream_state(nullptr);
+    normal_stream_state.copyfmt(std::cout);
+    std::cout << "Verifying these bytes: " << std::hex << std::setfill('0');
+    for(std::size_t i = 0; i < hash_object_size; ++i) {
+        //It sure is hard to convince std::cout to print bytes as bytes. Why do I need two casts?
+        std::cout << std::setw(2) << std::right << static_cast<int>(static_cast<uint8_t>(bytes_of_hash_object[i])) << " ";
+    }
+    std::cout.copyfmt(normal_stream_state);
+    std::cout << std::endl;
     service_verifier->add_bytes(bytes_of_hash_object,
                                 hash_object_size);
     service_verifier->add_bytes(previous_signature.data(),
@@ -267,6 +276,21 @@ bool put_with_signature(ServiceClientAPI& client, const std::vector<std::string>
     //TODO: replace this with a notification sent from SignatureCascadeStore to the client
     std::this_thread::sleep_for(std::chrono::seconds(2));
     std::string signature_key = signature_pool_name + delimiter + key_suffix;
+    //I'd like to do something like this, but actually, that lambda will be called on every notification,
+    //so it needs to be a more generic function that figures out which version we were notified in response to
+    //and then calls back the main thread if it's the one this put() is interested in.
+/*
+    std::unique_ptr<std::vector<uint8_t>> signature_response;
+    persistent::version_t prev_signed_ver_response;
+    client.register_notification([&](const derecho::NotificationMessage& message){
+        if(message.message_type == SignatureCascadeStoreWithStringKey::SIGNATURE_FINISHED_MESSAGE) {
+            //Message format: Serialized vector<uint8_t>, then serialized version_t
+            signature_response = mutils::from_bytes<std::vector<uint8_t>>(nullptr, reinterpret_cast<const char*>(message.body));
+            std::size_t offset = mutils::bytes_size(*signature_response);
+            memcpy(&prev_signed_ver_response, message.body + offset, sizeof(prev_signed_ver_response));
+        }
+    }, signature_key);
+*/
     //Specify the desired version of the data object; SignatureCascadeStore will look up the corresponding hash object
     auto signature_result = client.get_signature(signature_key, signature_record->object_version);
     std::tuple<std::vector<uint8_t>, persistent::version_t> signature_reply = signature_result.get().begin()->second.get();
@@ -452,14 +476,17 @@ bool get_and_verify_signature(ServiceClientAPI& client, const std::vector<std::s
     } else {
         object_version = CURRENT_VERSION;
     }
-    auto hash_query_result = client.get(signature_pool_name + delimiter + key_suffix, object_version);
+    const std::string signature_key = signature_pool_name + delimiter + key_suffix;
+    auto hash_query_result = client.get(signature_key, object_version);
     ObjectWithStringKey hash_object = hash_query_result.get().begin()->second.get();
-    auto sig_query_result = client.get_signature(signature_pool_name + delimiter + key_suffix, object_version);
+    auto sig_query_result = client.get_signature(signature_key, object_version);
     const auto [signature, previous_signature_version] = sig_query_result.get().begin()->second.get();
+    std::cout << "Node " << sig_query_result.get().begin()->first << " replied with signature=" << std::hex << signature
+              << " and previous_signed_version=" << previous_signature_version << std::dec << std::endl;
     //Get the previous signature, which may or may not relate to this key (but will be in the same object pool)
-    auto prev_sig_query_result = client.get_signature_by_version(signature_pool_name + delimiter + key_suffix, previous_signature_version);
-    const auto [prev_signature, prev_prev_version] = prev_sig_query_result.get().begin()->second.get();
-    bool verified = verify_object_signature(hash_object, signature, prev_signature);
+    auto prev_sig_query_result = client.get_signature_by_version(signature_key, previous_signature_version);
+    const auto prev_signature_tuple = prev_sig_query_result.get().begin()->second.get();
+    bool verified = verify_object_signature(hash_object, signature, std::get<0>(prev_signature_tuple));
     if(verified) {
         std::cout << "Key " << key_suffix << " has a valid signature on version " << object_version
                   << " with previous signature version " << previous_signature_version << std::endl;
@@ -490,8 +517,11 @@ bool get_and_verify_object(ServiceClientAPI& client, const std::vector<std::stri
     } else {
         object_version = CURRENT_VERSION;
     }
+    const std::string storage_key = storage_pool_name + delimiter + key_suffix;
+    const std::string signature_key = signature_pool_name + delimiter + key_suffix;
     //Get the object
-    auto get_result = client.get(storage_pool_name + delimiter + key_suffix, object_version);
+    std::cout << "Requesting version " << std::hex << object_version << std::dec << " of key " << storage_key << std::endl;
+    auto get_result = client.get(storage_key, object_version);
     ObjectWithStringKey stored_object = get_result.get().begin()->second.get();
     std::cout << "node(" << get_result.get().begin()->first << ") replied with value:" << stored_object << std::endl;
     //Compute the hash of the object locally, since we don't trust the service
@@ -503,16 +533,20 @@ bool get_and_verify_object(ServiceClientAPI& client, const std::vector<std::stri
         hash = compute_hash(stored_object);
     }
     //Get the hash from the service, because we need to know its header fields to compute the signature
-    auto hash_query_result = client.get(signature_pool_name + delimiter + key_suffix, object_version);
+    std::cout << "Requesting version " << std::hex << object_version << std::dec << " of key " << signature_key << std::endl;
+    auto hash_query_result = client.get(signature_key, object_version);
     ObjectWithStringKey hash_object = hash_query_result.get().begin()->second.get();
+    std::cout << "node(" << get_result.get().begin()->first << ") replied with value:" << hash_object << std::endl;
     if(memcmp(hash_object.blob.bytes, hash.data(), hash.size() != 0)) {
         print_red("Object hash stored in Cascade does not match object hash computed locally!");
         return false;
     }
-    auto sig_query_result = client.get_signature(signature_pool_name + delimiter + key_suffix, object_version);
+    std::cout << "Requesting signature on version " << std::hex << object_version << std::dec << " of key " << signature_key << std::endl;
+    auto sig_query_result = client.get_signature(signature_key, object_version);
     const auto [signature, previous_signature_version] = sig_query_result.get().begin()->second.get();
     //Get the previous signature, which may or may not relate to this key (but will be in the same object pool)
-    auto prev_sig_query_result = client.get_signature_by_version(signature_pool_name + delimiter + key_suffix, previous_signature_version);
+    std::cout << "Requesting signature on version " << std::hex << previous_signature_version << std::dec << " of key " << signature_key << std::endl;
+    auto prev_sig_query_result = client.get_signature_by_version(signature_key, previous_signature_version);
     const auto [prev_signature, prev_prev_version] = prev_sig_query_result.get().begin()->second.get();
     bool verified = verify_object_signature(hash_object, signature, prev_signature);
     if(verified) {
@@ -759,7 +793,11 @@ int main(int argc, char** argv) {
     if(prctl(PR_SET_NAME, PROC_NAME, 0, 0, 0) != 0) {
         dbg_default_debug("Failed to set proc name to {}.", PROC_NAME);
     }
-    ServiceClientAPI capi;
+    auto vcss_factory = []() { return std::make_unique<VolatileCascadeStoreWithStringKey>(); };
+    auto pcss_factory = []() { return std::make_unique<PersistentCascadeStoreWithStringKey>(nullptr); };
+    auto scss_factory = []() { return std::make_unique<SignatureCascadeStoreWithStringKey>(nullptr); };
+    auto tcns_factory = []() { return std::make_unique<TriggerCascadeNoStoreWithStringKey>(); };
+    ServiceClientAPI capi(vcss_factory, pcss_factory, scss_factory, tcns_factory);
     if(argc == 1) {
         // by default, we use the interactive shell.
         interactive_test(capi);

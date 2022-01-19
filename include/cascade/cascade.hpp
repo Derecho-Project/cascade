@@ -639,6 +639,7 @@ namespace cascade {
     class SignatureCascadeStore : public ICascadeStore<KT, VT, IK, IV>,
                                   public mutils::ByteRepresentable,
                                   public derecho::SignedPersistentFields,
+                                  public derecho::NotificationSupport,
                                   public derecho::GroupReference {
     private:
         /** Derecho group reference */
@@ -680,7 +681,7 @@ namespace cascade {
          * or if an exact match is requested and version ver does not correspond to an
          * update to the requested key.
          *
-         * @param key The key identifying the object to retrieve a signature for
+         * @param key The key identifying the (hash) object to retrieve a signature for
          * @param ver The version of the data object that is associated with the desired hash object
          * @param exact True if the version requested must be an exact match, false if the
          * method should return the signature on the nearest version (before ver) that
@@ -694,11 +695,12 @@ namespace cascade {
 
         /**
          * Retrieves the signature and the previous signed version that is in the log at
-         * version ver, regardless of which key it is associated with. Since the log
-         * interleaves updates to different keys, it may be necessary to get a "previous
-         * signed version" (to validate a signature) without knowing which key it is for.
+         * version ver, where ver is the version of the *hash object* stored in this
+         * subgroup. This is used to get a "previous signed version" (to validate a signature),
+         * since the previous signed version will always be the previous version in the
+         * SignatureCascadeStore log, not the previous version of the corresponding data object.
          *
-         * @param ver The version (of some object) to get a signature for
+         * @param ver The version (of some hash object in the SignatureCascadeStore) to get a signature for
          * @return A pair of values: the signature, and the previous persistent version
          * included in this signature.
          */
@@ -760,6 +762,35 @@ namespace cascade {
         virtual void ordered_dump_timestamp_log(const std::string& filename) override;
     #endif  //ENABLE_EVALUATION
 
+        /* Notification support */
+        void notify(const derecho::NotificationMessage& msg) const { derecho::NotificationSupport::notify(msg); }
+
+        /**
+         * Asks this node to send a notification to an external client whenever any
+         * object has finished being signed.
+         * @param external_client_id The ID of the external client to notify
+         */
+        void subscribe_to_all_notifications(node_id_t external_client_id) const;
+        /**
+         * Asks this node to send a notification to an external client whenever a new
+         * signature is generated for the key identified by key.
+         * @param external_client_id The ID of the external client to notify
+         * @param key The key (of a hash object stored here) the client is interested in
+         */
+        void subscribe_to_notifications(node_id_t external_client_id, const KT& key) const;
+        /**
+         * Asks this node to send a notification to an external client when a specific version
+         * of a data object has finished being signed. This will only generate one notification,
+         * rather than subscribing the client to updates.
+         * @param external_client_id The ID of the external client to notify
+         * @param ver The version of a data object that the client wants to be notified about.
+         * Since this version uniquely identifies a single data object, it's not necessary to
+         * also provide a key.
+         */
+        void request_notification(node_id_t external_client_id, persistent::version_t ver) const;
+
+        static const uint64_t SIGNATURE_FINISHED_MESSAGE = 1000;
+
         REGISTER_RPC_FUNCTIONS(SignatureCascadeStore,
                             P2P_TARGETS(
                                     put,
@@ -778,7 +809,11 @@ namespace cascade {
                                     op_list_keys_by_time,
                                     get_size,
                                     get_size_by_time,
-                                    trigger_put
+                                    trigger_put,
+                                    notify,
+                                    subscribe_to_notifications,
+                                    subscribe_to_all_notifications,
+                                    request_notification
     #ifdef ENABLE_EVALUATION
                                     ,
                                     dump_timestamp_log

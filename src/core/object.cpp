@@ -140,8 +140,8 @@ mutils::context_ptr<Blob> Blob::from_bytes_noalloc(mutils::DeserializationManage
     return mutils::context_ptr<Blob>{new Blob(const_cast<char*>(v) + sizeof(std::size_t), ((std::size_t*)(v))[0], true)};
 }
 
-mutils::context_ptr<Blob> Blob::from_bytes_noalloc_const(mutils::DeserializationManager* ctx, const char* const v) {
-    return mutils::context_ptr<Blob>{new Blob(const_cast<char*>(v) + sizeof(std::size_t), ((std::size_t*)(v))[0], true)};
+mutils::context_ptr<const Blob> Blob::from_bytes_noalloc_const(mutils::DeserializationManager* ctx, const char* const v) {
+    return mutils::context_ptr<const Blob>{new Blob(const_cast<char*>(v) + sizeof(std::size_t), ((std::size_t*)(v))[0], true)};
 }
 
 std::unique_ptr<Blob> Blob::from_bytes(mutils::DeserializationManager*, const char* const v) {

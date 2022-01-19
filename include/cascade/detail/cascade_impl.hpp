@@ -1864,6 +1864,22 @@ std::tuple<std::vector<uint8_t>, persistent::version_t> SignatureCascadeStore<KT
     return {signature, previous_signed_version};
 }
 
+template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+void SignatureCascadeStore<KT,VT,IK,IV,ST>::request_notification(node_id_t external_client_id, persistent::version_t ver) const {
+
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+void SignatureCascadeStore<KT,VT,IK,IV,ST>::subscribe_to_notifications(node_id_t external_client_id, const KT& key) const {
+
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+void SignatureCascadeStore<KT,VT,IK,IV,ST>::subscribe_to_all_notifications(node_id_t external_client_id) const {
+
+}
+
+
 ///////////////////////////////////////////////////////////////////////////////
 // 4 - Trigger Cascade Store Implementation
 ///////////////////////////////////////////////////////////////////////////////
