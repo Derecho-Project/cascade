@@ -61,7 +61,7 @@ This will install the following cascade components:
 - binaries(cascade_client, cascade_server, cascade_fuse_client, interactive_test.py, perf_test.py) to `${CMAKE_INSTALL_BINDIR}`
 
 # Usage
-There are two ways to use Cascade in an application. You can use Cascade as a standalone service with pre-defined K/V types and configurable layout. Or, you can use the Cascade storage templates (defined in Cascade ) as building blocks to build the application using the Derecho group framework. Please refer to [Cascade service's README](https://github.com/Derecho-Project/cascade/tree/master/src/service) for using Cascade as a service and [cli_example README](https://github.com/Derecho-Project/cascade/tree/master/src/test) for using Cascade components to build your own binary with customized key type and value type.
+There are two ways to use Cascade in an application. You can use Cascade as a standalone service with pre-defined K/V types and configurable layout. Or, you can use the Cascade storage templates (defined in Cascade ) as building blocks to build the application using the Derecho group framework. Please refer to [Cascade service's README](https://github.com/Derecho-Project/cascade/tree/master/src/service) for using Cascade as a service and [cli_example README](https://github.com/Derecho-Project/cascade/tree/master/src/applications/tests/cascade_as_subgroup_classes) for using Cascade components to build your own binary with customized key type and value type.
 
 # New Features to Come
 1) Metadata service
