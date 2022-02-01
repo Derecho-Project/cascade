@@ -4,7 +4,7 @@
 #include <vector>
 #include <opencv2/opencv.hpp>
 #include <cppflow/cppflow.h>
-#include "demo_udl.hpp"
+#include "demo_common.hpp"
 #include "time_probes.hpp"
 
 namespace derecho{
