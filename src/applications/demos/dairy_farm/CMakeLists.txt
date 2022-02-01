@@ -5,7 +5,6 @@ project(cascade CXX)
 
 include(CheckIncludeFileCXX)
 find_library(TENSORFLOW_LIB_FOUND tensorflow)
-CHECK_INCLUDE_FILE_CXX("cppflow/cppflow.h" CPPFLOW_FOUND)
 find_library(ANN_LIB_FOUND ANN)
 find_package(Torch QUIET)
 
@@ -36,7 +35,18 @@ if (OPENCV_CORE_FOUND)
     endif()
 endif()
 
-if (TENSORFLOW_LIB_FOUND AND CPPFLOW_FOUND AND OPENCV_CORE_FOUND AND ANN_LIB_FOUND AND TORCH_FOUND)
+if (TENSORFLOW_LIB_FOUND AND OPENCV_CORE_FOUND AND ANN_LIB_FOUND AND TORCH_FOUND)
+    # demo_common
+    add_library(demo_common SHARED demo_common.cpp)
+    target_include_directories(demo_common PRIVATE
+        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
+        $<BUILD_INTERFACE:${OpenCV_INCLUDE_DIRS}>
+        $<BUILD_INTERFACE:${TENSORFLOW_LIB_INCLUDE_DIRS}>
+    )
+    target_link_libraries(demo_common ${TENSORFLOW_LIB_FOUND})
     # filter_udl
     add_library(filter_udl SHARED filter_udl.cpp)
     target_include_directories(filter_udl PRIVATE
@@ -47,7 +57,7 @@ if (TENSORFLOW_LIB_FOUND AND CPPFLOW_FOUND AND OPENCV_CORE_FOUND AND ANN_LIB_FOU
         $<BUILD_INTERFACE:${OpenCV_INCLUDE_DIRS}>
         $<BUILD_INTERFACE:${TENSORFLOW_LIB_INCLUDE_DIRS}>
     )
-    target_link_libraries(filter_udl cascade ${OpenCV_LIBS} ${TENSORFLOW_LIB_FOUND})
+    target_link_libraries(filter_udl demo_common cascade ${OpenCV_LIBS} ${TENSORFLOW_LIB_FOUND})
     if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/filter-model.tar.gz")
         add_custom_command(TARGET filter_udl POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/filter-model.tar.gz
@@ -69,7 +79,7 @@ if (TENSORFLOW_LIB_FOUND AND CPPFLOW_FOUND AND OPENCV_CORE_FOUND AND ANN_LIB_FOU
         $<BUILD_INTERFACE:${TENSORFLOW_LIB_INCLUDE_DIRS}>
         $<BUILD_INTERFACE:${OpenCV_INCLUDE_DIRS}>
     )
-    target_link_libraries(infer_udl cascade ${TENSORFLOW_LIB_FOUND} ${TORCH_LIBRARIES} ${OpenCV_LIBS} ANN)
+    target_link_libraries(infer_udl demo_common cascade ${TENSORFLOW_LIB_FOUND} ${TORCH_LIBRARIES} ${OpenCV_LIBS} ANN)
     if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/bcs-model.tar.gz" AND
         EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/cow-id-model.tar.gz")
         add_custom_command(TARGET infer_udl POST_BUILD
@@ -174,9 +184,6 @@ else()
     message (STATUS "Skipping diary farm demo... to enable it, please install the following packages")
     if (NOT TENSORFLOW_LIB_FOUND)
         message (STATUS "* tensorflow c library")
-    endif()
-    if (NOT CPPFLOW_FOUND)
-        message (STATUS "* cppflow headers")
     endif()
     if (NOT ANN_LIB_FOUND)
         message (STATUS "* approximate nearest neighbour (ann 1.1.2) library with -fPIC")

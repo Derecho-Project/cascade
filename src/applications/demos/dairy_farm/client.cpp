@@ -6,7 +6,7 @@
 #include <unistd.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
-#include "demo_udl.hpp"
+#include "demo_common.hpp"
 
 using namespace derecho::cascade;
 
