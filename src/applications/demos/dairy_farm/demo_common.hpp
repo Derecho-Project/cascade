@@ -127,4 +127,4 @@ inline ObjectWithStringKey get_photo_object(const char* key, const char* photo_f
     return ret;
 }
 
-extern void initialize_gpu_context();
+extern void initialize_tf_context();
