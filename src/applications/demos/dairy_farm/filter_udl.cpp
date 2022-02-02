@@ -84,7 +84,7 @@ class DairyFarmFilterOCDPO: public OffCriticalDataPathObserver {
             throw std::runtime_error("No operation with name 'serving_default_conv2d_3_input' is found.");
         }
         static thread_local TF_Output output_op = {
-            .oper = TF_GraphOperationByName(graph.get(),"StatefulePartitionedCall"),
+            .oper = TF_GraphOperationByName(graph.get(),"StatefulPartitionedCall"),
             .index = 0
         };
         if (!output_op.oper) {
