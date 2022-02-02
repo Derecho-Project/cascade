@@ -47,7 +47,7 @@ public:
     }
 };
 
-void initial_tf_context() {
+void initialize_tf_context() {
     static std::mutex global_context_mutex;
     std::lock_guard<std::mutex> lck(global_context_mutex);
     
