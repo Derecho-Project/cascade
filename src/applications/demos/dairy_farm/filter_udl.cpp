@@ -194,7 +194,7 @@ void initialize(ICascadeContext* ctxt) {
         return;
     }
     std::cout << "Configuring tensorflow GPU context" << std::endl;
-    initialize_gpu_context();
+    initialize_tf_context();
 #endif 
     DairyFarmFilterOCDPO::initialize();
 }
