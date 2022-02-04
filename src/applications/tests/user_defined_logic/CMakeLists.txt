@@ -2,8 +2,6 @@ cmake_minimum_required(VERSION 3.10.0)
 set(CMAKE_DISABLE_SOURCE_CHANGES ON)
 set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 
-CHECK_INCLUDE_FILES("mxnet-cpp/MxNetCpp.h" HAS_MXNET_CPP)
-
 add_library(console_printer_udl SHARED console_printer_udl.cpp)
 target_include_directories(console_printer_udl PRIVATE
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
