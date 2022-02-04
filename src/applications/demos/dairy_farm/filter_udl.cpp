@@ -104,7 +104,7 @@ class DairyFarmFilterOCDPO: public OffCriticalDataPathObserver {
   
         auto input_tensor = TF_NewTensor(TF_FLOAT,shape.data(),shape.size(),buf,sizeof(buf),
                                          [](void*,size_t,void*){/*do nothing for stack memory,.*/},nullptr);
-        assert(photo_tensor);
+        assert(input_tensor);
         
         /* step 3: Predict */
         static thread_local auto output_vals = std::make_unique<TF_Tensor*[]>(1);
