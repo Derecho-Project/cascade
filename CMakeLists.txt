@@ -130,8 +130,9 @@ add_dependencies(cascade core)
 #    utils core)
 
 # make install
-install(TARGETS cascade EXPORT cascade
-        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
+install(TARGETS cascade EXPORT cascadeTargets
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 install(DIRECTORY
         ${CMAKE_CURRENT_SOURCE_DIR}/include/cascade
         ${CMAKE_CURRENT_BINARY_DIR}/include/cascade
@@ -147,7 +148,7 @@ write_basic_package_version_file(
     COMPATIBILITY AnyNewerVersion
 )
 
-export (EXPORT cascade
+export (EXPORT cascadeTargets
     FILE "${CMAKE_CURRENT_BINARY_DIR}/cascade/cascadeTargets.cmake"
 )
 
@@ -156,8 +157,9 @@ configure_file (cascadeConfig.cmake
 )
 
 set(ConfigPackageLocation ${CMAKE_INSTALL_LIBDIR}/cmake/cascade)
-install(EXPORT cascade
+install(EXPORT cascadeTargets
     FILE cascadeTargets.cmake
+    NAMESPACE derecho::
     DESTINATION ${ConfigPackageLocation}
 )
 
