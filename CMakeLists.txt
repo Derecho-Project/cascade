@@ -152,11 +152,18 @@ export (EXPORT cascadeTargets
     FILE "${CMAKE_CURRENT_BINARY_DIR}/cascade/cascadeTargets.cmake"
 )
 
-configure_file (cascadeConfig.cmake
-    "${CMAKE_CURRENT_BINARY_DIR}/cascade/cascadeConfig.cmake"
-)
+#configure_file (cascadeConfig.cmake
+#    "${CMAKE_CURRENT_BINARY_DIR}/cascade/cascadeConfig.cmake"
+#)
 
 set(ConfigPackageLocation ${CMAKE_INSTALL_LIBDIR}/cmake/cascade)
+
+configure_package_config_file(cascadeConfig.cmake.in
+    "${CMAKE_CURRENT_BINARY_DIR}/cascade/cascadeConfig.cmake"
+    INSTALL_DESTINATION ${ConfigPackageLocation}
+    PATH_VARS CMAKE_INSTALL_LIBDIR CMAKE_INSTALL_INCLUDEDIR ConfigPackageLocation
+)
+
 install(EXPORT cascadeTargets
     FILE cascadeTargets.cmake
     NAMESPACE derecho::
