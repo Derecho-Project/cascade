@@ -1,6 +1,6 @@
 ## How to use this template
 1. Make sure Cascade and its dependencies are installed and in path.
-1. Copy the kvs\_client folder to your own project folder.
+1. Copy the kvs\_client folder to your own project.
 1. Build the project as follows:
 ```
 project-folder $ mkdir build; cd build
@@ -8,7 +8,7 @@ project-folder/build $ make
 ```
 Then you should be able to see the `kvs_client` binary in your build folder.
 
-To test it, use the minimal configuration in the `cfg` folder. Please start three terminal consoles and change their directory to `cfg/n0`, `cfg/n1`, and `cfg/n2`. We use folder `cfg/n0` and `cfg/n1` for the configuration for two Cascade server nodes; while `cfg/n2` is for the client node that runs `kvs_client`. In the server consoles, run the server binary as follows to start the server nodes.
+To test it, use the minimal configuration in the `cfg` folder. Please start three terminal consoles and change thecurrent directory to `cfg/n0`, `cfg/n1`, and `cfg/n2`. We use folder `cfg/n0` and `cfg/n1` for the configuration for two Cascade server nodes; while `cfg/n2` is for the client node that runs `kvs_client`. In the server consoles, run the server binary as follows to start the server nodes.
 ```
 project-folder/build/cfg/n0 $ cascade_server
 Press Enter to Shutdown.
@@ -17,9 +17,9 @@ Press Enter to Shutdown.
 project-folder/build/cfg/n1 $ cascade_server
 Press Enter to Shutdown.
 ```
-When both processes starts successfully, you can should see it prompt `Press Enter to Shutdown.` Then, you can run the test on the client console as follows.
+When both processes starts successfully, you should see it prompt `Press Enter to Shutdown.` Then, you can run the test on the client console as follows.
 ```
-project-folder/build/cfg/n2 $ cascade_client
+project-folder/build/cfg/n2 $ kvs_client
 KVS Client Example in C++.
 1) Load configuration and connecting to cascade service...
 - connected.
