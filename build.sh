@@ -61,7 +61,7 @@ if [[ $# -lt 1 ]]; then
 fi
 
 if [[ $1 == "Clean" ]]; then
-    rm -rf build-*
+    rm -rf build-* compile_commands.json
     exit 0
 fi
 
