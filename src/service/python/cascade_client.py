@@ -10,6 +10,7 @@ list_type_members <type> [subgroup_index] [shard_index]\n\tlist members in shard
 list_subgroup_members [subgroup_id] [shard_index]\n\tlist members in shard by subgroup id.\n\
 set_member_selection_policy <type> <subgroup_index> <shard_index> <policy> [user_specified_node_id]\n\tset member selection policy\n\
 get_member_selection_policy <type> [subgroup_index] [shard_index]\n\tget member selection policy\n\
+put_and_forget <type> <key> <value> [subgroup_index] [shard_index]\n\tput an object\n\
 put <type> <key> <value> [subgroup_index] [shard_index]\n\tput an object\n\
 trigger_put <type> <key> <value> [subgroup_index] [shard_index]\n\tput an object\n\
 remove <type> <key> [subgroup_index] [shard_index]\n\tremove an object\n\
@@ -131,6 +132,20 @@ policy:=FirstMember|LastMember|Random|FixedRandom|RoundRobin|UserSpecified\n\
             print(b.get_result())
             continue
 
+        if(sl[0] == 'put_and_forget'):
+            if(len(sl) < 4):
+                print("Invalid format")
+                continue
+            
+            if(len(sl) >= 5):
+                subgroup_index = int(sl[4])
+
+            if(len(sl) >= 6):
+                shard_index = int(sl[5])
+
+            b = a.put_and_forget(sl[1], sl[2], bytes(sl[3],'utf-8'), subgroup_index=subgroup_index, shard_index=shard_index)
+            continue
+
         if(sl[0] == 'trigger_put'):
             if(len(sl) < 4):
                 print("Invalid format")
@@ -227,6 +242,8 @@ policy:=FirstMember|LastMember|Random|FixedRandom|RoundRobin|UserSpecified\n\
             opm = a.get_object_pool(sl[1])
             print(opm)
             continue
+
+        print ("Invalid command:" + sl[0])
 
 if __name__ == "__main__":
     main2()
