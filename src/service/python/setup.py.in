@@ -2,7 +2,7 @@ from distutils.core import setup
 
 setup(
     name = 'derecho.cascade',
-    version = '1.0rc1',
+    version = '@cascade_VERSION@',
     description = 'The Cascade Python API',
     url = 'https://github.com/derecho-project/cascade',
     author = 'Weijia Song and Aahil Awatramani',
