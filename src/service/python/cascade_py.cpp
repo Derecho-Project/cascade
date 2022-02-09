@@ -319,8 +319,9 @@ auto get_object_pool(ServiceClientAPI& capi, const std::string& object_pool_path
 // Python interface
 // ----------------
 
-PYBIND11_MODULE(cascade_py, m) {
-    m.doc() = "Python API for Cascade.";
+PYBIND11_MODULE(client, m) {
+    m.attr("__name__") = "derecho.cascade.client";
+    m.doc() = "Cascade Client Python API.";
 
     py::class_<ServiceClientAPI>(m, "ServiceClientAPI")
             .def(py::init(), "Service Client API for managing cascade store.")

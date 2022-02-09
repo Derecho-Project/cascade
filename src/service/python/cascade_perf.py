@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import cascade_py
+from derecho.cascade import client
 import threading
 import time
 import math
@@ -72,7 +72,7 @@ class client_states:
         self.future_queue_mutex = threading.RLock()
         self.future_queue_cv = threading.Condition(self.future_queue_mutex)
 
-        self.client = cascade_py.ServiceClientAPI()
+        self.client = client.ServiceClientAPI()
         self.poll_thread = threading.Thread(target = self.poll_results)
 
         self.send_tss = [0 for i in range(0,_num_messages)]

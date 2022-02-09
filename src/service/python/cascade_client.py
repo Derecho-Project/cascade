@@ -1,20 +1,8 @@
 #!/usr/bin/env python3
-import cascade_py
-
-def main1():
-    a = cascade_py.ServiceClientAPI()
-    print(a.get_members())
-    print(a.get_shard_members("VCSU",0,0))
-    print(a.get_shard_members("VCSS",0,0))
-    print(a.get_shard_members("PCSU",0,0))
-    print(a.get_shard_members("PCSS",0,0))
-    #print(a.get_shard_members(0,0))
-    #print(a.get_shard_members(1,0))
-    #print(a.get_shard_members(2,0))
-    #print(a.get_shard_members(3,0))
+from derecho.cascade import client
 
 def main2():
-    a = cascade_py.ServiceClientAPI()
+    a = client.ServiceClientAPI()
 
     help_info = "\
 list_all_members\n\tlist all members in top level derecho group.\n\

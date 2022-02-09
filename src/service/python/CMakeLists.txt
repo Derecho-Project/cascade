@@ -14,15 +14,22 @@ if (pybind11_FOUND)
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     )
     target_link_libraries(cascade_py PUBLIC cascade)
+    add_custom_command(TARGET cascade_py PRE_LINK
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/derecho ${CMAKE_CURRENT_BINARY_DIR}/derecho)
     add_custom_command(TARGET cascade_py POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/interactive_test.py ${CMAKE_CURRENT_BINARY_DIR}/interactive_test.py
-        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/perf_test.py ${CMAKE_CURRENT_BINARY_DIR}/perf_test.py
-        DEPENDS interactive_test.py perf_test.py
+        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/README.md ${CMAKE_CURRENT_BINARY_DIR}/README.md
+        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/setup.py ${CMAKE_CURRENT_BINARY_DIR}/setup.py
+        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/cascade_client.py ${CMAKE_CURRENT_BINARY_DIR}/cascade_client.py
+        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/cascade_perf.py ${CMAKE_CURRENT_BINARY_DIR}/cascade_perf.py
+        COMMAND python -m build
+        DEPENDS cascade_client.py cascade_perf.py
     )
-    install(TARGETS cascade_py EXPORT cascade_py
-        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
-    install(FILES interactive_test.py perf_test.py
+    set_target_properties(cascade_py PROPERTIES
+        OUTPUT_NAME derecho/cascade/client
+    )
+    install(FILES cascade_client.py cascade_perf.py
             TYPE BIN
-            PERMISSIONS OWNER_WRITE OWNER_READ GROUP_READ WORLD_READ OWNER_EXECUTE GROUP_EXECUTE WORLD_EXECUTE)
+            PERMISSIONS OWNER_WRITE OWNER_READ GROUP_READ WORLD_READ OWNER_EXECUTE GROUP_EXECUTE WORLD_EXECUTE
+    )
 endif()
 
