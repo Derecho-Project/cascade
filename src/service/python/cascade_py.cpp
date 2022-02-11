@@ -1,7 +1,9 @@
 #include <cascade/service_client_api.hpp>
+#include <derecho/persistent/PersistentInterface.hpp>
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
 #include <pybind11/stl.h>
+#include <string>
 #include <vector>
 
 // ----------------
@@ -11,7 +13,7 @@
 using namespace derecho::cascade;
 
 namespace py = pybind11;
-#define on_non_trigger_subgroup_type(x, ft, ...)                          \
+#define on_non_trigger_subgroup_type(x, ft, ...)              \
     if((x) == "VolatileCascadeStoreWithStringKey") {          \
         ft<VolatileCascadeStoreWithStringKey>(__VA_ARGS__);   \
     } else if((x) == "PersistentCascadeStoreWithStringKey") { \
@@ -20,7 +22,7 @@ namespace py = pybind11;
         print_red("unknown subgroup type:" + x);              \
     }
 
-#define on_all_subgroup_type(x, ft, ...)                  \
+#define on_all_subgroup_type(x, ft, ...)                      \
     if((x) == "VolatileCascadeStoreWithStringKey") {          \
         ft<VolatileCascadeStoreWithStringKey>(__VA_ARGS__);   \
     } else if((x) == "PersistentCascadeStoreWithStringKey") { \
@@ -59,7 +61,7 @@ std::function<py::bytes(ObjectWithUInt64Key)> u_f = [](ObjectWithUInt64Key obj) 
 /**
     Lambda function for handling the unwrapping of tuple of version and timestamp
 */
-auto bundle_f = [](std::tuple<persistent::version_t, uint64_t> obj) {
+auto bundle_f = [](const std::tuple<persistent::version_t, uint64_t>& obj) {
     std::vector<long> a;
     a.push_back(static_cast<long>(std::get<0>(obj)));
     a.push_back(static_cast<long>(std::get<1>(obj)));
@@ -137,25 +139,14 @@ static void print_red(std::string msg) {
     Put objects into cascade store.
     Please note that if subgroup_index is not specified, we will use the object_pool API.
 
-    @param capi the service client API for this client.
-    @param key key to put value into
-    @param value value to be put in for coressponding key
+    @param capi             the service client API for this client.
+    @param object           to be put in for coressponding key
     @param subgroup_index
     @param shard_index
     @return QueryResultsStore that handles the tuple of version and ts_us.
 */
 template <typename SubgroupType>
-auto put(ServiceClientAPI& capi, std::string& key, std::string& value, uint32_t subgroup_index = UINT32_MAX, uint32_t shard_index = 0) {
-    typename SubgroupType::ObjectType obj;
-    if constexpr(std::is_integral<typename SubgroupType::KeyType>::value) {
-        obj.key = static_cast<uint64_t>(std::stol(key));
-    } else if constexpr(std::is_convertible<typename SubgroupType::KeyType, std::string>::value) {
-        obj.key = key;
-    } else {
-        print_red(std::string("Unhandled KeyType:") + typeid(typename SubgroupType::KeyType).name());
-        return;
-    }
-    obj.blob = Blob(value.c_str(), value.length());
+auto put(ServiceClientAPI& capi, const typename SubgroupType::ObjectType& obj, uint32_t subgroup_index = UINT32_MAX, uint32_t shard_index = 0) {
     derecho::rpc::QueryResults<std::tuple<persistent::version_t, uint64_t>> result = (subgroup_index == UINT32_MAX) ? capi.put(obj) : capi.template put<SubgroupType>(obj, subgroup_index, shard_index);
 
     QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>* s = new QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>(result, bundle_f);
@@ -166,27 +157,16 @@ auto put(ServiceClientAPI& capi, std::string& key, std::string& value, uint32_t 
     Put objects into cascade store and return immediately
     Please note that if subgroup_index is not specified, we will use the object_pool API.
 
-    @param capi the service client API for this client.
-    @param key key to put value into
-    @param value value to be put in for coressponding key
+    @param capi             the service client API for this client.
+    @param obj object
     @param subgroup_index
     @param shard_index
     @return QueryResultsStore that handles the tuple of version and ts_us.
 */
 template <typename SubgroupType>
-void put_and_forget(ServiceClientAPI& capi, std::string& key, std::string& value, uint32_t subgroup_index = UINT32_MAX, uint32_t shard_index = 0) {
-    typename SubgroupType::ObjectType obj;
-    if constexpr(std::is_integral<typename SubgroupType::KeyType>::value) {
-        obj.key = static_cast<uint64_t>(std::stol(key));
-    } else if constexpr(std::is_convertible<typename SubgroupType::KeyType, std::string>::value) {
-        obj.key = key;
-    } else {
-        print_red(std::string("Unhandled KeyType:") + typeid(typename SubgroupType::KeyType).name());
-        return;
-    }
-    obj.blob = Blob(value.c_str(), value.length());
-    if (subgroup_index == UINT32_MAX) {
-        capi.put(obj);
+void put_and_forget(ServiceClientAPI& capi, const typename SubgroupType::ObjectType& obj, uint32_t subgroup_index = UINT32_MAX, uint32_t shard_index = 0) {
+    if(subgroup_index == UINT32_MAX) {
+        capi.put_and_forget(obj);
     } else {
         capi.template put_and_forget<SubgroupType>(obj, subgroup_index, shard_index);
     }
@@ -196,26 +176,15 @@ void put_and_forget(ServiceClientAPI& capi, std::string& key, std::string& value
     Trigger put objects into cascade store.
     Please note that if subgroup_index is not specified, we will use the object_pool API.
 
-    @param capi the service client API for this client.
-    @param key key to put value into
-    @param value value to be put in for coressponding key
+    @param capi             the service client API for this client.
+    @param obj object
     @param subgroup_index
     @param shard_index
     @return QueryResultsStore that handles the tuple of version and ts_us.
 */
 template <typename SubgroupType>
-void trigger_put(ServiceClientAPI& capi, std::string& key, std::string& value, uint32_t subgroup_index = UINT32_MAX, uint32_t shard_index = 0) {
-    typename SubgroupType::ObjectType obj;
-    if constexpr(std::is_integral<typename SubgroupType::KeyType>::value) {
-        obj.key = static_cast<uint64_t>(std::stol(key));
-    } else if constexpr(std::is_convertible<typename SubgroupType::KeyType, std::string>::value) {
-        obj.key = key;
-    } else {
-        print_red(std::string("Unhandled KeyType:") + typeid(typename SubgroupType::KeyType).name());
-        return;
-    }
-    obj.blob = Blob(value.c_str(), value.length());
-    if (subgroup_index == UINT32_MAX) {
+void trigger_put(ServiceClientAPI& capi, const typename SubgroupType::ObjectType& obj, uint32_t subgroup_index = UINT32_MAX, uint32_t shard_index = 0) {
+    if(subgroup_index == UINT32_MAX) {
         capi.trigger_put(obj);
     } else {
         capi.template trigger_put<SubgroupType>(obj, subgroup_index, shard_index);
@@ -316,9 +285,9 @@ auto get_by_time(ServiceClientAPI& capi, const std::string& key, uint64_t ts_us,
 */
 template <typename SubgroupType>
 auto create_object_pool(ServiceClientAPI& capi, const std::string& object_pool_pathname, uint32_t subgroup_index) {
-    derecho::rpc::QueryResults<std::tuple<persistent::version_t, uint64_t>> result = capi.template create_object_pool<SubgroupType>(object_pool_pathname,subgroup_index);
+    derecho::rpc::QueryResults<std::tuple<persistent::version_t, uint64_t>> result = capi.template create_object_pool<SubgroupType>(object_pool_pathname, subgroup_index);
     QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>* s = new QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>(result, bundle_f);
-        return py::cast(s);
+    return py::cast(s);
 }
 
 /**
@@ -328,7 +297,7 @@ auto create_object_pool(ServiceClientAPI& capi, const std::string& object_pool_p
  */
 auto list_object_pools(ServiceClientAPI& capi) {
     py::list ops;
-    for (std::string& opp: capi.list_object_pools(true)) {
+    for(std::string& opp : capi.list_object_pools(true)) {
         ops.append(opp);
     }
     return ops;
@@ -352,7 +321,7 @@ auto get_object_pool(ServiceClientAPI& capi, const std::string& object_pool_path
     opm["subgroup_index"] = py::int_(copm.subgroup_index);
     opm["sharding_policy"] = py::int_(static_cast<int>(copm.sharding_policy));
     py::dict object_locations;
-    for(const auto& kv:copm.object_locations) {
+    for(const auto& kv : copm.object_locations) {
         object_locations[py::str(kv.first)] = kv.second;
     }
     opm["object_locations"] = object_locations;
@@ -363,6 +332,11 @@ auto get_object_pool(ServiceClientAPI& capi, const std::string& object_pool_path
 // ----------------
 // Python interface
 // ----------------
+std::vector<std::string> legal_cascade_subgroup_types{
+    "VolatileCascadeStoreWithStringKey",
+    "PersistentCascadeStoreWithStringKey",
+    "TriggerCascadeNoStoreWithStringKey"
+};
 
 PYBIND11_MODULE(client, m) {
     m.attr("__name__") = "derecho.cascade.client";
@@ -370,26 +344,66 @@ PYBIND11_MODULE(client, m) {
 
     py::class_<ServiceClientAPI>(m, "ServiceClientAPI")
             .def(py::init(), "Service Client API for managing cascade store.")
-            .def("__repr__",
-                 [](const ServiceClientAPI& a) {
-                     return "Service Client API for managing cascade store.";
-                 })
-            .def("get_members", &ServiceClientAPI::get_members, "Get all members in the current derecho group.")
+            .def_property_readonly_static("CASCADE_SUBGROUP_TYPES",
+                    [](py::object/*self*/) {
+                        return legal_cascade_subgroup_types;
+                    }
+                )
+            .def_property_readonly_static("CURRENT_VERSION",
+                    [](py::object/*self*/) {
+                        return static_cast<int64_t>(CURRENT_VERSION);
+                    }
+                )
             .def(
-                    "get_shard_members", [](ServiceClientAPI& capi, std::string service_type, uint32_t subgroup_index, uint32_t shard_index) {
+                    "__repr__",
+                    [](const ServiceClientAPI& a) {
+                        return "Service Client API for managing cascade store.";
+                    }
+                )
+            .def(
+                    "get_members",
+                    &ServiceClientAPI::get_members, 
+                    "Get all members in the current derecho group.\n"
+                    "\r@return  a list of node ids"
+                )
+            .def(
+                    "get_shard_members", 
+                    [](ServiceClientAPI& capi, std::string service_type, uint32_t subgroup_index, uint32_t shard_index) {
                         std::vector<node_id_t> members;
                         on_non_trigger_subgroup_type(service_type, members = capi.template get_shard_members, subgroup_index, shard_index);
                         return members;
                     },
-                    "Get all members in the current derecho subgroup and shard.")
+                    "Get members of a shard.\n"
+                    "\t@arg0    service_type    VolatileCascadeStoreWithStringKey | \n"
+                    "\t                         PersistentCascadeStoreWithStringKey | \n"
+                    "\t                         TriggerCascadeNoStoreWithStringKey \n"
+                    "\t@arg1    subgroup_index  \n"
+                    "\t@arg2    shard_index     \n"
+                    "\t@return  a list of node ids"
+                )
             .def(
-                    "set_member_selection_policy", [](ServiceClientAPI& capi, std::string service_type, uint32_t subgroup_index, uint32_t shard_index, std::string policy, uint32_t usernode) {
+                    "set_member_selection_policy",
+                    [](ServiceClientAPI& capi, std::string service_type, uint32_t subgroup_index, uint32_t shard_index, std::string policy, uint32_t usernode) {
                         ShardMemberSelectionPolicy real_policy = parse_policy_name(policy);
                         on_non_trigger_subgroup_type(service_type, capi.template set_member_selection_policy, subgroup_index, shard_index, real_policy, usernode);
                     },
-                    "Set the member selection policy of the specified subgroup and shard.")
+                    "Set the member selection policy of a specified subgroup and shard.\n"
+                    "\t@arg0    service_type    VolatileCascadeStoreWithStringKey | \n"
+                    "\t                         PersistentCascadeStoreWithStringKey | \n"
+                    "\t                         TriggerCascadeNoStoreWithStringKey \n"
+                    "\t@arg1    subgroup_index  \n"
+                    "\t@arg2    shard_index     \n"
+                    "\t@arg3    policy          FirstMember | \n",
+                    "\t                         LastMember | \n",
+                    "\t                         Random | \n",
+                    "\t                         FixedRandom | \n",
+                    "\t                         RoundRobin | \n",
+                    "\t                         UserSpecified \n",
+                    "\t@arg4    usernode        The node id for 'UserSpecified' policy"
+                )
             .def(
-                    "get_member_selection_policy", [](ServiceClientAPI& capi, std::string service_type, uint32_t subgroup_index, uint32_t shard_index) {
+                    "get_member_selection_policy",
+                    [](ServiceClientAPI& capi, std::string service_type, uint32_t subgroup_index, uint32_t shard_index) {
                         std::tuple<derecho::cascade::ShardMemberSelectionPolicy, unsigned int> policy;
                         on_non_trigger_subgroup_type(service_type, policy = capi.template get_member_selection_policy, subgroup_index, shard_index);
 
@@ -417,89 +431,183 @@ PYBIND11_MODULE(client, m) {
                                 pol = "InvalidPolicy";
                                 break;
                         }
-                        return pol;
+                        return std::tie(pol,std::get<1>(policy));
                     },
-                    "Get the member selection policy of the specified subgroup and shard.")
+                    "Get the member selection policy of the specified subgroup and shard.\n"
+                    "\t@arg0    service_type    VolatileCascadeStoreWithStringKey | \n"
+                    "\t                         PersistentCascadeStoreWithStringKey | \n"
+                    "\t                         TriggerCascadeNoStoreWithStringKey \n"
+                    "\t@arg1    subgroup_index  \n"
+                    "\t@arg2    shard_index     \n"
+                    "\t@return  a pair of the member selection policy, policy name, user specified node id"
+                )
             .def(
-                    "put", [](ServiceClientAPI& capi, std::string service_type, std::string& key, py::bytes value, py::kwargs kwargs) {
-                        // Test if subgroup_index and shard_index is specified.
-                        uint32_t subgroup_index = UINT32_MAX;
+                    "put",
+                    [](ServiceClientAPI& capi, std::string& key, py::bytes value, py::kwargs kwargs) {
+                        std::string subgroup_type;
+                        uint32_t subgroup_index = 0;
                         uint32_t shard_index = 0;
-                        if(kwargs.contains("subgroup_index")) {
-                            subgroup_index = kwargs["subgroup_index"].cast<uint32_t>();
-                        }
-                        if(kwargs.contains("shard_index")) {
-                            shard_index = kwargs["shard_index"].cast<uint32_t>();
-                        }
-                        std::string val = std::string(value);
-                        on_non_trigger_subgroup_type(service_type, return put, capi, key, val, subgroup_index, shard_index);
-
-                        return py::cast(NULL);
-                    },
-                    "Put an object. The new object would replace the old object if a new key-value pair with the same\nkey as one put before is put.")
-            .def(
-                    "put_and_forget", 
-                    [](ServiceClientAPI& capi, std::string service_type, std::string& key, py::bytes value, py::kwargs kwargs){
-                        // Test is subgroup_index and shard_index is specified or not.
-                        uint32_t subgroup_index = UINT32_MAX;
-                        uint32_t shard_index = 0;
+                        persistent::version_t previous_version = CURRENT_VERSION;
+                        persistent::version_t previous_version_by_key = CURRENT_VERSION;
+                        bool blocking = true;
+                        bool trigger = false;
+#ifdef ENABLE_EVALUATION
+                        uint64_t message_id = 0;
+#endif
                         if (kwargs.contains("subgroup_index")) {
                             subgroup_index = kwargs["subgroup_index"].cast<uint32_t>();
                         }
                         if (kwargs.contains("shard_index")) {
                             shard_index = kwargs["shard_index"].cast<uint32_t>();
                         }
-                        std::string val = std::string(value);
-                        on_non_trigger_subgroup_type(service_type, put_and_forget, capi, key, val, subgroup_index, shard_index);
-                    },
-                    "Put an object. The new object would replace the old object if a new key-value pair with the same\nkey as one put before is put.")
-            .def(
-                    "trigger_put", [](ServiceClientAPI& capi, std::string service_type, std::string& key, py::bytes value, py::kwargs kwargs) {
-                        // Test is subgroup_index and shard_index is specified.
-                        uint32_t subgroup_index = UINT32_MAX;
-                        uint32_t shard_index = 0;
-                        if(kwargs.contains("subgroup_index")) {
-                            subgroup_index = kwargs["subgroup_index"].cast<uint32_t>();
+                        if (kwargs.contains("subgroup_type")) {
+                            subgroup_type = kwargs["subgroup_type"].cast<std::string>();
                         }
-                        if(kwargs.contains("shard_index")) {
-                            shard_index = kwargs["shard_index"].cast<uint32_t>();
+                        if (kwargs.contains("previous_version")) {
+                            previous_version = kwargs["previous_version"].cast<persistent::version_t>();
                         }
-                        std::string val = std::string(value);
-                        on_all_subgroup_type(service_type, trigger_put, capi, key, val, subgroup_index, shard_index);
-                    },
-                    "Trigger put an object. The object only trigger an action. The object is not stored.")
-            .def(
-                    "remove", [](ServiceClientAPI& capi, std::string service_type, std::string& key, py::kwargs kwargs) {
-                        // Test if subgroup_index and shard_index is specified.
-                        uint32_t subgroup_index = UINT32_MAX;
-                        uint32_t shard_index = 0;
-                        if(kwargs.contains("subgroup_index")) {
-                            subgroup_index = kwargs["subgroup_index"].cast<uint32_t>();
+                        if (kwargs.contains("previous_version_by_key")) {
+                            previous_version_by_key = kwargs["previous_version_by_key"].cast<persistent::version_t>();
                         }
-                        if(kwargs.contains("shard_index")) {
-                            shard_index = kwargs["shard_index"].cast<uint32_t>();
+                        if (kwargs.contains("blocking")) {
+                            blocking = kwargs["blocking"].cast<bool>();
                         }
-                        on_non_trigger_subgroup_type(service_type, return remove, capi, key, subgroup_index, shard_index);
+                        if (kwargs.contains("trigger")) {
+                            trigger = kwargs["trigger"].cast<bool>();
+                        }
+#ifdef ENABLE_EVALUATION
+                        if (kwargs.contains("message_id")) {
+                            message_id = kwargs["message_id"].cast<uint64_t>();
+                        }
+#endif
+
+                        ObjectWithStringKey obj;
+                        obj.key = key;
+                        obj.set_previous_version(previous_version,previous_version_by_key);
+#ifdef ENABLE_EVALUATION
+                        obj.message_id = message_id;
+#endif
+                        obj.blob = Blob(value.cast<std::string>().c_str(),value.cast<std::string>().size());
+                        if (subgroup_type.empty()) {
+                            if (trigger) {
+                                capi.trigger_put(obj);
+                            } else if (blocking) {
+                                auto result = capi.put(obj);
+                                auto s = new QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>(result, bundle_f);
+                                return py::cast(s);
+                            } else {
+                                capi.put_and_forget(obj);
+                            }
+                        } else {
+                            if (trigger) {
+                                on_all_subgroup_type(subgroup_type, trigger_put, capi, obj, subgroup_index, shard_index);
+                            } else if (blocking) {
+                                on_non_trigger_subgroup_type(subgroup_type, return put, capi, obj, subgroup_index, shard_index);
+                            } else {
+                                on_non_trigger_subgroup_type(subgroup_type, put_and_forget, capi, obj, subgroup_index, shard_index);
+                            }
+                        }
 
                         return py::cast(NULL);
                     },
-                    "Remove a long key and its corresponding value from cascade.")
+                    "Put an object. \n"
+                    "The new object would replace the old object with the same key.\n"
+                    "\t@arg0    key \n"
+                    "\t@arg1    value \n"
+                    "\t** Optional keyword argument: ** \n"
+                    "\t@argX    subgroup_type   VolatileCascadeStoreWithStringKey | \n"
+                    "\t                         PersistentCascadeStoreWithStringKey | \n"
+                    "\t                         TriggerCascadeNoStoreWithStringKey \n"
+                    "\t@argX    subgroup_index  \n"
+                    "\t@argX    shard_index     \n"
+                    "\t@argX    pervious_version        \n"
+                    "\t@argX    pervious_version_by_key \n"
+                    "\t@argX    blocking \n"
+                    "\t@argX    trigger         Using trigger put, always non-blocking regardless of blocking argument.\n"
+#ifdef ENABLE_EVALUATION
+                    "\t@argX    message_id \n"
+#endif
+                    "\t@return  a future of the (version,timestamp) for blocking put; or 'False' object for non-blocking put."
+            )
             .def(
-                    "get", [](ServiceClientAPI& capi, std::string service_type, std::string& key, persistent::version_t ver, py::kwargs kwargs) {
-                        // Test if subgroup_index and shard_index is specified.
-                        uint32_t subgroup_index = UINT32_MAX;
+                    "remove",
+                    [](ServiceClientAPI& capi, std::string& key, py::kwargs kwargs) {
+                        std::string subgroup_type;
+                        uint32_t subgroup_index = 0;
                         uint32_t shard_index = 0;
-                        if(kwargs.contains("subgroup_index")) {
+                        if (kwargs.contains("subgroup_type")) {
+                            subgroup_type = kwargs["subgroup_type"].cast<std::string>();
+                        }
+                        if (kwargs.contains("subgroup_index")) {
                             subgroup_index = kwargs["subgroup_index"].cast<uint32_t>();
                         }
-                        if(kwargs.contains("shard_index")) {
+                        if (kwargs.contains("shard_index")) {
                             shard_index = kwargs["shard_index"].cast<uint32_t>();
                         }
-                        on_non_trigger_subgroup_type(service_type, return get, capi, key, ver, subgroup_index, shard_index);
+
+                        if (subgroup_type.empty()) {
+                            auto result = capi.remove(key);
+                            auto s = new QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>(result, bundle_f);
+                            return py::cast(s);
+                        } else {
+                            on_non_trigger_subgroup_type(subgroup_type, return remove, capi, key, subgroup_index, shard_index);
+                        }
+
+                        return py::cast(NULL);
+                    },
+                    "Remove an object. \n"
+                    "Remove an object by key.\n"
+                    "\t@arg0    key \n"
+                    "\t** Optional keyword argument: ** \n"
+                    "\t@argX    subgroup_type   VolatileCascadeStoreWithStringKey | \n"
+                    "\t                         PersistentCascadeStoreWithStringKey | \n"
+                    "\t                         TriggerCascadeNoStoreWithStringKey \n"
+                    "\t@argX    subgroup_index  \n"
+                    "\t@argX    shard_index     \n"
+            )
+            .def(
+                    "get",
+                    [](ServiceClientAPI& capi, std::string& key, py::kwargs kwargs) {
+                        std::string subgroup_type;
+                        uint32_t subgroup_index = 0;
+                        uint32_t shard_index = 0;
+                        persistent::version_t version = CURRENT_VERSION;
+                        uint64_t timestamp = 0ull;
+                        if (kwargs.contains("subgroup_type")) {
+                            subgroup_type = kwargs["subgroup_type"].cast<std::string>();
+                        }
+                        if (kwargs.contains("subgroup_index")) {
+                            subgroup_index = kwargs["subgroup_index"].cast<uint32_t>();
+                        }
+                        if (kwargs.contains("shard_index")) {
+                            shard_index = kwargs["shard_index"].cast<uint32_t>();
+                        }
+                        if (kwargs.contains("version")) {
+                            version = kwargs["version"].cast<persistent::version_t>();
+                        }
+                        if (kwargs.contains("timestamp")) {
+                            timestamp = kwargs["timestamp"].cast<uint64_t>();
+                        }
+                        if (subgroup_type.empty()) {
+                            //TODO:
+                        } else {
+                            on_non_trigger_subgroup_type(subgroup_type, return get, capi, key, version, subgroup_index, shard_index);
+                        }
 
                         return py::cast(std::string(""));
                     },
-                    "Get the value corresponding to the long key from cascade.")
+                    "Get an an object. \n"
+                    "Remove an object by key.\n"
+                    "\t@arg0    key \n"
+                    "\t** Optional keyword argument: ** \n"
+                    "\t@argX    subgroup_type   VolatileCascadeStoreWithStringKey | \n"
+                    "\t                         PersistentCascadeStoreWithStringKey | \n"
+                    "\t                         TriggerCascadeNoStoreWithStringKey \n"
+                    "\t@argX    subgroup_index  \n"
+                    "\t@argX    shard_index     \n"
+                    "\t@argX    version         Specify version for a versioned get.\n"
+                    "\t@argX    timestamp       Specify timestamp (as an integer in unix epoch microsecond) for a timestampped get.\n"
+            )
             .def(
                     "get_by_time", [](ServiceClientAPI& capi, std::string service_type, std::string& key, uint64_t ts_us, py::kwargs kwargs) {
                         // Test if subgroup_index and shard_index is specified.
@@ -517,7 +625,7 @@ PYBIND11_MODULE(client, m) {
                     },
                     "Get the value corresponding to the long key from cascade by the timestamp.")
             .def(
-                    "create_object_pool", [](ServiceClientAPI& capi, const std::string& service_type,const std::string& object_pool_pathname, uint32_t subgroup_index) {
+                    "create_object_pool", [](ServiceClientAPI& capi, const std::string& service_type, const std::string& object_pool_pathname, uint32_t subgroup_index) {
                         on_all_subgroup_type(service_type, return create_object_pool, capi, object_pool_pathname, subgroup_index);
                         return py::cast(std::string(""));
                     },
@@ -531,8 +639,7 @@ PYBIND11_MODULE(client, m) {
                     "get_object_pool", [](ServiceClientAPI& capi, const std::string& object_pool_pathname) {
                         return get_object_pool(capi, object_pool_pathname);
                     },
-                    "Get an object pool by pathname."
-                 );
+                    "Get an object pool by pathname.");
 
     py::class_<QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>>(m, "QueryResultsStoreVerTmeStmp")
             .def(
