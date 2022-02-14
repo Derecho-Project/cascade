@@ -6,6 +6,22 @@ set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 find_package(pybind11 QUIET)
 
 if (pybind11_FOUND)
+    # test if some python dependencies are included
+    execute_process(COMMAND pip3 show build RESULT_VARIABLE HAS_PYTHON_BUILD OUTPUT_QUIET ERROR_QUIET)
+    if(NOT ${HAS_PYTHON_BUILD} EQUAL 0)
+        message(WARNING "pip3 failed to find 'build' package. If you didn't install it with another package manager, please install it by 'pip3 install build'")
+    endif()
+
+    execute_process(COMMAND pip3 show setuptools RESULT_VARIABLE HAS_PYTHON_SETUPTOOLS OUTPUT_QUIET ERROR_QUIET)
+    if(NOT ${HAS_PYTHON_SETUPTOOLS} EQUAL 0)
+        message(WARNING "pip3 failed to find 'setuptools' package. If you didn't install it with another package manager, please install it by 'pip3 install setuptools'")
+    endif()
+
+    execute_process(COMMAND pip3 show virtualenv RESULT_VARIABLE HAS_PYTHON_VIRTUALENV OUTPUT_QUIET ERROR_QUIET)
+    if(NOT ${HAS_PYTHON_VIRTUALENV} EQUAL 0)
+        message(WARNING "pip3 failed to find 'virtualenv' package. If you didn't install it with another package manager, please install it by 'pip3 install python-venv'")
+    endif()
+
     configure_file(setup.py.in ${CMAKE_CURRENT_BINARY_DIR}/setup.py)
     # pybind11 is found, so we compile the python bindings.
     pybind11_add_module(cascade_py cascade_py.cpp)
