@@ -1,249 +1,350 @@
 #!/usr/bin/env python3
-from derecho.cascade import client
+import cmd, sys
+import logging
+from derecho.cascade.client import ServiceClientAPI
 
-def main2():
-    a = client.ServiceClientAPI()
+class bcolors:
+    OK = '\033[92m' #GREEN
+    WARNING = '\033[93m' #YELLOW
+    FAIL = '\033[91m' #RED
+    RESET = '\033[0m' #RESET COLOR
 
-    help_info = "\
-list_all_members\n\tlist all members in top level derecho group.\n\
-list_type_members <type> [subgroup_index] [shard_index]\n\tlist members in shard by subgroup type.\n\
-list_subgroup_members [subgroup_id] [shard_index]\n\tlist members in shard by subgroup id.\n\
-set_member_selection_policy <type> <subgroup_index> <shard_index> <policy> [user_specified_node_id]\n\tset member selection policy\n\
-get_member_selection_policy <type> [subgroup_index] [shard_index]\n\tget member selection policy\n\
-put_and_forget <type> <key> <value> [subgroup_index] [shard_index]\n\tput an object\n\
-put <type> <key> <value> [subgroup_index] [shard_index]\n\tput an object\n\
-trigger_put <type> <key> <value> [subgroup_index] [shard_index]\n\tput an object\n\
-remove <type> <key> [subgroup_index] [shard_index]\n\tremove an object\n\
-get <type> <key> [version] [subgroup_index] [shard_index]\n\tget an object(by version)\n\
-get_by_time <type> <key> <ts_us> [subgroup_index] [shard_index]\n\tget an object by timestamp\n\
-create_object_pool <type> <pathname> <subgroup_index>\n\t create an object pool\n\
-list_object_pools\n\tlist object pools\n\
-get_object_pool <pathname>\n\tget object pool by pathname\n\
-quit|exit\n\texit the client.\n\
-help\n\tprint this message.\n\
-\n\
-type:=VolatileCascadeStoreWithStringKey|\n\
-      PersistentCascadeStoreWithStringKey|\n\
-      TriggerCascadeNoStoreWithStringKey\n\
-policy:=FirstMember|LastMember|Random|FixedRandom|RoundRobin|UserSpecified\n\
-"
+class CascadeClientShell(cmd.Cmd):
+    '''
+    Cascade Client Shell
+    '''
+    def __init__(self, name = 'cascade.client'):
+        super(CascadeClientShell,self).__init__()
+        self.prompt = '(' + name + ') '
+        self.capi = None
+        self.logger = logging.getLogger(name)
+        self.logger.setLevel(logging.WARN)
 
-    while(True):
-        # set subgroup index to UINT32_MAX
-        subgroup_index = 0xFFFFFFFF
-        shard_index = 0
+    def check_capi(self):
+        if self.capi is None:
+            self.capi = ServiceClientAPI()
 
-        s = input("cmd> ")
-        if s == '':
-            continue
-        sl = s.split()
-        if(len(sl) < 1):
-            continue
-        
-        if(sl[0] == 'help'):
-            print(help_info)
-            continue
+    # commands
+    def do_quit(self, arg):
+        '''
+        Quit Cascade console
+        '''
+        print('Quitting Cascade Client Shell')
+        return True
 
-        if(sl[0] == "quit" or sl[0] == "exit"):
-            break
-        
-        if(sl[0] == 'list_all_members'):
-            print("Top Derecho Group members = ", a.get_members())
-            continue
-        
-        if(sl[0] == 'list_type_members'):
+    def do_list_members(self, arg):
+        '''
+        list_members [subgroup_type [subgroup_index [shard_index]]]
+        ============
+        List the member nodes in the Cascade service.
 
-            if(len(sl) < 2):
-                print("Invalid format")
-                continue
-            
-            if(len(sl) >= 3):
-                subgroup_index = int(sl[2])
+        subgroup_type:  the subgroup type, could be either of the following:
+                        VolatileCascadeStoreWithStringKey
+                        PersistentCascadeStoreWithStringKey
+                        TriggerCascadeNoStoreWithStringKey
+        subgroup_index: the subgroup index
+        shard_index:    the shard index
+        '''
+        self.check_capi()
+        args = arg.split()
+        if len(args) > 0:
+            subgroup_type = args[0]
+            subgroup_index = 0
+            shard_index = 0
+            if len(args) > 1:
+                subgroup_index = int(args[1])
+            if len(args) > 2:
+                shard_index = int(args[2])
+            print("Nodes in shard (%s:%d:%d):%s" % (subgroup_type,subgroup_index,shard_index,str(self.capi.get_shard_members(subgroup_type,subgroup_index,shard_index))))
+        else:
+            print("Nodes in Cascade service:%s" % str(self.capi.get_members()))
 
-            if(len(sl) >= 4):
-                shard_index = int(sl[3])
+    def do_set_member_selection_policy(self, arg):
+        '''
+        set_member_selection_policy <subgroup_type> <subgroup_index> <shard_index> <policy> [node_id]
+        ===========================
+        Set member selection policy for a shard
 
-            print(a.get_shard_members(sl[1], subgroup_index, shard_index))
+        subgroup_type:  the subgroup type, could be either of the following:
+                        VolatileCascadeStoreWithStringKey
+                        PersistentCascadeStoreWithStringKey
+                        TriggerCascadeNoStoreWithStringKey
+        subgroup_index: the subgroup index
+        shard_index:    the shard index
+        policy:         the member selection policy, could be either of the following:
+                        FirstMember
+                        LastMember
+                        Random
+                        FixedRandom
+                        RoundRobin
+                        UserSpecified
+        node_id:        if policy is 'UserSpecified', you need to specify the corresponding node id.
+        '''
+        self.check_capi()
+        args = arg.split()
+        if len(args) < 4:
+            print(bcolors.FAIL + "At least four arguments are required." + bcolors.RESET)
+        else:
+            subgroup_type = args[0]
+            subgroup_index = int(args[1])
+            shard_index = int(args[2])
+            policy = args[3]
+            node_id = 0
+            if policy == 'UserSpecified':
+                if len(args) < 5:
+                    print(bcolors.FAIL + "Please specify the user-specified node id." + bcolors.RESET)
+                    return
+                else:
+                    node_id = int(args[4])
+            self.capi.set_member_selection_policy(subgroup_type,subgroup_index,shard_index,policy,node_id)
 
-            continue
-        
-        if(sl[0] == 'list_subgroup_members'):
-            if(len(sl) >= 2):
-                subgroup_index = int(sl[1])
+    def do_get_member_selection_policy(self, arg):
+        '''
+        get_member_selection_policy <subgroup_type> <subgroup_index> <shard_index>
+        ===========================
+        Get member selection policy for a shard
 
-            if(len(sl) >= 3):
-                shard_index = int(sl[2])
+        subgroup_type:  the subgroup type, could be either of the following:
+                        VolatileCascadeStoreWithStringKey
+                        PersistentCascadeStoreWithStringKey
+                        TriggerCascadeNoStoreWithStringKey
+        subgroup_index: the subgroup index
+        shard_index:    the shard index
+        '''
+        self.check_capi()
+        args = arg.split()
+        if len(args) < 3:
+            print(bcolors.FAIL + "At least three arguments are required." + bcolors.RESET)
+        else:
+            subgroup_type = args[0]
+            subgroup_index = int(args[1])
+            shard_index = int(args[2])
+            policy,node_id = self.capi.get_member_selection_policy(subgroup_type,subgroup_index,shard_index)
+            print(bcolors.OK + f"{policy}:{node_id}" + bcolors.RESET)
 
-            # print(a.get_shard_members(subgroup_index, shard_index))
-            print("This feature deprecated because subgroup ID should be hidden from application.")
+    def do_put(self, arg):
+        '''
+        put <key> <value> [subgroup_type= subgroup_index= shard_index= previous_version= previous_version_by_key= message_id=]
+        ===
+        Put an object to a shard, either blocking or non-blocking until it's done.
 
-            continue
+        key:            the key string
+        value:          the value string
 
-        if(sl[0] == 'get_member_selection_policy'):
-            if(len(sl) < 2):
-                print("Invalid format")
-                continue
-            
-            if(len(sl) >= 3):
-                subgroup_index = int(sl[2])
+        ** optional keyword arguments **
+        subgroup_type:              optional subgroup type, could be either of the following:
+                                    VolatileCascadeStoreWithStringKey
+                                    PersistentCascadeStoreWithStringKey
+                                    TriggerCascadeNoStoreWithStringKey
+                                    by default, put try to find object pool by parsing key
+        subgroup_index:             the subgroup index
+        shard_index:                the shard index
+        previous_version:           optional previous_version, which is checked against the latest version. The value
+                                    will get rejected if the latest version grows beyond previous_version.
+        previous_version_by_key:    optional previous_version_by_key, which is checked against the latest version of
+                                    the key. The value will get rejected if the latest version of the key grows beyond
+                                    previous_version.
+        message_id:                 The message_id for the object.
+        blocking:                   optional blocking flag. Default to True.
+        trigger:                    optional trigger flag, Default to False.
+        '''
+        self.check_capi()
+        args = arg.split()
+        if len(args) < 2:
+            print(bcolors.FAIL + "At least two arguments are required." + bcolors.RESET)
+        else:
+            subgroup_type = ""
+            subgroup_index = 0
+            shard_index = 0
+            previous_version = ServiceClientAPI.CURRENT_VERSION
+            previous_version_by_key = ServiceClientAPI.CURRENT_VERSION
+            message_id = 0
+            blocking = True
+            trigger = False
+            argpos = 2
+            while argpos < len(args):
+                extra_option = args[argpos].split('=')
+                if len(extra_option) != 2:
+                    print(bcolors.FAIL + "Unknown argument:" + args[2] + bcolors.RESET)
+                    return
+                elif extra_option[0] == 'subgroup_type':
+                    subgroup_type = extra_option[1]
+                elif extra_option[0] == 'subgroup_index':
+                    subgroup_index = int(extra_option[1])
+                elif extra_option[0] == 'shard_index':
+                    shard_index = int(extra_option[1])
+                elif extra_option[0] == 'previous_version':
+                    previous_version = int(extra_option[1])
+                elif extra_option[0] == 'previous_version_by_key':
+                    previous_version_by_key = int(extra_option[1])
+                elif extra_option[0] == 'message_id':
+                    message_id = int(extra_option[1])
+                elif extra_option[0] == 'blocking' and ( extra_option[1].lower() == 'no' or extra_option[1].lower() == 'false' or extra_option[1].lower() == 'off' or extra_option[1].lower() == '0'  ):
+                    blocking = False
+                elif extra_option[0] == 'trigger' and ( extra_option[1].lower() == 'yes' or extra_option[1].lower() == 'true' or extra_option[1].lower() == 'on' or extra_option[1].lower() == '1'  ):
+                    trigger = True
+                argpos = argpos + 1
+            res = self.capi.put(args[0],bytes(args[1],'utf-8'),subgroup_type=subgroup_type,subgroup_index=subgroup_index,shard_index=shard_index,previous_version=previous_version,previous_version_by_key=previous_version_by_key,message_id=message_id,blocking=blocking,trigger=trigger)
+            if blocking and not trigger and res:
+                print(bcolors.OK + f"{res.get_result()}" + bcolors.RESET)
+            elif trigger and not res:
+                print(bcolors.OK + "trigger put request is sent." + bcolors.RESET)
+            elif not blocking and not res:
+                print(bcolors.OK + "non-blocking put request is sent." + bcolors.RESET)
+            else:
+                print(bcolors.FAIL + f"Some unknown error happened:result={res}." + bcolors.RESET)
 
-            if(len(sl) >= 4):
-                shard_index = int(sl[3])
+    def do_remove(self, arg):
+        '''
+        remove <key> [subgroup_type= subgroup_index= shard_index=]
+        ===
+        Remove an object from a shard
 
-            print(a.get_member_selection_policy(sl[1], subgroup_index, shard_index))
+        key:            the key string
 
-            continue
+        ** optional keyword arguments **
+        subgroup_type:              optional subgroup type, could be either of the following:
+                                    VolatileCascadeStoreWithStringKey
+                                    PersistentCascadeStoreWithStringKey
+                                    TriggerCascadeNoStoreWithStringKey
+                                    by default, put try to find object pool by parsing key
+        subgroup_index:             the subgroup index
+        shard_index:                the shard index
+        '''
+        self.check_capi()
+        args = arg.split()
+        if len(args) < 1:
+            print(bcolors.FAIL + "At least one argument is required." + bcolors.RESET)
+        else:
+            subgroup_type = ""
+            subgroup_index = 0
+            shard_index = 0
+            argpos = 1
+            while argpos < len(args):
+                extra_option = args[argpos].split('=')
+                if len(extra_option) != 2:
+                    print(bcolors.FAIL + "Unknown argument:" + args[2] + bcolors.RESET)
+                    return
+                elif extra_option[0] == 'subgroup_type':
+                    subgroup_type = extra_option[1]
+                elif extra_option[0] == 'subgroup_index':
+                    subgroup_index = int(extra_option[1])
+                elif extra_option[0] == 'shard_index':
+                    shard_index = int(extra_option[1])
+                argpos = argpos + 1
+            res = self.capi.remove(args[0],subgroup_type=subgroup_type,subgroup_index=subgroup_index,shard_index=shard_index)
+            if res:
+                print(bcolors.OK + f"{res.get_result()}" + bcolors.RESET)
+            else:
+                print(bcolors.FAIL + "Something went wrong, remove returns null." + bcolors.RESET)
 
-        if(sl[0] == 'set_member_selection_policy'):
-            if(len(sl) < 5):
-                print("Invalid format")
-                continue
+    def do_get(self, arg):
+        '''
+        get <key> [subgroup_type= subgroup_index= shard_index= version= timestamp=]
+        ===
+        Get an Object
 
-            policy = ''
-            uindex = 0
-            
-            if(len(sl) >= 3):
-                subgroup_index = int(sl[2])
+        key:            the key string
 
-            if(len(sl) >= 4):
-                shard_index = int(sl[3])
+        *** optional key arguments ***
+        subgroup_type:              optional subgroup type, could be either of the following:
+                                    VolatileCascadeStoreWithStringKey
+                                    PersistentCascadeStoreWithStringKey
+                                    TriggerCascadeNoStoreWithStringKey
+                                    by default, put try to find object pool by parsing key
+        subgroup_index:             the subgroup index
+        shard_index:                the shard index
+        version:                    the version. For versioned get only
+        timestamp:                  the unix EPOCH timestamp in microseconds. For timestamped-get only
+        '''
+        self.check_capi()
+        args = arg.split()
+        if len(args) < 1:
+            print(bcolors.FAIL + 'At least one argument is required.' + bcolors.RESET)
+        else:
+            subgroup_type = ""
+            subgroup_index = 0
+            shard_index = 0
+            version = ServiceClientAPI.CURRENT_VERSION
+            timestamp = 0
+            argpos = 1
+            while argpos < len(args):
+                extra_option = args[argpos].split('=')
+                if len(extra_option) != 2:
+                    print(bcolors.FAIL + "Unknown argument:" + args[2] + bcolors.RESET)
+                    return
+                elif extra_option[0] == 'subgroup_type':
+                    subgroup_type = extra_option[1]
+                elif extra_option[0] == 'subgroup_index':
+                    subgroup_index = int(extra_option[1])
+                elif extra_option[0] == 'shard_index':
+                    shard_index = int(extra_option[1])
+                elif extra_option[0] == 'version':
+                    version = int(extra_option[1])
+                elif extra_option[0] == 'timestamp':
+                    timestamp = int(extra_option[1])
+                argpos = argpos + 1
+            res = self.capi.get(args[0],subgroup_type=subgroup_type,subgroup_index=subgroup_index,shard_index=shard_index,version=version,timestamp=timestamp)
+            if res:
+                odict = res.get_result()
+                print(bcolors.OK + f"{str(odict)}" + bcolors.RESET)
+            else:
+                print(bcolors.FAIL + "Something went wrong, get returns null." + bcolors.RESET)
+        pass
 
-            if(len(sl) >= 5):
-                policy = sl[4]
-            
-            if(len(sl) >= 6):
-                uindex = int(sl[5])
+    def do_create_object_pool(self, arg):
+        '''
+        create_object_pool <pathname> <subgroup_type> <subgroup_index>
+        ==================
+        Create an object pool
 
-            print(a.set_member_selection_policy(sl[1], subgroup_index, shard_index, policy, uindex))
-            continue
+        pathname:       the absolute pathname for the object pool
+        subgroup_type:  the type of the subgroup for this object pool, could be either of the following:
+                        VolatileCascadeStoreWithStringKey
+                        PersistentCascadeStoreWithStringKey
+                        TriggerCascadeNoStoreWithStringKey
+        subgroup_index: the subgroup index
 
-        if(sl[0] == 'put'):
-            if(len(sl) < 4):
-                print("Invalid format")
-                continue
-            
-            if(len(sl) >= 5):
-                subgroup_index = int(sl[4])
+        '''
+        self.check_capi()
+        args = arg.split()
+        if len(args) < 3:
+            print(bcolors.FAIL + 'At least three arguments are required.' + bcolors.RESET)
+        else:
+            subgroup_index = int(args[2])
+            res = self.capi.create_object_pool(args[0],args[1],subgroup_index)
+            if res:
+                ver = res.get_result()
+                print(bcolors.OK + f"{ver}" + bcolors.RESET)
+            else:
+                print(bcolors.FAIL + "Something went wrong, create_object_pool returns null." + bcolors.RESET)
 
-            if(len(sl) >= 6):
-                shard_index = int(sl[5])
+    def do_list_object_pools(self, arg):
+        '''
+        list_object_pools
+        =================
+        list all object pools
+        '''
+        self.check_capi()
+        args = arg.split()
+        res = self.capi.list_object_pools()
+        print(bcolors.OK + f"{res}" + bcolors.RESET)
 
-            b = a.put(sl[1], sl[2], bytes(sl[3],'utf-8'), subgroup_index=subgroup_index, shard_index=shard_index)
-            print(b.get_result())
-            continue
+    def do_get_object_pool(self, arg):
+        '''
+        get_object_pool <pathname>
+        ===============
+        get object pool details
+        '''
+        self.check_capi()
+        args = arg.split()
+        if len(args) < 1:
+            print(bcolors.FAIL + 'At least one argument is required.' + bcolors.RESET)
+        else:
+            res = self.capi.get_object_pool(args[0])
+            print(bcolors.OK + f"{res}" + bcolors.RESET)
 
-        if(sl[0] == 'put_and_forget'):
-            if(len(sl) < 4):
-                print("Invalid format")
-                continue
-            
-            if(len(sl) >= 5):
-                subgroup_index = int(sl[4])
+    # end of CascadeClientShell definition
 
-            if(len(sl) >= 6):
-                shard_index = int(sl[5])
-
-            b = a.put_and_forget(sl[1], sl[2], bytes(sl[3],'utf-8'), subgroup_index=subgroup_index, shard_index=shard_index)
-            continue
-
-        if(sl[0] == 'trigger_put'):
-            if(len(sl) < 4):
-                print("Invalid format")
-                continue
-            
-            if(len(sl) >= 5):
-                subgroup_index = int(sl[4])
-
-            if(len(sl) >= 6):
-                shard_index = int(sl[5])
-
-            a.trigger_put(sl[1], sl[2], bytes(sl[3],'utf-8'), subgroup_index=subgroup_index, shard_index=shard_index)
-            print("Trigger put sent.")
-            continue
-            
-
-        if(sl[0] == 'get'):
-            if(len(sl) < 3):
-                print("Invalid format")
-                continue
-            
-            version = -1
-            
-            if(len(sl) >= 4):
-                version = int(sl[3])
-
-            if(len(sl) >= 5):
-                subgroup_index = int(sl[4])
-
-            if(len(sl) >= 6):
-                shard_index = int(sl[5])
-
-            b = a.get(sl[1], sl[2], version, subgroup_index=subgroup_index, shard_index=shard_index)
-
-            print(b.get_result())
-            
-            continue
-
-        if(sl[0] == 'remove'):
-            if(len(sl) < 3):
-                print("Invalid format")
-                continue
-            
-            if(len(sl) >= 4):
-                subgroup_index = int(sl[3])
-
-            if(len(sl) >= 5):
-                shard_index = int(sl[4])
-
-            b = a.remove(sl[1], sl[2], subgroup_index=subgroup_index, shard_index=shard_index)
-            print(b.get_result())
-            continue
-        
-        if(sl[0] == 'get_by_time'):
-            if(len(sl) < 3):
-                print("Invalid format")
-                continue
-            
-            ts_us = 0
-            
-            if(len(sl) >= 4):
-                ts_us = int(sl[3])
-
-            if(len(sl) >= 5):
-                subgroup_index = int(sl[4])
-
-            if(len(sl) >= 6):
-                shard_index = int(sl[5])
-
-            b = a.get_by_time(sl[1], sl[2], ts_us, subgroup_index=subgroup_index, shard_index=shard_index)
-            print(b.get_result())
-            continue
-
-        if(sl[0] == 'create_object_pool'):
-            if(len(sl) < 4):
-                print("Invalid format")
-                continue
-
-            subgroup_index = int(sl[3])
-
-            b = a.create_object_pool(sl[1], sl[2], subgroup_index)
-            print(b.get_result())
-            continue
-        
-        if(sl[0] == 'list_object_pools'):
-            print("Refreshed object pools:"+str(a.list_object_pools()))
-            continue
-
-        if(sl[0] == 'get_object_pool'):
-            if (len(sl)<2):
-                print("Invalid format")
-                continue
-
-            opm = a.get_object_pool(sl[1])
-            print(opm)
-            continue
-
-        print ("Invalid command:" + sl[0])
-
-if __name__ == "__main__":
-    main2()
+if __name__ == '__main__':
+    CascadeClientShell().cmdloop()

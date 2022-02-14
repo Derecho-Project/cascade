@@ -43,22 +43,6 @@ static const char* policy_names[] = {
         nullptr};
 
 /**
-    Lambda function for handling the unwrapping of ObjectWithStringKey
-*/
-std::function<py::bytes(ObjectWithStringKey)> s_f = [](ObjectWithStringKey obj) {
-    std::string s(obj.blob.bytes, obj.blob.size);
-    return py::bytes(s);
-};
-
-/**
-    Lambda function for handling the unwrapping of ObjectWithUInt64Key
-*/
-std::function<py::bytes(ObjectWithUInt64Key)> u_f = [](ObjectWithUInt64Key obj) {
-    std::string s(obj.blob.bytes, obj.blob.size);
-    return py::bytes(s);
-};
-
-/**
     Lambda function for handling the unwrapping of tuple of version and timestamp
 */
 auto bundle_f = [](const std::tuple<persistent::version_t, uint64_t>& obj) {
@@ -268,18 +252,9 @@ auto get(ServiceClientAPI& capi, const std::string& key, persistent::version_t v
 */
 template <typename SubgroupType>
 auto get_by_time(ServiceClientAPI& capi, const std::string& key, uint64_t ts_us, uint32_t subgroup_index, uint32_t shard_index) {
-    if constexpr(std::is_integral<typename SubgroupType::KeyType>::value) {
-        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get_by_time<SubgroupType>(
-                static_cast<uint64_t>(std::stol(key)), ts_us, subgroup_index, shard_index);
-        QueryResultsStore<const typename SubgroupType::ObjectType, py::bytes>* s = new QueryResultsStore<const typename SubgroupType::ObjectType, py::bytes>(result, u_f);
-        return py::cast(s);
-
-    } else if constexpr(std::is_convertible<typename SubgroupType::KeyType, std::string>::value) {
-        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = (subgroup_index == UINT32_MAX) ? capi.get_by_time(key, ts_us) : capi.template get_by_time<SubgroupType>(key, ts_us, subgroup_index, shard_index);
-
-        QueryResultsStore<const typename SubgroupType::ObjectType, py::bytes>* s = new QueryResultsStore<const typename SubgroupType::ObjectType, py::bytes>(result, s_f);
-        return py::cast(s);
-    }
+    derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get_by_time<SubgroupType>(key, ts_us, subgroup_index, shard_index);
+    auto s = new QueryResultsStore<const typename SubgroupType::ObjectType, py::dict>(result, object_unwrapper);
+    return py::cast(s);
 }
 
 /**
@@ -571,6 +546,7 @@ PYBIND11_MODULE(client, m) {
                     "\t                         TriggerCascadeNoStoreWithStringKey \n"
                     "\t@argX    subgroup_index  \n"
                     "\t@argX    shard_index     \n"
+                    "\t@return  a future of the (version,timestamp)"
             )
             .def(
                     "get",
@@ -619,7 +595,6 @@ PYBIND11_MODULE(client, m) {
                         return py::cast(NULL);
                     },
                     "Get an an object. \n"
-                    "Remove an object by key.\n"
                     "\t@arg0    key \n"
                     "\t** Optional keyword argument: ** \n"
                     "\t@argX    subgroup_type   VolatileCascadeStoreWithStringKey | \n"
@@ -629,23 +604,38 @@ PYBIND11_MODULE(client, m) {
                     "\t@argX    shard_index     \n"
                     "\t@argX    version         Specify version for a versioned get.\n"
                     "\t@argX    timestamp       Specify timestamp (as an integer in unix epoch microsecond) for a timestampped get.\n"
+                    "\t@return  a dict version of the object."
             )
             .def(
-                    "create_object_pool", [](ServiceClientAPI& capi, const std::string& service_type, const std::string& object_pool_pathname, uint32_t subgroup_index) {
+                    "create_object_pool", 
+                    [](ServiceClientAPI& capi, const std::string& object_pool_pathname, const std::string& service_type, uint32_t subgroup_index) {
                         on_all_subgroup_type(service_type, return create_object_pool, capi, object_pool_pathname, subgroup_index);
-                        return py::cast(std::string(""));
+                        return py::cast(NULL);
                     },
-                    "Create an Object Pool")
+                    "Create an Object Pool. \n"
+                    "\t@arg0    object pool pathname \n"
+                    "\t@arg1    subgroup_type, could be either of the following \n"
+                    "\t         VolatileCascadeStoreWithStringKey | \n"
+                    "\t         PersistentCascadeStoreWithStringKey | \n"
+                    "\t         TriggerCascadeNoStoreWithStringKey \n"
+                    "\t@arg2    subgroup_index \n"
+                    "\t@return  a future of the (version,timestamp)"
+            )
             .def(
-                    "list_object_pools", [](ServiceClientAPI& capi) {
+                    "list_object_pools",
+                    [](ServiceClientAPI& capi) {
                         return list_object_pools(capi);
                     },
-                    "List the object pools")
+                    "List the object pools\n"
+                    "\t@return  a list of object pools")
             .def(
-                    "get_object_pool", [](ServiceClientAPI& capi, const std::string& object_pool_pathname) {
+                    "get_object_pool",
+                    [](ServiceClientAPI& capi, const std::string& object_pool_pathname) {
                         return get_object_pool(capi, object_pool_pathname);
                     },
-                    "Get an object pool by pathname.");
+                    "Get an object pool by pathname. \n"
+                    "\t@arg0    object pool pathname \n"
+                    "\t@return  object pool details.");
 
     py::class_<QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>>(m, "QueryResultsStoreVerTmeStmp")
             .def(
