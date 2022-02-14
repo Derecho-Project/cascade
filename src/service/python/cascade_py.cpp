@@ -69,6 +69,21 @@ auto bundle_f = [](const std::tuple<persistent::version_t, uint64_t>& obj) {
 };
 
 /**
+ * Lambda function for handling the unwrapping of ObjectWithStringKey
+ */
+std::function<py::dict(const ObjectWithStringKey&)> object_unwrapper = [](const ObjectWithStringKey& obj) {
+    py::dict object_dict;
+    object_dict["key"] = py::str(obj.get_key_ref());
+    object_dict["value"] = py::bytes(std::string(obj.blob.bytes, obj.blob.size));
+    object_dict["version"] = obj.get_version();
+    object_dict["timestamp"] = obj.get_timestamp();
+#ifdef ENABLE_EVALUATION
+    object_dict["message_id"] = obj.get_message_id();
+#endif
+    return object_dict;
+};
+
+/**
     Object made to handle the results of a derecho::rpc::QueryResults object for the python
     side. T being the type that is to be returned from the QueryResults object and K being
     the type that needs to be returned from the lambda unwrapping.
@@ -235,19 +250,11 @@ auto remove(ServiceClientAPI& capi, std::string& key, uint32_t subgroup_index = 
     @return QueryResultsStore that handles the return type.
 */
 template <typename SubgroupType>
-auto get(ServiceClientAPI& capi, const std::string& key, persistent::version_t ver, uint32_t subgroup_index = UINT32_MAX, uint32_t shard_index = 0) {
-    if constexpr(std::is_integral<typename SubgroupType::KeyType>::value) {
-        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get<SubgroupType>(static_cast<uint64_t>(std::stol(key)), ver, subgroup_index, shard_index);
-        // check_get_result(result);
-        QueryResultsStore<const typename SubgroupType::ObjectType, py::bytes>* s = new QueryResultsStore<const typename SubgroupType::ObjectType, py::bytes>(result, u_f);
-        return py::cast(s);
-
-    } else if constexpr(std::is_convertible<typename SubgroupType::KeyType, std::string>::value) {
-        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = (subgroup_index == UINT32_MAX) ? capi.get(key, ver) : capi.template get<SubgroupType>(key, ver, subgroup_index, shard_index);
-        // check_get_result(result);
-        QueryResultsStore<const typename SubgroupType::ObjectType, py::bytes>* s = new QueryResultsStore<const typename SubgroupType::ObjectType, py::bytes>(result, s_f);
-        return py::cast(s);
-    }
+auto get(ServiceClientAPI& capi, const std::string& key, persistent::version_t ver, uint32_t subgroup_index = 0, uint32_t shard_index = 0) {
+    derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get<SubgroupType>(key, ver, subgroup_index, shard_index);
+    // check_get_result(result);
+    auto s = new QueryResultsStore<const typename SubgroupType::ObjectType, py::dict>(result, object_unwrapper);
+    return py::cast(s);
 }
 
 /**
@@ -588,13 +595,28 @@ PYBIND11_MODULE(client, m) {
                         if (kwargs.contains("timestamp")) {
                             timestamp = kwargs["timestamp"].cast<uint64_t>();
                         }
-                        if (subgroup_type.empty()) {
-                            //TODO:
+
+                        if (timestamp != 0 && version == CURRENT_VERSION ) {
+                            // timestamped get
+                            if (subgroup_type.empty()) {
+                                auto res = capi.get_by_time(key,timestamp);
+                                auto s = new QueryResultsStore<const ObjectWithStringKey,py::dict>(res, object_unwrapper);
+                                return py::cast(s);
+                            } else {
+                                on_non_trigger_subgroup_type(subgroup_type, return get_by_time, capi, key, timestamp, subgroup_index, shard_index);
+                            }
                         } else {
-                            on_non_trigger_subgroup_type(subgroup_type, return get, capi, key, version, subgroup_index, shard_index);
+                            // get versioned get
+                            if (subgroup_type.empty()) {
+                                auto res = capi.get(key,version);
+                                auto s = new QueryResultsStore<const ObjectWithStringKey,py::dict>(res, object_unwrapper);
+                                return py::cast(s);
+                            } else {
+                                on_non_trigger_subgroup_type(subgroup_type, return get, capi, key, version, subgroup_index, shard_index);
+                            }
                         }
 
-                        return py::cast(std::string(""));
+                        return py::cast(NULL);
                     },
                     "Get an an object. \n"
                     "Remove an object by key.\n"
@@ -608,22 +630,6 @@ PYBIND11_MODULE(client, m) {
                     "\t@argX    version         Specify version for a versioned get.\n"
                     "\t@argX    timestamp       Specify timestamp (as an integer in unix epoch microsecond) for a timestampped get.\n"
             )
-            .def(
-                    "get_by_time", [](ServiceClientAPI& capi, std::string service_type, std::string& key, uint64_t ts_us, py::kwargs kwargs) {
-                        // Test if subgroup_index and shard_index is specified.
-                        uint32_t subgroup_index = UINT32_MAX;
-                        uint32_t shard_index = 0;
-                        if(kwargs.contains("subgroup_index")) {
-                            subgroup_index = kwargs["subgroup_index"].cast<uint32_t>();
-                        }
-                        if(kwargs.contains("shard_index")) {
-                            shard_index = kwargs["shard_index"].cast<uint32_t>();
-                        }
-                        on_non_trigger_subgroup_type(service_type, return get_by_time, capi, key, ts_us, subgroup_index, shard_index);
-
-                        return py::cast(std::string(""));
-                    },
-                    "Get the value corresponding to the long key from cascade by the timestamp.")
             .def(
                     "create_object_pool", [](ServiceClientAPI& capi, const std::string& service_type, const std::string& object_pool_pathname, uint32_t subgroup_index) {
                         on_all_subgroup_type(service_type, return create_object_pool, capi, object_pool_pathname, subgroup_index);
@@ -648,12 +654,18 @@ PYBIND11_MODULE(client, m) {
                     },
                     "Get result from QueryResultsStore for version and timestamp");
 
-    py::class_<QueryResultsStore<const ObjectWithStringKey, py::bytes>>(m, "QueryResultsStoreObjectWithStringKey")
+    py::class_<QueryResultsStore<const ObjectWithStringKey, py::bytes>>(m, "QueryResultsStoreObjectWithStringKey_deprecated")
             .def(
                     "get_result", [](QueryResultsStore<const ObjectWithStringKey, py::bytes>& qrs) {
                         return qrs.get_result();
                     },
                     "Get result from QueryResultsStore for ObjectWithStringKey");
+    py::class_<QueryResultsStore<const ObjectWithStringKey, py::dict>>(m, "QueryResultsStoreObjectWithStringKey")
+            .def(
+                    "get_result", [](QueryResultsStore<const ObjectWithStringKey, py::dict>& qrs) {
+                        return qrs.get_result();
+                    },
+                    "Get dict result from QueryResultsStore for ObjectWithStringKey");
 
     py::class_<QueryResultsStore<const ObjectWithUInt64Key, py::bytes>>(m, "QueryResultsStoreObjectWithUInt64Key")
             .def(
