@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-import cmd, sys
-import logging
 from derecho.cascade.client import ServiceClientAPI
 
 class bcolors:
