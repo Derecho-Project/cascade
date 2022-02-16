@@ -409,7 +409,7 @@ namespace cascade {
         // serialization support
         DEFAULT_SERIALIZE(kv_map,update_version);
 
-        static std::unique_ptr<VolatileCascadeStore> from_bytes(mutils::DeserializationManager* dsm, char const* buf);
+        static std::unique_ptr<VolatileCascadeStore> from_bytes(mutils::DeserializationManager* dsm, uint8_t const* buf);
 
         DEFAULT_DESERIALIZE_NOALLOC(VolatileCascadeStore);
 
@@ -446,10 +446,10 @@ namespace cascade {
         typedef struct {
             size_t capacity;
             size_t len;
-            char* buffer;
+            uint8_t* buffer;
             // methods
             inline void set_data_len(const size_t& dlen);
-            inline char* data_ptr();
+            inline uint8_t* data_ptr();
             inline void calibrate(const size_t& dlen);
             inline bool is_empty();
             inline void clean();
@@ -459,7 +459,7 @@ namespace cascade {
 
         struct DeltaBytesFormat {
             uint32_t    op;
-            char        first_data_byte;
+            uint8_t        first_data_byte;
         };
         
         std::map<KT,VT> kv_map;
@@ -475,7 +475,7 @@ namespace cascade {
         // no need to prepare a delta
         ///////////////////////////////////////////////////////////////////////////
         virtual void finalizeCurrentDelta(const persistent::DeltaFinalizer& df) override;
-        virtual void applyDelta(char const* const delta) override;
+        virtual void applyDelta(uint8_t const* const delta) override;
         static std::unique_ptr<DeltaCascadeStoreCore<KT,VT,IK,IV>> create(mutils::DeserializationManager* dm);
         /**
          * apply put to current state
@@ -604,7 +604,7 @@ namespace cascade {
         // serialization support
         DEFAULT_SERIALIZE(persistent_core);
 
-        static std::unique_ptr<PersistentCascadeStore> from_bytes(mutils::DeserializationManager* dsm, char const* buf);
+        static std::unique_ptr<PersistentCascadeStore> from_bytes(mutils::DeserializationManager* dsm, uint8_t const* buf);
 
         DEFAULT_DESERIALIZE_NOALLOC(PersistentCascadeStore);
 
@@ -870,11 +870,11 @@ namespace cascade {
 #endif//ENABLE_EVALUATION
 
         // serialization support
-        virtual std::size_t to_bytes(char* v) const override {return 0;}
-        virtual void post_object(const std::function<void(char const* const, std::size_t)>&) const override {}
+        virtual std::size_t to_bytes(uint8_t* v) const override {return 0;}
+        virtual void post_object(const std::function<void(uint8_t const* const, std::size_t)>&) const override {}
         virtual std::size_t bytes_size() const {return 0;}
-        static std::unique_ptr<TriggerCascadeNoStore<KT,VT,IK,IV>> from_bytes(mutils::DeserializationManager*,const char*);
-        static mutils::context_ptr<TriggerCascadeNoStore<KT,VT,IK,IV>> from_bytes_noalloc(mutils::DeserializationManager*,char const*);
+        static std::unique_ptr<TriggerCascadeNoStore<KT,VT,IK,IV>> from_bytes(mutils::DeserializationManager*,const uint8_t*);
+        static mutils::context_ptr<TriggerCascadeNoStore<KT,VT,IK,IV>> from_bytes_noalloc(mutils::DeserializationManager*,uint8_t const*);
         void ensure_registered(mutils::DeserializationManager&) {}
 
         // constructors

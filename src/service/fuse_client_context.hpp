@@ -38,12 +38,12 @@ typedef enum {
 class FileBytes {
 public:
     size_t size;
-    char* bytes;
+    uint8_t* bytes;
     FileBytes():size(0),bytes(nullptr){}
     FileBytes(size_t s):size(s) {
         bytes = nullptr;
         if (s > 0) {
-            bytes = (char*)malloc(s);
+            bytes = (uint8_t*)malloc(s);
         }
     }
     virtual ~FileBytes() {
@@ -188,10 +188,10 @@ public:
                 update_contents();
             }
             file_bytes->size = contents.size();
-            file_bytes->bytes = strdup(contents.c_str());
+            file_bytes->bytes = reinterpret_cast<uint8_t*>(strdup(contents.c_str()));
         } else {
             file_bytes->size = contents.size();
-            file_bytes->bytes = strdup(contents.c_str());
+            file_bytes->bytes = reinterpret_cast<uint8_t*>(strdup(contents.c_str()));
         }
         return 0;
     }
@@ -339,10 +339,10 @@ public:
                 update_contents();
             }
             file_bytes->size = contents.size();
-            file_bytes->bytes = strdup(contents.c_str());
+            file_bytes->bytes = reinterpret_cast<uint8_t*>(strdup(contents.c_str()));
         } else {
             file_bytes->size = contents.size();
-            file_bytes->bytes = strdup(contents.c_str());
+            file_bytes->bytes = reinterpret_cast<uint8_t*>(strdup(contents.c_str()));
         }
         return 0;
     }
@@ -405,10 +405,10 @@ public:
                 update_contents();
             }
             file_bytes->size = contents.size();
-            file_bytes->bytes = strdup(contents.c_str());
+            file_bytes->bytes = reinterpret_cast<uint8_t*>(strdup(contents.c_str()));
         } else {
             file_bytes->size = contents.size();
-            file_bytes->bytes = strdup(contents.c_str());
+            file_bytes->bytes = reinterpret_cast<uint8_t*>(strdup(contents.c_str()));
         }
         return 0;
     }
@@ -548,9 +548,6 @@ public:
     }
 };
 
-
-
-
 template <typename CascadeType, typename ServiceClientType>
 class KeyINode : public FuseClientINode {
 public:
@@ -582,7 +579,7 @@ public:
         for (auto& reply_future:result.get()) {
             auto reply = reply_future.second.get();
             file_bytes->size = mutils::bytes_size(reply);
-            file_bytes->bytes = static_cast<char*>(malloc(file_bytes->size));
+            file_bytes->bytes = static_cast<uint8_t*>(malloc(file_bytes->size));
             mutils::to_bytes(reply,file_bytes->bytes);
         }
         dbg_default_trace("[{}]leaving {}.", gettid(), __func__);

@@ -150,7 +150,7 @@ void put(ServiceClientAPI& capi, const std::string& key, const std::string& valu
     }
     obj.previous_version = pver;
     obj.previous_version_by_key = pver_bk;
-    obj.blob = Blob(value.c_str(),value.length());
+    obj.blob = Blob(reinterpret_cast<const uint8_t*>(value.c_str()),value.length());
     derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> result = capi.template put<SubgroupType>(obj, subgroup_index, shard_index);
     check_put_and_remove_result(result);
 }
@@ -168,7 +168,7 @@ void put_and_forget(ServiceClientAPI& capi, const std::string& key, const std::s
     }
     obj.previous_version = pver;
     obj.previous_version_by_key = pver_bk;
-    obj.blob = Blob(value.c_str(),value.length());
+    obj.blob = Blob(reinterpret_cast<const uint8_t*>(value.c_str()),value.length());
     capi.template put_and_forget<SubgroupType>(obj, subgroup_index, shard_index);
     std::cout << "put done." << std::endl;
 }
@@ -178,7 +178,7 @@ void op_put(ServiceClientAPI& capi, const std::string& key, const std::string& v
     obj.key = key;
     obj.previous_version = pver;
     obj.previous_version_by_key = pver_bk;
-    obj.blob = Blob(value.c_str(),value.length());
+    obj.blob = Blob(reinterpret_cast<const uint8_t*>(value.c_str()),value.length());
     derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> result = capi.put(obj);
     check_put_and_remove_result(result);
 }
@@ -188,7 +188,7 @@ void op_put_and_forget(ServiceClientAPI& capi, const std::string& key, const std
     obj.key = key;
     obj.previous_version = pver;
     obj.previous_version_by_key = pver_bk;
-    obj.blob = Blob(value.c_str(),value.length());
+    obj.blob = Blob(reinterpret_cast<const uint8_t*>(value.c_str()),value.length());
     capi.put_and_forget(obj);
     std::cout << "put done." << std::endl;
 }
@@ -212,7 +212,7 @@ void trigger_put(ServiceClientAPI& capi, const std::string& key, const std::stri
         return;
     }
 
-    obj.blob = Blob(value.c_str(),value.length());
+    obj.blob = Blob(reinterpret_cast<const uint8_t*>(value.c_str()),value.length());
     derecho::rpc::QueryResults<void> result = capi.template trigger_put<SubgroupType>(obj, subgroup_index, shard_index);
     result.get();
    
@@ -223,7 +223,7 @@ void op_trigger_put(ServiceClientAPI& capi, const std::string& key, const std::s
     ObjectWithStringKey obj;
 
     obj.key = key;
-    obj.blob = Blob(value.c_str(),value.length());
+    obj.blob = Blob(reinterpret_cast<const uint8_t*>(value.c_str()),value.length());
     derecho::rpc::QueryResults<void> result = capi.trigger_put(obj);
     result.get();
    
@@ -242,7 +242,7 @@ void collective_trigger_put(ServiceClientAPI& capi, const std::string& key, cons
         return;
     }
 
-    obj.blob = Blob(value.c_str(),value.length());
+    obj.blob = Blob(reinterpret_cast<const uint8_t*>(value.c_str()),value.length());
     std::unordered_map<node_id_t,std::unique_ptr<derecho::rpc::QueryResults<void>>> nodes_and_futures;
     for (auto& nid: nodes) {
         nodes_and_futures.emplace(nid,nullptr);
@@ -372,7 +372,7 @@ void list_data_by_prefix(ServiceClientAPI& capi, std::string prefix, persistent:
                 if (o.blob.size < prefix.size()) {
                     return false;
                 } else {
-                    return (std::string(o.blob.bytes,prefix.size()) == prefix);
+                    return (std::string(reinterpret_cast<const char*>(o.blob.bytes),prefix.size()) == prefix);
                 }
             }).toStdVector()) {
         std::cout << "Found:" << obj << std::endl;

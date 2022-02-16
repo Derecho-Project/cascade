@@ -19,11 +19,11 @@ namespace cascade {
 /**
  * This is a hidden API.
  * TestValueTypeConstructor is to check if the ValueType has a public constructor support such a call:
- * VT(KT,char*,uint32_t)
+ * VT(KT,uint8_t*,uint32_t)
  */
 template <typename KT,typename VT>
 struct TestVTConstructor {
-    template <class X,class = decltype(X(KT{},static_cast<char*>(nullptr),0))>
+    template <class X,class = decltype(X(KT{},static_cast<uint8_t*>(nullptr),0))>
         static std::true_type test(X*);
     template <class X>
         static std::false_type test(...);
@@ -35,7 +35,7 @@ template<typename KT, typename VT>
 void make_workload(uint32_t payload_size, const KT& key_prefix, std::vector<VT>& objects) {
     if constexpr (TestVTConstructor<KT,VT>::value) {
         const uint32_t buf_size = payload_size - 128 - sizeof(key_prefix);
-        char* buf = (char*)malloc(buf_size);
+        uint8_t* buf = (uint8_t*)malloc(buf_size);
         memset(buf,'A',buf_size);
         for (uint32_t i=0;i<NUMBER_OF_DISTINCT_OBJECTS;i++) {
             if constexpr (std::is_convertible_v<KT,std::string>) {
@@ -49,7 +49,7 @@ void make_workload(uint32_t payload_size, const KT& key_prefix, std::vector<VT>&
         }
         free(buf);
     } else {
-        dbg_default_error("Cannot make workload for key type:{} and value type:{}, because it does not support constructor:VT(KT,char*,uint32_t)",typeid(KT).name(),typeid(VT).name());
+        dbg_default_error("Cannot make workload for key type:{} and value type:{}, because it does not support constructor:VT(KT,uint8_t*,uint32_t)",typeid(KT).name(),typeid(VT).name());
     }
 }
 
@@ -532,7 +532,7 @@ void VolatileCascadeStore<KT,VT,IK,IV>::dump_timestamp_log_workaround(const std:
 template<typename KT, typename VT, KT* IK, VT* IV>
 std::unique_ptr<VolatileCascadeStore<KT,VT,IK,IV>> VolatileCascadeStore<KT,VT,IK,IV>::from_bytes(
     mutils::DeserializationManager* dsm, 
-    char const* buf) {
+    uint8_t const* buf) {
     auto kv_map_ptr = mutils::from_bytes<std::map<KT,VT>>(dsm,buf);
     auto update_version_ptr = mutils::from_bytes<persistent::version_t>(dsm,buf+mutils::bytes_size(*kv_map_ptr));
     auto volatile_cascade_store_ptr =
@@ -592,7 +592,7 @@ void DeltaCascadeStoreCore<KT,VT,IK,IV>::_Delta::set_data_len(const size_t& dlen
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-char* DeltaCascadeStoreCore<KT,VT,IK,IV>::_Delta::data_ptr() {
+uint8_t* DeltaCascadeStoreCore<KT,VT,IK,IV>::_Delta::data_ptr() {
     assert(buffer != nullptr);
     return buffer;
 }
@@ -613,7 +613,7 @@ void DeltaCascadeStoreCore<KT,VT,IK,IV>::_Delta::calibrate(const size_t& dlen) {
     }
     new_cap++;
     // resize
-    this->buffer = (char*)realloc(buffer, new_cap);
+    this->buffer = (uint8_t*)realloc(buffer, new_cap);
     if(this->buffer == nullptr) {
         dbg_default_crit("{}:{} Failed to allocate delta buffer. errno={}", __FILE__, __LINE__, errno);
         throw derecho::derecho_exception("Failed to allocate delta buffer.");
@@ -641,7 +641,7 @@ void DeltaCascadeStoreCore<KT,VT,IK,IV>::_Delta::destroy() {
 
 template <typename KT, typename VT, KT* IK, VT *IV>
 void DeltaCascadeStoreCore<KT,VT,IK,IV>::initialize_delta() {
-    delta.buffer = (char*)malloc(DEFAULT_DELTA_BUFFER_CAPACITY);
+    delta.buffer = (uint8_t*)malloc(DEFAULT_DELTA_BUFFER_CAPACITY);
     if (delta.buffer == nullptr) {
         dbg_default_crit("{}:{} Failed to allocate delta buffer. errno={}", __FILE__, __LINE__, errno);
         throw derecho::derecho_exception("Failed to allocate delta buffer.");
@@ -657,7 +657,7 @@ void DeltaCascadeStoreCore<KT,VT,IK,IV>::finalizeCurrentDelta(const persistent::
 }
 
 template <typename KT, typename VT, KT* IK, VT *IV>
-void DeltaCascadeStoreCore<KT,VT,IK,IV>::applyDelta(char const* const delta) {
+void DeltaCascadeStoreCore<KT,VT,IK,IV>::applyDelta(uint8_t const* const delta) {
     apply_ordered_put(*mutils::from_bytes<VT>(nullptr,delta));
     mutils::deserialize_and_run(nullptr,delta,[this](const VT& value){
         this->apply_ordered_put(value);
@@ -1232,7 +1232,7 @@ std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::ordered_list_keys() {
 
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-std::unique_ptr<PersistentCascadeStore<KT,VT,IK,IV,ST>> PersistentCascadeStore<KT,VT,IK,IV,ST>::from_bytes(mutils::DeserializationManager* dsm, char const* buf) {
+std::unique_ptr<PersistentCascadeStore<KT,VT,IK,IV,ST>> PersistentCascadeStore<KT,VT,IK,IV,ST>::from_bytes(mutils::DeserializationManager* dsm, uint8_t const* buf) {
     auto persistent_core_ptr = mutils::from_bytes<persistent::Persistent<DeltaCascadeStoreCore<KT,VT,IK,IV>,ST>>(dsm,buf);
     auto persistent_cascade_store_ptr =
         std::make_unique<PersistentCascadeStore>(std::move(*persistent_core_ptr),
@@ -1429,14 +1429,14 @@ void TriggerCascadeNoStore<KT,VT,IK,IV>::dump_timestamp_log_workaround(const std
 #endif//ENABLE_EVALUATION
 
 template<typename KT, typename VT, KT* IK, VT* IV>
-std::unique_ptr<TriggerCascadeNoStore<KT,VT,IK,IV>> TriggerCascadeNoStore<KT,VT,IK,IV>::from_bytes(mutils::DeserializationManager* dsm, char const* buf) {
+std::unique_ptr<TriggerCascadeNoStore<KT,VT,IK,IV>> TriggerCascadeNoStore<KT,VT,IK,IV>::from_bytes(mutils::DeserializationManager* dsm, uint8_t const* buf) {
     return std::make_unique<TriggerCascadeNoStore<KT,VT,IK,IV>>(
                                                  dsm->registered<CriticalDataPathObserver<TriggerCascadeNoStore<KT,VT,IK,IV>>>()?&(dsm->mgr<CriticalDataPathObserver<TriggerCascadeNoStore<KT,VT,IK,IV>>>()):nullptr,
                                                  dsm->registered<ICascadeContext>()?&(dsm->mgr<ICascadeContext>()):nullptr);
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
-mutils::context_ptr<TriggerCascadeNoStore<KT,VT,IK,IV>> TriggerCascadeNoStore<KT,VT,IK,IV>::from_bytes_noalloc(mutils::DeserializationManager* dsm, char const* buf) {
+mutils::context_ptr<TriggerCascadeNoStore<KT,VT,IK,IV>> TriggerCascadeNoStore<KT,VT,IK,IV>::from_bytes_noalloc(mutils::DeserializationManager* dsm, uint8_t const* buf) {
     return mutils::context_ptr<TriggerCascadeNoStore>(from_bytes(dsm,buf));
 }
 
