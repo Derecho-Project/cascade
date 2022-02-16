@@ -32,7 +32,7 @@ Cascade is a C++17 cloud application framework powered by optimized RDMA data pa
 - [boolinq](https://github.com/k06a/boolinq) or newer (Optional for LINQ API)
 - Python 3.5 or newer and [pybind11](https://github.com/pybind/pybind11) (Optional for Python API)
 - OpenJDK 11.06 or newer. On Ubuntu, use `apt install openjdk-11-jdk` to install it. (Optional for Java API)
-- Derecho v2.2.2. Plesae follow this [document](http://github.com/Derecho-Project/derecho) to install Derecho. Note: this cascade version replies on Derecho commit 5db7cc8c4528b2997f02cce560732715495a25d7.
+- Derecho v2.2.2. Plesae follow this [document](http://github.com/Derecho-Project/derecho) to install Derecho. Note: this cascade version replies on Derecho commit 7f35b9b0087b25208657f625870bd936f5f7375d.
 
 ## Build Cascade
 1) Download Cascade Source Code
