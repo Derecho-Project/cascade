@@ -854,7 +854,7 @@ const VT PersistentCascadeStore<KT,VT,IK,IV,ST>::get(const KT& key, const persis
     debug_enter_func_with_args("key={},ver=0x{:x}",key,ver);
     if (ver != CURRENT_VERSION) {
         debug_leave_func();
-        return persistent_core.template getDelta<VT>(ver, [&key,ver,exact,this](const VT& v){
+        return persistent_core.template getDelta<VT>(ver, exact, [&key,ver,exact,this](const VT& v){
                 if (key == v.get_key_ref()) {
                     return v;
                 } else {
@@ -914,11 +914,23 @@ template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 uint64_t PersistentCascadeStore<KT,VT,IK,IV,ST>::get_size(const KT& key, const persistent::version_t& ver, bool exact) const {
     debug_enter_func_with_args("key={},ver=0x{:x}",key,ver);
     if (ver != CURRENT_VERSION) {
-        if (exact) {
-            return persistent_core.template getDelta<VT>(ver,[](const VT& value){return mutils::bytes_size(value);});
-        } else {
-            return mutils::bytes_size(persistent_core.get(ver)->kv_map.at(key));
-        }
+        return persistent_core.template getDelta<VT>(ver,exact,[&key,ver,exact,this](const VT& v){
+                if (key == v.get_key_ref()) {
+                    return mutils::bytes_size(v);
+                } else {
+                    if (exact) {
+                        // return invalid object for EXACT search.
+                        return static_cast<decltype(mutils::bytes_size(std::declval<const VT&>()))>(0);
+                    } else {
+                        // fall back to the slow path.
+                        auto versioned_state_ptr = persistent_core.get(ver);
+                        if (versioned_state_ptr->kv_map.find(key) != versioned_state_ptr->kv_map.end()) {
+                            return mutils::bytes_size(versioned_state_ptr->kv_map.at(key));
+                        }
+                        return static_cast<decltype(mutils::bytes_size(std::declval<const VT&>()))>(0);
+                    }
+                }
+            });
     }
     derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_get_size)>(key);
