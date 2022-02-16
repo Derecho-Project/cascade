@@ -149,7 +149,7 @@ static void fs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, stru
     dbg_default_trace("fs_read() with off:{}, size:{}, file_bytes:{}", off, size, pfb->size);
     
     if (static_cast<size_t>(off) < pfb->size) {
-        fuse_reply_buf(req, pfb->bytes+off, min(pfb->size - off, size));
+        fuse_reply_buf(req, reinterpret_cast<char*>(pfb->bytes+off), min(pfb->size - off, size));
     } else {
         fuse_reply_buf(req, nullptr, 0);
     }

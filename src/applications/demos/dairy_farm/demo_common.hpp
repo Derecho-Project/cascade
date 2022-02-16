@@ -117,7 +117,7 @@ inline ObjectWithStringKey get_photo_object(const char* key, const char* photo_f
     preprocess_photo(file_data,st.st_size,reinterpret_cast<void*>(frame_data.data),PHOTO_OUTPUT_BUFFER_SIZE);
     std::string frame_name(key);
     // create Object
-    ObjectWithStringKey ret("/dairy_farm/front_end/"+frame_name, reinterpret_cast<const char*>(&frame_data),sizeof(frame_data));
+    ObjectWithStringKey ret("/dairy_farm/front_end/"+frame_name, reinterpret_cast<const uint8_t*>(&frame_data),sizeof(frame_data));
 
     // release resources;
     munmap(file_data, st.st_size);

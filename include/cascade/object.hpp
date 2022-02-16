@@ -27,14 +27,14 @@ namespace cascade{
 
 class Blob : public mutils::ByteRepresentable {
 public:
-    const char* bytes;
+    const uint8_t* bytes;
     std::size_t size;
     bool        is_emplaced;
 
     // constructor - copy to own the data
-    Blob(const char* const b, const decltype(size) s);
+    Blob(const uint8_t* const b, const decltype(size) s);
 
-    Blob(const char* b, const decltype(size) s, bool temporary);
+    Blob(const uint8_t* b, const decltype(size) s, bool temporary);
 
     // copy constructor - copy to own the data
     Blob(const Blob& other);
@@ -55,23 +55,23 @@ public:
     Blob& operator=(const Blob& other);
 
     // serialization/deserialization supports
-    std::size_t to_bytes(char* v) const;
+    std::size_t to_bytes(uint8_t* v) const;
 
     std::size_t bytes_size() const;
 
-    void post_object(const std::function<void(char const* const, std::size_t)>& f) const;
+    void post_object(const std::function<void(uint8_t const* const, std::size_t)>& f) const;
 
     void ensure_registered(mutils::DeserializationManager&) {}
 
-    static std::unique_ptr<Blob> from_bytes(mutils::DeserializationManager*, const char* const v);
+    static std::unique_ptr<Blob> from_bytes(mutils::DeserializationManager*, const uint8_t* const v);
 
     static mutils::context_ptr<Blob> from_bytes_noalloc(
         mutils::DeserializationManager* ctx,
-        const char* const v);
+        const uint8_t* const v);
 
     static mutils::context_ptr<Blob> from_bytes_noalloc_const(
         mutils::DeserializationManager* ctx,
-        const char* const v);
+        const uint8_t* const v);
 };
 
 #define INVALID_UINT64_OBJECT_KEY (0xffffffffffffffffLLU)
@@ -116,7 +116,7 @@ public:
 
     // constructor 1 : copy constructor
     ObjectWithUInt64Key(const uint64_t _key,
-                        const char* const _b,
+                        const uint8_t* const _b,
                         const std::size_t _s);
 
     // constructor 1.5 : copy constructor
@@ -129,7 +129,7 @@ public:
                         const persistent::version_t _previous_version,
                         const persistent::version_t _previous_version_by_key,
                         const uint64_t _key,
-                        const char* const _b,
+                        const uint8_t* const _b,
                         const std::size_t _s);
 
     // TODO: we need a move version for the deserializer.
@@ -159,17 +159,17 @@ public:
 
     // Deprecated: the default no_alloc deserializers are NOT zero-copy!!!
     // DEFAULT_SERIALIZATION_SUPPORT(ObjectWithUInt64Key, version, timestamp_us, previous_version, previous_version_by_key, key, blob);
-    std::size_t to_bytes(char* v) const;
+    std::size_t to_bytes(uint8_t* v) const;
     std::size_t bytes_size() const;
-    void post_object(const std::function<void(char const* const, std::size_t)>& f) const;
+    void post_object(const std::function<void(uint8_t const* const, std::size_t)>& f) const;
     void ensure_registerd(mutils::DeserializationManager&) {}
-    static std::unique_ptr<ObjectWithUInt64Key> from_bytes(mutils::DeserializationManager*, const char* const v);
+    static std::unique_ptr<ObjectWithUInt64Key> from_bytes(mutils::DeserializationManager*, const uint8_t* const v);
     static mutils::context_ptr<ObjectWithUInt64Key> from_bytes_noalloc(
         mutils::DeserializationManager* ctx,
-        const char* const v);
+        const uint8_t* const v);
     static mutils::context_ptr<const ObjectWithUInt64Key> from_bytes_noalloc_const(
         mutils::DeserializationManager* ctx,
-        const char* const v);
+        const uint8_t* const v);
 
     // IK and IV for volatile cascade store
     static uint64_t IK;
@@ -241,7 +241,7 @@ public:
 
     // constructor 1 : copy consotructor
     ObjectWithStringKey(const std::string& _key,
-                        const char* const _b,
+                        const uint8_t* const _b,
                         const std::size_t _s);
 
     // constructor 1.5 : copy constructor
@@ -254,7 +254,7 @@ public:
                         const persistent::version_t _previous_version,
                         const persistent::version_t _previous_version_by_key,
                         const std::string& _key,
-                        const char* const _b,
+                        const uint8_t* const _b,
                         const std::size_t _s);
 
     // TODO: we need a move version for the deserializer.
@@ -283,17 +283,17 @@ public:
 #endif
 
 //    DEFAULT_SERIALIZATION_SUPPORT(ObjectWithStringKey, version, timestamp_us, previous_version, previous_version_by_key, key, blob);
-    std::size_t to_bytes(char* v) const;
+    std::size_t to_bytes(uint8_t* v) const;
     std::size_t bytes_size() const;
-    void post_object(const std::function<void(char const* const, std::size_t)>& f) const;
+    void post_object(const std::function<void(uint8_t const* const, std::size_t)>& f) const;
     void ensure_registerd(mutils::DeserializationManager&) {}
-    static std::unique_ptr<ObjectWithStringKey> from_bytes(mutils::DeserializationManager*, const char* const v);
+    static std::unique_ptr<ObjectWithStringKey> from_bytes(mutils::DeserializationManager*, const uint8_t* const v);
     static mutils::context_ptr<ObjectWithStringKey> from_bytes_noalloc(
         mutils::DeserializationManager* ctx,
-        const char* const v);
+        const uint8_t* const v);
     static mutils::context_ptr<const ObjectWithStringKey> from_bytes_noalloc_const(
         mutils::DeserializationManager* ctx,
-        const char* const v);
+        const uint8_t* const v);
 
     // IK and IV for volatile cascade store
     static std::string IK;

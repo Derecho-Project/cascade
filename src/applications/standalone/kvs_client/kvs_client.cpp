@@ -39,7 +39,7 @@ int main(int argc, char** argv) {
     obj.key = OBJECT_KEY;
     obj.previous_version = INVALID_VERSION;
     obj.previous_version_by_key = INVALID_VERSION;
-    obj.blob = Blob(OBJECT_VALUE,std::strlen(OBJECT_VALUE));
+    obj.blob = Blob(reinterpret_cast<const uint8_t*>(OBJECT_VALUE),std::strlen(OBJECT_VALUE));
     auto result_4 = capi.put(obj);
     for (auto& reply_future:result_4.get()) {
         auto reply = reply_future.second.get();

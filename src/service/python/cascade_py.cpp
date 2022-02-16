@@ -58,7 +58,7 @@ auto bundle_f = [](const std::tuple<persistent::version_t, uint64_t>& obj) {
 std::function<py::dict(const ObjectWithStringKey&)> object_unwrapper = [](const ObjectWithStringKey& obj) {
     py::dict object_dict;
     object_dict["key"] = py::str(obj.get_key_ref());
-    object_dict["value"] = py::bytes(std::string(obj.blob.bytes, obj.blob.size));
+    object_dict["value"] = py::bytes(std::string(reinterpret_cast<const char*>(obj.blob.bytes), obj.blob.size));
     object_dict["version"] = obj.get_version();
     object_dict["timestamp"] = obj.get_timestamp();
 #ifdef ENABLE_EVALUATION
@@ -469,7 +469,7 @@ PYBIND11_MODULE(client, m) {
 #ifdef ENABLE_EVALUATION
                         obj.message_id = message_id;
 #endif
-                        obj.blob = Blob(value.cast<std::string>().c_str(),value.cast<std::string>().size());
+                        obj.blob = Blob(reinterpret_cast<const uint8_t*>(value.cast<std::string>().c_str()),value.cast<std::string>().size());
                         if (subgroup_type.empty()) {
                             if (trigger) {
                                 capi.trigger_put(obj);

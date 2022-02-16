@@ -292,7 +292,7 @@ derecho::cascade::ObjectWithStringKey *translate_str_obj(JNIEnv *env, jobject ke
     // translate the object.
     derecho::cascade::ObjectWithStringKey *cas_obj = new derecho::cascade::ObjectWithStringKey();
     cas_obj->key = translate_str_key(env, key);
-    cas_obj->blob = derecho::cascade::Blob(buf, len);
+    cas_obj->blob = derecho::cascade::Blob(reinterpret_cast<const uint8_t*>(buf), len);
     cas_obj->blob.is_emplaced = 1;
 
     return cas_obj;
@@ -736,7 +736,7 @@ JNIEXPORT jobject JNICALL Java_io_cascade_QueryResults_getReplyMap(JNIEnv *env, 
 //         std::cout << "converting objects with string keys!" << std::endl;
 // #endif
 
-        const char *data = obj.blob.bytes;
+        const char *data = reinterpret_cast<const char*>(obj.blob.bytes);
         std::size_t size = obj.blob.size;
 
         // Set temporary to be 1 so that obj will not be destructed at the end of this function.

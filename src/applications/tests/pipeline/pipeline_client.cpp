@@ -14,7 +14,7 @@ using namespace derecho::cascade;
 
 static void make_pipeline_workload(uint32_t payload_size, const std::string& key_prefix, std::vector<ObjectWithStringKey>& objects) {
     uint32_t buf_size = payload_size - 128;
-    char* buf = (char*)malloc(buf_size);
+    uint8_t* buf = (uint8_t*)malloc(buf_size);
     memset(buf,'A',buf_size);
     for (uint32_t i=0;i<NUMBER_OF_DISTINCT_OBJECTS;i++) {
         objects.emplace_back(key_prefix+std::to_string(i),buf,buf_size);
