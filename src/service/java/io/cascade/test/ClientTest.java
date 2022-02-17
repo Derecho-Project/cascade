@@ -17,8 +17,8 @@ public class ClientTest {
     public static final void main1() {
         Client client = new Client();
         System.out.println(client.getMembers());
-        System.out.println(client.getShardMembers(ServiceType.VCSS, 0, 0));
-        System.out.println(client.getShardMembers(ServiceType.PCSS, 0, 0));
+        System.out.println(client.getShardMembers(ServiceType.VolatileCascadeStoreWithStringKey, 0, 0));
+        System.out.println(client.getShardMembers(ServiceType.PersistentCascadeStoreWithStringKey, 0, 0));
     }
 
     /**
@@ -29,10 +29,10 @@ public class ClientTest {
      */
     public static ServiceType stringToType(String str) {
         switch (str) {
-            case "VCSS":
-                return ServiceType.VCSS;
-            case "PCSS":
-                return ServiceType.PCSS;
+            case "VolatileCascadeStoreWithStringKey":
+                return ServiceType.VolatileCascadeStoreWithStringKey;
+            case "PersistentCascadeStoreWithStringKey":
+                return ServiceType.PersistentCascadeStoreWithStringKey;
             default:
                 return null;
         }
@@ -74,7 +74,7 @@ public class ClientTest {
             + "remove <type> <key> [subgroup_index] [shard_index]\n\tremove an object\n"
             + "get <type> <key> [version] [subgroup_index] [shard_index]\n\tget an object(by version)\n"
             + "get_by_time <type> <key> <ts_us> [subgroup_index] [shard_index]\n\tget an object by timestamp\n"
-            + "quit|exit\n\texit the client.\n" + "help\n\tprint this message.\n" + "\n" + "type:=VCSS|PCSS\n"
+            + "quit|exit\n\texit the client.\n" + "help\n\tprint this message.\n" + "\n" + "type:=VolatileCascadeStoreWithStringKey|PersistentCascadeStoreWithStringKey\n"
             + "policy:=FirstMember|LastMember|Random|FixedRandom|RoundRobin|UserSpecified\n" + "";
 
     /**

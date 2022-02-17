@@ -28,7 +28,7 @@ public class QueryResults<T> {
     public int mode;
 
     /**
-     * The type of the subgroup. VCSU, PCSU, VCSS, or PCSS.
+     * The type of the subgroup. 
      */
     public ServiceType type;
 
