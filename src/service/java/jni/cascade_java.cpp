@@ -3,32 +3,46 @@
 #include "io_cascade_QueryResults.h"
 
 /**
+ * This should agree with io.cascade.ServiceType
+ *
+ */
+typedef enum {
+    VolatileCascadeStoreWithStringKey = 0,
+    PersistentCascadeStoreWithStringKey = 1,
+    TriggerCascadeNoStoreWithStringKey = 2,
+} ServiceType;
+
+/**
  * macros for handling multiple subgroup types
  */
-#define on_subgroup_type(x, ft, ...)             \
-    if ((x) == "VCSS")                           \
-    {                                            \
-        ft<derecho::cascade::VolatileCascadeStoreWithStringKey>(__VA_ARGS__); \
-    }                                            \
-    else if ((x) == "PCSS")                      \
-    {                                            \
-        ft<derecho::cascade::PersistentCascadeStoreWithStringKey>(__VA_ARGS__); \
-    }
-
-#define on_service_val(service_val, ft, ...)        \
-    switch (service_val)                             \
-    {                                                \
-    case 0:                                          \
-        ft<derecho::cascade::VolatileCascadeStoreWithStringKey>(__VA_ARGS__);     \
-        break;                                       \
-    case 1:                                          \
+#define on_service_type(service_type, ft, ...)                                      \
+    switch (service_type)                                                           \
+    {                                                                               \
+    case ServiceType::VolatileCascadeStoreWithStringKey:                            \
+        ft<derecho::cascade::VolatileCascadeStoreWithStringKey>(__VA_ARGS__);       \
+        break;                                                                      \
+    case ServiceType::PersistentCascadeStoreWithStringKey:                          \
         ft<derecho::cascade::PersistentCascadeStoreWithStringKey>(__VA_ARGS__);     \
-        break;                                       \
-    default:                                         \
-        break;                                       \
+        break;                                                                      \
+    case ServiceType::TriggerCascadeNoStoreWithStringKey:                           \
+        ft<derecho::cascade::TriggerCascadeNoStoreWithStringKey>(__VA_ARGS__);      \
+        break;                                                                      \
+    default:                                                                        \
+        break;                                                                      \
     }
 
-std::string type_arr[2] = {"VCSS", "PCSS"};
+#define on_no_trigger_service_type(service_type, ft, ...)                           \
+    switch (service_type)                                                           \
+    {                                                                               \
+    case ServiceType::VolatileCascadeStoreWithStringKey:                            \
+        ft<derecho::cascade::VolatileCascadeStoreWithStringKey>(__VA_ARGS__);       \
+        break;                                                                      \
+    case ServiceType::PersistentCascadeStoreWithStringKey:                          \
+        ft<derecho::cascade::PersistentCascadeStoreWithStringKey>(__VA_ARGS__);     \
+        break;                                                                      \
+    default:                                                                        \
+        break;                                                                      \
+    }
 
 /*
  * Class:     io_cascade_Client
@@ -116,11 +130,11 @@ JNIEXPORT jobject JNICALL Java_io_cascade_Client_getShardMembers__JJ(JNIEnv *env
 /**
  * Get the value for any Java object with an integer getValue() function.
  */
-int get_value(JNIEnv *env, jobject service_type)
+int get_int_value(JNIEnv *env, jobject j_obj)
 {
-    jclass service_types_cls = env->GetObjectClass(service_type);
-    jmethodID get_val_mid = env->GetMethodID(service_types_cls, "getValue", "()I");
-    return static_cast<int>(env->CallIntMethod(service_type, get_val_mid));
+    jclass obj_cls = env->GetObjectClass(j_obj);
+    jmethodID get_val_mid = env->GetMethodID(obj_cls, "getValue", "()I");
+    return static_cast<int>(env->CallIntMethod(j_obj, get_val_mid));
 }
 
 /*
@@ -128,18 +142,15 @@ int get_value(JNIEnv *env, jobject service_type)
  * Method:    getShardMembers
  * Signature: (Lio/cascade/ServiceType;JJ)Ljava/util/List;
  */
-JNIEXPORT jobject JNICALL Java_io_cascade_Client_getShardMembers(JNIEnv *env, jobject obj, jobject service_type, jlong subgroup_index, jlong shard_index)
+JNIEXPORT jobject JNICALL Java_io_cascade_Client_getShardMembers(JNIEnv *env, jobject obj, jobject j_service_type, jlong subgroup_index, jlong shard_index)
 {
     // get the value of the service type
-    int val = get_value(env, service_type);
+    int service_type = get_int_value(env, j_service_type);
     derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
     std::vector<node_id_t> members;
 
-    // translate the type into string
-    std::string real_type = type_arr[val];
-
     // call get shard members
-    on_subgroup_type(real_type, members = capi->get_shard_members, subgroup_index, shard_index);
+    on_service_type(service_type, members = capi->get_shard_members, subgroup_index, shard_index);
 
     // convert the result back to Java list
     return cpp_int_vector_to_java_list(env, members);
@@ -150,11 +161,11 @@ JNIEXPORT jobject JNICALL Java_io_cascade_Client_getShardMembers(JNIEnv *env, jo
  * Method:    setMemberSelectionPolicy
  * Signature: (Lio/cascade/ServiceType;JJLio/cascade/ShardMemberSelectionPolicy;)V
  */
-JNIEXPORT void JNICALL Java_io_cascade_Client_setMemberSelectionPolicy(JNIEnv *env, jobject obj, jobject service_type, jlong subgroup_index, jlong shard_index, jobject java_policy)
+JNIEXPORT void JNICALL Java_io_cascade_Client_setMemberSelectionPolicy(JNIEnv *env, jobject obj, jobject j_service_type, jlong subgroup_index, jlong shard_index, jobject java_policy)
 {
-    int val = get_value(env, service_type);
+    int service_type = get_int_value(env, j_service_type);
     derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
-    int pol = get_value(env, java_policy);
+    int pol = get_int_value(env, java_policy);
     derecho::cascade::ShardMemberSelectionPolicy policy = static_cast<derecho::cascade::ShardMemberSelectionPolicy>(pol);
 
     // translate policy
@@ -168,10 +179,8 @@ JNIEXPORT void JNICALL Java_io_cascade_Client_setMemberSelectionPolicy(JNIEnv *e
         special_node = env->CallIntMethod(java_policy, get_unode_mid);
     }
 
-    std::string real_type = type_arr[val];
-
     // set!
-    on_subgroup_type(real_type, capi->set_member_selection_policy, subgroup_index, shard_index, policy, special_node);
+    on_service_type(service_type, capi->set_member_selection_policy, subgroup_index, shard_index, policy, special_node);
 }
 
 /*
@@ -179,16 +188,14 @@ JNIEXPORT void JNICALL Java_io_cascade_Client_setMemberSelectionPolicy(JNIEnv *e
  * Method:    getMemberSelectionPolicy
  * Signature: (Lio/cascade/ServiceType;JJ)Lio/cascade/ShardMemberSelectionPolicy;
  */
-JNIEXPORT jobject JNICALL Java_io_cascade_Client_getMemberSelectionPolicy(JNIEnv *env, jobject obj, jobject service_type, jlong subgroup_index, jlong shard_index)
+JNIEXPORT jobject JNICALL Java_io_cascade_Client_getMemberSelectionPolicy(JNIEnv *env, jobject obj, jobject j_service_type, jlong subgroup_index, jlong shard_index)
 {
-    int val = get_value(env, service_type);
+    int service_type = get_int_value(env, j_service_type);
     derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
     std::tuple<derecho::cascade::ShardMemberSelectionPolicy, unsigned int> policy;
 
-    std::string real_type = type_arr[val];
-
     // get the policy
-    on_subgroup_type(real_type, policy = capi->get_member_selection_policy, subgroup_index, shard_index);
+    on_service_type(service_type, policy = capi->get_member_selection_policy, subgroup_index, shard_index);
 
     std::string java_policy_str;
     switch (std::get<0>(policy))
@@ -342,19 +349,19 @@ jlong put(std::function<typename T::ObjectType *(JNIEnv *, jobject, jobject)> f,
  * Method:    putInternal
  * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;Ljava/nio/ByteBuffer;)J
  */
-JNIEXPORT jlong JNICALL Java_io_cascade_Client_putInternal(JNIEnv *env, jobject obj, jobject service_type, jlong subgroup_index, jlong shard_index, jobject key, jobject val)
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_putInternal(JNIEnv *env, jobject obj, jobject j_service_type, jlong subgroup_index, jlong shard_index, jobject key, jobject val)
 {
     derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
-    int service_val = get_value(env, service_type);
+    int service_type = get_int_value(env, j_service_type);
 
 #ifndef NDEBUG
-    std::cout << "service value:" << service_val << std::endl;
+    std::cout << "service value:" << service_type << std::endl;
 #endif
 
     // executing the put
-    on_service_val(service_val, return put, translate_str_obj, env, capi, subgroup_index, shard_index, key, val);
+    on_service_type(service_type, return put, translate_str_obj, env, capi, subgroup_index, shard_index, key, val);
 
-    // if service_val does not match successfully, return -1
+    // if service_type does not match successfully, return -1
     return -1;
 }
 
@@ -389,18 +396,18 @@ jlong get(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong subgroup_
  * Method:    getInternal
  * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;J)J
  */
-JNIEXPORT jlong JNICALL Java_io_cascade_Client_getInternal(JNIEnv *env, jobject obj, jobject service_type, jlong subgroup_index, jlong shard_index, jobject key, jlong version)
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_getInternal(JNIEnv *env, jobject obj, jobject j_service_type, jlong subgroup_index, jlong shard_index, jobject key, jlong version)
 {
 #ifndef NDEBUG
     std::cout << "start get internal!" << std::endl;
 #endif
     derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
-    int service_val = get_value(env, service_type);
+    int service_type = get_int_value(env, j_service_type);
 
     // executing the get
-    on_service_val(service_val, return get, env, capi, subgroup_index, shard_index, key, version, translate_str_key);
+    on_service_type(service_type, return get, env, capi, subgroup_index, shard_index, key, version, translate_str_key);
 
-    // if service_val does not match successfully, return -1
+    // if service_type does not match successfully, return -1
     return -1;
 }
 
@@ -432,12 +439,12 @@ jlong get_by_time(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong s
  * Method:    getInternalByTime
  * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;J)J
  */
-JNIEXPORT jlong JNICALL Java_io_cascade_Client_getInternalByTime(JNIEnv *env, jobject obj, jobject service_type, jlong subgroup_index, jlong shard_index, jobject key, jlong timestamp)
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_getInternalByTime(JNIEnv *env, jobject obj, jobject j_service_type, jlong subgroup_index, jlong shard_index, jobject key, jlong timestamp)
 {
     derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
-    int service_val = get_value(env, service_type);
+    int service_type = get_int_value(env, j_service_type);
 
-    on_service_val(service_val, return get_by_time, env, capi, subgroup_index, shard_index, key, timestamp, translate_str_key);
+    on_service_type(service_type, return get_by_time, env, capi, subgroup_index, shard_index, key, timestamp, translate_str_key);
 
     return -1;
 }
@@ -469,12 +476,12 @@ jlong remove(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong subgro
  * Method:    removeInternal
  * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;)J
  */
-JNIEXPORT jlong JNICALL Java_io_cascade_Client_removeInternal(JNIEnv *env, jobject obj, jobject service_type, jlong subgroup_index, jlong shard_index, jobject key)
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_removeInternal(JNIEnv *env, jobject obj, jobject j_service_type, jlong subgroup_index, jlong shard_index, jobject key)
 {
     derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
-    int service_val = get_value(env, service_type);
+    int service_type = get_int_value(env, j_service_type);
 
-    on_service_val(service_val, return remove, env, capi, subgroup_index, shard_index, key, translate_str_key);
+    on_service_type(service_type, return remove, env, capi, subgroup_index, shard_index, key, translate_str_key);
 
     return -1;
 }
@@ -507,18 +514,15 @@ jlong list_keys(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong ver
  * Signature: (Lio/cascade/ServiceType;JJJ)J
  */
 JNIEXPORT jlong JNICALL Java_io_cascade_Client_listKeysInternal
-  (JNIEnv * env, jobject obj, jobject service_type, jlong version, jlong subgroup_index, jlong shard_index){
+  (JNIEnv * env, jobject obj, jobject j_service_type, jlong version, jlong subgroup_index, jlong shard_index){
     derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
 #ifndef NDEBUG
     std::cout << "called list keys internal!" << std::endl;
     std::cout.flush();
 #endif
-    int service_val = get_value(env, service_type);
+    int service_type = get_int_value(env, j_service_type);
 
-    // translate the type into string
-    std::string real_type = type_arr[service_val];
-
-    on_subgroup_type(real_type, return list_keys, env, capi, version, subgroup_index, shard_index);
+    on_service_type(service_type, return list_keys, env, capi, version, subgroup_index, shard_index);
 
     // impossible
     return -1;
@@ -552,17 +556,16 @@ jlong list_keys_by_time(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, j
  * Signature: (Lio/cascade/ServiceType;JJJ)J
  */
 JNIEXPORT jlong JNICALL Java_io_cascade_Client_listKeysByTimeInternal
-  (JNIEnv * env, jobject obj, jobject service_type, jlong timestamp, jlong subgroup_index, jlong shard_index){
+  (JNIEnv * env, jobject obj, jobject j_service_type, jlong timestamp, jlong subgroup_index, jlong shard_index){
     derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
 #ifndef NDEBUG
     std::cout << "called list keys internal!" << std::endl;
     std::cout.flush();
 #endif
-    int service_val = get_value(env, service_type);
+    int service_type = get_int_value(env, j_service_type);
 
     // translate the type into string
-    std::string real_type = type_arr[service_val];
-    on_subgroup_type(real_type, return list_keys_by_time, env, capi, timestamp, subgroup_index, shard_index);
+    on_service_type(service_type, return list_keys_by_time, env, capi, timestamp, subgroup_index, shard_index);
 
     // impossible
     return -1;
@@ -574,13 +577,12 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_listKeysByTimeInternal
  * Signature: (Lio/cascade/ServiceType;J)J
  */
 JNIEXPORT jlong JNICALL Java_io_cascade_Client_getNumberOfShards
-  (JNIEnv * env, jobject obj, jobject service_type, jlong subgroup_index){
+  (JNIEnv * env, jobject obj, jobject j_service_type, jlong subgroup_index){
     derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
-    int service_val = get_value(env, service_type);
+    int service_type = get_int_value(env, j_service_type);
 
     // translate the type into string
-    std::string real_type = type_arr[service_val];
-    on_subgroup_type(real_type, return capi->get_number_of_shards, subgroup_index);
+    on_service_type(service_type, return capi->get_number_of_shards, subgroup_index);
 
     // impossible
     return -1;
@@ -681,7 +683,7 @@ JNIEXPORT jobject JNICALL Java_io_cascade_QueryResults_getReplyMap(JNIEnv *env, 
     jfieldID type_fid = env->GetFieldID(querycls, "type", "Lio/cascade/ServiceType;");
     jobject type = env->GetObjectField(obj, type_fid);
 
-    int type_val = get_value(env, type);
+    int type_val = get_int_value(env, type);
 
 #ifndef NDEBUG
     std::cout << "in reply map: value is " << type_val << " and mode is " << (int)mode << std::endl;
