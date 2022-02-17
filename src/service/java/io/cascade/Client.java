@@ -59,8 +59,7 @@ public class Client {
     /**
      * Get all members in the current derecho subgroup and shard.
      * 
-     * @param type          The type of the subgroup. In Cascade, this would be
-     *                      VCSS or PCSS.
+     * @param type          The type of the subgroup.
      * @param subgroupIndex The index of the subgroup with type {@code type}.
      * @param shardID       The index of the shard within the subgroup with type
      *                      {@code type} and subgroup index {@code subgroupIndex}.
@@ -72,8 +71,7 @@ public class Client {
     /**
      * Set the member selection policy of the specified subgroup and shard.
      * 
-     * @param type          The type of the subgroup. In Cascade, this would be
-     *                      VCSS or PCSS.
+     * @param type          The type of the subgroup.
      * @param subgroupIndex The index of the subgroup with type {@code type}.
      * @param shardID       The index of the shard within the subgroup with type
      *                      {@code type} and subgroup index {@code subgroupIndex}.
@@ -87,8 +85,7 @@ public class Client {
     /**
      * Get the member selection policy of the specified subgroup and shard.
      * 
-     * @param type          The type of the subgroup. In Cascade, this would be
-     *                      VCSS or PCSS.
+     * @param type          The type of the subgroup.
      * @param subgroupIndex The index of the subgroup with type {@code type}.
      * @param shardID       The index of the shard within the subgroup with type
      *                      {@code type} and subgroup index {@code subgroupIndex}.
@@ -103,8 +100,7 @@ public class Client {
      * replace the old object if a new key-value pair with the same key as one put
      * before is put.
      * 
-     * @param type          The type of the subgroup. In Cascade, this would be VCSS
-     *                      and PCSS
+     * @param type          The type of the subgroup.
      * @param key           The string key of the key-value pair. Requires:
      *                      {@code key} should be non-negative.
      * @param buf           A Java direct byte buffer that holds the value of the
@@ -133,8 +129,7 @@ public class Client {
      * object would replace the old object if a new key-value pair with the same key
      * as one put before is put.
      * 
-     * @param type          The type of the subgroup. In Cascade, this would be
-     *                      VCSS or PCSS.
+     * @param type          The type of the subgroup.
      * @param key           The byte buffer key of the key-value pair. The user
      *                      should serialize their key formats into this byte format
      *                      in order to use this method. 
@@ -188,8 +183,7 @@ public class Client {
     /**
      * Get the value corresponding to the byte buffer key from cascade.
      * 
-     * @param type          The type of the subgroup. In Cascade, this would be
-     *                      VCSS or PCSS.
+     * @param type          The type of the subgroup.
      * @param key           The byte buffer key of the key-value pair. The user
      *                      should serialize their key formats into this byte format
      *                      in order to use this method. If you use VCSU and PCSU as
@@ -246,8 +240,7 @@ public class Client {
     /**
      * Get the value corresponding to the byte buffer key from cascade by timestamp.
      * 
-     * @param type          The type of the subgroup. Requires: This field should be
-     *                      PCSU or PCSS.
+     * @param type          The type of the subgroup.
      * @param key           The byte buffer key of the key-value pair. The user
      *                      should serialize their key formats into this byte format
      *                      in order to use this method. If you use VCSU and PCSU as
@@ -275,8 +268,7 @@ public class Client {
     /**
      * Remove a long key and its corresponding value from cascade.
      * 
-     * @param type          The type of the subgroup. In Cascade, this would be VCSS
-     *                      or PCSS.
+     * @param type          The type of the subgroup.
      * @param key           The long key of the key-value pair. Requires:
      *                      {@code key} should be non-negative.
      * @param subgroupIndex The index of the subgroup with type {@code type} to put
@@ -299,8 +291,7 @@ public class Client {
     /**
      * Remove a byte buffer key and its corresponding value from cascade.
      * 
-     * @param type          The type of the subgroup. In Cascade, this would be
-     *                      VCSS or PCSS.
+     * @param type          The type of the subgroup.
      * @param key           The byte buffer key of the key-value pair. The user
      *                      should serialize their key formats into this byte format
      *                      in order to use this method. If you use VCSU and PCSU as
@@ -323,8 +314,7 @@ public class Client {
      * List all keys in the specified shard and subgroup up to a specified persistent 
      * version.
      * 
-     * @param type          The type of the subgroup. In Cascade, this would be
-     *                      VCSU, PCSU, VCSS, and PCSS.
+     * @param type          The type of the subgroup.
      * @param version       The upper bound persistent version of all keys listed.
      *                      -1 if you want to list all keys.
      * @param subgroupIndex The index of the subgroup with type {@code type} to put
@@ -343,8 +333,7 @@ public class Client {
     /**
      * List all keys in the specified shard and subgroup up to a specified timestamp.
      * 
-     * @param type          The type of the subgroup. In Cascade, this would be
-     *                      VCSU, PCSU, VCSS, and PCSS.
+     * @param type          The type of the subgroup.
      * @param timestamp     The upper bound timestamp of all keys listed.
      * @param subgroupIndex The index of the subgroup with type {@code type} to put
      *                      this key-value pair into.
@@ -362,8 +351,7 @@ public class Client {
 
     /**
      * Get the number of shards within the specified subgroup.
-     * @param type          The type of the subgroup. In Cascade, this would be
-     *                      VCSU, PCSU, VCSS, and PCSS.
+     * @param type          The type of the subgroup.
      * @param subgroupIndex The index of the subgroup with type {@code type} to put
      *                      this key-value pair into.
      * @return The number of shards within the specified subgroup.
@@ -377,8 +365,7 @@ public class Client {
     /**
      * Internal interface for put operation.
      * 
-     * @param type          The type of the subgroup. In Cascade, this would be
-     *                      VCSS or PCSS.
+     * @param type          The type of the subgroup.
      * @param subgroupIndex The index of the subgroup with type {@code type} to put
      *                      this key-value pair into.
      * @param shardIndex    The index of the shard within the subgroup with type
@@ -395,8 +382,7 @@ public class Client {
     /**
      * Internal interface for get operation.
      * 
-     * @param type          The type of the subgroup. In Cascade, this would be
-     *                      VCSS or PCSS.
+     * @param type          The type of the subgroup.
      * @param subgroupIndex The index of the subgroup with type {@code type} to get
      *                      this key-value pair from.
      * @param shardIndex    The index of the shard within the subgroup with type
@@ -413,8 +399,7 @@ public class Client {
     /**
      * Internal interface for get by time operation.
      * 
-     * @param type          The type of the subgroup. In Cascade, this would be
-     *                      VCSS or PCSS.
+     * @param type          The type of the subgroup.
      * @param subgroupIndex The index of the subgroup with type {@code type} to get
      *                      this key-value pair from.
      * @param shardIndex    The index of the shard within the subgroup with type
@@ -430,8 +415,7 @@ public class Client {
     /**
      * Internal interface for remove operation.
      * 
-     * @param type          The type of the subgroup. In Cascade, this would be
-     *                      VCSS or PCSS.
+     * @param type          The type of the subgroup.
      * @param subgroupIndex The index of the subgroup with type {@code type} to
      *                      remove this key-value pair from.
      * @param shardIndex    The index of the shard within the subgroup with type
@@ -446,8 +430,7 @@ public class Client {
     /**
      * Internal interface for list key operation.
      * 
-     * @param type          The type of the subgroup. In Cascade, this would be
-     *                      VCSU, PCSU, VCSS, and PCSS.
+     * @param type          The type of the subgroup.
      * @param version       The upper bound persistent version of all keys listed.
      *                      -1 if you want to list all keys.
      * @param subgroupIndex The index of the subgroup with type {@code type} to
@@ -462,8 +445,7 @@ public class Client {
     /**
      * Internal interface for list key by time operation.
      * 
-     * @param type          The type of the subgroup. In Cascade, this would be
-     *                      VCSU, PCSU, VCSS, and PCSS.
+     * @param type          The type of the subgroup.
      * @param timestamp     The upper bound timestamp of all keys listed.
      * @param subgroupIndex The index of the subgroup with type {@code type} to
      *                      remove this key-value pair from.

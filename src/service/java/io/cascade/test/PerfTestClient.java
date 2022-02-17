@@ -247,7 +247,7 @@ public class PerfTestClient {
             for (int i = 0; i < numMessages; ++i) {
                 String key = "k" + (randomize_key(i) % maxDistinctObjects);
                 // System.out.println("key: "+key);
-                cs.send(ServiceType.PCSS, i, client, key, bb);
+                cs.send(ServiceType.PersistentCascadeStoreWithStringKey, i, client, key, bb);
             }
 
 
@@ -279,7 +279,7 @@ public class PerfTestClient {
             for (int i = 0; i < numMessages; ++i) {
                 String key = "" + (randomize_key(i) % maxDistinctObjects);
                 // System.out.println("key: "+key);
-                cs.send(ServiceType.VCSS, i, client, key, bb);
+                cs.send(ServiceType.VolatileCascadeStoreWithStringKey, i, client, key, bb);
             }
 
             // wait for the polling thread to finish

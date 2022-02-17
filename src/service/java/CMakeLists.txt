@@ -22,7 +22,9 @@ add_jar(cascade_jar
         io/cascade/QueryResults.java
         io/cascade/ServiceType.java
         io/cascade/ShardMemberSelectionPolicy.java
+        io/cascade/ShardingPolicy.java
         io/cascade/CascadeObject.java
+        io/cascade/CascadeObjectPoolMetadata.java
         io/cascade/stream/ShardSupplier.java
         io/cascade/stream/ShardTimeSupplier.java
         io/cascade/stream/VersionSupplier.java

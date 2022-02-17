@@ -8,7 +8,10 @@ import java.nio.ByteBuffer;
 public class CascadeObject {
     public long version;
     public long timestamp;
+    public long previousVersion;
     public long previousVersionByKey;
+    // the messageId is for Evaluation purpose only.
+    public long messageId;
     public ByteBuffer object;
 
     /**
@@ -17,15 +20,21 @@ public class CascadeObject {
      * @param version   The version of the key-value pair, returned by C++ side.
      * @param timestamp The timestamp of the key-value pair, returned by C++ side.
      */
-    public CascadeObject(long version, long timestamp, long previous, ByteBuffer bb) {
+    public CascadeObject(long version, long timestamp, long previousVersion, long previousVersionByKey, ByteBuffer bb) {
         this.version = version;
         this.timestamp = timestamp;
-        this.previousVersionByKey = previous;
+        this.previousVersion = previousVersion;
+        this.previousVersionByKey = previousVersionByKey;
         this.object = bb;
     }
 
     @Override
     public String toString() {
-        return "version: " + version + "; timestamp: " + timestamp + "; previous: " + previousVersionByKey + "; bytebuffer: " + object;
+        return "version: " + version + 
+               "; timestamp: " + timestamp + 
+               "; previousVersion: " + previousVersion +
+               "; previousVersionByKey: " + previousVersionByKey + 
+               "; messageId: " + messageId +
+               "; bytebuffer: " + object;
     }
 }

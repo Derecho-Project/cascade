@@ -3,14 +3,13 @@ package io.cascade;
 /**
  * An enum on the type of services offered by cascade.
  */
-public enum ServiceType {
-    VolatileCascadeStoreWithStringKey(0), 
-    PersistentCascadeStoreWithStringKey(1),
-    TriggerCascadeNoStoreWithStringKey(2);
+public enum ShardingPolicy {
+    Hash(0),
+    Range(1);
 
     private int value;
 
-    private ServiceType(int value) {
+    private ShardingPolicy(int value) {
         this.value = value;
     }
 
