@@ -12,6 +12,8 @@ find_package(spdlog 1.3.1 REQUIRED)
 find_package(derecho CONFIG REQUIRED)
 find_package(cascade CONFIG REQUIRED)
 
+find_package(Java 1.11 QUIET)
+
 add_executable(kvs_client kvs_client.cpp)
 set_target_properties(kvs_client PROPERTIES
     INTERFACE_INCLUDE_DIRECTORIES ${cascade_INCLUDE_DIRS}
@@ -29,3 +31,26 @@ add_custom_command(TARGET kvs_client POST_BUILD
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/layout.json
         ${CMAKE_CURRENT_BINARY_DIR}/cfg/n2/layout.json
     )
+
+if (NOT Java_FOUND)
+    message(STATUS "Java not found - skipping Java Demo")
+endif (NOT Java_FOUND)
+
+include(UseJava)
+
+set(CMAKE_JAVA_COMPILE_FLAGS "-source" "11" "-target" "11")
+
+add_jar(kvs_client_jar
+        KVSClient.java
+    ENTRY_POINT
+        KVSClient
+    OUTPUT_NAME
+        kvs_client
+    MANIFEST
+        Manifest.txt
+    INCLUDE_JARS
+        jars/cascade.jar
+)
+add_custom_command(TARGET kvs_client_jar
+    COMMAND ln -sf ${CMAKE_CURRENT_SOURCE_DIR}/jars/cascade.jar ${CMAKE_CURRENT_BINARY_DIR}/cascade.jar
+)
