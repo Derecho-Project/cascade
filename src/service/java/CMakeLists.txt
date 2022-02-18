@@ -69,7 +69,7 @@ add_jar(stream_test
         cascade_jar
 )
 
-add_library(cascade_jni SHARED ${CMAKE_CURRENT_SOURCE_DIR}/jni/cascade_java.cpp)
+add_library(cascade_jni SHARED ${CMAKE_CURRENT_SOURCE_DIR}/jni/cascade_jni.cpp)
 target_include_directories(cascade_jni PRIVATE
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>

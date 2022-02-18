@@ -7,7 +7,7 @@ import java.util.Map;
  * The handle that stores the future of Java put(), get(), and remove() natives.
  * Java side should call get() in this class to get the objects returned.
  */
-public class QueryResults<T> {
+public class QueryResults<T> implements AutoCloseable {
 
     /**
      * The <node ID, T> map that stores <T>, the return objects from cascade futures
@@ -22,15 +22,10 @@ public class QueryResults<T> {
     long handle;
 
     /**
-     * The mode of the future. 0 for Bundle type (put, remove), 1 for ByteBuffer
+     * The mode of the future. 0 for Bundle type (put, remove, create_object_pool), 1 for ByteBuffer
      * type (get, get by time), 2 for List<ByteBuffer> type (list keys).
      */
     public int mode;
-
-    /**
-     * The type of the subgroup. 
-     */
-    public ServiceType type;
 
     /**
      * The constructor for QueryResults future.
@@ -39,15 +34,13 @@ public class QueryResults<T> {
      *                    results future.
      * @param m           The mode of delivery. 0 for bundle types, 1 for byte
      *                    buffer types.
-     * @param serviceType the service type of the future.
      */
-    public QueryResults(long h, int m, ServiceType serviceType) {
+    public QueryResults(long h, int m) {
 
         replyMap = new HashMap<>();
         updated = false;
         handle = h;
         mode = m;
-        type = serviceType;
     }
 
     /**
@@ -75,4 +68,10 @@ public class QueryResults<T> {
      */
     private native Map<Integer, T> getReplyMap(long handle);
 
+    @Override
+    public void close() {
+        closeHandle();
+    }
+
+    private native void closeHandle();
 }
