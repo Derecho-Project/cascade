@@ -1,12 +1,13 @@
 package io.cascade;
 
 import java.util.List;
+import java.util.Map;
 import java.nio.ByteBuffer;
 
 /**
  * The client API for cascade.
  */
-public class Client {
+public class Client implements AutoCloseable {
     /* Load JNI library */
     static {
         try {
@@ -28,6 +29,13 @@ public class Client {
     public Client() {
         handle = createClient();
     }
+
+    @Override
+    public void close() {
+        closeClient();
+    }
+
+    private native void closeClient();
 
     /**
      * Creates the client.
@@ -121,7 +129,7 @@ public class Client {
         // System.out.println("Finished constructing byte buffer!");
         
         long res = putInternal(type, subgroupIndex, shardID, bbkey, buf);
-        return new QueryResults<Bundle>(res, 0, type);
+        return new QueryResults<Bundle>(res, 0);
     }
 
     /**
@@ -148,7 +156,7 @@ public class Client {
     public QueryResults<Bundle> put(ServiceType type, ByteBuffer key, ByteBuffer buf, long subgroupIndex,
             long shardID) {
         long res = putInternal(type, subgroupIndex, shardID, key, buf);
-        return new QueryResults<Bundle>(res, 0, type);
+        return new QueryResults<Bundle>(res, 0);
     }
 
     /**
@@ -177,7 +185,7 @@ public class Client {
         ByteBuffer bbkey = ByteBuffer.allocateDirect(arr.length);
         bbkey.put(arr);
         long res = getInternal(type, subgroupIndex, shardID, bbkey, version);
-        return new QueryResults<CascadeObject>(res, 1, type);
+        return new QueryResults<CascadeObject>(res, 1);
     }
 
     /**
@@ -205,7 +213,7 @@ public class Client {
     public QueryResults<CascadeObject> get(ServiceType type, ByteBuffer key, long version, long subgroupIndex,
             long shardID) {
         long res = getInternal(type, subgroupIndex, shardID, key, version);
-        return new QueryResults<CascadeObject>(res, 1, type);
+        return new QueryResults<CascadeObject>(res, 1);
     }
 
     /**
@@ -234,7 +242,7 @@ public class Client {
         ByteBuffer bbkey = ByteBuffer.allocateDirect(arr.length);
         bbkey.put(arr);
         long res = getInternalByTime(type, subgroupIndex, shardID, bbkey, timestamp);
-        return new QueryResults<CascadeObject>(res, 1, type);
+        return new QueryResults<CascadeObject>(res, 1);
     }
 
     /**
@@ -262,7 +270,7 @@ public class Client {
     public QueryResults<CascadeObject> getByTime(ServiceType type, ByteBuffer key, long timestamp, long subgroupIndex,
             long shardID) {
         long res = getInternalByTime(type, subgroupIndex, shardID, key, timestamp);
-        return new QueryResults<CascadeObject>(res, 1, type);
+        return new QueryResults<CascadeObject>(res, 1);
     }
 
     /**
@@ -285,7 +293,7 @@ public class Client {
         ByteBuffer bbkey = ByteBuffer.allocateDirect(arr.length);
         bbkey.put(arr);
         long res = removeInternal(type, subgroupIndex, shardID, bbkey);
-        return new QueryResults<Bundle>(res, 0, type);
+        return new QueryResults<Bundle>(res, 0);
     }
 
     /**
@@ -307,7 +315,7 @@ public class Client {
      */
     public QueryResults<Bundle> remove(ServiceType type, ByteBuffer key, long subgroupIndex, long shardID) {
         long res = removeInternal(type, subgroupIndex, shardID, key);
-        return new QueryResults<Bundle>(res, 0, type);
+        return new QueryResults<Bundle>(res, 0);
     }
 
     /**
@@ -327,7 +335,7 @@ public class Client {
      */
     public QueryResults<List<ByteBuffer>> listKeys(ServiceType type, long version, long subgroupIndex, long shardIndex){
         long res = listKeysInternal(type, version, subgroupIndex, shardIndex);
-        return new QueryResults<List<ByteBuffer>>(res, 2, type);
+        return new QueryResults<List<ByteBuffer>>(res, 2);
     }
 
     /**
@@ -345,7 +353,7 @@ public class Client {
      */
     public QueryResults<List<ByteBuffer>> listKeysByTime(ServiceType type, long timestamp, long subgroupIndex, long shardIndex){
         long res = listKeysByTimeInternal(type, timestamp, subgroupIndex, shardIndex);
-        return new QueryResults<List<ByteBuffer>>(res, 2, type);
+        return new QueryResults<List<ByteBuffer>>(res, 2);
     }
 
 
@@ -456,4 +464,39 @@ public class Client {
      */
     private native long listKeysByTimeInternal(ServiceType type, long timestamp, long subgroupIndex, long shardIndex);
 
+    /**
+     * Create an object pool
+     *
+     * @param pathname      The pathname of the objectpool
+     * @param type          The type of the subgroup
+     * @param subgroupIndex The index of the subgroup with type {@code type}
+     * @param shardingPolicy    The sharding policy of this object pool
+     * @param objectLocations   The specified ObjectLocations
+     *
+     * @return a future for the result
+     */
+    public QueryResults<Bundle> createObjectPool(String pathname, ServiceType service_type, int subgroupIndex, ShardingPolicy shardingPolicy, Map<String,Integer> objectLocations) {
+        long res = createObjectPoolInternal(pathname,service_type,subgroupIndex,shardingPolicy,objectLocations);
+        return new QueryResults<Bundle>(res, 0);
+    }
+
+    /**
+     * Create an object pool Internal version
+     *
+     * @param pathname      The pathname of the objectpool
+     * @param type          The type of the subgroup
+     * @param subgroupIndex The index of the subgroup with type {@code type}
+     * @param shardingPolicy    The sharding policy of this object pool
+     * @param objectLocations   The specified ObjectLocations
+     *
+     * @return A handle of the C++ future
+     */
+    private native long createObjectPoolInternal(String pathname, ServiceType service_type, int subgroupIndex, ShardingPolicy shardingPolicy, Map<String,Integer> objectLocations);
+
+    /**
+     * List object pools
+     *
+     * @return a list of object pools
+     */
+    public native List<String> listObjectPools();
 }

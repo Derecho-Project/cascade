@@ -9,6 +9,14 @@ extern "C" {
 #endif
 /*
  * Class:     io_cascade_Client
+ * Method:    closeClient
+ * Signature: ()V
+ */
+JNIEXPORT void JNICALL Java_io_cascade_Client_closeClient
+  (JNIEnv *, jobject);
+
+/*
+ * Class:     io_cascade_Client
  * Method:    createClient
  * Signature: ()J
  */
@@ -102,6 +110,22 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_listKeysInternal
  */
 JNIEXPORT jlong JNICALL Java_io_cascade_Client_listKeysByTimeInternal
   (JNIEnv *, jobject, jobject, jlong, jlong, jlong);
+
+/*
+ * Class:     io_cascade_Client
+ * Method:    createObjectPoolInternal
+ * Signature: (Ljava/lang/String;Lio/cascade/ServiceType;ILio/cascade/ShardingPolicy;Ljava/util/Map;)J
+ */
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_createObjectPoolInternal
+  (JNIEnv *, jobject, jstring, jobject, jint, jobject, jobject);
+
+/*
+ * Class:     io_cascade_Client
+ * Method:    listObjectPools
+ * Signature: ()Ljava/util/List;
+ */
+JNIEXPORT jobject JNICALL Java_io_cascade_Client_listObjectPools
+  (JNIEnv *, jobject);
 
 #ifdef __cplusplus
 }

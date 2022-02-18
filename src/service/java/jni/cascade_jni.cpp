@@ -1,4 +1,6 @@
 #include <cascade/service_client_api.hpp>
+#include <memory>
+#include <unordered_map>
 #include "io_cascade_Client.h"
 #include "io_cascade_QueryResults.h"
 
@@ -55,6 +57,23 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_createClient(JNIEnv *env, jobject
     derecho::cascade::ServiceClientAPI *capi = new derecho::cascade::ServiceClientAPI();
     // send the memory address back as a handle
     return reinterpret_cast<jlong>(capi);
+}
+
+/**
+ * Class:       io_cascade_Client
+ * Method:      closeClient
+ * Signature:   ()V
+ */
+JNIEXPORT void JNICALL Java_io_cascade_Client_closeClient(JNIEnv *env, jobject obj)
+{
+    jclass client_cls = env->GetObjectClass(obj);
+    jfieldID client_fid = env->GetFieldID(client_cls, "handle", "J");
+    jlong jhandle = env->GetLongField(obj, client_fid);
+    derecho::cascade::ServiceClientAPI *capi = reinterpret_cast<derecho::cascade::ServiceClientAPI*>(jhandle);
+    if (capi != nullptr) {
+        delete capi;
+    }
+    env->SetLongField(obj,client_fid,0L);
 }
 
 /**
@@ -287,7 +306,7 @@ std::string translate_str_key(JNIEnv *env, jobject key)
 /**
  * Translate Java key-value pair into C++ object with std::string keys.
  */
-derecho::cascade::ObjectWithStringKey *translate_str_obj(JNIEnv *env, jobject key, jobject val)
+std::unique_ptr<derecho::cascade::ObjectWithStringKey> translate_str_obj(JNIEnv *env, jobject key, jobject val)
 {
     // get val from byte buffer
     const char *buf = static_cast<const char *>(env->GetDirectBufferAddress(val));
@@ -302,7 +321,7 @@ derecho::cascade::ObjectWithStringKey *translate_str_obj(JNIEnv *env, jobject ke
     cas_obj->blob = derecho::cascade::Blob(reinterpret_cast<const uint8_t*>(buf), len);
     cas_obj->blob.is_emplaced = 1;
 
-    return cas_obj;
+    return std::unique_ptr<derecho::cascade::ObjectWithStringKey>{cas_obj};
 }
 
 /**
@@ -317,7 +336,7 @@ derecho::cascade::ObjectWithStringKey *translate_str_obj(JNIEnv *env, jobject ke
  * @return a handle of the future that stores the version and timestamp.
  */
 template <typename T>
-jlong put(std::function<typename T::ObjectType *(JNIEnv *, jobject, jobject)> f, JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong subgroup_index, jlong shard_index, jobject key, jobject val)
+jlong put(std::function<std::unique_ptr<typename T::ObjectType>(JNIEnv *, jobject, jobject)> f, JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong subgroup_index, jlong shard_index, jobject key, jobject val)
 {
 #ifndef NDEBUG
     std::cout << "entering jlong put! Here am I! " << std::endl;
@@ -330,7 +349,7 @@ jlong put(std::function<typename T::ObjectType *(JNIEnv *, jobject, jobject)> f,
     printf("\n");
 #endif
     // translate Java objects to C++ objects.
-    typename T::ObjectType *obj = f(env, key, val);
+    auto obj = f(env, key, val);
 #ifndef NDEBUG
     std::cout << "putting! " << subgroup_index << " " << shard_index << std::endl;
 #endif
@@ -340,6 +359,13 @@ jlong put(std::function<typename T::ObjectType *(JNIEnv *, jobject, jobject)> f,
 #ifndef NDEBUG
     std::cout << "finished put!" << std::endl;
 #endif
+    QueryResultHolder<std::tuple<persistent::version_t, uint64_t>> *qrh = new QueryResultHolder<std::tuple<persistent::version_t, uint64_t>>(res);
+    return reinterpret_cast<jlong>(qrh);
+}
+
+template <typename ServiceType>
+jlong create_object_pool(derecho::cascade::ServiceClientAPI* capi, const std::string& pathname, uint32_t subgroup_index, derecho::cascade::sharding_policy_t sharding_policy, const std::unordered_map<std::string,uint32_t>& object_locations) {
+    auto res = capi->create_object_pool<ServiceType>(pathname,subgroup_index,sharding_policy,object_locations);
     QueryResultHolder<std::tuple<persistent::version_t, uint64_t>> *qrh = new QueryResultHolder<std::tuple<persistent::version_t, uint64_t>>(res);
     return reinterpret_cast<jlong>(qrh);
 }
@@ -712,31 +738,7 @@ JNIEXPORT jobject JNICALL Java_io_cascade_QueryResults_getReplyMap(JNIEnv *env, 
     };
 
 
-    // lambda that translates into byte buffer types and receives objects with uint64 keys.
-/*    auto u64_f = [env](derecho::cascade::ObjectWithUInt64Key obj) {
-        char *data = obj.blob.bytes;
-        std::size_t size = obj.blob.size;
-
-#ifndef NDEBUG
-        std::cout << "processing at u64 f!" << size << " " << std::endl;
-#endif
-        // Set temporary to be 1 so that obj will not be destructed at the end of this function.
-        // This is used to avoid copying when allocating buffers.
-        obj.blob.is_temporary = 1;
-
-#ifndef NDEBUG
-        std::cout << "is temporary" << obj.blob.is_temporary << std::endl;
-#endif
-        jobject new_byte_buf = allocate_byte_buffer(env, data, size);
-        jclass obj_class = env->FindClass("io/cascade/CascadeObject");
-        jmethodID obj_constructor = env->GetMethodID(obj_class, "<init>", "(JJJLjava/nio/ByteBuffer;)V"); // TODO: the correct constructor
-        return env->NewObject(obj_class, obj_constructor, static_cast<jlong>(obj.version), static_cast<jlong>(obj.timestamp_us), static_cast<jlong>(obj.previous_version_by_key), new_byte_buf);
-    };
-*/
     auto s_f = [env](derecho::cascade::ObjectWithStringKey obj) {
-// #ifndef NDEBUG
-//         std::cout << "converting objects with string keys!" << std::endl;
-// #endif
 
         const char *data = reinterpret_cast<const char*>(obj.blob.bytes);
         std::size_t size = obj.blob.size;
@@ -756,37 +758,6 @@ JNIEXPORT jobject JNICALL Java_io_cascade_QueryResults_getReplyMap(JNIEnv *env, 
         jmethodID obj_constructor = env->GetMethodID(obj_class, "<init>", "(JJJLjava/nio/ByteBuffer;)V"); // TODO: the correct constructor
         return env->NewObject(obj_class, obj_constructor, static_cast<jlong>(obj.version), static_cast<jlong>(obj.timestamp_us), static_cast<jlong>(obj.previous_version_by_key), new_byte_buf);
     };
-
-        //env->SetByteArrayRegion(data_byte_arr, 0, size, reinterpret_cast<const jbyte *>(data));
-
-        // lambda that translates into a list of byte buffers and receives a vector of uint64 keys.
-/*    auto u64_vf = [env](std::vector<uint64_t> obj) {
-#ifndef NDEBUG
-        std::cout << "calling u64_vf! " << std::endl;
-        std::cout.flush();
-#endif
-        // create a Java array list
-        jclass arr_list_cls = env->FindClass("java/util/ArrayList");
-        jmethodID arr_init_mid = env->GetMethodID(arr_list_cls, "<init>", "()V");
-        jobject arr_obj = env->NewObject(arr_list_cls, arr_init_mid);
-
-        // list add method
-        jclass list_cls = env->FindClass("java/util/List");
-        jmethodID list_add_mid = env->GetMethodID(list_cls, "add", "(Ljava/lang/Object;)Z");
-
-        // fill everything in
-        std::vector<uint64_t>::iterator it = obj.begin();
-        while (it != obj.end())
-        {
-            std::string s_val = std::to_string(*it);
-            jobject direct_buffer_obj = allocate_byte_buffer_by_copy(env, &s_val[0], s_val.length());
-            
-            env->CallObjectMethod(arr_obj, list_add_mid, direct_buffer_obj);
-            it++;
-        }
-        return arr_obj;
-    };
-*/
 
     // lambda that translates into a list of byte buffers and receives a vector of string keys.
     auto s_vf = [env](std::vector<std::string> obj) {
@@ -811,7 +782,6 @@ JNIEXPORT jobject JNICALL Java_io_cascade_QueryResults_getReplyMap(JNIEnv *env, 
             std::cout << "key: " << *it << " ";
 #endif
             jobject direct_buffer_obj = allocate_byte_buffer_by_copy(env, &(*it)[0], (*it).length());
-            // jobject direct_buffer_obj = env->NewDirectByteBuffer(&(*it), (*it).length());
             
             env->CallObjectMethod(arr_obj, list_add_mid, direct_buffer_obj);
             it++;
@@ -870,4 +840,151 @@ JNIEXPORT jobject JNICALL Java_io_cascade_QueryResults_getReplyMap(JNIEnv *env, 
         break;
     }
     return hash_map_object;
+}
+
+static void javaMapToStlMap(JNIEnv *env, jobject map, std::unordered_map<std::string, uint32_t>& mapOut) {
+  // Get the Map's entry Set.
+  jclass mapClass = env->FindClass("java/util/Map");
+  if (mapClass == NULL) {
+    return;
+  }
+  jmethodID entrySet =
+    env->GetMethodID(mapClass, "entrySet", "()Ljava/util/Set;");
+  if (entrySet == NULL) {
+    return;
+  }
+  jobject set = env->CallObjectMethod(map, entrySet);
+  if (set == NULL) {
+    return;
+  }
+  // Obtain an iterator over the Set
+  jclass setClass = env->FindClass("java/util/Set");
+  if (setClass == NULL) {
+    return;
+  }
+  jmethodID iterator =
+    env->GetMethodID(setClass, "iterator", "()Ljava/util/Iterator;");
+  if (iterator == NULL) {
+    return;
+  }
+  jobject iter = env->CallObjectMethod(set, iterator);
+  if (iter == NULL) {
+    return;
+  }
+  // Get the Iterator method IDs
+  jclass iteratorClass = env->FindClass("java/util/Iterator");
+  if (iteratorClass == NULL) {
+    return;
+  }
+  jmethodID hasNext = env->GetMethodID(iteratorClass, "hasNext", "()Z");
+  if (hasNext == NULL) {
+    return;
+  }
+  jmethodID next =
+    env->GetMethodID(iteratorClass, "next", "()Ljava/lang/Object;");
+  if (next == NULL) {
+    return;
+  }
+  // Get the Entry class method IDs
+  jclass entryClass = env->FindClass("java/util/Map$Entry");
+  if (entryClass == NULL) {
+    return;
+  }
+  jmethodID getKey =
+    env->GetMethodID(entryClass, "getKey", "()Ljava/lang/Object;");
+  if (getKey == NULL) {
+    return;
+  }
+  jmethodID getValue =
+    env->GetMethodID(entryClass, "getValue", "()Ljava/lang/Object;");
+  if (getValue == NULL) {
+    return;
+  }
+  jmethodID intValue = 
+      env->GetMethodID(entryClass, "intvalue", "()I;");
+  if (intValue == NULL) {
+      return;
+  }
+  // Iterate over the entry Set
+  while (env->CallBooleanMethod(iter, hasNext)) {
+    jobject entry = env->CallObjectMethod(iter, next);
+    jstring j_key = (jstring) env->CallObjectMethod(entry, getKey);
+    jobject j_value = env->CallObjectMethod(entry, getValue);
+    const char* key = env->GetStringUTFChars(j_key, NULL);
+    if (!key) {  // Out of memory
+      return;
+    }
+	uint32_t value = static_cast<uint32_t>(env->CallIntMethod(j_value, intValue));
+
+    mapOut.insert(std::make_pair(std::string(key),value));
+
+    env->DeleteLocalRef(entry);
+    env->ReleaseStringUTFChars(j_key, key);
+    env->DeleteLocalRef(j_key);
+    env->DeleteLocalRef(j_value);
+  }
+}
+
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_createObjectPool (JNIEnv* env, jobject obj, jstring j_pathname, jobject j_service_type, jint j_subgroup_index, jobject j_sharding_policy, jobject j_object_locations) {
+    derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
+    // 1 - pathname
+    auto pathname = env->GetStringUTFChars(j_pathname, nullptr);
+    // 2 - service_type
+    int service_type = get_int_value(env, j_service_type);
+    // 3 - subgroup index
+    uint32_t subgroup_index = static_cast<uint32_t>(j_subgroup_index);
+    // 4 - shardingPolicy
+    auto sharding_policy = static_cast<derecho::cascade::sharding_policy_t>(get_int_value(env, j_sharding_policy));
+    // 5 - object locations
+    std::unordered_map<std::string,uint32_t> object_locations;
+	javaMapToStlMap(env,j_object_locations,object_locations);
+
+    jlong ret = 0;
+    on_service_type(service_type, ret = create_object_pool, capi, pathname, subgroup_index, sharding_policy, object_locations);
+    // release resource
+    env->ReleaseStringUTFChars(j_pathname,pathname);
+    return ret;
+}
+
+/**
+ * Class:       io_cascade_Client
+ * Method:      closeClient
+ * Signature:   ()V
+ */
+JNIEXPORT void JNICALL Java_io_cascade_QueryResults_closeHandle (JNIEnv* env, jobject obj) {
+    jclass query_results_cls = env->GetObjectClass(obj);
+    jfieldID query_results_fid = env->GetFieldID(query_results_cls, "handle", "J");
+    jfieldID mode_fid = env->GetFieldID(query_results_cls, "mode", "I");
+    jlong jhandle = env->GetLongField(obj,query_results_fid);
+    jint mode = env->GetIntField(obj,mode_fid);
+    switch(mode) {
+        case 0:
+            {
+                QueryResultHolder<std::tuple<persistent::version_t, uint64_t>>* qrh =
+                    reinterpret_cast<QueryResultHolder<std::tuple<persistent::version_t, uint64_t>>*>(jhandle);
+                if (qrh != nullptr) {
+                    delete qrh;
+                }
+            }
+            break;
+        case 1:
+            {
+                QueryResultHolder<derecho::cascade::ObjectWithStringKey>* qrh = 
+                    reinterpret_cast<QueryResultHolder<derecho::cascade::ObjectWithStringKey>*>(jhandle);
+                if (qrh != nullptr) {
+                    delete qrh;
+                }
+            }
+            break;
+        case 2:
+            {
+                QueryResultHolder<std::vector<derecho::cascade::ObjectWithStringKey>>* qrh = 
+                    reinterpret_cast<QueryResultHolder<std::vector<derecho::cascade::ObjectWithStringKey>>*>(jhandle);
+                if (qrh != nullptr) {
+                    delete qrh;
+                }
+            }
+            break;
+    }
+    env->SetLongField(obj,query_results_fid,0L);
 }

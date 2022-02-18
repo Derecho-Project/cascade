@@ -15,10 +15,11 @@ public class ClientTest {
 
     /** First test on whether we can get members and get shard members. */
     public static final void main1() {
-        Client client = new Client();
-        System.out.println(client.getMembers());
-        System.out.println(client.getShardMembers(ServiceType.VolatileCascadeStoreWithStringKey, 0, 0));
-        System.out.println(client.getShardMembers(ServiceType.PersistentCascadeStoreWithStringKey, 0, 0));
+        try(Client client = new Client()) {
+            System.out.println(client.getMembers());
+            System.out.println(client.getShardMembers(ServiceType.VolatileCascadeStoreWithStringKey, 0, 0));
+            System.out.println(client.getShardMembers(ServiceType.PersistentCascadeStoreWithStringKey, 0, 0));
+        }
     }
 
     /**
@@ -81,8 +82,7 @@ public class ClientTest {
      * An interactive test on whether the client APIs work.
      */
     public static final void main2() {
-        Client client = new Client();
-        try {
+        try (Client client = new Client()) {
             while (true) {
                 long subgroupIndex = 0, shardIndex = 0;
                 System.out.print("cmd> ");
@@ -211,8 +211,9 @@ public class ClientTest {
                         ByteBuffer bbval = ByteBuffer.allocateDirect(arr2.length);
                         bbval.put(arr2);
 
-                        QueryResults<Bundle> qr = client.put(type, bbkey, bbval, subgroupIndex, shardIndex);
-                        System.out.println(qr.get());
+                        try (QueryResults<Bundle> qr = client.put(type, bbkey, bbval, subgroupIndex, shardIndex)) {
+                            System.out.println(qr.get());
+                        }
                         break;
                     case "remove":
                         // remove a key-value pair from cascade.
@@ -232,8 +233,9 @@ public class ClientTest {
                         arr = splited[2].getBytes();
                         bbkey = ByteBuffer.allocateDirect(arr.length);
                         bbkey.put(arr);
-                        qr = client.remove(type, bbkey, subgroupIndex, shardIndex);
-                        System.out.println(qr.get());
+                        try (QueryResults<Bundle> qr = client.remove(type, bbkey, subgroupIndex, shardIndex)) {
+                            System.out.println(qr.get());
+                        }
                         break;
                     case "get":
                         // get a key-value pair from cascade by version. Version would be -1
@@ -257,15 +259,16 @@ public class ClientTest {
                         arr = splited[2].getBytes();
                         bbkey = ByteBuffer.allocateDirect(arr.length);
                         bbkey.put(arr);
-                        QueryResults<CascadeObject> qrb = client.get(type, bbkey, version, subgroupIndex, shardIndex);
-                        Map<Integer, CascadeObject> data = qrb.get();
-                        for (CascadeObject obj : data.values()) {
-                            ByteBuffer bb = obj.object;
-                            byte b[] = new byte[bb.capacity()];
-                            for (int i = 0;i < bb.capacity(); i++){
-                                b[i] = bb.get(i);
+                        try (QueryResults<CascadeObject> qrb = client.get(type, bbkey, version, subgroupIndex, shardIndex)) {
+                            Map<Integer, CascadeObject> data = qrb.get();
+                            for (CascadeObject obj : data.values()) {
+                                ByteBuffer bb = obj.object;
+                                byte b[] = new byte[bb.capacity()];
+                                for (int i = 0;i < bb.capacity(); i++){
+                                    b[i] = bb.get(i);
+                                }
+                                System.out.println("bytes: " + new String(b));
                             }
-                            System.out.println("bytes: " + new String(b));
                         }
                         break;
                     case "get_by_time":
@@ -287,15 +290,16 @@ public class ClientTest {
                         arr = splited[2].getBytes();
                         bbkey = ByteBuffer.allocateDirect(arr.length);
                         bbkey.put(arr);
-                        qrb = client.getByTime(type, bbkey, timestamp, subgroupIndex, shardIndex);
-                        data = qrb.get();
-                        for (CascadeObject obj : data.values()) {
-                            ByteBuffer bb = obj.object;
-                            byte b[] = new byte[bb.capacity()];
-                            for (int i = 0;i < bb.capacity(); i++){
-                                b[i] = bb.get(i);
+                        try (QueryResults<CascadeObject> qrb = client.getByTime(type, bbkey, timestamp, subgroupIndex, shardIndex)) {
+                            Map<Integer, CascadeObject> data = qrb.get();
+                            for (CascadeObject obj : data.values()) {
+                                ByteBuffer bb = obj.object;
+                                byte b[] = new byte[bb.capacity()];
+                                for (int i = 0;i < bb.capacity(); i++){
+                                    b[i] = bb.get(i);
+                                }
+                                System.out.println("bytes: " + new String(b));
                             }
-                            System.out.println("bytes: " + new String(b));
                         }
                         break;
                     default:
