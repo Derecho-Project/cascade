@@ -1,3 +1,4 @@
+#include <cascade/cascade.hpp>
 #include <cascade/service_client_api.hpp>
 #include <derecho/persistent/PersistentInterface.hpp>
 #include <pybind11/pybind11.h>
@@ -61,6 +62,8 @@ std::function<py::dict(const ObjectWithStringKey&)> object_unwrapper = [](const 
     object_dict["value"] = py::bytes(std::string(reinterpret_cast<const char*>(obj.blob.bytes), obj.blob.size));
     object_dict["version"] = obj.get_version();
     object_dict["timestamp"] = obj.get_timestamp();
+    object_dict["previous_version"] = obj.previous_version;
+    object_dict["previous_version_by_key"] = obj.previous_version_by_key;
 #ifdef ENABLE_EVALUATION
     object_dict["message_id"] = obj.get_message_id();
 #endif
