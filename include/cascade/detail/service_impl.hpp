@@ -727,6 +727,33 @@ derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> ServiceClien
 }
 
 template <typename... CascadeTypes>
+template <typename SubgroupType>
+derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> ServiceClient<CascadeTypes...>::multi_get(
+        const typename SubgroupType::KeyType& key,
+        uint32_t subgroup_index,
+        uint32_t shard_index) {
+    if (group_ptr != nullptr) {
+        std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
+        if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
+            // do ordered put as a member (Replicated).
+            auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
+            return subgroup_handle.template p2p_send<RPC_NAME(multi_get)>(group_ptr->get_my_id(),key);
+        } else {
+            // do normal put as a non member (ExternalCaller).
+            auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
+            node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
+            return subgroup_handle.template p2p_send<RPC_NAME(multi_get)>(node_id,key);
+        }
+    } else {
+        std::lock_guard<std::mutex> lck(this->external_group_ptr_mutex);
+        // call as an external client (ExternalClientCaller).
+        auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
+        node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
+        return caller.template p2p_send<RPC_NAME(multi_get)>(node_id,key); 
+    }
+}
+
+template <typename... CascadeTypes>
 template <typename KeyType, typename FirstType, typename SecondType, typename... RestTypes>
 auto ServiceClient<CascadeTypes...>::type_recursive_get(
         uint32_t type_index,
@@ -773,6 +800,51 @@ auto ServiceClient<CascadeTypes...>::get(
 
     // STEP 3 - call recursive get
     return this->template type_recursive_get<KeyType,CascadeTypes...>(subgroup_type_index,key,version,subgroup_index,shard_index);
+}
+
+template <typename... CascadeTypes>
+template <typename KeyType, typename FirstType, typename SecondType, typename... RestTypes>
+auto ServiceClient<CascadeTypes...>::type_recursive_multi_get(
+        uint32_t type_index,
+        const KeyType& key,
+        uint32_t subgroup_index,
+        uint32_t shard_index) {
+    if (type_index == 0) {
+        return this->template multi_get<FirstType>(key,subgroup_index,shard_index);
+    } else {
+        return this->template type_recursive_multi_get<KeyType,SecondType,RestTypes...>(type_index-1,key,subgroup_index,shard_index);
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename KeyType, typename LastType>
+auto ServiceClient<CascadeTypes...>::type_recursive_multi_get(
+        uint32_t type_index,
+        const KeyType& key,
+        uint32_t subgroup_index,
+        uint32_t shard_index) {
+    if (type_index == 0) {
+        return this->template multi_get<LastType>(key,subgroup_index,shard_index);
+    } else {
+        throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) + ": type index is out of boundary.");
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename KeyType>
+auto ServiceClient<CascadeTypes...>::multi_get(
+        const KeyType& key) {
+    // STEP 1 - get key
+    if constexpr (!std::is_convertible_v<KeyType,std::string>) {
+        throw derecho::derecho_exception(__PRETTY_FUNCTION__ + std::string(" only supports string key,but we get ") + typeid(KeyType).name());
+    }
+
+    // STEP 2 - get shard
+    uint32_t subgroup_type_index,subgroup_index,shard_index;
+    std::tie(subgroup_type_index,subgroup_index,shard_index) = this->template key_to_shard(key);
+
+    // STEP 3 - call recursive get
+    return this->template type_recursive_multi_get<KeyType,CascadeTypes...>(subgroup_type_index,key,subgroup_index,shard_index);
 }
 
 template <typename... CascadeTypes>

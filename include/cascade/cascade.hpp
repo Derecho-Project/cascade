@@ -361,6 +361,7 @@ namespace cascade {
 #endif
                                    remove,
                                    get,
+                                   multi_get,
                                    get_by_time,
                                    list_keys,
                                    op_list_keys,
@@ -557,6 +558,7 @@ namespace cascade {
 #endif//ENABLE_EVALUATION
                                    remove,
                                    get,
+                                   multi_get,
                                    get_by_time,
                                    list_keys,
                                    op_list_keys,
@@ -826,6 +828,7 @@ namespace cascade {
 #endif
                                    remove,
                                    get,
+                                   multi_get,
                                    get_by_time,
                                    list_keys,
                                    op_list_keys,
