@@ -676,7 +676,6 @@ namespace cascade {
         template <typename SubgroupType>
         derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> get(const typename SubgroupType::KeyType& key, const persistent::version_t& version, 
                 uint32_t subgroup_index, uint32_t shard_index);
-
         /**
          * "type_recursive_get" is a helper function for internal use only.
          * @type_index              the index of the subgroup type in the CascadeTypes... list. and the FirstType,
@@ -713,6 +712,51 @@ namespace cascade {
         auto get(
                 const KeyType& key,
                 const persistent::version_t& version = CURRENT_VERSION);
+
+        /**
+         * "multi_get" retrieve the object of a given key, this operation involves atomic broadcast
+         *
+         * @param key               the object key
+         * @param subugroup_index   the subgroup index of CascadeType
+         * @param shard_index       the shard index.
+         *
+         * @return a future to the retrieved object.
+         */
+        template <typename SubgroupType>
+        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> multi_get(const typename SubgroupType::KeyType& key,
+                uint32_t subgroup_index, uint32_t shard_index);
+
+        /**
+         * "type_recursive_multi_get"   is a helper function for internal use only.
+         * @type_index                  the index of the subgroup type in the CascadeTypes... list. and the FirstType,
+         *                              SecondType, .../ RestTypes should be in the same order.
+         * @key                         the key
+         * @subgroup_index              the subgroup index in the subgroup type designated by type_index
+         * @shard_index                 the shard index
+         *
+         * @return a future for the object.
+         */
+    protected:
+        template <typename KeyType, typename FirstType, typename SecondType, typename... RestTypes>
+        auto type_recursive_multi_get(
+                uint32_t type_index,
+                const KeyType& key,
+                uint32_t subgroup_index,
+                uint32_t shard_index);
+
+        template <typename KeyType, typename LastType>
+        auto type_recursive_multi_get(
+                uint32_t type_index,
+                const KeyType& key,
+                uint32_t subgroup_index,
+                uint32_t shard_index);
+    public:
+        
+        /**
+         * object pool version
+         */
+        template <typename KeyType>
+        auto multi_get(const KeyType& key);
     
         /**
          * "get_by_time" retrieve the object of a given key

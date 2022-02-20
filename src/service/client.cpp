@@ -309,6 +309,19 @@ void get_by_time(ServiceClientAPI& capi, const std::string& key, uint64_t ts_us,
 }
 
 template <typename SubgroupType>
+void multi_get(ServiceClientAPI& capi, const std::string& key, uint32_t subgroup_index, uint32_t shard_index) {
+    if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
+        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template multi_get<SubgroupType>(
+                static_cast<uint64_t>(std::stol(key)),subgroup_index,shard_index);
+        check_get_result(result);
+    } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
+        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template multi_get<SubgroupType>(
+                key,subgroup_index,shard_index);
+        check_get_result(result);
+    }
+}
+
+template <typename SubgroupType>
 void get_size(ServiceClientAPI& capi, const std::string& key, persistent::version_t ver, uint32_t subgroup_index,uint32_t shard_index) {
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
         derecho::rpc::QueryResults<uint64_t> result = capi.template get_size<SubgroupType>(
@@ -999,7 +1012,7 @@ std::vector<command_entry_t> commands =
             }
             uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
             uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
-            uint64_t ts_us = static_cast<uint64_t>(std::stol(cmd_tokens[3]));
+            uint64_t ts_us = static_cast<uint64_t>(std::stol(cmd_tokens[5]));
             on_subgroup_type(cmd_tokens[1],get_by_time,capi,cmd_tokens[2],ts_us,subgroup_index,shard_index);
             return true;
         }
@@ -1016,6 +1029,36 @@ std::vector<command_entry_t> commands =
             }
             uint64_t ts_us = static_cast<uint64_t>(std::stol(cmd_tokens[2]));
             auto res = capi.get_by_time(cmd_tokens[1],ts_us);
+            check_get_result(res);
+            return true;
+        }
+    },
+    {
+        "multi_get",
+        "Get an object, which will participate atomic broadcast for the latest value.",
+        "multi_get <type> <key> <subgroup_index> <shard_index>\n"
+            "type := " SUBGROUP_TYPE_LIST,
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+            if (cmd_tokens.size() < 5) {
+                print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
+                return false;
+            }
+            uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
+            uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
+            on_subgroup_type(cmd_tokens[1],multi_get,capi,cmd_tokens[2],subgroup_index,shard_index);
+            return true;
+        }
+    },
+    {
+        "op_multi_get",
+        "Get an object, which will participate atomic broadcast for the latest value.",
+        "op_multi_get <key>\n",
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+            if (cmd_tokens.size() < 2) {
+                print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
+                return false;
+            }
+            auto res = capi.multi_get(cmd_tokens[1]);
             check_get_result(res);
             return true;
         }
