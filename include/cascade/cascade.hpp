@@ -340,6 +340,12 @@ namespace cascade {
                                  public derecho::GroupReference {
     private:
         bool internal_ordered_put(const VT& value);
+#if defined(__i386__) || defined(__x86_64__) || defined(_M_AMD64) || defined(_M_IX86)
+        mutable std::atomic<persistent::version_t> lockless_v1;
+        mutable std::atomic<persistent::version_t> lockless_v2;
+#else
+#error The lockless reader/writer works only with TSO memory reordering. Please check https://en.wikipedia.org/wiki/Memory_ordering
+#endif
     public:
         /* group reference */
         using derecho::GroupReference::group;
@@ -658,7 +664,7 @@ namespace cascade {
      * valid object literarily means an object is 'valid'. Technically, a null object has a valid key while invalid
      * object does not.
      */
-    template <typename KT>
+    template <typename KT, typename VT>
     class ICascadeObject {
     public:
         /**
@@ -685,6 +691,15 @@ namespace cascade {
          * @ return true for invalid object
          */
         virtual bool is_valid() const = 0;
+        /**
+         * copy_from()
+         *
+         * copy object from another object. This is very similar to a copy = operator. We disabled = operator to avoid
+         * misuse. And we introduce copy_from operation in case such a copy is required.
+         *
+         * @param rhs   the other object
+         */
+        virtual void copy_from(const VT& rhs) = 0;
     };
 
     /**

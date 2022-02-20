@@ -1,5 +1,6 @@
 #pragma once
 #include <derecho/conf/conf.hpp>
+#include <derecho/persistent/PersistentInterface.hpp>
 #include <memory>
 #include <map>
 #include <type_traits>
@@ -216,15 +217,17 @@ const VT VolatileCascadeStore<KT,VT,IK,IV>::get(const KT& key, const persistent:
         debug_leave_func_with_value("Cannot support versioned get, ver=0x{:x}", ver);
         return *IV;
     }
-    derecho::Replicated<VolatileCascadeStore>& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
-    auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_get)>(key);
-    auto& replies = results.get();
-    // TODO: verify consistency ?
-    // for (auto& reply_pair : replies) {
-    //     ret = reply_pair.second.get();
-    // }
-    debug_leave_func();
-    return replies.begin()->second.get();
+
+    // copy data out
+    persistent::version_t v1,v2;
+    static thread_local VT copied_out;
+    do {
+        // This only for TSO memory reordering.
+        v2 = this->lockless_v1.load(std::memory_order_relaxed);
+        copied_out.copy_from(this->kv_map.at(key));
+        v1 = this->lockless_v2.load(std::memory_order_relaxed);
+    } while(v1!=v2);
+    return copied_out;
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
@@ -415,9 +418,14 @@ bool VolatileCascadeStore<KT,VT,IK,IV>::internal_ordered_put(const VT& value) {
             value.set_previous_version(this->update_version,persistent::INVALID_VERSION);
         }
     }
+
+    // for lockless check
+    this->lockless_v1.store(std::get<0>(version_and_timestamp),std::memory_order_relaxed);
     this->kv_map.erase(value.get_key_ref()); // remove
     this->kv_map.emplace(value.get_key_ref(), value); // copy constructor
     this->update_version = std::get<0>(version_and_timestamp);
+    // for lockless check
+    this->lockless_v2.store(std::get<0>(version_and_timestamp),std::memory_order_relaxed);
 
     if (cascade_watcher_ptr) {
         (*cascade_watcher_ptr)(

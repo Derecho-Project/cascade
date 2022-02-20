@@ -29,6 +29,7 @@ class Blob : public mutils::ByteRepresentable {
 public:
     const uint8_t* bytes;
     std::size_t size;
+    std::size_t capacity;
     bool        is_emplaced;
 
     // constructor - copy to own the data
@@ -77,7 +78,7 @@ public:
 #define INVALID_UINT64_OBJECT_KEY (0xffffffffffffffffLLU)
 
 class ObjectWithUInt64Key : public mutils::ByteRepresentable,
-                            public ICascadeObject<uint64_t>,
+                            public ICascadeObject<uint64_t,ObjectWithUInt64Key>,
                             public IKeepTimestamp,
                             public IVerifyPreviousVersion
 #ifdef ENABLE_EVALUATION
@@ -146,6 +147,7 @@ public:
     virtual const uint64_t& get_key_ref() const override;
     virtual bool is_null() const override;
     virtual bool is_valid() const override;
+    virtual void copy_from(const ObjectWithUInt64Key& rhs) override;
     virtual void set_version(persistent::version_t ver) const override;
     virtual persistent::version_t get_version() const override;
     virtual void set_timestamp(uint64_t ts_us) const override;
@@ -202,7 +204,7 @@ inline std::ostream& operator<<(std::ostream& out, const ObjectWithUInt64Key& o)
 }
 
 class ObjectWithStringKey : public mutils::ByteRepresentable,
-                            public ICascadeObject<std::string>,
+                            public ICascadeObject<std::string,ObjectWithStringKey>,
                             public IKeepTimestamp,
                             public IVerifyPreviousVersion
 #ifdef ENABLE_EVALUATION
@@ -271,6 +273,7 @@ public:
     virtual const std::string& get_key_ref() const override;
     virtual bool is_null() const override;
     virtual bool is_valid() const override;
+    virtual void copy_from(const ObjectWithStringKey& rhs) override;
     virtual void set_version(persistent::version_t ver) const override;
     virtual persistent::version_t get_version() const override;
     virtual void set_timestamp(uint64_t ts_us) const override;
