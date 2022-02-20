@@ -228,6 +228,21 @@ const VT VolatileCascadeStore<KT,VT,IK,IV>::get(const KT& key, const persistent:
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
+const VT VolatileCascadeStore<KT,VT,IK,IV>::multi_get(const KT& key) const {
+    debug_enter_func_with_args("key={}",key);
+
+    derecho::Replicated<VolatileCascadeStore>& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
+    auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_get)>(key);
+    auto& replies = results.get();
+    // TODO: verify consistency ?
+    for (auto& reply_pair : replies) {
+        reply_pair.second.wait();
+    }
+    debug_leave_func();
+    return replies.begin()->second.get();
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
 const VT VolatileCascadeStore<KT,VT,IK,IV>::get_by_time(const KT& key, const uint64_t& ts_us) const {
     // VolatileCascadeStore does not support this.
     debug_enter_func();
@@ -884,6 +899,21 @@ const VT PersistentCascadeStore<KT,VT,IK,IV,ST>::get(const KT& key, const persis
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+const VT PersistentCascadeStore<KT,VT,IK,IV,ST>::multi_get(const KT& key) const {
+    debug_enter_func_with_args("key={}",key);
+    derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
+    auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_get)>(key);
+    auto& replies = results.get();
+    //  TODO: verify consistency ?
+    for (auto& reply_pair : replies) {
+        reply_pair.second.wait();
+    }
+    debug_leave_func();
+    return replies.begin()->second.get();
+}
+
+
+template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 const VT PersistentCascadeStore<KT,VT,IK,IV,ST>::get_by_time(const KT& key, const uint64_t& ts_us) const {
     debug_enter_func_with_args("key={},ts_us={}",key,ts_us);
     const HLC hlc(ts_us,0ull);
@@ -1297,6 +1327,12 @@ std::tuple<persistent::version_t,uint64_t> TriggerCascadeNoStore<KT,VT,IK,IV>::r
 
 template<typename KT, typename VT, KT* IK, VT* IV>
 const VT TriggerCascadeNoStore<KT,VT,IK,IV>::get(const KT& key, const persistent::version_t& ver, bool) const {
+    dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
+    return *IV;
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
+const VT TriggerCascadeNoStore<KT,VT,IK,IV>::multi_get(const KT& key) const {
     dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
     return *IV;
 }
