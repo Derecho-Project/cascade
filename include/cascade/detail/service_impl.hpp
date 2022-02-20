@@ -438,8 +438,8 @@ template <typename ObjectType>
 derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::put(
         const ObjectType& value) {
     // STEP 1 - get key
-    if constexpr (!std::is_base_of_v<ICascadeObject<std::string>,ObjectType>) {
-        throw derecho::derecho_exception(std::string("ServiceClient<>::put() only support object of type ICascadeObject<std::string>,but we get ") + typeid(ObjectType).name());
+    if constexpr (!std::is_base_of_v<ICascadeObject<std::string,ObjectType>,ObjectType>) {
+        throw derecho::derecho_exception(std::string("ServiceClient<>::put() only support object of type ICascadeObject<std::string,ObjectType>,but we get ") + typeid(ObjectType).name());
     }
 
     // STEP 2 - get shard
@@ -509,8 +509,8 @@ template <typename... CascadeTypes>
 template <typename ObjectType>
 void ServiceClient<CascadeTypes...>::put_and_forget(const ObjectType& value) {
     // STEP 1 - get key
-    if constexpr (!std::is_base_of_v<ICascadeObject<std::string>,ObjectType>) {
-        throw derecho::derecho_exception(__PRETTY_FUNCTION__ + std::string(" only supports object of type ICascadeObject<std::string>,but we get ") + typeid(ObjectType).name());
+    if constexpr (!std::is_base_of_v<ICascadeObject<std::string,ObjectType>,ObjectType>) {
+        throw derecho::derecho_exception(__PRETTY_FUNCTION__ + std::string(" only supports object of type ICascadeObject<std::string,ObjectType>,but we get ") + typeid(ObjectType).name());
     }
 
     // STEP 2 - get shard
@@ -583,8 +583,8 @@ template <typename ObjectType>
 derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::trigger_put(
         const ObjectType& value) {
     // STEP 1 - get key
-    if constexpr (!std::is_base_of_v<ICascadeObject<std::string>,ObjectType>) {
-        throw derecho::derecho_exception(__PRETTY_FUNCTION__ + std::string(" only supports object of type ICascadeObject<std::string>,but we get ") + typeid(ObjectType).name());
+    if constexpr (!std::is_base_of_v<ICascadeObject<std::string,ObjectType>,ObjectType>) {
+        throw derecho::derecho_exception(__PRETTY_FUNCTION__ + std::string(" only supports object of type ICascadeObject<std::string,ObjectType>,but we get ") + typeid(ObjectType).name());
     }
 
     // STEP 2 - get shard

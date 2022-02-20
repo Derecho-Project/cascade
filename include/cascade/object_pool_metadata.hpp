@@ -24,7 +24,7 @@ using sharding_policy_t = enum sharding_policy_type {
  */
 template<typename... CascadeTypes>
 class ObjectPoolMetadata : public mutils::ByteRepresentable,
-                           public ICascadeObject<std::string>,
+                           public ICascadeObject<std::string,ObjectPoolMetadata<CascadeTypes...>>,
                            public IKeepTimestamp,
                            public IValidator<std::string,ObjectPoolMetadata<CascadeTypes...>>,
                            public IVerifyPreviousVersion {
@@ -162,6 +162,10 @@ public:
 
     virtual bool is_valid() const override {
         return !this->pathname.empty() && (this->pathname.at(0) == '/');
+    }
+
+    virtual void copy_from(const ObjectPoolMetadata& rhs) override {
+        *this = rhs;
     }
 
     virtual void set_version(persistent::version_t ver) const override {
