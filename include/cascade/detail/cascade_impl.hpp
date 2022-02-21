@@ -223,7 +223,7 @@ const VT VolatileCascadeStore<KT,VT,IK,IV>::get(const KT& key, const persistent:
     static thread_local VT copied_out;
     do {
         // This only for TSO memory reordering.
-        v2 = this->lockless_v1.load(std::memory_order_relaxed);
+        v2 = this->lockless_v2.load(std::memory_order_relaxed);
         // compiler reordering barrier
 #ifdef __GNUC__
         asm volatile("" ::: "memory");
@@ -241,7 +241,9 @@ const VT VolatileCascadeStore<KT,VT,IK,IV>::get(const KT& key, const persistent:
 #else
 #error Lockless support is currently for GCC only
 #endif
-        v1 = this->lockless_v2.load(std::memory_order_relaxed);
+        v1 = this->lockless_v1.load(std::memory_order_relaxed);
+        // busy sleep
+        std::this_thread::yield();
     } while(v1!=v2);
     return copied_out;
 }
@@ -725,8 +727,27 @@ void DeltaCascadeStoreCore<KT,VT,IK,IV>::applyDelta(uint8_t const* const delta) 
 
 template <typename KT, typename VT, KT* IK, VT *IV>
 void DeltaCascadeStoreCore<KT,VT,IK,IV>::apply_ordered_put(const VT& value) {
+    // for lockless check
+    this->lockless_v1.store(value.get_version(),std::memory_order_relaxed);
+    // compiler reordering barrier
+#ifdef __GNUC__
+    asm volatile("" ::: "memory");
+#else
+#error Lockless support is currently for GCC only
+#endif
+
     this->kv_map.erase(value.get_key_ref());
     this->kv_map.emplace(value.get_key_ref(),value);
+
+    // compiler reordering barrier
+#ifdef __GNUC__
+    asm volatile("" ::: "memory");
+#else
+#error Lockless support is currently for GCC only
+#endif
+
+    // for lockless check
+    this->lockless_v2.store(value.get_version(),std::memory_order_relaxed);
 }
 
 template <typename KT, typename VT, KT* IK, VT *IV>
@@ -805,12 +826,44 @@ bool DeltaCascadeStoreCore<KT,VT,IK,IV>::ordered_remove(const VT& value, persist
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-const VT DeltaCascadeStoreCore<KT,VT,IK,IV>::ordered_get(const KT& key) {
+const VT DeltaCascadeStoreCore<KT,VT,IK,IV>::ordered_get(const KT& key) const {
     if (kv_map.find(key) != kv_map.end()) {
         return kv_map.at(key);
     } else {
         return *IV;
     }
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV>
+const VT DeltaCascadeStoreCore<KT,VT,IK,IV>::lockless_get(const KT& key) const {
+
+    persistent::version_t v1,v2;
+    static thread_local VT copied_out;
+    do {
+        // This only for TSO memory reordering.
+        v2 = this->lockless_v2.load(std::memory_order_relaxed);
+        // compiler reordering barrier
+#ifdef __GNUC__
+        asm volatile("" ::: "memory");
+#else
+#error Lockless support is currently for GCC only
+#endif
+        if (this->kv_map.find(key) != this->kv_map.end()) {
+            copied_out.copy_from(this->kv_map.at(key));
+        } else {
+            copied_out.copy_from(*IV);
+        }
+        // compiler reordering barrier
+#ifdef __GNUC__
+        asm volatile("" ::: "memory");
+#else
+#error Lockless support is currently for GCC only
+#endif
+        v1 = this->lockless_v1.load(std::memory_order_relaxed);
+        // busy sleep
+        std::this_thread::yield();
+    } while(v1!=v2);
+    return copied_out;
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
@@ -832,17 +885,25 @@ uint64_t DeltaCascadeStoreCore<KT,VT,IK,IV>::ordered_get_size(const KT& key) {
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaCascadeStoreCore() {
+DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaCascadeStoreCore():
+    lockless_v1(persistent::INVALID_VERSION),
+    lockless_v2(persistent::INVALID_VERSION) {
     initialize_delta();
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaCascadeStoreCore(const std::map<KT,VT>& _kv_map): kv_map(_kv_map) {
+DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaCascadeStoreCore(const std::map<KT,VT>& _kv_map):
+    lockless_v1(persistent::INVALID_VERSION),
+    lockless_v2(persistent::INVALID_VERSION),
+    kv_map(_kv_map) {
     initialize_delta();
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaCascadeStoreCore(std::map<KT,VT>&& _kv_map): kv_map(_kv_map) {
+DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaCascadeStoreCore(std::map<KT,VT>&& _kv_map):
+    lockless_v1(persistent::INVALID_VERSION),
+    lockless_v2(persistent::INVALID_VERSION),
+    kv_map(std::move(_kv_map)) {
     initialize_delta();
 }
 
@@ -931,15 +992,9 @@ const VT PersistentCascadeStore<KT,VT,IK,IV,ST>::get(const KT& key, const persis
                 }
             });
     }
-    derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
-    auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_get)>(key);
-    auto& replies = results.get();
-    // TODO: verify consistency ?
-    // for (auto& reply_pair : replies) {
-    //     ret = reply_pair.second.get();
-    // }
-    debug_leave_func();
-    return replies.begin()->second.get();
+
+    // read local current version
+    return persistent_core->lockless_get(key);
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
