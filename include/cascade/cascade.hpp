@@ -460,6 +460,13 @@ namespace cascade {
          * Initialize the delta data structure.
          */
         void initialize_delta();
+    private:
+#if defined(__i386__) || defined(__x86_64__) || defined(_M_AMD64) || defined(_M_IX86)
+        mutable std::atomic<persistent::version_t> lockless_v1;
+        mutable std::atomic<persistent::version_t> lockless_v2;
+#else
+#error The lockless reader/writer works only with TSO memory reordering. Please check https://en.wikipedia.org/wiki/Memory_ordering
+#endif
 
     public:
         // delta
@@ -479,7 +486,7 @@ namespace cascade {
 
         struct DeltaBytesFormat {
             uint32_t    op;
-            uint8_t        first_data_byte;
+            uint8_t     first_data_byte;
         };
         
         std::map<KT,VT> kv_map;
@@ -512,7 +519,11 @@ namespace cascade {
         /**
          * ordered get, no need to generate a delta.
          */
-        virtual const VT ordered_get(const KT& key);
+        virtual const VT ordered_get(const KT& key) const;
+        /**
+         * lockless get for the caller from a thread other than the predicate thread.
+         */
+        virtual const VT lockless_get(const KT& key) const;
         /**
          * ordered list_keys, no need to generate a delta.
          */
