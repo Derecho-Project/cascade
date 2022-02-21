@@ -230,7 +230,11 @@ const VT VolatileCascadeStore<KT,VT,IK,IV>::get(const KT& key, const persistent:
 #else
 #error Lockless support is currently for GCC only
 #endif
-        copied_out.copy_from(this->kv_map.at(key));
+        if (this->kv_map.find(key) != this->kv_map.end()) {
+            copied_out.copy_from(this->kv_map.at(key));
+        } else {
+            copied_out.copy_from(*IV);
+        }
         // compiler reordering barrier
 #ifdef __GNUC__
         asm volatile("" ::: "memory");
@@ -596,6 +600,8 @@ template<typename KT, typename VT, KT* IK, VT* IV>
 VolatileCascadeStore<KT,VT,IK,IV>::VolatileCascadeStore(
     CriticalDataPathObserver<VolatileCascadeStore<KT,VT,IK,IV>>* cw,
     ICascadeContext* cc):
+    lockless_v1(persistent::INVALID_VERSION),
+    lockless_v2(persistent::INVALID_VERSION),
     update_version(persistent::INVALID_VERSION),
     cascade_watcher_ptr(cw),
     cascade_context_ptr(cc) {
@@ -609,6 +615,8 @@ VolatileCascadeStore<KT,VT,IK,IV>::VolatileCascadeStore(
     persistent::version_t _uv,
     CriticalDataPathObserver<VolatileCascadeStore<KT,VT,IK,IV>>* cw,
     ICascadeContext* cc):
+    lockless_v1(_uv),
+    lockless_v2(_uv),
     kv_map(_kvm),
     update_version(_uv),
     cascade_watcher_ptr(cw),
@@ -623,6 +631,8 @@ VolatileCascadeStore<KT,VT,IK,IV>::VolatileCascadeStore(
     persistent::version_t _uv,
     CriticalDataPathObserver<VolatileCascadeStore<KT,VT,IK,IV>>* cw,
     ICascadeContext* cc):
+    lockless_v1(_uv),
+    lockless_v2(_uv),
     kv_map(std::move(_kvm)),
     update_version(_uv),
     cascade_watcher_ptr(cw),
