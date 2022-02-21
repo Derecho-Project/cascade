@@ -224,7 +224,19 @@ const VT VolatileCascadeStore<KT,VT,IK,IV>::get(const KT& key, const persistent:
     do {
         // This only for TSO memory reordering.
         v2 = this->lockless_v1.load(std::memory_order_relaxed);
+        // compiler reordering barrier
+#ifdef __GNUC__
+        asm volatile("" ::: "memory");
+#else
+#error Lockless support is currently for GCC only
+#endif
         copied_out.copy_from(this->kv_map.at(key));
+        // compiler reordering barrier
+#ifdef __GNUC__
+        asm volatile("" ::: "memory");
+#else
+#error Lockless support is currently for GCC only
+#endif
         v1 = this->lockless_v2.load(std::memory_order_relaxed);
     } while(v1!=v2);
     return copied_out;
@@ -421,10 +433,24 @@ bool VolatileCascadeStore<KT,VT,IK,IV>::internal_ordered_put(const VT& value) {
 
     // for lockless check
     this->lockless_v1.store(std::get<0>(version_and_timestamp),std::memory_order_relaxed);
+    // compiler reordering barrier
+#ifdef __GNUC__
+    asm volatile("" ::: "memory");
+#else
+#error Lockless support is currently for GCC only
+#endif
+
     this->kv_map.erase(value.get_key_ref()); // remove
     this->kv_map.emplace(value.get_key_ref(), value); // copy constructor
     this->update_version = std::get<0>(version_and_timestamp);
+
     // for lockless check
+    // compiler reordering barrier
+#ifdef __GNUC__
+    asm volatile("" ::: "memory");
+#else
+#error Lockless support is currently for GCC only
+#endif
     this->lockless_v2.store(std::get<0>(version_and_timestamp),std::memory_order_relaxed);
 
     if (cascade_watcher_ptr) {
