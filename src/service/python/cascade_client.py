@@ -282,7 +282,7 @@ class CascadeClientShell(cmd.Cmd):
                 elif extra_option[0] == 'shard_index':
                     shard_index = int(extra_option[1])
                 elif extra_option[0] == 'stable':
-                    if extra_option[1].lower == 'false' or extra_option[1].lower = 'no' or extra_option[1].lower() == 'off' or extra_option[1].lower() == '0':
+                    if extra_option[1].lower == 'false' or extra_option[1].lower == 'no' or extra_option[1].lower() == 'off' or extra_option[1].lower() == '0':
                         stable = False;
                 elif extra_option[0] == 'version':
                     version = int(extra_option[1])
