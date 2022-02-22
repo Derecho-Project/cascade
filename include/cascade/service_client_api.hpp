@@ -75,7 +75,7 @@ CascadeShardLinq<CascadeType,ServiceClientType> from_shard(
             }
 
             /* get object */
-            auto result = capi.template get<CascadeType>(*_storage.first,version,subgroup_index,shard_index);
+            auto result = capi.template get<CascadeType>(*_storage.first,version,true/*always use stable*/,subgroup_index,shard_index);
 
             _storage.first++;
 
@@ -175,31 +175,8 @@ CascadeVersionLinq<CascadeType,ServiceClientType> from_versions(
        throw boolinq::LinqEndException();
    }
   
-            // while (ver != INVALID_VERSION) {
-            //     auto not_null = true;
-            //     persistent::version_t cur_ver = ver;
-
-   //     /* decide if the object is null */
-            //     auto result_check_null = capi.template get<CascadeType>(key,ver,subgroup_index,shard_index);
-            //     for (auto& reply_future:result_check_null.get()) {
-            //         auto object = reply_future.second.get();
-            //         ver = object.previous_version_by_key; 
-            //         not_null = not_null && !object.is_null();
-            //     }
-
-            //     std::cout << not_null;
-            //     /* get object */
-            //     if (not_null) {
-            //         auto result_get_obj = capi.template get<CascadeType>(key,cur_ver,subgroup_index,shard_index);
-            //         for (auto& reply_future:result_get_obj.get()) {
-            //             auto object = reply_future.second.get();
-            //             return  object;
-            //         }
-            //     } 
-            // }
-
             do {
-                auto result = capi.template get<CascadeType>(key,ver,subgroup_index,shard_index);
+                auto result = capi.template get<CascadeType>(key,ver,true/*always use stable data*/,subgroup_index,shard_index);
                 for (auto& reply_future:result.get()) {
                     auto object = reply_future.second.get();
                     ver = object.previous_version_by_key; 

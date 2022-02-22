@@ -667,6 +667,8 @@ namespace cascade {
          * @param key               the object key
          * @param version           if version is CURRENT_VERSION, this "get" will fire a ordered send to get the latest
          *                          state of the key. Otherwise, it will try to read the key's state at version.
+         * @param stable            if true, get only report the version whose persistent data is safe, meaning the
+         *                          persistent data is persisted on all replicas.
          * @param subugroup_index   the subgroup index of CascadeType
          * @param shard_index       the shard index.
          *
@@ -674,16 +676,21 @@ namespace cascade {
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
          */
         template <typename SubgroupType>
-        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> get(const typename SubgroupType::KeyType& key, const persistent::version_t& version, 
-                uint32_t subgroup_index, uint32_t shard_index);
+        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> get(
+                const typename SubgroupType::KeyType& key, 
+                const persistent::version_t& version,
+                bool stable,
+                uint32_t subgroup_index,
+                uint32_t shard_index);
         /**
          * "type_recursive_get" is a helper function for internal use only.
-         * @type_index              the index of the subgroup type in the CascadeTypes... list. and the FirstType,
+         * @param type_index        the index of the subgroup type in the CascadeTypes... list. and the FirstType,
          *                          SecondType, .../ RestTypes should be in the same order.
-         * @key                     the key
-         * @version                 the version
-         * @subgroup_index          the subgroup index in the subgroup type designated by type_index
-         * @shard_index             the shard index
+         * @param key               the key
+         * @param version           the version
+         * @param stable            stable or not?
+         * @param subgroup_index    the subgroup index in the subgroup type designated by type_index
+         * @param shard_index       the shard index
          *
          * @return a future for the object.
          */
@@ -693,6 +700,7 @@ namespace cascade {
                 uint32_t type_index,
                 const KeyType& key,
                 const persistent::version_t& version,
+                bool stable,
                 uint32_t subgroup_index,
                 uint32_t shard_index);
 
@@ -701,6 +709,7 @@ namespace cascade {
                 uint32_t type_index,
                 const KeyType& key,
                 const persistent::version_t& version,
+                bool stable,
                 uint32_t subgroup_index,
                 uint32_t shard_index);
     public:
@@ -711,7 +720,8 @@ namespace cascade {
         template <typename KeyType>
         auto get(
                 const KeyType& key,
-                const persistent::version_t& version = CURRENT_VERSION);
+                const persistent::version_t& version,
+                bool stable);
 
         /**
          * "multi_get" retrieve the object of a given key, this operation involves atomic broadcast

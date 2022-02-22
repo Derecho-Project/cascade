@@ -74,10 +74,10 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_putInternal
 /*
  * Class:     io_cascade_Client
  * Method:    getInternal
- * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;J)J
+ * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;JZ)J
  */
 JNIEXPORT jlong JNICALL Java_io_cascade_Client_getInternal
-  (JNIEnv *, jobject, jobject, jlong, jlong, jobject, jlong);
+  (JNIEnv *, jobject, jobject, jlong, jlong, jobject, jlong, jboolean);
 
 /*
  * Class:     io_cascade_Client

@@ -76,7 +76,7 @@ public class VersionSupplier implements Supplier<ByteBuffer>{
         ArrayList<ByteBuffer> values = new ArrayList<>();
         while (justGetStarted || tempVersion != -1){
             // System.out.println("start setting values! temp version: " + tempVersion);
-            Map<Integer, CascadeObject> getResults = client.get(type, key, tempVersion, subgroupIndex, shardIndex).get();
+            Map<Integer, CascadeObject> getResults = client.get(type, key, tempVersion, true/*always use stable version*/, subgroupIndex, shardIndex).get();
             CascadeObject nxtObj = getResults.values().iterator().next();
             if (nxtObj == null) {
                 return values;

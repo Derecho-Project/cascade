@@ -237,8 +237,8 @@ auto remove(ServiceClientAPI& capi, std::string& key, uint32_t subgroup_index = 
     @return QueryResultsStore that handles the return type.
 */
 template <typename SubgroupType>
-auto get(ServiceClientAPI& capi, const std::string& key, persistent::version_t ver, uint32_t subgroup_index = 0, uint32_t shard_index = 0) {
-    derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get<SubgroupType>(key, ver, subgroup_index, shard_index);
+auto get(ServiceClientAPI& capi, const std::string& key, persistent::version_t ver, bool stable, uint32_t subgroup_index = 0, uint32_t shard_index = 0) {
+    derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get<SubgroupType>(key, ver, stable, subgroup_index, shard_index);
     // check_get_result(result);
     auto s = new QueryResultsStore<const typename SubgroupType::ObjectType, py::dict>(result, object_unwrapper);
     return py::cast(s);
@@ -558,6 +558,7 @@ PYBIND11_MODULE(client, m) {
                         uint32_t subgroup_index = 0;
                         uint32_t shard_index = 0;
                         persistent::version_t version = CURRENT_VERSION;
+                        bool stable = true;
                         uint64_t timestamp = 0ull;
                         if (kwargs.contains("subgroup_type")) {
                             subgroup_type = kwargs["subgroup_type"].cast<std::string>();
@@ -570,6 +571,9 @@ PYBIND11_MODULE(client, m) {
                         }
                         if (kwargs.contains("version")) {
                             version = kwargs["version"].cast<persistent::version_t>();
+                        }
+                        if (kwargs.contains("stable")) {
+                            stable = kwargs["stable"].cast<bool>();
                         }
                         if (kwargs.contains("timestamp")) {
                             timestamp = kwargs["timestamp"].cast<uint64_t>();
@@ -587,11 +591,11 @@ PYBIND11_MODULE(client, m) {
                         } else {
                             // get versioned get
                             if (subgroup_type.empty()) {
-                                auto res = capi.get(key,version);
+                                auto res = capi.get(key,version,stable);
                                 auto s = new QueryResultsStore<const ObjectWithStringKey,py::dict>(res, object_unwrapper);
                                 return py::cast(s);
                             } else {
-                                on_non_trigger_subgroup_type(subgroup_type, return get, capi, key, version, subgroup_index, shard_index);
+                                on_non_trigger_subgroup_type(subgroup_type, return get, capi, key, stable, version, subgroup_index, shard_index);
                             }
                         }
 
@@ -606,6 +610,7 @@ PYBIND11_MODULE(client, m) {
                     "\t@argX    subgroup_index  \n"
                     "\t@argX    shard_index     \n"
                     "\t@argX    version         Specify version for a versioned get.\n"
+                    "\t@argX    stable          Specify if using stable get or not. Defaulted to true.\n"
                     "\t@argX    timestamp       Specify timestamp (as an integer in unix epoch microsecond) for a timestampped get.\n"
                     "\t@return  a dict version of the object."
             )
