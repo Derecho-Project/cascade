@@ -993,21 +993,26 @@ const VT PersistentCascadeStore<KT,VT,IK,IV,ST>::get(const KT& key, const persis
 
     if (requested_version == CURRENT_VERSION) {
         // return the unstable question
+        debug_leave_func_with_value("lockless_get({})",key);
         return persistent_core->lockless_get(key);
     } else {
         return persistent_core.template getDelta<VT>(requested_version, exact, [this,key,requested_version,exact](const VT& v){
                 if (key == v.get_key_ref()) {
+                    debug_leave_func_with_value("key:{} is found at version:0x{:x}", key, requested_version);
                     return v;
                 } else {
                     if (exact) {
                         // return invalid object for EXACT search.
+                        debug_leave_func_with_value("No data found for key:{} at version:0x{:x}", key, requested_version);
                         return *IV;
                     } else {
                         // fall back to the slow path.
                         auto versioned_state_ptr = persistent_core.get(requested_version);
                         if (versioned_state_ptr->kv_map.find(key) != versioned_state_ptr->kv_map.end()) {
+                            debug_leave_func_with_value("Reconstructed version:0x{:x} for key:{}",requested_version,key);
                             return versioned_state_ptr->kv_map.at(key);
                         }
+                        debug_leave_func_with_value("No data found for key:{} before version:0x{:x}", key, requested_version);
                         return *IV;
                     }
                 }
