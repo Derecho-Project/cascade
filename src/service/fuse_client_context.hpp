@@ -575,7 +575,7 @@ public:
         ShardINode<CascadeType,ServiceClientType> *pino_shard = reinterpret_cast<ShardINode<CascadeType,ServiceClientType>*>(this->parent);
         SubgroupINode<CascadeType,ServiceClientType> *pino_subgroup = reinterpret_cast<SubgroupINode<CascadeType,ServiceClientType>*>(pino_shard->parent);
         auto result = capi_ptr->template get<CascadeType>(
-                key,CURRENT_VERSION,pino_subgroup->subgroup_index,pino_shard->shard_index);
+                key,CURRENT_VERSION,true/*always use stable version*/,pino_subgroup->subgroup_index,pino_shard->shard_index);
         for (auto& reply_future:result.get()) {
             auto reply = reply_future.second.get();
             file_bytes->size = mutils::bytes_size(reply);

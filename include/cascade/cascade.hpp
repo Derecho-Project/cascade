@@ -118,6 +118,7 @@ namespace cascade {
          * @return a tuple including version number (version_t) and a timestamp in microseconds.
          */
         virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) const = 0;
+
         /**
          * get(const KT&,const persistent::version_t&)
          *
@@ -125,6 +126,10 @@ namespace cascade {
          *
          * @param key
          * @param ver   Version: if version == CURRENT_VERSION, get the latest value.
+         * @param stable  
+         *              if stable == false, we only return the data reflecting the latest locally delivered atomic
+         *              broadcast. Otherwise, stable data will be returned, meaning that the persisted states returned
+         *              is safe: they will survive after whole system recovery.
          * @param exact The exact match flag: this function try to return the value of that key at the 'ver'. If such a
          *              value does not exists and exact is true, it will throw an exception. If such a value does not
          *              exists and exact is false, it will return the latest state of the value for 'key' before 'ver'.
@@ -137,12 +142,13 @@ namespace cascade {
          *
          * @throws std::runtime_error, if requested value is not found.
          */
-        virtual const VT get(const KT& key, const persistent::version_t& ver, bool exact=false) const = 0;
+        virtual const VT get(const KT& key, const persistent::version_t& ver, bool stable, bool exact=false) const = 0;
 
         /**
          * multi_get(const KT&)
          *
-         * Get a value by key. This is an ordered get that participates atomic broadcast.
+         * Get a value by key. This is an ordered get that participates atomic broadcast, which reflecting the latest
+         * global atomic broadcast.
          *
          * @param key
          *
@@ -407,7 +413,7 @@ namespace cascade {
 #endif//ENABLE_EVALUATION
         virtual void put_and_forget(const VT& value) const override;
         virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) const override;
-        virtual const VT get(const KT& key, const persistent::version_t& ver, bool exact=false) const override;
+        virtual const VT get(const KT& key, const persistent::version_t& ver, bool stable, bool exact=false) const override;
         virtual const VT multi_get(const KT& key) const override;
         virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) const override;
         virtual std::vector<KT> list_keys(const persistent::version_t& ver) const override;
@@ -615,7 +621,7 @@ namespace cascade {
         virtual double perf_put(const uint32_t max_payload_size,const uint64_t duration_sec) const override;
 #endif//ENABLE_EVALUATION
         virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) const override;
-        virtual const VT get(const KT& key, const persistent::version_t& ver, bool exact=false) const override;
+        virtual const VT get(const KT& key, const persistent::version_t& ver, bool stable, bool exact=false) const override;
         virtual const VT multi_get(const KT& key) const override;
         virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) const override;
         virtual std::vector<KT> list_keys(const persistent::version_t& ver) const override;
@@ -894,7 +900,7 @@ namespace cascade {
         virtual double perf_put(const uint32_t max_payload_size,const uint64_t duration_sec) const override;
 #endif//ENABLE_EVALUATION
         virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) const override;
-        virtual const VT get(const KT& key, const persistent::version_t& ver, bool exact=false) const override;
+        virtual const VT get(const KT& key, const persistent::version_t& ver, bool stable, bool exact=false) const override;
         virtual const VT multi_get(const KT& key) const override;
         virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) const override;
         virtual std::vector<KT> list_keys(const persistent::version_t& ver) const override;

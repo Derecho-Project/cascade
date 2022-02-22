@@ -283,14 +283,14 @@ void op_remove(ServiceClientAPI& capi, const std::string& key) {
     }
 
 template <typename SubgroupType>
-void get(ServiceClientAPI& capi, const std::string& key, persistent::version_t ver, uint32_t subgroup_index,uint32_t shard_index) {
+void get(ServiceClientAPI& capi, const std::string& key, persistent::version_t ver, bool stable, uint32_t subgroup_index,uint32_t shard_index) {
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
         derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get<SubgroupType>(
-                static_cast<uint64_t>(std::stol(key)),ver,subgroup_index,shard_index);
+                static_cast<uint64_t>(std::stol(key)),ver,stable,subgroup_index,shard_index);
         check_get_result(result);
     } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
         derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get<SubgroupType>(
-                key,ver,subgroup_index,shard_index);
+                key,ver,stable,subgroup_index,shard_index);
         check_get_result(result);
     }
 }
@@ -417,7 +417,7 @@ void list_data_between_versions(ServiceClientAPI &capi, const std::string& key, 
             std::cout << "Found:" << obj << std::endl;
         }
     } else if constexpr (std::is_same<typename SubgroupType::KeyType, std::string>::value) {
-        auto result = capi.template get<SubgroupType>(key, ver_end, subgroup_index, shard_index);
+        auto result = capi.template get<SubgroupType>(key, ver_end, true/*always use stable here*/, subgroup_index, shard_index);
         for (auto &reply_future : result.get()) {
             auto reply = reply_future.second.get();
             if (reply.is_valid()) {
@@ -459,7 +459,7 @@ void list_data_between_timestamps(ServiceClientAPI &capi, const std::string& key
         }
     } else if constexpr (std::is_same<typename SubgroupType::KeyType, std::string>::value) {
         // set the timestamp to the latest update if ts_end > latest_ts
-        auto result = capi.template get<SubgroupType>(key, CURRENT_VERSION, subgroup_index, shard_index);
+        auto result = capi.template get<SubgroupType>(key, CURRENT_VERSION, true/*always stable version here*/, subgroup_index, shard_index);
         for (auto &reply_future : result.get()) {
             auto reply = reply_future.second.get();
             if (reply.is_valid()) {
@@ -964,38 +964,42 @@ std::vector<command_entry_t> commands =
     {
         "get",
         "Get an object (by version).",
-        "get <type> <key> <subgroup_index> <shard_index> [ version(default:current version) ]\n"
-            "type := " SUBGROUP_TYPE_LIST,
+        "get <type> <key> <stable> <subgroup_index> <shard_index> [ version(default:current version) ]\n"
+            "type := " SUBGROUP_TYPE_LIST "\n"
+            "stable := 0|1  using stable data or not.",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
-            if (cmd_tokens.size() < 5) {
+            if (cmd_tokens.size() < 6) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
             }
-            uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
-            uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
+            bool stable = static_cast<bool>(std::stoi(cmd_tokens[3]));
+            uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
+            uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[5]));
             persistent::version_t version = CURRENT_VERSION;
-            if (cmd_tokens.size() >= 6) {
-                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[5]));
+            if (cmd_tokens.size() >= 7) {
+                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[6]));
             }
-            on_subgroup_type(cmd_tokens[1],get,capi,cmd_tokens[2],version,subgroup_index,shard_index);
+            on_subgroup_type(cmd_tokens[1],get,capi,cmd_tokens[2],version,stable,subgroup_index,shard_index);
             return true;
         }
     },
     {
         "op_get",
         "Get an object from an object pool (by version).",
-        "op_get <key> [ version(default:current version) ]\n"
+        "op_get <key> <stable> [ version(default:current version) ]\n"
+            "stable := 0|1  using stable data or not."
             "Please note that cascade automatically decides the object pool path using the key's prefix.",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
-            if (cmd_tokens.size() < 2) {
+            if (cmd_tokens.size() < 3) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
             }
+            bool stable = static_cast<bool>(std::stoi(cmd_tokens[2]));
             persistent::version_t version = CURRENT_VERSION;
-            if (cmd_tokens.size() >= 3) {
-                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[2]));
+            if (cmd_tokens.size() >= 4) {
+                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[3]));
             }
-            auto res = capi.get(cmd_tokens[1],version);
+            auto res = capi.get(cmd_tokens[1],stable,version);
             check_get_result(res);
             return true;
         }

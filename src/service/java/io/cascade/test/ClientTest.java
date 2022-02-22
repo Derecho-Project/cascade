@@ -75,12 +75,13 @@ public class ClientTest {
             + "get_member_selection_policy <type> [subgroup_index] [shard_index]\n\tget member selection policy\n"
             + "put <type> <key> <value> [subgroup_index] [shard_index]\n\tput an object\n"
             + "remove <type> <key> [subgroup_index] [shard_index]\n\tremove an object\n"
-            + "get <type> <key> [version] [subgroup_index] [shard_index]\n\tget an object(by version)\n"
+            + "get <type> <key> <stable> [version] [subgroup_index] [shard_index]\n\tget an object(by version)\n"
             + "get_by_time <type> <key> <ts_us> [subgroup_index] [shard_index]\n\tget an object by timestamp\n"
             + "quit|exit\n\texit the client.\n" + "help\n\tprint this message.\n" 
             + "\n" 
             + "type:=VolatileCascadeStoreWithStringKey|PersistentCascadeStoreWithStringKey|TriggerCascadeNoStoreWithStringKey\n"
-            + "policy:=FirstMember|LastMember|Random|FixedRandom|RoundRobin|UserSpecified\n" + "";
+            + "policy:=FirstMember|LastMember|Random|FixedRandom|RoundRobin|UserSpecified\n"
+            + "stable:=True:False\n";
 
     /**
      * An interactive test on whether the client APIs work.
@@ -235,7 +236,7 @@ public class ClientTest {
                     case "get":
                         // get a key-value pair from cascade by version. Version would be -1
                         // when not specified.
-                        if (splited.length < 3) {
+                        if (splited.length < 4) {
                             System.out.println(ANSI_RED + "Invalid format: " + str + ANSI_RESET);
                             continue;
                         }
@@ -244,17 +245,18 @@ public class ClientTest {
                             System.out.println(ANSI_RED + "Invalid type: " + str + ANSI_RESET);
                             continue;
                         }
+                        boolean stable = Boolean.parseBoolean(splited[3]);
                         long version = -1;
-                        if (splited.length >= 4)
-                            version = Long.parseLong(splited[3]);
                         if (splited.length >= 5)
-                            subgroupIndex = Integer.parseInt(splited[4]);
+                            version = Long.parseLong(splited[4]);
                         if (splited.length >= 6)
-                            shardIndex = Integer.parseInt(splited[5]);
+                            subgroupIndex = Integer.parseInt(splited[5]);
+                        if (splited.length >= 7)
+                            shardIndex = Integer.parseInt(splited[6]);
                         arr = splited[2].getBytes();
                         bbkey = ByteBuffer.allocateDirect(arr.length);
                         bbkey.put(arr);
-                        try (QueryResults<CascadeObject> qrb = client.get(type, bbkey, version, subgroupIndex, shardIndex)) {
+                        try (QueryResults<CascadeObject> qrb = client.get(type, bbkey, version, stable, subgroupIndex, shardIndex)) {
                             Map<Integer, CascadeObject> data = qrb.get();
                             for (CascadeObject obj : data.values()) {
                                 ByteBuffer bb = obj.object;

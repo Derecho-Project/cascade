@@ -210,8 +210,9 @@ std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::re
     return ret;
 }
 
+// both stable and exact are ignored for VolatileCascadeStore
 template<typename KT, typename VT, KT* IK, VT* IV>
-const VT VolatileCascadeStore<KT,VT,IK,IV>::get(const KT& key, const persistent::version_t& ver, bool) const {
+const VT VolatileCascadeStore<KT,VT,IK,IV>::get(const KT& key, const persistent::version_t& ver, bool, bool) const {
     debug_enter_func_with_args("key={},ver=0x{:x}",key,ver);
     if (ver != CURRENT_VERSION) {
         debug_leave_func_with_value("Cannot support versioned get, ver=0x{:x}", ver);
@@ -970,11 +971,31 @@ std::tuple<persistent::version_t,uint64_t> PersistentCascadeStore<KT,VT,IK,IV,ST
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-const VT PersistentCascadeStore<KT,VT,IK,IV,ST>::get(const KT& key, const persistent::version_t& ver, bool exact) const {
-    debug_enter_func_with_args("key={},ver=0x{:x}",key,ver);
-    if (ver != CURRENT_VERSION) {
-        debug_leave_func();
-        return persistent_core.template getDelta<VT>(ver, exact, [&key,ver,exact,this](const VT& v){
+const VT PersistentCascadeStore<KT,VT,IK,IV,ST>::get(const KT& key, const persistent::version_t& ver, bool stable, bool exact) const {
+    debug_enter_func_with_args("key={},ver=0x{:x},stable={},exact={}",key,ver,stable,exact);
+    persistent::version_t requested_version = ver;
+
+    // adjust version if stable is requested.
+    if (stable) {
+        derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
+        auto requested_version = ver;
+        if (requested_version == CURRENT_VERSION) {
+            requested_version = subgroup_handle.get_global_persistence_frontier();
+        } else {
+            if(!subgroup_handle.wait_for_global_persistence_frontier(requested_version)) {
+                // INVALID version
+                dbg_default_debug("{}: requested version:{:x} is beyond the latest atomic broadcast version.",__PRETTY_FUNCTION__,requested_version);
+                return *IV;
+            }
+        }
+
+    }
+
+    if (requested_version == CURRENT_VERSION) {
+        // return the unstable question
+        return persistent_core->lockless_get(key);
+    } else {
+        return persistent_core.template getDelta<VT>(requested_version, exact, [this,key,requested_version,exact](const VT& v){
                 if (key == v.get_key_ref()) {
                     return v;
                 } else {
@@ -983,7 +1004,7 @@ const VT PersistentCascadeStore<KT,VT,IK,IV,ST>::get(const KT& key, const persis
                         return *IV;
                     } else {
                         // fall back to the slow path.
-                        auto versioned_state_ptr = persistent_core.get(ver);
+                        auto versioned_state_ptr = persistent_core.get(requested_version);
                         if (versioned_state_ptr->kv_map.find(key) != versioned_state_ptr->kv_map.end()) {
                             return versioned_state_ptr->kv_map.at(key);
                         }
@@ -992,9 +1013,6 @@ const VT PersistentCascadeStore<KT,VT,IK,IV,ST>::get(const KT& key, const persis
                 }
             });
     }
-
-    // read local current version
-    return persistent_core->lockless_get(key);
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
@@ -1425,7 +1443,7 @@ std::tuple<persistent::version_t,uint64_t> TriggerCascadeNoStore<KT,VT,IK,IV>::r
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
-const VT TriggerCascadeNoStore<KT,VT,IK,IV>::get(const KT& key, const persistent::version_t& ver, bool) const {
+const VT TriggerCascadeNoStore<KT,VT,IK,IV>::get(const KT& key, const persistent::version_t& ver,bool, bool) const {
     dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
     return *IV;
 }

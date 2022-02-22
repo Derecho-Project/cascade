@@ -400,10 +400,11 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_putInternal(JNIEnv *env, jobject 
  * @param shard_index the subgroup index to get the object.
  * @param key the Java byte buffer key to get.
  * @param ver the version number of the key-value pair to get.
+ * @param stable return stable version or not.
  * @return a handle of the future that stores the buffer of the value.
  */
 template <typename T>
-jlong get(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong subgroup_index, jlong shard_index, jobject key, jlong ver, std::function<typename T::KeyType(JNIEnv *, jobject)> f)
+jlong get(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong subgroup_index, jlong shard_index, jobject key, jlong ver, jboolean stable, std::function<typename T::KeyType(JNIEnv *, jobject)> f)
 {
 #ifndef NDEBUG
     std::cout << "start get!" << std::endl;
@@ -411,7 +412,7 @@ jlong get(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong subgroup_
     // translate the key
     typename T::KeyType obj = f(env, key);
     // execute get
-    derecho::rpc::QueryResults<const typename T::ObjectType> res = capi->get<T>(obj, ver, subgroup_index, shard_index);
+    derecho::rpc::QueryResults<const typename T::ObjectType> res = capi->get<T>(obj, ver, stable, subgroup_index, shard_index);
     // store the result in a handler
     QueryResultHolder<const typename T::ObjectType> *qrh = new QueryResultHolder<const typename T::ObjectType>(res);
     return reinterpret_cast<jlong>(qrh);
@@ -420,9 +421,9 @@ jlong get(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong subgroup_
 /*
  * Class:     io_cascade_Client
  * Method:    getInternal
- * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;J)J
+ * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;JZ)J
  */
-JNIEXPORT jlong JNICALL Java_io_cascade_Client_getInternal(JNIEnv *env, jobject obj, jobject j_service_type, jlong subgroup_index, jlong shard_index, jobject key, jlong version)
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_getInternal(JNIEnv *env, jobject obj, jobject j_service_type, jlong subgroup_index, jlong shard_index, jobject key, jlong version, jboolean stable)
 {
 #ifndef NDEBUG
     std::cout << "start get internal!" << std::endl;
@@ -431,7 +432,7 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_getInternal(JNIEnv *env, jobject 
     int service_type = get_int_value(env, j_service_type);
 
     // executing the get
-    on_service_type(service_type, return get, env, capi, subgroup_index, shard_index, key, version, translate_str_key);
+    on_service_type(service_type, return get, env, capi, subgroup_index, shard_index, key, version, stable, translate_str_key);
 
     // if service_type does not match successfully, return -1
     return -1;
