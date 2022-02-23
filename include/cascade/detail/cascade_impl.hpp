@@ -982,7 +982,13 @@ const VT PersistentCascadeStore<KT,VT,IK,IV,ST>::get(const KT& key, const persis
         if (requested_version == CURRENT_VERSION) {
             requested_version = subgroup_handle.get_global_persistence_frontier();
         } else {
-            if(!subgroup_handle.wait_for_global_persistence_frontier(requested_version)) {
+            // The first condition test if requested_version is beyond the active latest atomic broadcast version.
+            // However, that could be true for a valid requested version for a new started setup, where the active
+            // latest atomic broadcast version is INVALID_VERSION(-1) since there is no atomic broadcast yet. In such a
+            // case, we need also check if requested_version is beyond the local latest version. If both are true, we
+            // determine the requested_version is invalid: it asks a version in the future.
+            if(!subgroup_handle.wait_for_global_persistence_frontier(requested_version) && 
+               requested_version > persistent_core.getLatestVersion()) {
                 // INVALID version
                 dbg_default_debug("{}: requested version:{:x} is beyond the latest atomic broadcast version.",__PRETTY_FUNCTION__,requested_version);
                 return *IV;
