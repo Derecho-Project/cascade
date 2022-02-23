@@ -14,15 +14,6 @@
 using namespace derecho::cascade;
 
 namespace py = pybind11;
-#define on_non_trigger_subgroup_type(x, ft, ...)              \
-    if((x) == "VolatileCascadeStoreWithStringKey") {          \
-        ft<VolatileCascadeStoreWithStringKey>(__VA_ARGS__);   \
-    } else if((x) == "PersistentCascadeStoreWithStringKey") { \
-        ft<PersistentCascadeStoreWithStringKey>(__VA_ARGS__); \
-    } else {                                                  \
-        print_red("unknown subgroup type:" + x);              \
-    }
-
 #define on_all_subgroup_type(x, ft, ...)                      \
     if((x) == "VolatileCascadeStoreWithStringKey") {          \
         ft<VolatileCascadeStoreWithStringKey>(__VA_ARGS__);   \
@@ -232,6 +223,7 @@ auto remove(ServiceClientAPI& capi, std::string& key, uint32_t subgroup_index = 
     @param capi the service client API for this client.
     @param key key to remove value from
     @param ver version of the object you want to get.
+    @param stable using stable get or not.
     @param subgroup_index 
     @param shard_index
     @return QueryResultsStore that handles the return type.
@@ -240,6 +232,21 @@ template <typename SubgroupType>
 auto get(ServiceClientAPI& capi, const std::string& key, persistent::version_t ver, bool stable, uint32_t subgroup_index = 0, uint32_t shard_index = 0) {
     derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get<SubgroupType>(key, ver, stable, subgroup_index, shard_index);
     // check_get_result(result);
+    auto s = new QueryResultsStore<const typename SubgroupType::ObjectType, py::dict>(result, object_unwrapper);
+    return py::cast(s);
+}
+
+/**
+    Get objects from cascade store using multi_get.
+    @param capi the service client API for this client.
+    @param key key to remove value from
+    @param subgroup_index 
+    @param shard_index
+    @return QueryResultsStore that handles the return type.
+*/
+template <typename SubgroupType>
+auto multi_get(ServiceClientAPI& capi, const std::string& key, uint32_t subgroup_index = 0, uint32_t shard_index = 0) {
+    auto result = capi.template multi_get<SubgroupType>(key,subgroup_index,shard_index);
     auto s = new QueryResultsStore<const typename SubgroupType::ObjectType, py::dict>(result, object_unwrapper);
     return py::cast(s);
 }
@@ -355,7 +362,7 @@ PYBIND11_MODULE(client, m) {
                     "get_shard_members", 
                     [](ServiceClientAPI& capi, std::string service_type, uint32_t subgroup_index, uint32_t shard_index) {
                         std::vector<node_id_t> members;
-                        on_non_trigger_subgroup_type(service_type, members = capi.template get_shard_members, subgroup_index, shard_index);
+                        on_all_subgroup_type(service_type, members = capi.template get_shard_members, subgroup_index, shard_index);
                         return members;
                     },
                     "Get members of a shard.\n"
@@ -370,7 +377,7 @@ PYBIND11_MODULE(client, m) {
                     "set_member_selection_policy",
                     [](ServiceClientAPI& capi, std::string service_type, uint32_t subgroup_index, uint32_t shard_index, std::string policy, uint32_t usernode) {
                         ShardMemberSelectionPolicy real_policy = parse_policy_name(policy);
-                        on_non_trigger_subgroup_type(service_type, capi.template set_member_selection_policy, subgroup_index, shard_index, real_policy, usernode);
+                        on_all_subgroup_type(service_type, capi.template set_member_selection_policy, subgroup_index, shard_index, real_policy, usernode);
                     },
                     "Set the member selection policy of a specified subgroup and shard.\n"
                     "\t@arg0    service_type    VolatileCascadeStoreWithStringKey | \n"
@@ -390,7 +397,7 @@ PYBIND11_MODULE(client, m) {
                     "get_member_selection_policy",
                     [](ServiceClientAPI& capi, std::string service_type, uint32_t subgroup_index, uint32_t shard_index) {
                         std::tuple<derecho::cascade::ShardMemberSelectionPolicy, unsigned int> policy;
-                        on_non_trigger_subgroup_type(service_type, policy = capi.template get_member_selection_policy, subgroup_index, shard_index);
+                        on_all_subgroup_type(service_type, policy = capi.template get_member_selection_policy, subgroup_index, shard_index);
 
                         std::string pol;
                         switch(std::get<0>(policy)) {
@@ -487,9 +494,9 @@ PYBIND11_MODULE(client, m) {
                             if (trigger) {
                                 on_all_subgroup_type(subgroup_type, trigger_put, capi, obj, subgroup_index, shard_index);
                             } else if (blocking) {
-                                on_non_trigger_subgroup_type(subgroup_type, return put, capi, obj, subgroup_index, shard_index);
+                                on_all_subgroup_type(subgroup_type, return put, capi, obj, subgroup_index, shard_index);
                             } else {
-                                on_non_trigger_subgroup_type(subgroup_type, put_and_forget, capi, obj, subgroup_index, shard_index);
+                                on_all_subgroup_type(subgroup_type, put_and_forget, capi, obj, subgroup_index, shard_index);
                             }
                         }
 
@@ -535,7 +542,7 @@ PYBIND11_MODULE(client, m) {
                             auto s = new QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>(result, bundle_f);
                             return py::cast(s);
                         } else {
-                            on_non_trigger_subgroup_type(subgroup_type, return remove, capi, key, subgroup_index, shard_index);
+                            on_all_subgroup_type(subgroup_type, return remove, capi, key, subgroup_index, shard_index);
                         }
 
                         return py::cast(NULL);
@@ -586,7 +593,7 @@ PYBIND11_MODULE(client, m) {
                                 auto s = new QueryResultsStore<const ObjectWithStringKey,py::dict>(res, object_unwrapper);
                                 return py::cast(s);
                             } else {
-                                on_non_trigger_subgroup_type(subgroup_type, return get_by_time, capi, key, timestamp, subgroup_index, shard_index);
+                                on_all_subgroup_type(subgroup_type, return get_by_time, capi, key, timestamp, subgroup_index, shard_index);
                             }
                         } else {
                             // get versioned get
@@ -595,13 +602,13 @@ PYBIND11_MODULE(client, m) {
                                 auto s = new QueryResultsStore<const ObjectWithStringKey,py::dict>(res, object_unwrapper);
                                 return py::cast(s);
                             } else {
-                                on_non_trigger_subgroup_type(subgroup_type, return get, capi, key, stable, version, subgroup_index, shard_index);
+                                on_all_subgroup_type(subgroup_type, return get, capi, key, stable, version, subgroup_index, shard_index);
                             }
                         }
 
                         return py::cast(NULL);
                     },
-                    "Get an an object. \n"
+                    "Get an object. \n"
                     "\t@arg0    key \n"
                     "\t** Optional keyword argument: ** \n"
                     "\t@argX    subgroup_type   VolatileCascadeStoreWithStringKey | \n"
@@ -612,6 +619,43 @@ PYBIND11_MODULE(client, m) {
                     "\t@argX    version         Specify version for a versioned get.\n"
                     "\t@argX    stable          Specify if using stable get or not. Defaulted to true.\n"
                     "\t@argX    timestamp       Specify timestamp (as an integer in unix epoch microsecond) for a timestampped get.\n"
+                    "\t@return  a dict version of the object."
+            )
+            .def(
+                    "multi_get",
+                    [](ServiceClientAPI& capi, std::string& key, py::kwargs kwargs) {
+                        std::string subgroup_type;
+                        uint32_t subgroup_index = 0;
+                        uint32_t shard_index = 0;
+                        if (kwargs.contains("subgroup_type")) {
+                            subgroup_type = kwargs["subgroup_type"].cast<std::string>();
+                        }
+                        if (kwargs.contains("subgroup_index")) {
+                            subgroup_index = kwargs["subgroup_index"].cast<uint32_t>();
+                        }
+                        if (kwargs.contains("shard_index")) {
+                            shard_index = kwargs["shard_index"].cast<uint32_t>();
+                        }
+
+                        // get versioned get
+                        if (subgroup_type.empty()) {
+                            auto res = capi.multi_get(key);
+                            auto s = new QueryResultsStore<const ObjectWithStringKey,py::dict>(res, object_unwrapper);
+                            return py::cast(s);
+                        } else {
+                            on_all_subgroup_type(subgroup_type, return multi_get, capi, key, subgroup_index, shard_index);
+                        }
+
+                        return py::cast(NULL);
+                    },
+                    "Get an object using multi_get. \n"
+                    "\t@arg0    key \n"
+                    "\t** Optional keyword argument: ** \n"
+                    "\t@argX    subgroup_type   VolatileCascadeStoreWithStringKey | \n"
+                    "\t                         PersistentCascadeStoreWithStringKey | \n"
+                    "\t                         TriggerCascadeNoStoreWithStringKey \n"
+                    "\t@argX    subgroup_index  \n"
+                    "\t@argX    shard_index     \n"
                     "\t@return  a dict version of the object."
             )
             .def(
