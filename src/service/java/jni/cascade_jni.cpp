@@ -450,12 +450,12 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_getInternal(JNIEnv *env, jobject 
  * @return a handle of the future that stores the buffer of the value.
  */
 template <typename T>
-jlong get_by_time(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong subgroup_index, jlong shard_index, jobject key, jlong timestamp, std::function<typename T::KeyType(JNIEnv *, jobject)> f)
+jlong get_by_time(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong subgroup_index, jlong shard_index, jobject key, jlong timestamp, jboolean stable, std::function<typename T::KeyType(JNIEnv *, jobject)> f)
 {
     // translate the key
     typename T::KeyType obj = f(env, key);
     // execute get
-    derecho::rpc::QueryResults<const typename T::ObjectType> res = capi->get_by_time<T>(obj, timestamp, subgroup_index, shard_index);
+    derecho::rpc::QueryResults<const typename T::ObjectType> res = capi->get_by_time<T>(obj, timestamp, stable, subgroup_index, shard_index);
     // store the result in a handler
     QueryResultHolder<const typename T::ObjectType> *qrh = new QueryResultHolder<const typename T::ObjectType>(res);
     return reinterpret_cast<jlong>(qrh);
@@ -466,12 +466,12 @@ jlong get_by_time(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong s
  * Method:    getInternalByTime
  * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;J)J
  */
-JNIEXPORT jlong JNICALL Java_io_cascade_Client_getInternalByTime(JNIEnv *env, jobject obj, jobject j_service_type, jlong subgroup_index, jlong shard_index, jobject key, jlong timestamp)
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_getInternalByTime(JNIEnv *env, jobject obj, jobject j_service_type, jlong subgroup_index, jlong shard_index, jobject key, jlong timestamp, jboolean stable)
 {
     derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
     int service_type = get_int_value(env, j_service_type);
 
-    on_service_type(service_type, return get_by_time, env, capi, subgroup_index, shard_index, key, timestamp, translate_str_key);
+    on_service_type(service_type, return get_by_time, env, capi, subgroup_index, shard_index, key, timestamp, stable, translate_str_key);
 
     return -1;
 }

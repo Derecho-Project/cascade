@@ -856,6 +856,7 @@ template <typename SubgroupType>
 derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> ServiceClient<CascadeTypes...>::get_by_time(
         const typename SubgroupType::KeyType& key,
         const uint64_t& ts_us,
+        const bool stable,
         uint32_t subgroup_index,
         uint32_t shard_index) {
     if (group_ptr != nullptr) {
@@ -863,19 +864,19 @@ derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> ServiceClien
         if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
             // do ordered put as a member (Replicated).
             auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
-            return subgroup_handle.template p2p_send<RPC_NAME(get_by_time)>(group_ptr->get_my_id(),key,ts_us);
+            return subgroup_handle.template p2p_send<RPC_NAME(get_by_time)>(group_ptr->get_my_id(),key,ts_us,stable);
         } else {
             // do normal put as a non member (ExternalCaller).
             auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
             node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
-            return subgroup_handle.template p2p_send<RPC_NAME(get_by_time)>(node_id,key,ts_us);
+            return subgroup_handle.template p2p_send<RPC_NAME(get_by_time)>(node_id,key,ts_us,stable);
         }
     } else {
         std::lock_guard<std::mutex> lck(this->external_group_ptr_mutex);
         // call as an external client (ExternalClientCaller).
         auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>();
         node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
-        return caller.template p2p_send<RPC_NAME(get_by_time)>(node_id,key,ts_us);
+        return caller.template p2p_send<RPC_NAME(get_by_time)>(node_id,key,ts_us,stable);
     }
 }
 
@@ -885,12 +886,13 @@ auto ServiceClient<CascadeTypes...>::type_recursive_get_by_time(
         uint32_t type_index,
         const KeyType& key,
         const uint64_t& ts_us,
+        const bool stable,
         uint32_t subgroup_index,
         uint32_t shard_index) {
     if (type_index == 0) {
-        return this->template get_by_time<FirstType>(key,ts_us,subgroup_index,shard_index);
+        return this->template get_by_time<FirstType>(key,ts_us,stable,subgroup_index,shard_index);
     } else {
-        return this->template type_recursive_get_by_time<KeyType,SecondType,RestTypes...>(type_index-1,key,ts_us,subgroup_index,shard_index);
+        return this->template type_recursive_get_by_time<KeyType,SecondType,RestTypes...>(type_index-1,key,ts_us,stable,subgroup_index,shard_index);
     }
 }
 
@@ -900,10 +902,11 @@ auto ServiceClient<CascadeTypes...>::type_recursive_get_by_time(
         uint32_t type_index,
         const KeyType& key,
         const uint64_t& ts_us,
+        const bool stable,
         uint32_t subgroup_index,
         uint32_t shard_index) {
     if (type_index == 0) {
-        return this->template get_by_time<LastType>(key,ts_us,subgroup_index,shard_index);
+        return this->template get_by_time<LastType>(key,ts_us,stable,subgroup_index,shard_index);
     } else {
         throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) + ": type index is out of boundary.");
     }
@@ -913,7 +916,8 @@ template <typename... CascadeTypes>
 template <typename KeyType>
 auto ServiceClient<CascadeTypes...>::get_by_time(
         const KeyType& key,
-        const uint64_t& ts_us) {
+        const uint64_t& ts_us,
+        const bool stable) {
     // STEP 1 - get key
     if constexpr (!std::is_convertible_v<KeyType,std::string>) {
         throw derecho::derecho_exception(__PRETTY_FUNCTION__ + std::string(" only supports string key,but we get ") + typeid(KeyType).name());
@@ -924,7 +928,7 @@ auto ServiceClient<CascadeTypes...>::get_by_time(
     std::tie(subgroup_type_index,subgroup_index,shard_index) = this->template key_to_shard(key);
 
     // STEP 3 - call recursive get_by_time
-    return this->template type_recursive_get_by_time<KeyType,CascadeTypes...>(subgroup_type_index,key,ts_us,subgroup_index,shard_index);
+    return this->template type_recursive_get_by_time<KeyType,CascadeTypes...>(subgroup_type_index,key,ts_us,stable,subgroup_index,shard_index);
 }
 
 template <typename... CascadeTypes>

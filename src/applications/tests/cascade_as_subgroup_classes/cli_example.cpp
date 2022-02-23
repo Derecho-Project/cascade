@@ -134,14 +134,14 @@ static void client_get(derecho::ExternalGroup<VCS,PCS,TCS>& group,
     if (is_persistent) {
         ExternalClientCaller<PCS,std::remove_reference<decltype(group)>::type>& pcs_ec = group.get_subgroup_caller<PCS>();
         if (ts != 0) {
-            opt.emplace(pcs_ec.p2p_send<RPC_NAME(get_by_time)>(member,key,ts));
+            opt.emplace(pcs_ec.p2p_send<RPC_NAME(get_by_time)>(member,key,ts,is_stable));
         } else {
             opt.emplace(pcs_ec.p2p_send<RPC_NAME(get)>(member,key,ver,is_stable,false));
         }
     } else {
         ExternalClientCaller<VCS,std::remove_reference<decltype(group)>::type>& vcs_ec = group.get_subgroup_caller<VCS>();
         if (ts != 0) {
-            opt.emplace(vcs_ec.p2p_send<RPC_NAME(get_by_time)>(member,key,ts));
+            opt.emplace(vcs_ec.p2p_send<RPC_NAME(get_by_time)>(member,key,ts,is_stable));
         } else {
             opt.emplace(vcs_ec.p2p_send<RPC_NAME(get)>(member,key,ver,is_stable,false));
         }
