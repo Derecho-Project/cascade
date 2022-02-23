@@ -999,7 +999,7 @@ std::vector<command_entry_t> commands =
             if (cmd_tokens.size() >= 4) {
                 version = static_cast<persistent::version_t>(std::stol(cmd_tokens[3]));
             }
-            auto res = capi.get(cmd_tokens[1],stable,version);
+            auto res = capi.get(cmd_tokens[1],version,stable);
             check_get_result(res);
             return true;
         }
