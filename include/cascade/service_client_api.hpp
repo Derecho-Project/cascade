@@ -115,8 +115,8 @@ CascadeShardLinq<CascadeType,ServiceClientType> from_shard_by_time (
                 throw boolinq::LinqEndException();
             }
 
-            /* get object */
-            auto result = capi.template get_by_time<CascadeType>(*_storage.first,ts_us,subgroup_index,shard_index);
+            /* get object, always use stable version */
+            auto result = capi.template get_by_time<CascadeType>(*_storage.first,ts_us,true,subgroup_index,shard_index);
             _storage.first++;
             for (auto& reply_future:result.get()) {
                 auto object = reply_future.second.get();

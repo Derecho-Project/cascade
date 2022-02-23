@@ -76,7 +76,7 @@ public class ClientTest {
             + "put <type> <key> <value> [subgroup_index] [shard_index]\n\tput an object\n"
             + "remove <type> <key> [subgroup_index] [shard_index]\n\tremove an object\n"
             + "get <type> <key> <stable> [version] [subgroup_index] [shard_index]\n\tget an object(by version)\n"
-            + "get_by_time <type> <key> <ts_us> [subgroup_index] [shard_index]\n\tget an object by timestamp\n"
+            + "get_by_time <type> <key> <ts_us> <stable> [subgroup_index] [shard_index]\n\tget an object by timestamp\n"
             + "quit|exit\n\texit the client.\n" + "help\n\tprint this message.\n" 
             + "\n" 
             + "type:=VolatileCascadeStoreWithStringKey|PersistentCascadeStoreWithStringKey|TriggerCascadeNoStoreWithStringKey\n"
@@ -270,7 +270,7 @@ public class ClientTest {
                         break;
                     case "get_by_time":
                         // get a key-value pair from cascade by timestamp.
-                        if (splited.length < 4) {
+                        if (splited.length < 5) {
                             System.out.println(ANSI_RED + "Invalid format: " + str + ANSI_RESET);
                             continue;
                         }
@@ -280,14 +280,15 @@ public class ClientTest {
                             continue;
                         }
                         long timestamp = Long.parseLong(splited[3]);
-                        if (splited.length >= 5)
-                            subgroupIndex = Integer.parseInt(splited[4]);
+                        stable = Boolean.parseBoolean(splited[4]);
                         if (splited.length >= 6)
-                            shardIndex = Integer.parseInt(splited[5]);
+                            subgroupIndex = Integer.parseInt(splited[5]);
+                        if (splited.length >= 7)
+                            shardIndex = Integer.parseInt(splited[6]);
                         arr = splited[2].getBytes();
                         bbkey = ByteBuffer.allocateDirect(arr.length);
                         bbkey.put(arr);
-                        try (QueryResults<CascadeObject> qrb = client.getByTime(type, bbkey, timestamp, subgroupIndex, shardIndex)) {
+                        try (QueryResults<CascadeObject> qrb = client.getByTime(type, bbkey, timestamp, stable, subgroupIndex, shardIndex)) {
                             Map<Integer, CascadeObject> data = qrb.get();
                             for (CascadeObject obj : data.values()) {
                                 ByteBuffer bb = obj.object;

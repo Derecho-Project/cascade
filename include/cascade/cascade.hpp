@@ -167,10 +167,14 @@ namespace cascade {
          *
          * @param key
          * @param ts_us - timestamp in microsecond
+         * @param stable
+         *              if stable == false, we only return the data reflecting the latest locally delivered atomic
+         *              broadcast. Otherwise, stable data will be returned, meaning that the persisted states returned
+         *              is safe: they will survive after whole system recovery.
          *
          * @return a value
          */
-        virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) const = 0;
+        virtual const VT get_by_time(const KT& key, const uint64_t& ts_us, const bool stable) const = 0;
         /**
          * list_keys(const persistent::version_t& ver)
          *
@@ -415,7 +419,7 @@ namespace cascade {
         virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) const override;
         virtual const VT get(const KT& key, const persistent::version_t& ver, bool stable, bool exact=false) const override;
         virtual const VT multi_get(const KT& key) const override;
-        virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) const override;
+        virtual const VT get_by_time(const KT& key, const uint64_t& ts_us, const bool stable) const override;
         virtual std::vector<KT> list_keys(const persistent::version_t& ver) const override;
         virtual std::vector<KT> op_list_keys(const persistent::version_t& ver, const std::string& op_path) const override;
         virtual std::vector<KT> list_keys_by_time(const uint64_t& ts_us) const override;
@@ -623,7 +627,7 @@ namespace cascade {
         virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) const override;
         virtual const VT get(const KT& key, const persistent::version_t& ver, bool stable, bool exact=false) const override;
         virtual const VT multi_get(const KT& key) const override;
-        virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) const override;
+        virtual const VT get_by_time(const KT& key, const uint64_t& ts_us, const bool stable) const override;
         virtual std::vector<KT> list_keys(const persistent::version_t& ver) const override;
         virtual std::vector<KT> op_list_keys(const persistent::version_t& ver, const std::string& op_path) const override;
         virtual std::vector<KT> list_keys_by_time(const uint64_t& ts_us) const override;
@@ -902,7 +906,7 @@ namespace cascade {
         virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) const override;
         virtual const VT get(const KT& key, const persistent::version_t& ver, bool stable, bool exact=false) const override;
         virtual const VT multi_get(const KT& key) const override;
-        virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) const override;
+        virtual const VT get_by_time(const KT& key, const uint64_t& ts_us, const bool stable) const override;
         virtual std::vector<KT> list_keys(const persistent::version_t& ver) const override;
         virtual std::vector<KT> op_list_keys(const persistent::version_t& ver, const std::string& op_path) const override;
         virtual std::vector<KT> list_keys_by_time(const uint64_t& ts_us) const override;

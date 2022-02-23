@@ -773,6 +773,7 @@ namespace cascade {
          *
          * @param key               the object key
          * @param ts_us             Wall clock time in microseconds. 
+         * @param stable            stable get or not
          * @param subugroup_index   the subgroup index of CascadeType
          * @param shard_index       the shard index.
          *
@@ -780,8 +781,12 @@ namespace cascade {
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
          */
         template <typename SubgroupType>
-        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> get_by_time(const typename SubgroupType::KeyType& key, const uint64_t& ts_us,
-                uint32_t subgroup_index, uint32_t shard_index);
+        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> get_by_time(
+                const typename SubgroupType::KeyType& key,
+                const uint64_t& ts_us,
+                const bool stable,
+                uint32_t subgroup_index,
+                uint32_t shard_index);
 
         /**
          * "type_recursive_get_by_time" is a helper function for internal use only.
@@ -789,6 +794,7 @@ namespace cascade {
          *                          SecondType, .../ RestTypes should be in the same order.
          * @param key               the key
          * @param ts_us             Wall clock time in microseconds. 
+         * @param stable            stable get or not
          * @param subgroup_index    the subgroup index in the subgroup type designated by type_index
          * @param shard_index       the shard index
          *
@@ -800,6 +806,7 @@ namespace cascade {
                 uint32_t type_index,
                 const KeyType& key,
                 const uint64_t& ts_us,
+                const bool stable,
                 uint32_t subgroup_index,
                 uint32_t shard_index);
 
@@ -808,6 +815,7 @@ namespace cascade {
                 uint32_t type_index,
                 const KeyType& key,
                 const uint64_t& ts_us,
+                const bool stable,
                 uint32_t subgroup_index,
                 uint32_t shard_index);
     public:
@@ -818,7 +826,8 @@ namespace cascade {
         template <typename KeyType>
         auto get_by_time(
                 const KeyType& key,
-                const uint64_t& ts_us);
+                const uint64_t& ts_us,
+                const bool stable);
 
         /**
          * "get_size" retrieve size of the object of a given key

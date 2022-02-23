@@ -296,14 +296,14 @@ void get(ServiceClientAPI& capi, const std::string& key, persistent::version_t v
 }
 
 template <typename SubgroupType>
-void get_by_time(ServiceClientAPI& capi, const std::string& key, uint64_t ts_us, uint32_t subgroup_index, uint32_t shard_index) {
+void get_by_time(ServiceClientAPI& capi, const std::string& key, uint64_t ts_us, bool stable, uint32_t subgroup_index, uint32_t shard_index) {
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
         derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get_by_time<SubgroupType>(
-                static_cast<uint64_t>(std::stol(key)),ts_us,subgroup_index,shard_index);
+                static_cast<uint64_t>(std::stol(key)),ts_us,stable,subgroup_index,shard_index);
         check_get_result(result);
     } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
         derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get_by_time<SubgroupType>(
-                key,ts_us,subgroup_index,shard_index);
+                key,ts_us,stable,subgroup_index,shard_index);
         check_get_result(result);
     }
 }
@@ -987,7 +987,7 @@ std::vector<command_entry_t> commands =
         "op_get",
         "Get an object from an object pool (by version).",
         "op_get <key> <stable> [ version(default:current version) ]\n"
-            "stable := 0|1  using stable data or not."
+            "stable := 0|1  using stable data or not.\n"
             "Please note that cascade automatically decides the object pool path using the key's prefix.",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             if (cmd_tokens.size() < 3) {
@@ -1007,32 +1007,36 @@ std::vector<command_entry_t> commands =
     {
         "get_by_time",
         "Get an object (by timestamp in microseconds).",
-        "get_by_time <type> <key> <subgroup_index> <shard_index> <timestamp in us>\n"
-            "type := " SUBGROUP_TYPE_LIST,
+        "get_by_time <type> <key> <subgroup_index> <shard_index> <timestamp in us> <stable>\n"
+            "type := " SUBGROUP_TYPE_LIST "\n"
+            "stable := 0|1 using stable data or not",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
-            if (cmd_tokens.size() < 6) {
+            if (cmd_tokens.size() < 7) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
             }
             uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
             uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
             uint64_t ts_us = static_cast<uint64_t>(std::stol(cmd_tokens[5]));
-            on_subgroup_type(cmd_tokens[1],get_by_time,capi,cmd_tokens[2],ts_us,subgroup_index,shard_index);
+            bool stable = static_cast<bool>(std::stoi(cmd_tokens[6]));
+            on_subgroup_type(cmd_tokens[1],get_by_time,capi,cmd_tokens[2],ts_us,stable,subgroup_index,shard_index);
             return true;
         }
     },
     {
         "op_get_by_time",
         "Get an object from an object pool (by timestamp in microseconds).",
-        "op_get_by_time <key> <timestamp in us>\n"
+        "op_get_by_time <key> <timestamp in us> <stable>\n"
+            "stable := 0|1 using stable data or not\n"
             "Please note that cascade automatically decides the object pool path using the key's prefix.",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
-            if (cmd_tokens.size() < 3) {
+            if (cmd_tokens.size() < 4) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
             }
             uint64_t ts_us = static_cast<uint64_t>(std::stol(cmd_tokens[2]));
-            auto res = capi.get_by_time(cmd_tokens[1],ts_us);
+            bool stable = static_cast<bool>(std::stoi(cmd_tokens[3]));
+            auto res = capi.get_by_time(cmd_tokens[1],ts_us,stable);
             check_get_result(res);
             return true;
         }

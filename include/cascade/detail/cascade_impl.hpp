@@ -1,6 +1,7 @@
 #pragma once
 #include <derecho/conf/conf.hpp>
 #include <derecho/persistent/PersistentInterface.hpp>
+#include <derecho/persistent/detail/PersistLog.hpp>
 #include <memory>
 #include <map>
 #include <type_traits>
@@ -265,7 +266,7 @@ const VT VolatileCascadeStore<KT,VT,IK,IV>::multi_get(const KT& key) const {
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
-const VT VolatileCascadeStore<KT,VT,IK,IV>::get_by_time(const KT& key, const uint64_t& ts_us) const {
+const VT VolatileCascadeStore<KT,VT,IK,IV>::get_by_time(const KT& key, const uint64_t& ts_us, const bool stable) const {
     // VolatileCascadeStore does not support this.
     debug_enter_func();
     debug_leave_func();
@@ -1042,30 +1043,25 @@ const VT PersistentCascadeStore<KT,VT,IK,IV,ST>::multi_get(const KT& key) const 
 
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-const VT PersistentCascadeStore<KT,VT,IK,IV,ST>::get_by_time(const KT& key, const uint64_t& ts_us) const {
-    debug_enter_func_with_args("key={},ts_us={}",key,ts_us);
+const VT PersistentCascadeStore<KT,VT,IK,IV,ST>::get_by_time(const KT& key, const uint64_t& ts_us, const bool stable) const {
+    debug_enter_func_with_args("key={},ts_us={},stable={}",key,ts_us,stable);
     const HLC hlc(ts_us,0ull);
-    try {
-        debug_leave_func();
-        uint64_t idx = persistent_core.getIndexAtTime({ts_us,0});
-        if (idx == persistent::INVALID_INDEX) {
-            return *IV;
-        } else {
-            // Reconstructing the state is extremely slow!!!
-            // TODO: get the version at time ts_us, and go back from there.
-            auto versioned_state_ptr = persistent_core.get(hlc);
-            if (versioned_state_ptr->kv_map.find(key) != versioned_state_ptr->kv_map.end()) {
-                return versioned_state_ptr->kv_map.at(key);
-            }
-            return *IV;
-        }
-    } catch (const int64_t &ex) {
-        dbg_default_warn("temporal query throws exception:0x{:x}. key={}, ts={}", ex, key, ts_us);
-    } catch (...) {
-        dbg_default_warn("temporal query throws unknown exception. key={}, ts={}", key, ts_us);
+
+    derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
+
+    // get_global_stability_frontier return nano seconds.
+    if ( ts_us > subgroup_handle.compute_global_stability_frontier()/1000 ) {
+        dbg_default_warn("Cannot get data at a time in the future.");
+        return *IV;
     }
+
+    persistent::version_t ver = persistent_core.getVersionAtTime({ts_us,0});
+    if (ver == persistent::INVALID_VERSION) {
+        return *IV;
+    }
+
     debug_leave_func();
-    return *IV;
+    return get(key,ver,stable,false);
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
@@ -1466,7 +1462,7 @@ const VT TriggerCascadeNoStore<KT,VT,IK,IV>::multi_get(const KT& key) const {
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
-const VT TriggerCascadeNoStore<KT,VT,IK,IV>::get_by_time(const KT& key, const uint64_t& ts_us) const {
+const VT TriggerCascadeNoStore<KT,VT,IK,IV>::get_by_time(const KT& key, const uint64_t& ts_us, const bool stable) const {
     dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
     return *IV;
 }

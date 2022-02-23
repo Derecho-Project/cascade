@@ -261,8 +261,8 @@ auto multi_get(ServiceClientAPI& capi, const std::string& key, uint32_t subgroup
     @return QueryResultsStore that handles the return type.
 */
 template <typename SubgroupType>
-auto get_by_time(ServiceClientAPI& capi, const std::string& key, uint64_t ts_us, uint32_t subgroup_index, uint32_t shard_index) {
-    derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get_by_time<SubgroupType>(key, ts_us, subgroup_index, shard_index);
+auto get_by_time(ServiceClientAPI& capi, const std::string& key, uint64_t ts_us, bool stable, uint32_t subgroup_index, uint32_t shard_index) {
+    derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get_by_time<SubgroupType>(key, ts_us,stable, subgroup_index, shard_index);
     auto s = new QueryResultsStore<const typename SubgroupType::ObjectType, py::dict>(result, object_unwrapper);
     return py::cast(s);
 }
@@ -589,11 +589,11 @@ PYBIND11_MODULE(client, m) {
                         if (timestamp != 0 && version == CURRENT_VERSION ) {
                             // timestamped get
                             if (subgroup_type.empty()) {
-                                auto res = capi.get_by_time(key,timestamp);
+                                auto res = capi.get_by_time(key,timestamp,stable);
                                 auto s = new QueryResultsStore<const ObjectWithStringKey,py::dict>(res, object_unwrapper);
                                 return py::cast(s);
                             } else {
-                                on_all_subgroup_type(subgroup_type, return get_by_time, capi, key, timestamp, subgroup_index, shard_index);
+                                on_all_subgroup_type(subgroup_type, return get_by_time, capi, key, timestamp, stable, subgroup_index, shard_index);
                             }
                         } else {
                             // get versioned get

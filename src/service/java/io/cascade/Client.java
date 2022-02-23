@@ -197,6 +197,7 @@ public class Client implements AutoCloseable {
      *                      {@code key} should be non-negative.
      * @param timestamp     The timestamp field returned by the Bundle object for
      *                      put operation.
+     * @param stable        get stable version or not.
      * @param subgroupIndex The index of the subgroup with type {@code type} to
      *                      acquire the key-value pair.
      * @param shardID       The index of the shard within the subgroup with type
@@ -207,13 +208,13 @@ public class Client implements AutoCloseable {
      *         subgroup/shard. The byte buffer would be empty if the key has not
      *         been put into cascade.
      */
-    public QueryResults<CascadeObject> getByTime(ServiceType type, long key, long timestamp, long subgroupIndex,
+    public QueryResults<CascadeObject> getByTime(ServiceType type, long key, long timestamp, boolean stable, long subgroupIndex,
             long shardID) {
         String str = Long.toString(key);
         byte[] arr = str.getBytes();
         ByteBuffer bbkey = ByteBuffer.allocateDirect(arr.length);
         bbkey.put(arr);
-        long res = getInternalByTime(type, subgroupIndex, shardID, bbkey, timestamp);
+        long res = getInternalByTime(type, subgroupIndex, shardID, bbkey, timestamp, stable);
         return new QueryResults<CascadeObject>(res, 1);
     }
 
@@ -229,6 +230,7 @@ public class Client implements AutoCloseable {
      * @param timestamp     The timestamp field returned by the Bundle object for
      *                      put operation. Should be -1 when the version field is
      *                      not known.
+     * @param stable        get stable version or not.
      * @param subgroupIndex The index of the subgroup with type {@code type} to
      *                      acquire the key-value pair.
      * @param shardID       The index of the shard within the subgroup with type
@@ -239,9 +241,9 @@ public class Client implements AutoCloseable {
      *         subgroup/shard. The byte buffer would be empty if the key has not
      *         been put into cascade.
      */
-    public QueryResults<CascadeObject> getByTime(ServiceType type, ByteBuffer key, long timestamp, long subgroupIndex,
-            long shardID) {
-        long res = getInternalByTime(type, subgroupIndex, shardID, key, timestamp);
+    public QueryResults<CascadeObject> getByTime(ServiceType type, ByteBuffer key, long timestamp, boolean stable,
+            long subgroupIndex, long shardID) {
+        long res = getInternalByTime(type, subgroupIndex, shardID, key, timestamp, stable);
         return new QueryResults<CascadeObject>(res, 1);
     }
 
@@ -388,10 +390,11 @@ public class Client implements AutoCloseable {
      *                      get this key-value pair from.
      * @param key           The byte buffer key of the key-value pair.
      * @param timestamp     The timestamp returned by the Future object of past put.
+     * @param stable        get stable data or not.
      * @return A handle of the C++ future that stores the byte buffer for values.
      */
     private native long getInternalByTime(ServiceType type, long subgroupIndex, long shardIndex, ByteBuffer key,
-            long timestamp);
+            long timestamp, boolean stable);
 
     /**
      * Internal interface for remove operation.
