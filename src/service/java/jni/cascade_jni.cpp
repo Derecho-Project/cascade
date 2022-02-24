@@ -706,15 +706,6 @@ JNIEXPORT jobject JNICALL Java_io_cascade_QueryResults_getReplyMap(JNIEnv *env, 
     jclass querycls = env->GetObjectClass(obj);
     jfieldID mode_fid = env->GetFieldID(querycls, "mode", "I");
     jint mode = env->GetIntField(obj, mode_fid);
-    jfieldID type_fid = env->GetFieldID(querycls, "type", "Lio/cascade/ServiceType;");
-    jobject type = env->GetObjectField(obj, type_fid);
-
-    int type_val = get_int_value(env, type);
-
-#ifndef NDEBUG
-    std::cout << "in reply map: value is " << type_val << " and mode is " << (int)mode << std::endl;
-#endif
-
 
     // lambda that translates into bundle types
     auto bundle_f = [env](std::tuple<persistent::version_t, uint64_t> obj) {
@@ -755,8 +746,8 @@ JNIEXPORT jobject JNICALL Java_io_cascade_QueryResults_getReplyMap(JNIEnv *env, 
 
         jobject new_byte_buf = allocate_byte_buffer(env, (char *)data, size);
         jclass obj_class = env->FindClass("io/cascade/CascadeObject");
-        jmethodID obj_constructor = env->GetMethodID(obj_class, "<init>", "(JJJLjava/nio/ByteBuffer;)V"); // TODO: the correct constructor
-        return env->NewObject(obj_class, obj_constructor, static_cast<jlong>(obj.version), static_cast<jlong>(obj.timestamp_us), static_cast<jlong>(obj.previous_version_by_key), new_byte_buf);
+        jmethodID obj_constructor = env->GetMethodID(obj_class, "<init>", "(JJJJLjava/nio/ByteBuffer;)V"); // TODO: the correct constructor
+        return env->NewObject(obj_class, obj_constructor, static_cast<jlong>(obj.version), static_cast<jlong>(obj.timestamp_us), static_cast<jlong>(obj.previous_version), static_cast<jlong>(obj.previous_version_by_key), new_byte_buf);
     };
 
     // lambda that translates into a list of byte buffers and receives a vector of string keys.
@@ -804,37 +795,11 @@ JNIEXPORT jobject JNICALL Java_io_cascade_QueryResults_getReplyMap(JNIEnv *env, 
         break;
     // buffers
     case 1:
-        switch (type_val)
-        {
-        case 0:
-        case 1:
-/*            create_object_from_query<const derecho::cascade::ObjectWithUInt64Key>(env, handle, hash_map_object, u64_f);
-            break;
-        case 2:
-        case 3:
-*/
-            create_object_from_query<const derecho::cascade::ObjectWithStringKey>(env, handle, hash_map_object, s_f);
-            break;
-        }
+        create_object_from_query<const derecho::cascade::ObjectWithStringKey>(env, handle, hash_map_object, s_f);
         break;
     // vectors of buffers
     case 2:
-        switch (type_val)
-        {
-        case 0:
-        case 1:
-/*            create_object_from_query<std::vector<uint64_t>>(env, handle, hash_map_object, u64_vf);
-            break;
-        case 2:
-        case 3:
-*/
-#ifndef NDEBUG
-            std::cout << "did go here!" << std::endl;
-            std::cout.flush();
-#endif
-            create_object_from_query<std::vector<std::string>>(env, handle, hash_map_object, s_vf);
-            break;
-        }
+        create_object_from_query<std::vector<std::string>>(env, handle, hash_map_object, s_vf);
         break;
     default:
         break;
