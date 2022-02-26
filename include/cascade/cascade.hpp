@@ -142,7 +142,7 @@ namespace cascade {
          *
          * @throws std::runtime_error, if requested value is not found.
          */
-        virtual const VT get(const KT& key, const persistent::version_t& ver, bool stable, bool exact=false) const = 0;
+        virtual const VT get(const KT& key, const persistent::version_t& ver, const bool stable, bool exact=false) const = 0;
 
         /**
          * multi_get(const KT&)
@@ -175,34 +175,43 @@ namespace cascade {
          * @return a value
          */
         virtual const VT get_by_time(const KT& key, const uint64_t& ts_us, const bool stable) const = 0;
+
         /**
-         * list_keys(const persistent::version_t& ver)
+         * multi_list_keys(const std::string& prefix)
+         *
+         * List the most current keys by an atomic broadcast
+         *
+         * @param prefix    Prefix, only the key matching this prefix will be returned. TODO: KT/VT provider should
+         *                  provide their own prefix matching implementation,
+         *                  Empty prefix matches all keys.
+         *
+         * @return a list of keys.
+         */
+        virtual std::vector<KT> multi_list_keys(const std::string& prefix) const = 0;
+
+        /**
+         * list_keys(const std::string& prefix, const persistent::version_t& ver, const bool stable)
          *
          * List keys at version.
          *
-         * @param ver - Version, if version  == CURRENT_VERSION, get the latest list of keys.
-         *              Please note that the current Persistent<T> in derecho will reconstruct the state at 'ver' from
-         *              the beginning of the log entry if 'ver' != CURRENT_VERSION, which is extremely inefficient.
-         *              TODO: use checkpoint cache to accelerate that process.
+         * @param prefix    Prefix, only the key matching this prefix will be returned. TODO: KT/VT provider should
+         *                  provide their own prefix matching implementation,
+         *                  Empty prefix matches all keys.
+         * @param ver       Version, if version  == CURRENT_VERSION, get the latest list of keys.
+         *                  Please note that the current Persistent<T> in derecho will reconstruct the state at 'ver' from
+         *                  the beginning of the log entry if 'ver' != CURRENT_VERSION, which is extremely inefficient.
+         *                  TODO: use checkpoint cache to accelerate that process.
+         * @param stable    
+         *                  if stable == false, we only return the data reflecting the latest locally delivered atomic
+         *                  broadcast. Otherwise, stable data will be returned, meaning that the persisted states returned
+         *                  is safe: they will survive after whole system recovery.
          *
          * @return a list of keys.
          */
-        virtual std::vector<KT> list_keys(const persistent::version_t& ver) const = 0;
+        virtual std::vector<KT> list_keys(const std::string& prefix, const persistent::version_t& ver, const bool stable) const = 0;
+
         /**
-         * op_list_keys(const persistent::version_t& ver, const std::string& op_path)
-         *
-         * List keys by object pool
-         * @param ver - Version, if version  == CURRENT_VERSION, get the latest list of keys.
-         *              Please note that the current Persistent<T> in derecho will reconstruct the state at 'ver' from
-         *              the beginning of the log entry if 'ver' != CURRENT_VERSION, which is extremely inefficient.
-         *              TODO: use checkpoint cache to accelerate that process.
-         * @param op_path  - object pool pathname
-         *
-         * @return a list of keys.
-         */
-        virtual std::vector<KT> op_list_keys(const persistent::version_t& ver, const std::string& op_path) const = 0;
-        /**
-         * list_keys_by_time(const uint64_t&)
+         * list_keys_by_time(const std::string&, const uint64_t&, const bool)
          *
          * List keys by timestamp
          *
@@ -210,33 +219,39 @@ namespace cascade {
          * beginning of the log entry, which is extremely inefficient. TODO: use checkpoint cache to accelerate that
          * process.
          *
-         * @param ts_us - timestamp in microsecond
+         * @param prefix    Prefix, only the key matching this prefix will be returned. TODO: KT/VT provider should
+         *                  provide their own prefix matching implementation,
+         *                  Empty prefix matches all keys.
+         * @param ts_us     timestamp in microsecond
+         * @param stable    
+         *                  if stable == false, we only return the data reflecting the latest locally delivered atomic
+         *                  broadcast. Otherwise, stable data will be returned, meaning that the persisted states returned
+         *                  is safe: they will survive after whole system recovery.
          *
          * @return a list of keys.
          */
-        virtual std::vector<KT> list_keys_by_time(const uint64_t& ts_us) const = 0;
+        virtual std::vector<KT> list_keys_by_time(const std::string& prefix, const uint64_t& ts_us, const bool stable) const = 0;
+
+        
         /**
-         * op_list_keys_by_time(const uint64_t& ts_us, const std::string& op_path)
+         * multi_get_size(const KT&)
          *
-         * List keys in the object pool by timestamp 
-         * 
-         * Please note that the current Persistent<T> in derecho will reconstruct the state at 'ts_us' from the
-         * beginning of the log entry, which is extremely inefficient. TODO: use checkpoint cache to accelerate that
-         * process.
+         * Get size of the latest object using atomic broadcast.
          *
-         * @param ts_us - timestamp in microsecond
-         * @param op_path  - object pool pathname
+         * @param key   The key
          *
-         * @return a list of keys.
+         * @return the size of serialized value.
          */
-        virtual std::vector<KT> op_list_keys_by_time(const uint64_t& ts_us, const std::string& op_path) const = 0;
+        virtual uint64_t multi_get_size(const KT& key) const = 0;
+
         /**
          * get_size(const KT&,const persistent::version_t&,bool)
          *
          * Get size by version
          *
-         * @param key
-         * @param ver - Version, if version == CURRENT_VERSION, get the latest value.
+         * @param key   The key
+         * @param ver   Version, if version == CURRENT_VERSION, get the latest value.
+         * @param stable
          * @param exact The exact match flag: this function try to return the value of that key at the 'ver'. If such a
          *              value does not exists and exact is true, it will throw an exception. If such a value does not
          *              exists and exact is false, it will return the latest state of the value for 'key' before 'ver'.
@@ -247,7 +262,8 @@ namespace cascade {
          *
          * @return the size of serialized value.
          */
-        virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, bool exact=false) const = 0;
+        virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, const bool stable, const bool exact=false) const = 0;
+
         /**
          * get_size_by_time(const KT&,const uint64_t&)
          *
@@ -262,7 +278,8 @@ namespace cascade {
          *
          * @return the size of serialized value.
          */
-        virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us) const = 0;
+        virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us, const bool stable) const = 0;
+
         /**
          * trigger_put(const VT& value)
          *
@@ -272,6 +289,7 @@ namespace cascade {
          * @param value - the object to trig
          */
         virtual void trigger_put(const VT& value) const = 0;
+
 #ifdef ENABLE_EVALUATION
         /**
          * dump_timestamp_log(const std::string& filename)
@@ -291,6 +309,7 @@ namespace cascade {
          */
         virtual void dump_timestamp_log_workaround(const std::string& filename) const = 0;
 #endif
+
 #endif//ENABLE_EVALUATION
 
     protected:
@@ -321,7 +340,7 @@ namespace cascade {
          * ordered_list_keys
          * @return a list of keys.
          */
-        virtual std::vector<KT> ordered_list_keys() = 0;
+        virtual std::vector<KT> ordered_list_keys(const std::string& prefix) = 0;
         /**
          * ordered_get_size
          */
@@ -379,10 +398,10 @@ namespace cascade {
                                    get,
                                    multi_get,
                                    get_by_time,
+                                   multi_list_keys,
                                    list_keys,
-                                   op_list_keys,
                                    list_keys_by_time,
-                                   op_list_keys_by_time,
+                                   multi_get_size,
                                    get_size,
                                    get_size_by_time,
                                    trigger_put
@@ -417,20 +436,20 @@ namespace cascade {
 #endif//ENABLE_EVALUATION
         virtual void put_and_forget(const VT& value) const override;
         virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) const override;
-        virtual const VT get(const KT& key, const persistent::version_t& ver, bool stable, bool exact=false) const override;
+        virtual const VT get(const KT& key, const persistent::version_t& ver, const bool stable, bool exact=false) const override;
         virtual const VT multi_get(const KT& key) const override;
         virtual const VT get_by_time(const KT& key, const uint64_t& ts_us, const bool stable) const override;
-        virtual std::vector<KT> list_keys(const persistent::version_t& ver) const override;
-        virtual std::vector<KT> op_list_keys(const persistent::version_t& ver, const std::string& op_path) const override;
-        virtual std::vector<KT> list_keys_by_time(const uint64_t& ts_us) const override;
-        virtual std::vector<KT> op_list_keys_by_time(const uint64_t& ts_us, const std::string& op_path) const override;
-        virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, bool exact=false) const override;
-        virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us) const override;
+        virtual std::vector<KT> multi_list_keys(const std::string& prefix) const override;
+        virtual std::vector<KT> list_keys(const std::string& prefix, const persistent::version_t& ver, const bool stable) const override;
+        virtual std::vector<KT> list_keys_by_time(const std::string& prefix, const uint64_t& ts_us, const bool stable) const override;
+        virtual uint64_t multi_get_size(const KT& key) const override;
+        virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, const bool stable, bool exact=false) const override;
+        virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us, const bool stable) const override;
         virtual std::tuple<persistent::version_t,uint64_t> ordered_put(const VT& value) override;
         virtual void ordered_put_and_forget(const VT& value) override;
         virtual std::tuple<persistent::version_t,uint64_t> ordered_remove(const KT& key) override;
         virtual const VT ordered_get(const KT& key) override;
-        virtual std::vector<KT> ordered_list_keys() override;
+        virtual std::vector<KT> ordered_list_keys(const std::string& prefix) override;
         virtual uint64_t ordered_get_size(const KT& key) override;
 #ifdef ENABLE_EVALUATION
         virtual void ordered_dump_timestamp_log(const std::string& filename) override;
@@ -537,11 +556,19 @@ namespace cascade {
         /**
          * ordered list_keys, no need to generate a delta.
          */
-        virtual std::vector<KT> ordered_list_keys();
+        virtual std::vector<KT> ordered_list_keys(const std::string& prefix);
+        /**
+         * locklessly list keys for the caller from a thread other than the predicate thread.
+         */
+        virtual std::vector<KT> lockless_list_keys(const std::string& prefix) const;
         /**
          * ordered get_size, not need to generate a delta.
          */
         virtual uint64_t ordered_get_size(const KT& key);
+        /**
+         * locklessly get size of an object
+         */
+        virtual uint64_t lockless_get_size(const KT& key) const;
 
         // serialization supports
         DEFAULT_SERIALIZATION_SUPPORT(DeltaCascadeStoreCore, kv_map);
@@ -587,10 +614,10 @@ namespace cascade {
                                    get,
                                    multi_get,
                                    get_by_time,
+                                   multi_list_keys,
                                    list_keys,
-                                   op_list_keys,
                                    list_keys_by_time,
-                                   op_list_keys_by_time,
+                                   multi_get_size,
                                    get_size,
                                    get_size_by_time,
                                    trigger_put
@@ -625,20 +652,20 @@ namespace cascade {
         virtual double perf_put(const uint32_t max_payload_size,const uint64_t duration_sec) const override;
 #endif//ENABLE_EVALUATION
         virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) const override;
-        virtual const VT get(const KT& key, const persistent::version_t& ver, bool stable, bool exact=false) const override;
+        virtual const VT get(const KT& key, const persistent::version_t& ver, const bool stable, bool exact=false) const override;
         virtual const VT multi_get(const KT& key) const override;
         virtual const VT get_by_time(const KT& key, const uint64_t& ts_us, const bool stable) const override;
-        virtual std::vector<KT> list_keys(const persistent::version_t& ver) const override;
-        virtual std::vector<KT> op_list_keys(const persistent::version_t& ver, const std::string& op_path) const override;
-        virtual std::vector<KT> list_keys_by_time(const uint64_t& ts_us) const override;
-        virtual std::vector<KT> op_list_keys_by_time(const uint64_t& ts_us, const std::string& op_path) const override;
-        virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, bool exact=false) const override;
-        virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us) const override;
+        virtual std::vector<KT> multi_list_keys(const std::string& prefix) const override;
+        virtual std::vector<KT> list_keys(const std::string& prefix, const persistent::version_t& ver, const bool stable) const override;
+        virtual std::vector<KT> list_keys_by_time(const std::string& prefix, const uint64_t& ts_us, const bool stable) const override;
+        virtual uint64_t multi_get_size(const KT& key) const override;
+        virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, const bool stable, bool exact=false) const override;
+        virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us, const bool stable) const override;
         virtual std::tuple<persistent::version_t,uint64_t> ordered_put(const VT& value) override;
         virtual void ordered_put_and_forget(const VT& value) override;
         virtual std::tuple<persistent::version_t,uint64_t> ordered_remove(const KT& key) override;
         virtual const VT ordered_get(const KT& key) override;
-        virtual std::vector<KT> ordered_list_keys() override;
+        virtual std::vector<KT> ordered_list_keys(const std::string& prefix) override;
         virtual uint64_t ordered_get_size(const KT& key) override;
 #ifdef ENABLE_EVALUATION
         virtual void ordered_dump_timestamp_log(const std::string& filename) override;
@@ -866,10 +893,10 @@ namespace cascade {
                                    get,
                                    multi_get,
                                    get_by_time,
+                                   multi_list_keys,
                                    list_keys,
-                                   op_list_keys,
                                    list_keys_by_time,
-                                   op_list_keys_by_time,
+                                   multi_get_size,
                                    get_size,
                                    get_size_by_time,
                                    trigger_put
@@ -904,27 +931,27 @@ namespace cascade {
         virtual double perf_put(const uint32_t max_payload_size,const uint64_t duration_sec) const override;
 #endif//ENABLE_EVALUATION
         virtual std::tuple<persistent::version_t,uint64_t> remove(const KT& key) const override;
-        virtual const VT get(const KT& key, const persistent::version_t& ver, bool stable, bool exact=false) const override;
+        virtual const VT get(const KT& key, const persistent::version_t& ver, const bool stable, bool exact=false) const override;
         virtual const VT multi_get(const KT& key) const override;
         virtual const VT get_by_time(const KT& key, const uint64_t& ts_us, const bool stable) const override;
-        virtual std::vector<KT> list_keys(const persistent::version_t& ver) const override;
-        virtual std::vector<KT> op_list_keys(const persistent::version_t& ver, const std::string& op_path) const override;
-        virtual std::vector<KT> list_keys_by_time(const uint64_t& ts_us) const override;
-        virtual std::vector<KT> op_list_keys_by_time(const uint64_t& ts_us, const std::string& op_path) const override;
-        virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, bool exact=false) const override;
-        virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us) const override;
+        virtual std::vector<KT> multi_list_keys(const std::string& prefix) const override;
+        virtual std::vector<KT> list_keys(const std::string& prefix, const persistent::version_t& ver, const bool stable) const override;
+        virtual std::vector<KT> list_keys_by_time(const std::string& prefix, const uint64_t& ts_us, const bool stable) const override;
+        virtual uint64_t multi_get_size(const KT& key) const override;
+        virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, const bool stable, bool exact=false) const override;
+        virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us, const bool stable) const override;
         virtual std::tuple<persistent::version_t,uint64_t> ordered_put(const VT& value) override;
         virtual void ordered_put_and_forget(const VT& value) override;
         virtual std::tuple<persistent::version_t,uint64_t> ordered_remove(const KT& key) override;
         virtual const VT ordered_get(const KT& key) override;
-        virtual std::vector<KT> ordered_list_keys() override;
+        virtual std::vector<KT> ordered_list_keys(const std::string& prefix) override;
         virtual uint64_t ordered_get_size(const KT& key) override;
 #ifdef ENABLE_EVALUATION
         virtual void ordered_dump_timestamp_log(const std::string& filename) override;
 #endif//ENABLE_EVALUATION
 
         // serialization support
-        virtual std::size_t to_bytes(uint8_t* v) const override {return 0;}
+        virtual std::size_t to_bytes(uint8_t*) const override {return 0;}
         virtual void post_object(const std::function<void(uint8_t const* const, std::size_t)>&) const override {}
         virtual std::size_t bytes_size() const {return 0;}
         static std::unique_ptr<TriggerCascadeNoStore<KT,VT,IK,IV>> from_bytes(mutils::DeserializationManager*,const uint8_t*);

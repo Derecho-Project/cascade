@@ -1,4 +1,5 @@
 #pragma once
+#include <c10/core/DispatchKeySet.h>
 #include <derecho/conf/conf.hpp>
 #include <derecho/persistent/PersistentInterface.hpp>
 #include <derecho/persistent/detail/PersistLog.hpp>
@@ -275,14 +276,10 @@ const VT VolatileCascadeStore<KT,VT,IK,IV>::get_by_time(const KT& key, const uin
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
-std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::list_keys(const persistent::version_t& ver) const {
-    debug_enter_func_with_args("ver=0x{:x}",ver);
-    if (ver != CURRENT_VERSION) {
-        debug_leave_func_with_value("Cannot support versioned list_keys, ver=0x{:x}", ver);
-        return {};
-    }
+std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::multi_list_keys(const std::string& prefix) const {
+    debug_enter_func_with_args("prefix={}",prefix);
     derecho::Replicated<VolatileCascadeStore>& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
-    auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_list_keys)>();
+    auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_list_keys)>(prefix);
     auto& replies = results.get();
     std::vector<KT> ret;
     // TODO: verfity consistency ?
@@ -294,36 +291,17 @@ std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::list_keys(const persistent::v
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
-std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::op_list_keys(const persistent::version_t& ver, const std::string& op_path) const {
-    debug_enter_func_with_args("ver=0x{:x}",ver);
+std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::list_keys(const std::string& prefix, const persistent::version_t& ver, const bool) const {
     if (ver != CURRENT_VERSION) {
         debug_leave_func_with_value("Cannot support versioned list_keys, ver=0x{:x}", ver);
         return {};
     }
-    derecho::Replicated<VolatileCascadeStore>& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
-    auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_list_keys)>();
-    auto& replies = results.get();
-    std::vector<KT> ret;
-    // TODO: verfity consistency ? 
-    for (auto& reply_pair : replies) {
-        ret = reply_pair.second.get();
-    }
-    
-    ret.erase(
-        std::remove_if(
-            ret.begin(), 
-            ret.end(),
-            [&](const KT key) { return (get_pathname<KT>(key).find(op_path) != 0);}
-        ), 
-        ret.end()
-    ); 
 
-    debug_leave_func();
-    return ret;
+    return multi_list_keys(prefix);
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
-std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::list_keys_by_time(const uint64_t& ts_us) const {
+std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::list_keys_by_time(const std::string& prefix, const uint64_t& ts_us, const bool) const {
     // VolatileCascadeStore does not support this.
     debug_enter_func_with_args("ts_us=0x{:x}", ts_us);
     debug_leave_func();
@@ -331,20 +309,8 @@ std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::list_keys_by_time(const uint6
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
-std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::op_list_keys_by_time(const uint64_t& ts_us, const std::string& op_path) const {
-    // VolatileCascadeStore does not support this.
-    debug_enter_func_with_args("ts_us=0x{:x}", ts_us);
-    debug_leave_func();
-    return {};
-}
-
-template<typename KT, typename VT, KT* IK, VT* IV>
-uint64_t VolatileCascadeStore<KT,VT,IK,IV>::get_size(const KT& key, const persistent::version_t& ver, bool) const {
-    debug_enter_func_with_args("key={},ver=0x{:x}",key,ver);
-    if (ver != CURRENT_VERSION) {
-        debug_leave_func_with_value("Cannot support versioned get, ver=0x{:x}", ver);
-        return 0;
-    }
+uint64_t VolatileCascadeStore<KT,VT,IK,IV>::multi_get_size(const KT& key) const {
+    debug_enter_func_with_args("key={}",key);
     derecho::Replicated<VolatileCascadeStore>& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_get_size)>(key);
     auto& replies = results.get();
@@ -356,8 +322,46 @@ uint64_t VolatileCascadeStore<KT,VT,IK,IV>::get_size(const KT& key, const persis
     return replies.begin()->second.get();
 }
 
+
 template<typename KT, typename VT, KT* IK, VT* IV>
-uint64_t VolatileCascadeStore<KT,VT,IK,IV>::get_size_by_time(const KT& key, const uint64_t& ts_us) const {
+uint64_t VolatileCascadeStore<KT,VT,IK,IV>::get_size(const KT& key, const persistent::version_t& ver, const bool, const bool) const {
+    debug_enter_func_with_args("key={},ver=0x{:x}",key,ver);
+    if (ver != CURRENT_VERSION) {
+        debug_leave_func_with_value("Cannot support versioned get, ver=0x{:x}", ver);
+        return 0;
+    }
+    debug_leave_func();
+
+    // copy data out
+    persistent::version_t v1,v2;
+    uint64_t size = 0ull;
+    do {
+        // This only for TSO memory reordering.
+        v2 = this->lockless_v2.load(std::memory_order_relaxed);
+        // compiler reordering barrier
+#ifdef __GNUC__
+        asm volatile("" ::: "memory");
+#else
+#error Lockless support is currently for GCC only
+#endif
+        if (this->kv_map.find(key) != this->kv_map.end()) {
+            size = mutils::bytes_size(this->kv_map.at(key));
+        }
+        // compiler reordering barrier
+#ifdef __GNUC__
+        asm volatile("" ::: "memory");
+#else
+#error Lockless support is currently for GCC only
+#endif
+        v1 = this->lockless_v1.load(std::memory_order_relaxed);
+        // busy sleep
+        std::this_thread::yield();
+    } while(v1!=v2);
+    return size;
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
+uint64_t VolatileCascadeStore<KT,VT,IK,IV>::get_size_by_time(const KT&, const uint64_t&, const bool) const {
     // VolatileCascadeStore does not support this.
     debug_enter_func();
 
@@ -366,12 +370,15 @@ uint64_t VolatileCascadeStore<KT,VT,IK,IV>::get_size_by_time(const KT& key, cons
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
-std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::ordered_list_keys() {
+std::vector<KT> VolatileCascadeStore<KT,VT,IK,IV>::ordered_list_keys(const std::string& prefix) {
     std::vector<KT> key_list;
     debug_enter_func();
     for(auto kv: this->kv_map) {
-        key_list.push_back(kv.first);
+        if (get_pathname<KT>(kv.first).find(prefix) == 0) {
+            key_list.push_back(kv.first);
+        }
     }
+
     debug_leave_func();
     return key_list;
 }
@@ -499,10 +506,29 @@ std::tuple<persistent::version_t,uint64_t> VolatileCascadeStore<KT,VT,IK,IV>::or
             value.set_previous_version(this->update_version,persistent::INVALID_VERSION);
         }
     }
+
+    // for lockless check
+    this->lockless_v1.store(std::get<0>(version_and_timestamp),std::memory_order_relaxed);
+    // compiler reordering barrier
+#ifdef __GNUC__
+    asm volatile("" ::: "memory");
+#else
+#error Lockless support is currently for GCC only
+#endif
+
     this->kv_map.erase(key); // remove
     this->kv_map.emplace(key, value);
     this->update_version = std::get<0>(version_and_timestamp);
 
+    // for lockless check
+    // compiler reordering barrier
+#ifdef __GNUC__
+    asm volatile("" ::: "memory");
+#else
+#error Lockless support is currently for GCC only
+#endif
+    this->lockless_v2.store(std::get<0>(version_and_timestamp),std::memory_order_relaxed);
+    
     if (cascade_watcher_ptr) {
         (*cascade_watcher_ptr)(
             // group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_subgroup_id(), // this is subgroup id
@@ -838,7 +864,6 @@ const VT DeltaCascadeStoreCore<KT,VT,IK,IV>::ordered_get(const KT& key) const {
 
 template <typename KT, typename VT, KT* IK, VT* IV>
 const VT DeltaCascadeStoreCore<KT,VT,IK,IV>::lockless_get(const KT& key) const {
-
     persistent::version_t v1,v2;
     static thread_local VT copied_out;
     do {
@@ -869,10 +894,43 @@ const VT DeltaCascadeStoreCore<KT,VT,IK,IV>::lockless_get(const KT& key) const {
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-std::vector<KT> DeltaCascadeStoreCore<KT,VT,IK,IV>::ordered_list_keys() {
+std::vector<KT> DeltaCascadeStoreCore<KT,VT,IK,IV>::lockless_list_keys(const std::string& prefix) const {
+    persistent::version_t v1,v2;
     std::vector<KT> key_list;
-    for (auto& kv: kv_map) {
-        key_list.push_back(kv.first);
+    do {
+        // This only for TSO memory reordering.
+        v2 = this->lockless_v2.load(std::memory_order_relaxed);
+        // compiler reordering barrier
+#ifdef __GNUC__
+        asm volatile("" ::: "memory");
+#else
+#error Lockless support is currently for GCC only
+#endif
+        for (const auto& kv:kv_map) {
+            if (get_pathname<KT>(kv.first).find(prefix)==0) {
+                key_list.push_back(kv.first);
+            }
+        }
+        // compiler reordering barrier
+#ifdef __GNUC__
+        asm volatile("" ::: "memory");
+#else
+#error Lockless support is currently for GCC only
+#endif
+        v1 = this->lockless_v1.load(std::memory_order_relaxed);
+        // busy sleep
+        std::this_thread::yield();
+    } while(v1!=v2);
+    return key_list;
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV>
+std::vector<KT> DeltaCascadeStoreCore<KT,VT,IK,IV>::ordered_list_keys(const std::string& prefix) {
+    std::vector<KT> key_list;
+    for (const auto& kv: kv_map) {
+        if (get_pathname<KT>(kv.first).find(prefix)==0) {
+            key_list.push_back(kv.first);
+        }
     }
     return key_list;
 }
@@ -884,6 +942,36 @@ uint64_t DeltaCascadeStoreCore<KT,VT,IK,IV>::ordered_get_size(const KT& key) {
     } else {
         return 0;
     }
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV>
+uint64_t DeltaCascadeStoreCore<KT,VT,IK,IV>::lockless_get_size(const KT& key) const {
+    persistent::version_t v1,v2;
+    uint64_t size = 0ull;
+
+    do {
+        // This only for TSO memory reordering.
+        v2 = this->lockless_v2.load(std::memory_order_relaxed);
+        // compiler reordering barrier
+#ifdef __GNUC__
+        asm volatile("" ::: "memory");
+#else
+#error Lockless support is currently for GCC only
+#endif
+        if (this->kv_map.find(key) != this->kv_map.end()) {
+            size = mutils::bytes_size(this->kv_map.at(key));
+        }
+        // compiler reordering barrier
+#ifdef __GNUC__
+        asm volatile("" ::: "memory");
+#else
+#error Lockless support is currently for GCC only
+#endif
+        v1 = this->lockless_v1.load(std::memory_order_relaxed);
+        // busy sleep
+        std::this_thread::yield();
+    } while(v1!=v2);
+    return size;
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
@@ -979,7 +1067,7 @@ const VT PersistentCascadeStore<KT,VT,IK,IV,ST>::get(const KT& key, const persis
     // adjust version if stable is requested.
     if (stable) {
         derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
-        auto requested_version = ver;
+        requested_version = ver;
         if (requested_version == CURRENT_VERSION) {
             requested_version = subgroup_handle.get_global_persistence_frontier();
         } else {
@@ -1065,27 +1153,8 @@ const VT PersistentCascadeStore<KT,VT,IK,IV,ST>::get_by_time(const KT& key, cons
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-uint64_t PersistentCascadeStore<KT,VT,IK,IV,ST>::get_size(const KT& key, const persistent::version_t& ver, bool exact) const {
-    debug_enter_func_with_args("key={},ver=0x{:x}",key,ver);
-    if (ver != CURRENT_VERSION) {
-        return persistent_core.template getDelta<VT>(ver,exact,[&key,ver,exact,this](const VT& v){
-                if (key == v.get_key_ref()) {
-                    return mutils::bytes_size(v);
-                } else {
-                    if (exact) {
-                        // return invalid object for EXACT search.
-                        return static_cast<decltype(mutils::bytes_size(std::declval<const VT&>()))>(0);
-                    } else {
-                        // fall back to the slow path.
-                        auto versioned_state_ptr = persistent_core.get(ver);
-                        if (versioned_state_ptr->kv_map.find(key) != versioned_state_ptr->kv_map.end()) {
-                            return mutils::bytes_size(versioned_state_ptr->kv_map.at(key));
-                        }
-                        return static_cast<decltype(mutils::bytes_size(std::declval<const VT&>()))>(0);
-                    }
-                }
-            });
-    }
+uint64_t PersistentCascadeStore<KT,VT,IK,IV,ST>::multi_get_size(const KT& key) const {
+    debug_enter_func_with_args("key={}",key);
     derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_get_size)>(key);
     auto& replies = results.get();
@@ -1098,35 +1167,89 @@ uint64_t PersistentCascadeStore<KT,VT,IK,IV,ST>::get_size(const KT& key, const p
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-uint64_t PersistentCascadeStore<KT,VT,IK,IV,ST>::get_size_by_time(const KT& key, const uint64_t& ts_us) const {
-    debug_enter_func_with_args("key={},ts_us={}",key,ts_us);
-    const HLC hlc(ts_us,0ull);
-    try {
-        debug_leave_func();
-        return mutils::bytes_size(persistent_core.get(hlc)->kv_map.at(key));
-    } catch (const int64_t &ex) {
-        dbg_default_warn("temporal query throws exception:0x{:x}. key={}, ts={}", ex, key, ts_us);
-    } catch (...) {
-        dbg_default_warn("temporal query throws unknown exception. key={}, ts={}", key, ts_us);
+uint64_t PersistentCascadeStore<KT,VT,IK,IV,ST>::get_size(const KT& key, const persistent::version_t& ver, const bool stable, const bool exact) const {
+    debug_enter_func_with_args("key={},ver=0x{:x},stable={},exact={}",key,ver,stable,exact);
+    persistent::version_t requested_version = ver;
+
+    // adjust version if stable is requested.
+    if (stable) {
+        derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
+        requested_version = ver;
+        if (requested_version == CURRENT_VERSION) {
+            requested_version = subgroup_handle.get_global_persistence_frontier();
+        } else {
+            // The first condition test if requested_version is beyond the active latest atomic broadcast version.
+            // However, that could be true for a valid requested version for a new started setup, where the active
+            // latest atomic broadcast version is INVALID_VERSION(-1) since there is no atomic broadcast yet. In such a
+            // case, we need also check if requested_version is beyond the local latest version. If both are true, we
+            // determine the requested_version is invalid: it asks a version in the future.
+            if(!subgroup_handle.wait_for_global_persistence_frontier(requested_version) && 
+               requested_version > persistent_core.getLatestVersion()) {
+                // INVALID version
+                dbg_default_debug("{}: requested version:{:x} is beyond the latest atomic broadcast version.",__PRETTY_FUNCTION__,requested_version);
+                return 0ull;
+            }
+        }
+
     }
-    debug_leave_func();
-    return 0;
+
+    if (requested_version == CURRENT_VERSION) {
+        // return the unstable question
+        debug_leave_func_with_value("lockless_get_size({})",key);
+        return persistent_core->lockless_get_size(key);
+    } else {
+        return persistent_core.template getDelta<VT>(requested_version, exact, [this,key,requested_version,exact](const VT& v)->uint64_t{
+                if (key == v.get_key_ref()) {
+                    debug_leave_func_with_value("key:{} is found at version:0x{:x}", key, requested_version);
+                    return mutils::bytes_size(v);
+                } else {
+                    if (exact) {
+                        // return invalid object for EXACT search.
+                        debug_leave_func_with_value("No data found for key:{} at version:0x{:x}", key, requested_version);
+                        return 0ull;
+                    } else {
+                        // fall back to the slow path.
+                        auto versioned_state_ptr = persistent_core.get(requested_version);
+                        if (versioned_state_ptr->kv_map.find(key) != versioned_state_ptr->kv_map.end()) {
+                            debug_leave_func_with_value("Reconstructed version:0x{:x} for key:{}",requested_version,key);
+                            return mutils::bytes_size(versioned_state_ptr->kv_map.at(key));
+                        }
+                        debug_leave_func_with_value("No data found for key:{} before version:0x{:x}", key, requested_version);
+                        return 0ull;
+                    }
+                }
+            });
+    }
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::list_keys(const persistent::version_t& ver) const {
-    debug_enter_func_with_args("ver=0x{:x}.",ver);
-    if (ver != CURRENT_VERSION) {
-        std::vector<KT> key_list;
-        auto kv_map = persistent_core.get(ver)->kv_map;
-        for (auto& kv:kv_map) {
-            key_list.push_back(kv.first);
-        }
-        debug_leave_func();
-        return key_list;
-    }
+uint64_t PersistentCascadeStore<KT,VT,IK,IV,ST>::get_size_by_time(const KT& key, const uint64_t& ts_us, const bool stable) const {
+    debug_enter_func_with_args("key={},ts_us={},stable={}",key,ts_us,stable);
+    const HLC hlc(ts_us,0ull);
+
     derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
-    auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_list_keys)>();
+
+    // get_global_stability_frontier return nano seconds.
+    if ( ts_us > subgroup_handle.compute_global_stability_frontier()/1000 ) {
+        dbg_default_warn("Cannot get data at a time in the future.");
+        return 0;
+    }
+
+    persistent::version_t ver = persistent_core.getVersionAtTime({ts_us,0});
+    if (ver == persistent::INVALID_VERSION) {
+        return 0;
+    }
+
+    debug_leave_func();
+
+    return get_size(key,ver,stable);
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::multi_list_keys(const std::string& prefix) const {
+    debug_enter_func_with_args("prefix={}.",prefix);
+    derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
+    auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_list_keys)>(prefix);
     auto& replies = results.get();
     // TODO: verify consistency ?
     debug_leave_func();
@@ -1134,77 +1257,68 @@ std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::list_keys(const persiste
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::op_list_keys(const persistent::version_t& ver, const std::string& op_path) const {
-    debug_enter_func_with_args("ver=0x{:x}.",ver);
-    if (ver != CURRENT_VERSION) {
-        std::vector<KT> key_list;
-        auto kv_map = persistent_core.get(ver)->kv_map;
-        for (auto& kv:kv_map) {
-            key_list.push_back(kv.first);
-        }
-        debug_leave_func();
-        return key_list;
-    }
-    derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
-    auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_list_keys)>();
-    auto& replies = results.get();
-    std::vector<KT> ret;
-    // TODO: verify consistency ?
-    ret = replies.begin()->second.get();
-    ret.erase(
-        std::remove_if(
-            ret.begin(), 
-            ret.end(),
-            [&](const KT key) { return (get_pathname<KT>(key).find(op_path) != 0);}
-        ), 
-        ret.end()
-    ); 
-    debug_leave_func();
-    return ret;
-}
+std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::list_keys(const std::string& prefix, const persistent::version_t& ver, const bool stable) const {
+    debug_enter_func_with_args("prefix={}, ver=0x{:x}, stable={}",prefix,ver,stable);
 
-template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::list_keys_by_time(const uint64_t& ts_us) const {
-    debug_enter_func_with_args("ts_us={}",ts_us);
-    const HLC hlc(ts_us,0ull);
-    try {
-        auto kv_map = persistent_core.get(hlc)->kv_map;
-        std::vector<KT> key_list;
-        for(auto& kv:kv_map) {
-            key_list.push_back(kv.first);
-        }
-        debug_leave_func();
-        return key_list;
-    } catch (const int64_t& ex) {
-        dbg_default_warn("temporal query throws exception:0x{:x]. ts={}", ex, ts_us);
-    } catch (...) {
-        dbg_default_warn("temporal query throws unknown exception. ts={}",  ts_us);
-    }
-    debug_leave_func();
-    return {};
-}
+    persistent::version_t requested_version = ver;
 
-template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::op_list_keys_by_time(const uint64_t& ts_us, const std::string& op_path) const {
-    debug_enter_func_with_args("ts_us={}",ts_us);
-    const HLC hlc(ts_us,0ull);
-    try {
-        auto kv_map = persistent_core.get(hlc)->kv_map;
-        std::vector<KT> key_list;
-        for(auto& kv:kv_map) {
-            if (get_pathname<KT>(kv.first).find(op_path) == 0 ){
-                key_list.push_back(kv.first);
+    if (stable) {
+        derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
+        requested_version = ver;
+        if (requested_version == CURRENT_VERSION) {
+            requested_version = subgroup_handle.get_global_persistence_frontier();
+        } else {
+            // The first condition test if requested_version is beyond the active latest atomic broadcast version.
+            // However, that could be true for a valid requested version for a new started setup, where the active
+            // latest atomic broadcast version is INVALID_VERSION(-1) since there is no atomic broadcast yet. In such a
+            // case, we need also check if requested_version is beyond the local latest version. If both are true, we
+            // determine the requested_version is invalid: it asks a version in the future.
+            if(!subgroup_handle.wait_for_global_persistence_frontier(requested_version) && 
+               requested_version > persistent_core.getLatestVersion()) {
+                // INVALID version
+                dbg_default_debug("{}: requested version:{:x} is beyond the latest atomic broadcast version.",__PRETTY_FUNCTION__,requested_version);
+                return {};
             }
         }
-        debug_leave_func();
-        return key_list;
-    } catch (const int64_t& ex) {
-        dbg_default_warn("temporal query throws exception:0x{:x]. ts={}", ex, ts_us);
-    } catch (...) {
-        dbg_default_warn("temporal query throws unknown exception. ts={}",  ts_us);
+
     }
-    debug_leave_func();
-    return {};
+
+    if (requested_version == CURRENT_VERSION) {
+        // return the unstable question
+        debug_leave_func_with_value("lockless_list_prefix({})",prefix);
+        return persistent_core->lockless_list_keys(prefix);
+    } else {
+        std::vector<KT> keys;
+        persistent_core.get(requested_version, [&keys,&prefix](const DeltaCascadeStoreCore<KT,VT,IK,IV>& pers_core){
+                for (const auto& kv:pers_core.kv_map) {
+                    if (get_pathname<KT>(kv.first).find(prefix) == 0) {
+                        keys.push_back(kv.first);
+                    }
+                }
+            });
+        return keys;
+    }
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::list_keys_by_time(const std::string& prefix, const uint64_t& ts_us, const bool stable) const {
+    debug_enter_func_with_args("ts_us={}",ts_us);
+    const HLC hlc(ts_us,0ull);
+
+    derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
+
+    // get_global_stability_frontier return nano seconds.
+    if ( ts_us > subgroup_handle.compute_global_stability_frontier()/1000 ) {
+        dbg_default_warn("Cannot get data at a time in the future.");
+        return {};
+    }
+
+    persistent::version_t ver = persistent_core.getVersionAtTime({ts_us,0});
+    if (ver == persistent::INVALID_VERSION) {
+        return {};
+    }
+
+    return list_keys(prefix,ver,stable);
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
@@ -1376,12 +1490,12 @@ void PersistentCascadeStore<KT,VT,IK,IV,ST>::dump_timestamp_log_workaround(const
 #endif//ENABLE_EVALUATION
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::ordered_list_keys() {
+std::vector<KT> PersistentCascadeStore<KT,VT,IK,IV,ST>::ordered_list_keys(const std::string& prefix) {
     debug_enter_func();
 
     debug_leave_func();
 
-    return this->persistent_core->ordered_list_keys();
+    return this->persistent_core->ordered_list_keys(prefix);
 }
 
 
@@ -1468,43 +1582,43 @@ const VT TriggerCascadeNoStore<KT,VT,IK,IV>::get_by_time(const KT& key, const ui
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
-std::vector<KT> TriggerCascadeNoStore<KT,VT,IK,IV>::list_keys(const persistent::version_t& ver) const {
+std::vector<KT> TriggerCascadeNoStore<KT,VT,IK,IV>::multi_list_keys(const std::string& prefix) const {
     dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
     return {};
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
-std::vector<KT> TriggerCascadeNoStore<KT,VT,IK,IV>::op_list_keys(const persistent::version_t& ver, const std::string& op_path) const {
+std::vector<KT> TriggerCascadeNoStore<KT,VT,IK,IV>::list_keys(const std::string& prefix, const persistent::version_t& ver, const bool stable) const {
     dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
     return {};
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
-std::vector<KT> TriggerCascadeNoStore<KT,VT,IK,IV>::list_keys_by_time(const uint64_t& ts_us) const {
+std::vector<KT> TriggerCascadeNoStore<KT,VT,IK,IV>::list_keys_by_time(const std::string& prefix, const uint64_t& ts_us, const bool stable) const {
     dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
     return {};
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
-std::vector<KT> TriggerCascadeNoStore<KT,VT,IK,IV>::op_list_keys_by_time(const uint64_t& ts_us, const std::string& op_path) const {
-    dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
-    return {};
-}
-
-template<typename KT, typename VT, KT* IK, VT* IV>
-uint64_t TriggerCascadeNoStore<KT,VT,IK,IV>::get_size(const KT& key, const persistent::version_t& ver, bool) const {
+uint64_t TriggerCascadeNoStore<KT,VT,IK,IV>::multi_get_size(const KT& key) const {
     dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
     return 0; 
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
-uint64_t TriggerCascadeNoStore<KT,VT,IK,IV>::get_size_by_time(const KT& key, const uint64_t& ts_us) const {
+uint64_t TriggerCascadeNoStore<KT,VT,IK,IV>::get_size(const KT& key, const persistent::version_t& ver, const bool stable, bool extract) const {
+    dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
+    return 0; 
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV>
+uint64_t TriggerCascadeNoStore<KT,VT,IK,IV>::get_size_by_time(const KT& key, const uint64_t& ts_us, const bool stable) const {
     dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
     return 0;
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV>
-std::vector<KT> TriggerCascadeNoStore<KT,VT,IK,IV>::ordered_list_keys() {
+std::vector<KT> TriggerCascadeNoStore<KT,VT,IK,IV>::ordered_list_keys(const std::string& prefix) {
     dbg_default_warn("Calling unsupported func:{}",__PRETTY_FUNCTION__);
     return {};
 }

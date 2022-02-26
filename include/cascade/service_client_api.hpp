@@ -63,7 +63,7 @@ CascadeShardLinq<CascadeType,ServiceClientType> from_shard(
         ServiceClientType& capi, uint32_t subgroup_index, 
         uint32_t shard_index, persistent::version_t version) {
     /* load keys. */
-    auto result = capi.template list_keys<CascadeType>(version, subgroup_index, shard_index);
+    auto result = capi.template list_keys<CascadeType>(version, true, subgroup_index, shard_index);
     for(auto& reply_future:result.get()) {
         key_list = reply_future.second.get();
     }
@@ -104,7 +104,7 @@ CascadeShardLinq<CascadeType,ServiceClientType> from_shard_by_time (
     ServiceClientType& capi, uint32_t subgroup_index,
  uint32_t shard_index, const uint64_t ts_us) {
  /* load keys. */
-    auto result = capi.template list_keys_by_time<CascadeType>(ts_us, subgroup_index, shard_index);
+    auto result = capi.template list_keys_by_time<CascadeType>(ts_us, true, subgroup_index, shard_index);
     for(auto& reply_future:result.get()) {
         key_list = reply_future.second.get();
     }
@@ -305,7 +305,7 @@ CascadeObjpoolLinq<CascadeType,ServiceClientType> from_objectpool(
         persistent::version_t version,
         const std::string objpool_path) {
     /* load keys. */
-    auto future_results = capi.template list_keys<CascadeType>(version, objpool_path);
+    auto future_results = capi.template list_keys<CascadeType>(version, true, objpool_path);
     key_list = std::move(capi.template wait_list_keys<CascadeType>(future_results));
     /* set up storage and nextFunc*/
     return CascadeObjpoolLinq<CascadeType,ServiceClientType>(capi,version,objpool_path,key_list,

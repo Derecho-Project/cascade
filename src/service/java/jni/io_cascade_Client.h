@@ -98,18 +98,18 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_removeInternal
 /*
  * Class:     io_cascade_Client
  * Method:    listKeysInternal
- * Signature: (Lio/cascade/ServiceType;JJJ)J
+ * Signature: (Lio/cascade/ServiceType;JZJJ)J
  */
 JNIEXPORT jlong JNICALL Java_io_cascade_Client_listKeysInternal
-  (JNIEnv *, jobject, jobject, jlong, jlong, jlong);
+  (JNIEnv *, jobject, jobject, jlong, jboolean, jlong, jlong);
 
 /*
  * Class:     io_cascade_Client
  * Method:    listKeysByTimeInternal
- * Signature: (Lio/cascade/ServiceType;JJJ)J
+ * Signature: (Lio/cascade/ServiceType;JZJJ)J
  */
 JNIEXPORT jlong JNICALL Java_io_cascade_Client_listKeysByTimeInternal
-  (JNIEnv *, jobject, jobject, jlong, jlong, jlong);
+  (JNIEnv *, jobject, jobject, jlong, jboolean, jlong, jlong);
 
 /*
  * Class:     io_cascade_Client

@@ -234,7 +234,7 @@ public:
         std::map<std::string,fuse_ino_t> ret_map;
         /** we always retrieve the key list for a shard inode because the data is highly dynamic */
         uint32_t subgroup_index = reinterpret_cast<SubgroupINode<CascadeType, ServiceClientType>*>(this->parent)->subgroup_index;
-        auto result =  capi_ptr->template list_keys<CascadeType>(CURRENT_VERSION, subgroup_index, this->shard_index);
+        auto result =  capi_ptr->template list_keys<CascadeType>(CURRENT_VERSION, true, subgroup_index, this->shard_index);
         for (auto& reply_future:result.get()) {
             auto reply = reply_future.second.get();
             std::unique_lock wlck(this->children_mutex);
@@ -591,7 +591,7 @@ public:
         ShardINode<CascadeType,ServiceClientType> *pino_shard = reinterpret_cast<ShardINode<CascadeType,ServiceClientType>*>(this->parent);
         SubgroupINode<CascadeType,ServiceClientType> *pino_subgroup = reinterpret_cast<SubgroupINode<CascadeType,ServiceClientType>*>(pino_shard->parent);
         auto result = capi_ptr->template get_size<CascadeType>(
-                key,CURRENT_VERSION,pino_subgroup->subgroup_index,pino_shard->shard_index);
+                key,CURRENT_VERSION,true,pino_subgroup->subgroup_index,pino_shard->shard_index);
         uint64_t fsize = 0;
         for (auto& reply_future:result.get()) {
             fsize = reply_future.second.get();
