@@ -173,16 +173,16 @@ static void client_list(derecho::ExternalGroup<VCS,PCS,TCS>& group,
     if (is_persistent) {
         ExternalClientCaller<PCS,std::remove_reference<decltype(group)>::type>& pcs_ec = group.get_subgroup_caller<PCS>();
         if (ts != 0) {
-            opt.emplace(pcs_ec.p2p_send<RPC_NAME(list_keys_by_time)>(member,ts));
+            opt.emplace(pcs_ec.p2p_send<RPC_NAME(list_keys_by_time)>(member,"",ts,true));
         } else {
-            opt.emplace(pcs_ec.p2p_send<RPC_NAME(list_keys)>(member,ver));
+            opt.emplace(pcs_ec.p2p_send<RPC_NAME(list_keys)>(member,"",ver,true));
         }
     } else {
         ExternalClientCaller<VCS,std::remove_reference<decltype(group)>::type>& vcs_ec = group.get_subgroup_caller<VCS>();
         if (ts != 0) {
-            opt.emplace(vcs_ec.p2p_send<RPC_NAME(list_keys_by_time)>(member,ts));
+            opt.emplace(vcs_ec.p2p_send<RPC_NAME(list_keys_by_time)>(member,"",ts,true));
         } else {
-            opt.emplace(vcs_ec.p2p_send<RPC_NAME(list_keys)>(member,ver));
+            opt.emplace(vcs_ec.p2p_send<RPC_NAME(list_keys)>(member,"",ver,true));
         }
     }
 

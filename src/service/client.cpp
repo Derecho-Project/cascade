@@ -322,27 +322,40 @@ void multi_get(ServiceClientAPI& capi, const std::string& key, uint32_t subgroup
 }
 
 template <typename SubgroupType>
-void get_size(ServiceClientAPI& capi, const std::string& key, persistent::version_t ver, uint32_t subgroup_index,uint32_t shard_index) {
+void get_size(ServiceClientAPI& capi, const std::string& key, persistent::version_t ver, bool stable, uint32_t subgroup_index,uint32_t shard_index) {
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
         derecho::rpc::QueryResults<uint64_t> result = capi.template get_size<SubgroupType>(
-                static_cast<uint64_t>(std::stol(key)),ver,subgroup_index,shard_index);
+                static_cast<uint64_t>(std::stol(key)),ver,stable,subgroup_index,shard_index);
         check_get_result(result);
     } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
         derecho::rpc::QueryResults<uint64_t> result = capi.template get_size<SubgroupType>(
-                key,ver,subgroup_index,shard_index);
+                key,ver,stable,subgroup_index,shard_index);
         check_get_result(result);
     }
 }
 
 template <typename SubgroupType>
-void get_size_by_time(ServiceClientAPI& capi, const std::string& key, uint64_t ts_us, uint32_t subgroup_index, uint32_t shard_index) {
+void multi_get_size(ServiceClientAPI& capi, const std::string& key, uint32_t subgroup_index, uint32_t shard_index) {
+    if constexpr ( std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
+        derecho::rpc::QueryResults<uint64_t> result = capi.template multi_get_size<SubgroupType> (
+                static_cast<uint64_t>(std::stol(key)),subgroup_index,shard_index);
+        check_get_result(result);
+    } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
+        derecho::rpc::QueryResults<uint64_t> result = capi.template multi_get_size<SubgroupType>(
+                key,subgroup_index,shard_index);
+        check_get_result(result);
+    }
+}
+
+template <typename SubgroupType>
+void get_size_by_time(ServiceClientAPI& capi, const std::string& key, uint64_t ts_us, bool stable, uint32_t subgroup_index, uint32_t shard_index) {
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
         derecho::rpc::QueryResults<uint64_t> result = capi.template get_size_by_time<SubgroupType>(
-                static_cast<uint64_t>(std::stol(key)),ts_us,subgroup_index,shard_index);
+                static_cast<uint64_t>(std::stol(key)),ts_us,stable,subgroup_index,shard_index);
         check_get_result(result);
     } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
         derecho::rpc::QueryResults<uint64_t> result = capi.template get_size_by_time<SubgroupType>(
-                key,ts_us,subgroup_index,shard_index);
+                key,ts_us,stable,subgroup_index,shard_index);
         check_get_result(result);
     }
 }
@@ -362,17 +375,21 @@ void get_size_by_time(ServiceClientAPI& capi, const std::string& key, uint64_t t
         std::cout << "    " << key << std::endl;\
     }
 
-
 template <typename SubgroupType>
-void list_keys(ServiceClientAPI& capi, persistent::version_t ver, uint32_t subgroup_index, uint32_t shard_index) {
-    std::cout << "list_keys: ver = " << ver << ", subgroup_index = " << subgroup_index << ", shard_index = " << shard_index << std::endl;
-    derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> result = capi.template list_keys<SubgroupType>(ver,subgroup_index,shard_index);
+void multi_list_keys(ServiceClientAPI& capi, uint32_t subgroup_index, uint32_t shard_index) {
+    derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> result = capi.template multi_list_keys<SubgroupType>(subgroup_index,shard_index);
     check_list_keys_result(result);
 }
 
 template <typename SubgroupType>
-void list_keys_by_time(ServiceClientAPI& capi, uint64_t ts_us, uint32_t subgroup_index, uint32_t shard_index) {
-    derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> result = capi.template list_keys_by_time<SubgroupType>(ts_us,subgroup_index,shard_index);
+void list_keys(ServiceClientAPI& capi, persistent::version_t ver, bool stable, uint32_t subgroup_index, uint32_t shard_index) {
+    derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> result = capi.template list_keys<SubgroupType>(ver,stable,subgroup_index,shard_index);
+    check_list_keys_result(result);
+}
+
+template <typename SubgroupType>
+void list_keys_by_time(ServiceClientAPI& capi, uint64_t ts_us, bool stable, uint32_t subgroup_index, uint32_t shard_index) {
+    derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> result = capi.template list_keys_by_time<SubgroupType>(ts_us,stable,subgroup_index,shard_index);
     check_list_keys_result(result);
 }
 
@@ -1072,40 +1089,73 @@ std::vector<command_entry_t> commands =
         }
     },
     {
-        "get_size",
-        "Get the size of an object (by version).",
-        "get_size <type> <key> <subgroup_index> <shard_index> [ version(default:current version) ]\n"
+        "multi_get_size",
+        "Get the size of an object, which will participate atomic broadcast for the latest size.",
+        "multi_get_size <type> <key> <subgroup_index> <shard_index>\n"
             "type := " SUBGROUP_TYPE_LIST,
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             if (cmd_tokens.size() < 5) {
-                print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
+                print_red("Invliad command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
             }
             uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
             uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
-            persistent::version_t version = CURRENT_VERSION;
-            if (cmd_tokens.size() >= 6) {
-                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[5]));
+            on_subgroup_type(cmd_tokens[1],multi_get_size,capi,cmd_tokens[2],subgroup_index,shard_index);
+            return true;
+        }
+    },
+    {
+        "op_multi_get_size",
+        "Get the size of an object, which will participate atomic broadcast for the latest size.",
+        "op_multi_get_size <key>\n"
+            "type := " SUBGROUP_TYPE_LIST,
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+            if (cmd_tokens.size() < 2) {
+                print_red("Invliad command format. Please try help " + cmd_tokens[0] + ".");
+                return false;
             }
-            on_subgroup_type(cmd_tokens[1],get_size,capi,cmd_tokens[2],version,subgroup_index,shard_index);
+            auto res = capi.multi_get_size(cmd_tokens[1]);
+            check_get_result(res);
+            return true;
+        }
+    },
+    {
+        "get_size",
+        "Get the size of an object (by version).",
+        "get_size <type> <key> <stable> <subgroup_index> <shard_index> [ version(default:current version) ]\n"
+            "type := " SUBGROUP_TYPE_LIST,
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+            if (cmd_tokens.size() < 6) {
+                print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
+                return false;
+            }
+            bool stable = static_cast<bool>(std::stoi(cmd_tokens[3]));
+            uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
+            uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[5]));
+            persistent::version_t version = CURRENT_VERSION;
+            if (cmd_tokens.size() >= 7) {
+                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[6]));
+            }
+            on_subgroup_type(cmd_tokens[1],get_size,capi,cmd_tokens[2],version,stable,subgroup_index,shard_index);
             return true;
         }
     },
     {
         "op_get_size",
         "Get the size of an object from an object pool (by version).",
-        "op_get_size <key> [ version(default:current version) ]\n"
+        "op_get_size <key> <stable> [ version(default:current version) ]\n"
             "Please note that cascade automatically decides the object pool path using the key's prefix.",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
-            if (cmd_tokens.size() < 2) {
+            if (cmd_tokens.size() < 3) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
             }
             persistent::version_t version = CURRENT_VERSION;
-            if (cmd_tokens.size() >= 3) {
-                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[2]));
+            bool stable = static_cast<bool>(std::stoi(cmd_tokens[2]));
+            if (cmd_tokens.size() >= 4) {
+                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[3]));
             }
-            auto res = capi.get_size(cmd_tokens[1],version);
+            auto res = capi.get_size(cmd_tokens[1],version,stable);
             check_get_result(res);
             return true;
         }
@@ -1113,70 +1163,105 @@ std::vector<command_entry_t> commands =
     {
         "get_size_by_time",
         "Get the size of an object (by timestamp in microseconds).",
-        "get_size_by_time <type> <key> <subgroup_index> <shard_index> <timestamp in us>\n"
+        "get_size_by_time <type> <key> <subgroup_index> <shard_index> <timestamp in us> <stable>\n"
             "type := " SUBGROUP_TYPE_LIST,
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
-            if (cmd_tokens.size() < 6) {
+            if (cmd_tokens.size() < 7) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
             }
             uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
             uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
-            uint64_t ts_us = static_cast<uint64_t>(std::stol(cmd_tokens[3]));
-            on_subgroup_type(cmd_tokens[1],get_size_by_time,capi,cmd_tokens[2],ts_us,subgroup_index,shard_index);
+            uint64_t ts_us = static_cast<uint64_t>(std::stol(cmd_tokens[5]));
+            bool stable = static_cast<bool>(std::stoi(cmd_tokens[6]));
+            on_subgroup_type(cmd_tokens[1],get_size_by_time,capi,cmd_tokens[2],ts_us,stable,subgroup_index,shard_index);
             return true;
         }
     },
     {
         "op_get_size_by_time",
         "Get the size of an object from an object pool (by timestamp in microseconds).",
-        "op_get_size_by_time <key> <timestamp in us>\n"
+        "op_get_size_by_time <key> <timestamp in us> <stable>\n"
             "Please note that cascade automatically decides the object pool path using the key's prefix.",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
-            if (cmd_tokens.size() < 3) {
+            if (cmd_tokens.size() < 4) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
             }
             uint64_t ts_us = static_cast<uint64_t>(std::stol(cmd_tokens[2]));
-            auto res = capi.get_size_by_time(cmd_tokens[1],ts_us);
+            bool stable = static_cast<bool>(std::stoi(cmd_tokens[3]));
+            auto res = capi.get_size_by_time(cmd_tokens[1],ts_us,stable);
             check_get_result(res);
+            return true;
+        }
+    },
+    {
+        "multi_list_keys",
+        "list the object keys in a shard using atomic broadcast for the latest version.",
+        "multi_list_keys <type> <subgroup_index> <shard_index> \n"
+            "type := " SUBGROUP_TYPE_LIST,
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+            if (cmd_tokens.size() < 4) {
+                print_red("Invalid command format. Please try help" + cmd_tokens[0] + ".");
+                return false;
+            }
+            uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[2]));
+            uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
+            on_subgroup_type(cmd_tokens[1],multi_list_keys,capi,subgroup_index,shard_index);
+            return true;
+        }
+    },
+    {
+        "op_multi_list_keys",
+        "list the object keys in a shard using atomic broadcast for the latest version.",
+        "op_multi_list_keys <object pool pathname>\n"
+            "type := " SUBGROUP_TYPE_LIST,
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+            if (cmd_tokens.size() < 2) {
+                print_red("Invalid command format. Please try help" + cmd_tokens[0] + ".");
+                return false;
+            }
+            auto result = capi.multi_list_keys(cmd_tokens[1]);
+            check_op_list_keys_result(capi.wait_list_keys(result));
             return true;
         }
     },
     {
         "list_keys",
         "list the object keys in a shard (by version).",
-        "list_keys <type> <subgroup_index> <shard_index> [ version(default:current version) ]\n"
+        "list_keys <type> <stable> <subgroup_index> <shard_index> [ version(default:current version) ]\n"
             "type := " SUBGROUP_TYPE_LIST,
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
-            if (cmd_tokens.size() < 4) {
+            if (cmd_tokens.size() < 5) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
             }
-            uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[2]));
-            uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
+            bool stable = static_cast<bool>(std::stoi(cmd_tokens[2]));
+            uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
+            uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
             persistent::version_t version = CURRENT_VERSION;
-            if (cmd_tokens.size() >= 5) {
-                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[4]));
+            if (cmd_tokens.size() >= 6) {
+                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[5]));
             }
-            on_subgroup_type(cmd_tokens[1],list_keys,capi,version,subgroup_index,shard_index);
+            on_subgroup_type(cmd_tokens[1],list_keys,capi,version,stable,subgroup_index,shard_index);
             return true;
         }
     },
     {
         "op_list_keys",
         "list the object keys in an object pool (by version).",
-        "op_list_keys <object pool pathname> [ version(default:current version) ]\n",
+        "op_list_keys <object pool pathname> <stable> [ version(default:current version) ]\n",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
-            if (cmd_tokens.size() < 2) {
+            if (cmd_tokens.size() < 3) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
             }
+            bool stable = static_cast<bool>(std::stoi(cmd_tokens[2]));
             persistent::version_t version = CURRENT_VERSION;
-            if (cmd_tokens.size() >= 3) {
-                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[2]));
+            if (cmd_tokens.size() >= 4) {
+                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[3]));
             }
-            auto result = capi.list_keys(version,cmd_tokens[1]);
+            auto result = capi.list_keys(version,stable,cmd_tokens[1]);
             check_op_list_keys_result(capi.wait_list_keys(result));
             return true;
         }
@@ -1184,31 +1269,33 @@ std::vector<command_entry_t> commands =
     {
         "list_keys_by_time",
         "list the object keys in a shard (by timestamp in mircoseconds).",
-        "list_keys_by_time <type> <subgroup_index> <shard_index> <timestamp in us>\n"
+        "list_keys_by_time <type> <subgroup_index> <shard_index> <timestamp in us> <stable>\n"
             "type := " SUBGROUP_TYPE_LIST,
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
-            if (cmd_tokens.size() < 5) {
+            if (cmd_tokens.size() < 6) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
             }
             uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[2]));
             uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
             uint64_t ts_us = static_cast<uint64_t>(std::stoull(cmd_tokens[4]));
-            on_subgroup_type(cmd_tokens[1],list_keys_by_time,capi,ts_us,subgroup_index,shard_index);
+            bool stable = static_cast<bool>(std::stoi(cmd_tokens[5]));
+            on_subgroup_type(cmd_tokens[1],list_keys_by_time,capi,ts_us,stable,subgroup_index,shard_index);
             return true;
         }
     },
     {
         "op_list_keys_by_time",
         "list the object keys in an object pool (by timestamp in microseconds).",
-        "op_list_keys_by_time <object pool pathname> <timestamp in us>\n",
+        "op_list_keys_by_time <object pool pathname> <timestamp in us> <stable>\n",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
-            if (cmd_tokens.size() < 3) {
+            if (cmd_tokens.size() < 4) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
             }
             uint64_t ts_us = static_cast<uint64_t>(std::stoull(cmd_tokens[2]));
-            auto result = capi.list_keys_by_time(ts_us,cmd_tokens[1]);
+            bool stable = static_cast<bool>(std::stoi(cmd_tokens[3]));
+            auto result = capi.list_keys_by_time(ts_us,stable,cmd_tokens[1]);
             check_op_list_keys_result(capi.wait_list_keys(result));
             return true;
         }

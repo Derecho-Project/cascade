@@ -308,7 +308,7 @@ public class Client implements AutoCloseable {
      *         all keys included in the operation.
      */
     public QueryResults<List<ByteBuffer>> listKeys(ServiceType type, long version, long subgroupIndex, long shardIndex){
-        long res = listKeysInternal(type, version, subgroupIndex, shardIndex);
+        long res = listKeysInternal(type, version, true/*TODO:stable*/, subgroupIndex, shardIndex);
         return new QueryResults<List<ByteBuffer>>(res, 2);
     }
 
@@ -326,7 +326,7 @@ public class Client implements AutoCloseable {
      *         all keys included in the operation.
      */
     public QueryResults<List<ByteBuffer>> listKeysByTime(ServiceType type, long timestamp, long subgroupIndex, long shardIndex){
-        long res = listKeysByTimeInternal(type, timestamp, subgroupIndex, shardIndex);
+        long res = listKeysByTimeInternal(type, timestamp, true/*TODO:stable*/, subgroupIndex, shardIndex);
         return new QueryResults<List<ByteBuffer>>(res, 2);
     }
 
@@ -417,6 +417,7 @@ public class Client implements AutoCloseable {
      * @param type          The type of the subgroup.
      * @param version       The upper bound persistent version of all keys listed.
      *                      -1 if you want to list all keys.
+     * @param stable        get stable data or not.
      * @param subgroupIndex The index of the subgroup with type {@code type} to
      *                      remove this key-value pair from.
      * @param shardIndex    The index of the shard within the subgroup with type
@@ -424,13 +425,14 @@ public class Client implements AutoCloseable {
      *                      remove this key-value pair from.
      * @return A handle of the C++ future that stores a vector with all keys included.
      */
-    private native long listKeysInternal(ServiceType type, long version, long subgroupIndex, long shardIndex);
+    private native long listKeysInternal(ServiceType type, long version, boolean stable, long subgroupIndex, long shardIndex);
 
     /**
      * Internal interface for list key by time operation.
      * 
      * @param type          The type of the subgroup.
      * @param timestamp     The upper bound timestamp of all keys listed.
+     * @param stable        get stable data or not.
      * @param subgroupIndex The index of the subgroup with type {@code type} to
      *                      remove this key-value pair from.
      * @param shardIndex    The index of the shard within the subgroup with type
@@ -438,7 +440,7 @@ public class Client implements AutoCloseable {
      *                      remove this key-value pair from.
      * @return A handle of the C++ future that stores a vector with all keys included.
      */
-    private native long listKeysByTimeInternal(ServiceType type, long timestamp, long subgroupIndex, long shardIndex);
+    private native long listKeysByTimeInternal(ServiceType type, long timestamp, boolean stable, long subgroupIndex, long shardIndex);
 
     /**
      * Create an object pool
