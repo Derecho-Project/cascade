@@ -343,6 +343,111 @@ class CascadeClientShell(cmd.Cmd):
                 print(bcolors.FAIL + "Something went wrong, get returns null." + bcolors.RESET)
         pass
 
+    def do_get_size(self, arg):
+        '''
+        get_size <key> [subgroup_type= subgroup_index= shard_index= stable= version= timestamp=]
+        ========
+        Get the size of an bject
+
+        key:            the key string
+
+        *** optional key arguments ***
+        subgroup_type:              optional subgroup type, could be either of the following:
+                                    VolatileCascadeStoreWithStringKey
+                                    PersistentCascadeStoreWithStringKey
+                                    TriggerCascadeNoStoreWithStringKey
+                                    by default, put try to find object pool by parsing key
+        subgroup_index:             the subgroup index
+        shard_index:                the shard index
+        stable:                     If this is a stable read or not, default to stable.
+        version:                    the version. For versioned get only
+        timestamp:                  the unix EPOCH timestamp in microseconds. For timestamped-get only
+        '''
+        self.check_capi()
+        args = arg.split()
+        if len(args) < 1:
+            print(bcolors.FAIL + 'At least one argument is required.' + bcolors.RESET)
+        else:
+            subgroup_type = ""
+            subgroup_index = 0
+            shard_index = 0
+            stable = True
+            version = ServiceClientAPI.CURRENT_VERSION
+            timestamp = 0
+            argpos = 1
+            while argpos < len(args):
+                extra_option = args[argpos].split('=')
+                if len(extra_option) != 2:
+                    print(bcolors.FAIL + "Unknown argument:" + args[2] + bcolors.RESET)
+                    return
+                elif extra_option[0] == 'subgroup_type':
+                    subgroup_type = extra_option[1]
+                elif extra_option[0] == 'subgroup_index':
+                    subgroup_index = int(extra_option[1],0)
+                elif extra_option[0] == 'shard_index':
+                    shard_index = int(extra_option[1],0)
+                elif extra_option[0] == 'stable':
+                    if extra_option[1].lower == 'false' or extra_option[1].lower == 'no' or extra_option[1].lower() == 'off' or extra_option[1].lower() == '0':
+                        stable = False;
+                elif extra_option[0] == 'version':
+                    version = int(extra_option[1],0)
+                elif extra_option[0] == 'timestamp':
+                    timestamp = int(extra_option[1],0)
+                argpos = argpos + 1
+            res = self.capi.get_size(args[0],subgroup_type=subgroup_type,subgroup_index=subgroup_index,shard_index=shard_index,version=version,timestamp=timestamp)
+            if res:
+                obj_size = res.get_result()
+                print(bcolors.OK + f"Serialized object is {obj_size} bytes" + bcolors.RESET)
+            else:
+                print(bcolors.FAIL + "Something went wrong, get returns null." + bcolors.RESET)
+        pass
+
+    def do_multi_get_size(self, arg):
+        '''
+        multi_get_size <key> [subgroup_type= subgroup_index= shard_index=]
+        ==============
+        Get the size of an object using multi_get
+
+        key:            the key string
+
+        *** optional key arguments ***
+        subgroup_type:              optional subgroup type, could be either of the following:
+                                    VolatileCascadeStoreWithStringKey
+                                    PersistentCascadeStoreWithStringKey
+                                    TriggerCascadeNoStoreWithStringKey
+                                    by default, put try to find object pool by parsing key
+        subgroup_index:             the subgroup index
+        shard_index:                the shard index
+        '''
+        self.check_capi()
+        args = arg.split()
+        if len(args) < 1:
+            print(bcolors.FAIL + 'At least one argument is required.' + bcolors.RESET)
+        else:
+            subgroup_type = ""
+            subgroup_index = 0
+            shard_index = 0
+            argpos = 1
+            while argpos < len(args):
+                extra_option = args[argpos].split('=')
+                if len(extra_option) != 2:
+                    print(bcolors.FAIL + "Unknown argument:" + args[2] + bcolors.RESET)
+                    return
+                elif extra_option[0] == 'subgroup_type':
+                    subgroup_type = extra_option[1]
+                elif extra_option[0] == 'subgroup_index':
+                    subgroup_index = int(extra_option[1],0)
+                elif extra_option[0] == 'shard_index':
+                    shard_index = int(extra_option[1],0)
+                argpos = argpos + 1
+            res = self.capi.multi_get_size(args[0],subgroup_type=subgroup_type,subgroup_index=subgroup_index,shard_index=shard_index)
+            if res:
+                obj_size = res.get_result()
+                print(bcolors.OK + f"Serialized object is {obj_size} bytes" + bcolors.RESET)
+            else:
+                print(bcolors.FAIL + "Something went wrong, get returns null." + bcolors.RESET)
+        pass
+
     def do_create_object_pool(self, arg):
         '''
         create_object_pool <pathname> <subgroup_type> <subgroup_index>
