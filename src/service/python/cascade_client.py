@@ -359,7 +359,7 @@ class CascadeClientShell(cmd.Cmd):
                                     by default, put try to find object pool by parsing key
         subgroup_index:             the subgroup index
         shard_index:                the shard index
-        stable:                     If this is a stable read or not, default to stable.
+        stable:                     If this is a stable read or not, default to staVble.
         version:                    the version. For versioned get only
         timestamp:                  the unix EPOCH timestamp in microseconds. For timestamped-get only
         '''
@@ -444,6 +444,59 @@ class CascadeClientShell(cmd.Cmd):
             if res:
                 obj_size = res.get_result()
                 print(bcolors.OK + f"Serialized object is {obj_size} bytes" + bcolors.RESET)
+            else:
+                print(bcolors.FAIL + "Something went wrong, get returns null." + bcolors.RESET)
+        pass
+
+    def do_list_keys_in_shard(self, arg):
+        '''
+        list_keys_in_shard <subgroup_type> [subgroup_index= shard_index=]
+        ==================
+        List the keys in a shard
+        subgroup_type:      
+                                    VolatileCascadeStoreWithStringKey
+                                    PersistentCascadeStoreWithStringKey
+                                    TriggerCascadeNoStoreWithStringKey
+
+        *** optional key arguments ***
+        subgroup_index:             the subgroup index, default to 0
+        shard_index:                the shard index, default to 0
+        stable:                     If this is a stable read or not, default to staVble.
+        version:                    the version. For versioned get only
+        timestamp:                  the unix EPOCH timestamp in microseconds. For timestamped-get only
+        '''
+        self.check_capi()
+        args = arg.split()
+        if len(args) < 1:
+            print(bcolors.FAIL + 'At least one argument is required.' + bcolors.RESET)
+        else:
+            subgroup_index = 0
+            shard_index = 0
+            stable = True
+            version = ServiceClientAPI.CURRENT_VERSION
+            timestamp = 0
+            argpos = 1
+            while argpos < len(args):
+                extra_option = args[argpos].split('=')
+                if len(extra_option) != 2:
+                    print(bcolors.FAIL + "Unknown argument:" + args[2] + bcolors.RESET)
+                    return
+                elif extra_option[0] == 'subgroup_index':
+                    subgroup_index = int(extra_option[1],0)
+                elif extra_option[0] == 'shard_index':
+                    shard_index = int(extra_option[1],0)
+                elif extra_option[0] == 'stable':
+                    if extra_option[1].lower == 'false' or extra_option[1].lower == 'no' or extra_option[1].lower() == 'off' or extra_option[1].lower() == '0':
+                        stable = False;
+                elif extra_option[0] == 'version':
+                    version = int(extra_option[1],0)
+                elif extra_option[0] == 'timestamp':
+                    timestamp = int(extra_option[1],0)
+                argpos = argpos + 1
+            res = self.capi.list_keys_in_shard(args[0],subgroup_index=subgroup_index,shard_index=shard_index,version=version,stable=stable,timestamp=timestamp)
+            if res:
+                keys = res.get_result()
+                print(bcolors.OK + f" {str(keys)}" + bcolors.RESET)
             else:
                 print(bcolors.FAIL + "Something went wrong, get returns null." + bcolors.RESET)
         pass
