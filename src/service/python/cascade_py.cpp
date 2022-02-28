@@ -252,6 +252,39 @@ auto multi_get(ServiceClientAPI& capi, const std::string& key, uint32_t subgroup
 }
 
 /**
+    Get object size from cascade store.
+    @param capi the service client API for this client.
+    @param key key to remove value from
+    @param ver version of the object you want to get.
+    @param stable using stable get or not.
+    @param subgroup_index 
+    @param shard_index
+    @return QueryResultsStore that handles the return type.
+*/
+template <typename SubgroupType>
+auto get_size(ServiceClientAPI& capi, const std::string& key, persistent::version_t ver, bool stable, uint32_t subgroup_index = 0, uint32_t shard_index = 0) {
+    derecho::rpc::QueryResults<uint64_t> result = capi.template get_size<SubgroupType>(key, ver, stable, subgroup_index, shard_index);
+    // check_get_result(result);
+    auto s = new QueryResultsStore<uint64_t, uint64_t>(result,[](const uint64_t& size){return size;});
+    return py::cast(s);
+}
+
+/**
+    Get objects from cascade store using multi_get_size.
+    @param capi the service client API for this client.
+    @param key key to remove value from
+    @param subgroup_index 
+    @param shard_index
+    @return QueryResultsStore that handles the return type.
+*/
+template <typename SubgroupType>
+auto multi_get_size(ServiceClientAPI& capi, const std::string& key, uint32_t subgroup_index = 0, uint32_t shard_index = 0) {
+    auto result = capi.template multi_get_size<SubgroupType>(key,subgroup_index,shard_index);
+    auto s = new QueryResultsStore<uint64_t, uint64_t>(result, [](const uint64_t& size){return size;});
+    return py::cast(s);
+}
+
+/**
     Get objects from cascade store by time.
     @param capi the service client API for this client.
     @param key key to remove value from
@@ -264,6 +297,13 @@ template <typename SubgroupType>
 auto get_by_time(ServiceClientAPI& capi, const std::string& key, uint64_t ts_us, bool stable, uint32_t subgroup_index, uint32_t shard_index) {
     derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get_by_time<SubgroupType>(key, ts_us,stable, subgroup_index, shard_index);
     auto s = new QueryResultsStore<const typename SubgroupType::ObjectType, py::dict>(result, object_unwrapper);
+    return py::cast(s);
+}
+
+template <typename SubgroupType>
+auto get_size_by_time(ServiceClientAPI& capi, const std::string& key, uint64_t ts_us, bool stable, uint32_t subgroup_index, uint32_t shard_index) {
+    derecho::rpc::QueryResults<uint64_t> result = capi.template get_size_by_time<SubgroupType>(key, ts_us,stable, subgroup_index, shard_index);
+    auto s = new QueryResultsStore<uint64_t, uint64_t>(result, [](const uint64_t& size){return size;});
     return py::cast(s);
 }
 
@@ -602,7 +642,7 @@ PYBIND11_MODULE(client, m) {
                                 auto s = new QueryResultsStore<const ObjectWithStringKey,py::dict>(res, object_unwrapper);
                                 return py::cast(s);
                             } else {
-                                on_all_subgroup_type(subgroup_type, return get, capi, key, stable, version, subgroup_index, shard_index);
+                                on_all_subgroup_type(subgroup_type, return get, capi, key, version, stable, subgroup_index, shard_index);
                             }
                         }
 
@@ -657,6 +697,106 @@ PYBIND11_MODULE(client, m) {
                     "\t@argX    subgroup_index  \n"
                     "\t@argX    shard_index     \n"
                     "\t@return  a dict version of the object."
+            )
+            .def(
+                    "get_size",
+                    [](ServiceClientAPI& capi, std::string& key, py::kwargs kwargs) {
+                        std::string subgroup_type;
+                        uint32_t subgroup_index = 0;
+                        uint32_t shard_index = 0;
+                        persistent::version_t version = CURRENT_VERSION;
+                        bool stable = true;
+                        uint64_t timestamp = 0ull;
+                        if (kwargs.contains("subgroup_type")) {
+                            subgroup_type = kwargs["subgroup_type"].cast<std::string>();
+                        }
+                        if (kwargs.contains("subgroup_index")) {
+                            subgroup_index = kwargs["subgroup_index"].cast<uint32_t>();
+                        }
+                        if (kwargs.contains("shard_index")) {
+                            shard_index = kwargs["shard_index"].cast<uint32_t>();
+                        }
+                        if (kwargs.contains("version")) {
+                            version = kwargs["version"].cast<persistent::version_t>();
+                        }
+                        if (kwargs.contains("stable")) {
+                            stable = kwargs["stable"].cast<bool>();
+                        }
+                        if (kwargs.contains("timestamp")) {
+                            timestamp = kwargs["timestamp"].cast<uint64_t>();
+                        }
+
+                        if (timestamp != 0 && version == CURRENT_VERSION ) {
+                            // timestamped get
+                            if (subgroup_type.empty()) {
+                                auto res = capi.get_size_by_time(key,timestamp,stable);
+                                auto s = new QueryResultsStore<uint64_t,uint64_t>(res, [](const uint64_t& size){return size;});
+                                return py::cast(s);
+                            } else {
+                                on_all_subgroup_type(subgroup_type, return get_size_by_time, capi, key, timestamp, stable, subgroup_index, shard_index);
+                            }
+                        } else {
+                            // get versioned get
+                            if (subgroup_type.empty()) {
+                                auto res = capi.get_size(key,version,stable);
+                                auto s = new QueryResultsStore<uint64_t,uint64_t>(res, [](const uint64_t& size){return size;});
+                                return py::cast(s);
+                            } else {
+                                on_all_subgroup_type(subgroup_type, return get_size, capi, key, version, stable, subgroup_index, shard_index);
+                            }
+                        }
+
+                        return py::cast(NULL);
+                    },
+                    "Get the size of an object. \n"
+                    "\t@arg0    key \n"
+                    "\t** Optional keyword argument: ** \n"
+                    "\t@argX    subgroup_type   VolatileCascadeStoreWithStringKey | \n"
+                    "\t                         PersistentCascadeStoreWithStringKey | \n"
+                    "\t                         TriggerCascadeNoStoreWithStringKey \n"
+                    "\t@argX    subgroup_index  \n"
+                    "\t@argX    shard_index     \n"
+                    "\t@argX    version         Specify version for a versioned get.\n"
+                    "\t@argX    stable          Specify if using stable get or not. Defaulted to true.\n"
+                    "\t@argX    timestamp       Specify timestamp (as an integer in unix epoch microsecond) for a timestampped get.\n"
+                    "\t@return  the size of the object"
+            )
+            .def(
+                    "multi_get_size",
+                    [](ServiceClientAPI& capi, std::string& key, py::kwargs kwargs) {
+                        std::string subgroup_type;
+                        uint32_t subgroup_index = 0;
+                        uint32_t shard_index = 0;
+                        if (kwargs.contains("subgroup_type")) {
+                            subgroup_type = kwargs["subgroup_type"].cast<std::string>();
+                        }
+                        if (kwargs.contains("subgroup_index")) {
+                            subgroup_index = kwargs["subgroup_index"].cast<uint32_t>();
+                        }
+                        if (kwargs.contains("shard_index")) {
+                            shard_index = kwargs["shard_index"].cast<uint32_t>();
+                        }
+
+                        // get versioned get
+                        if (subgroup_type.empty()) {
+                            auto res = capi.multi_get_size(key);
+                            auto s = new QueryResultsStore<uint64_t,uint64_t>(res, [](const uint64_t& size){return size;});
+                            return py::cast(s);
+                        } else {
+                            on_all_subgroup_type(subgroup_type, return multi_get_size, capi, key, subgroup_index, shard_index);
+                        }
+
+                        return py::cast(NULL);
+                    },
+                    "Get object size using multi_get_size. \n"
+                    "\t@arg0    key \n"
+                    "\t** Optional keyword argument: ** \n"
+                    "\t@argX    subgroup_type   VolatileCascadeStoreWithStringKey | \n"
+                    "\t                         PersistentCascadeStoreWithStringKey | \n"
+                    "\t                         TriggerCascadeNoStoreWithStringKey \n"
+                    "\t@argX    subgroup_index  \n"
+                    "\t@argX    shard_index     \n"
+                    "\t@return  the size of the object."
             )
             .def(
                     "create_object_pool", 
@@ -715,4 +855,10 @@ PYBIND11_MODULE(client, m) {
                         return qrs.get_result();
                     },
                     "Get result from QueryResultsStore for ObjectWithUInt64Key");
+    py::class_<QueryResultsStore<uint64_t,uint64_t>>(m, "QueryResultsStoreSize")
+            .def(
+                    "get_result", [](QueryResultsStore<uint64_t,uint64_t>& qrs) {
+                        return qrs.get_result();
+                    },
+                    "Get result from QueryResultsStore from uint64_t");
 }
