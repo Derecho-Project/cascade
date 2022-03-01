@@ -332,6 +332,13 @@ auto list_keys_by_time(ServiceClientAPI& capi, uint64_t ts_us, bool stable, uint
     return py::cast(s);
 }
 
+template <typename SubgroupType>
+auto multi_list_keys(ServiceClientAPI& capi, uint32_t subgroup_index = 0, uint32_t shard_index = 0) {
+    derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> result = capi.template multi_list_keys<SubgroupType>(subgroup_index, shard_index);
+    auto s = new QueryResultsStore<typename std::vector<typename SubgroupType::KeyType>, py::list> (std::move(result), list_unwrapper);
+    return py::cast(s);
+}
+
 /**
  * Create an object pool
  * @tparam  SubgroupType
@@ -866,6 +873,29 @@ PYBIND11_MODULE(client, m) {
                     "\t@argX    version         Specify version for a versioned get.\n"
                     "\t@argX    stable          Specify if using stable get or not. Defaulted to true.\n"
                     "\t@argX    timestamp       Specify timestamp (as an integer in unix epoch microsecond) for a timestampped get.\n"
+                    "\t@return  the list of keys."
+            )
+            .def(
+                    "multi_list_keys_in_shard",
+                    [](ServiceClientAPI& capi, std::string& subgroup_type, py::kwargs kwargs) {
+                        uint32_t subgroup_index = 0;
+                        uint32_t shard_index = 0;
+                        if (kwargs.contains("subgroup_index")) {
+                            subgroup_index = kwargs["subgroup_index"].cast<uint32_t>();
+                        }
+                        if (kwargs.contains("shard_index")) {
+                            shard_index = kwargs["shard_index"].cast<uint32_t>();
+                        }
+
+                        on_all_subgroup_type(subgroup_type, return multi_list_keys, capi, subgroup_index, shard_index);
+                    },
+                    "List the keys in a shard using multi_get\n"
+                    "\t@arg0    subgroup_type   VolatileCascadeStoreWithStringKey | \n"
+                    "\t                         PersistentCascadeStoreWithStringKey | \n"
+                    "\t                         TriggerCascadeNoStoreWithStringKey \n"
+                    "\t** Optional keyword argument: ** \n"
+                    "\t@argX    subgroup_index  default to 0\n"
+                    "\t@argX    shard_index     default to 0\n"
                     "\t@return  the list of keys."
             )
             .def(
