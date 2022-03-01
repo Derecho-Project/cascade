@@ -450,7 +450,7 @@ class CascadeClientShell(cmd.Cmd):
 
     def do_list_keys_in_shard(self, arg):
         '''
-        list_keys_in_shard <subgroup_type> [subgroup_index= shard_index=]
+        list_keys_in_shard <subgroup_type> [subgroup_index= shard_index= stable= version= timestamp=]
         ==================
         List the keys in a shard
         subgroup_type:      
@@ -494,6 +494,46 @@ class CascadeClientShell(cmd.Cmd):
                     timestamp = int(extra_option[1],0)
                 argpos = argpos + 1
             res = self.capi.list_keys_in_shard(args[0],subgroup_index=subgroup_index,shard_index=shard_index,version=version,stable=stable,timestamp=timestamp)
+            if res:
+                keys = res.get_result()
+                print(bcolors.OK + f" {str(keys)}" + bcolors.RESET)
+            else:
+                print(bcolors.FAIL + "Something went wrong, get returns null." + bcolors.RESET)
+        pass
+
+    def do_multi_list_keys_in_shard(self, arg):
+        '''
+        multi_list_keys_in_shard <subgroup_type> [subgroup_index= shard_index=]
+        ========================
+        List the keys in a shard
+        subgroup_type:      
+                                    VolatileCascadeStoreWithStringKey
+                                    PersistentCascadeStoreWithStringKey
+                                    TriggerCascadeNoStoreWithStringKey
+
+        *** optional key arguments ***
+        subgroup_index:             the subgroup index, default to 0
+        shard_index:                the shard index, default to 0
+        '''
+        self.check_capi()
+        args = arg.split()
+        if len(args) < 1:
+            print(bcolors.FAIL + 'At least one argument is required.' + bcolors.RESET)
+        else:
+            subgroup_index = 0
+            shard_index = 0
+            argpos = 1
+            while argpos < len(args):
+                extra_option = args[argpos].split('=')
+                if len(extra_option) != 2:
+                    print(bcolors.FAIL + "Unknown argument:" + args[2] + bcolors.RESET)
+                    return
+                elif extra_option[0] == 'subgroup_index':
+                    subgroup_index = int(extra_option[1],0)
+                elif extra_option[0] == 'shard_index':
+                    shard_index = int(extra_option[1],0)
+                argpos = argpos + 1
+            res = self.capi.multi_list_keys_in_shard(args[0],subgroup_index=subgroup_index,shard_index=shard_index)
             if res:
                 keys = res.get_result()
                 print(bcolors.OK + f" {str(keys)}" + bcolors.RESET)
