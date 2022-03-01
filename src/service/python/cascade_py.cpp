@@ -1,5 +1,6 @@
 #include <cascade/cascade.hpp>
 #include <cascade/service_client_api.hpp>
+#include <derecho/core/detail/rpc_utils.hpp>
 #include <derecho/persistent/PersistentInterface.hpp>
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
@@ -888,6 +889,7 @@ PYBIND11_MODULE(client, m) {
                         }
 
                         on_all_subgroup_type(subgroup_type, return multi_list_keys, capi, subgroup_index, shard_index);
+                        return py::cast(NULL);
                     },
                     "List the keys in a shard using multi_get\n"
                     "\t@arg0    subgroup_type   VolatileCascadeStoreWithStringKey | \n"
@@ -896,6 +898,43 @@ PYBIND11_MODULE(client, m) {
                     "\t** Optional keyword argument: ** \n"
                     "\t@argX    subgroup_index  default to 0\n"
                     "\t@argX    shard_index     default to 0\n"
+                    "\t@return  the list of keys."
+            )
+            .def(
+                    "list_keys_in_object_pool",
+                    [](ServiceClientAPI& capi, std::string& object_pool_pathname, py::kwargs kwargs) {
+                        persistent::version_t version = CURRENT_VERSION;
+                        bool stable = true;
+                        uint64_t timestamp = 0ull;
+                        if (kwargs.contains("version")) {
+                            version = kwargs["version"].cast<persistent::version_t>();
+                        }
+                        if (kwargs.contains("stable")) {
+                            stable = kwargs["stable"].cast<bool>();
+                        }
+                        if (kwargs.contains("timestamp")) {
+                            timestamp = kwargs["timestamp"].cast<uint64_t>();
+                        }
+
+                        std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<std::string>>>> results;
+                        if (timestamp != 0 && version == CURRENT_VERSION) {
+                            results = std::move(capi.list_keys_by_time(timestamp, stable, object_pool_pathname));
+                        } else {
+                            results = std::move(capi.list_keys(version,stable,object_pool_pathname));
+                        }
+                        py::list future_list;
+                        for (auto& result:results) {
+                            auto s = new QueryResultsStore<std::vector<std::string>, py::list> (std::move(*result), list_unwrapper);
+                            future_list.append(py::cast(s));
+                        }
+                        return future_list;
+                    },
+                    "List the keys in an object pool, a.k.a folder\n"
+                    "\t@arg0    object_pool_pathname\n"
+                    "\t** Optional keyword argument: ** \n"
+                    "\t@argX    version         Specify version for a versioned get.\n"
+                    "\t@argX    stable          Specify if using stable get or not. Defaulted to true.\n"
+                    "\t@argX    timestamp       Specify timestamp (as an integer in unix epoch microsecond) for a timestampped get.\n"
                     "\t@return  the list of keys."
             )
             .def(

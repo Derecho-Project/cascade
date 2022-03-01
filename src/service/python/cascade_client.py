@@ -541,6 +541,51 @@ class CascadeClientShell(cmd.Cmd):
                 print(bcolors.FAIL + "Something went wrong, get returns null." + bcolors.RESET)
         pass
 
+    def do_list_keys_in_object_pool(self, arg):
+        '''
+        list_keys_in_object_pool <object_pool_pathname> [stable= version= timestamp=]
+        ========================
+        List the keys in an object pool.
+        object_pool_pathname:       The object pool
+
+        *** optional key arguments ***
+        stable:                     If this is a stable read or not, default to staVble.
+        version:                    the version. For versioned get only
+        timestamp:                  the unix EPOCH timestamp in microseconds. For timestamped-get only
+        '''
+        self.check_capi()
+        args = arg.split()
+        if len(args) < 1:
+            print(bcolors.FAIL + 'At least one argument is required.' + bcolors.RESET)
+        else:
+            stable = True
+            timestamp = 0
+            version = ServiceClientAPI.CURRENT_VERSION
+            argpos = 1
+            while argpos < len(args):
+                extra_option = args[argpos].split('=')
+                if len(extra_option) != 2:
+                    print(bcolors.FAIL + "Unknown argument:" + args[2] + bcolors.RESET)
+                    return
+                elif extra_option[0] == 'stable':
+                    if extra_option[1].lower == 'false' or extra_option[1].lower == 'no' or extra_option[1].lower() == 'off' or extra_option[1].lower() == '0':
+                        stable = False;
+                elif extra_option[0] == 'version':
+                    version = int(extra_option[1],0)
+                elif extra_option[0] == 'timestamp':
+                    timestamp = int(extra_option[1],0)
+                argpos = argpos + 1
+            results = self.capi.list_keys_in_object_pool(args[0],stable=stable,version=version,timestamp=timestamp)
+            if results:
+                print(bcolors.OK + '[' + bcolors.RESET)
+                for res in results:
+                    keys = res.get_result()
+                    print(bcolors.OK + f" {str(keys)}" + bcolors.RESET)
+                print(bcolors.OK + ']' + bcolors.RESET)
+            else:
+                print(bcolors.FAIL + "Something went wrong, get returns null." + bcolors.RESET)
+        pass
+
     def do_create_object_pool(self, arg):
         '''
         create_object_pool <pathname> <subgroup_type> <subgroup_index>
