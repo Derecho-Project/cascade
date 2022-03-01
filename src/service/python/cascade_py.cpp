@@ -938,6 +938,24 @@ PYBIND11_MODULE(client, m) {
                     "\t@return  the list of keys."
             )
             .def(
+                    "multi_list_keys_in_object_pool",
+                    [](ServiceClientAPI& capi, std::string& object_pool_pathname, py::kwargs kwargs) {
+                        persistent::version_t version = CURRENT_VERSION;
+
+                        std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<std::string>>>> results;
+                        results = std::move(capi.multi_list_keys(object_pool_pathname));
+                        py::list future_list;
+                        for (auto& result:results) {
+                            auto s = new QueryResultsStore<std::vector<std::string>, py::list> (std::move(*result), list_unwrapper);
+                            future_list.append(py::cast(s));
+                        }
+                        return future_list;
+                    },
+                    "List the keys in an object pool, a.k.a folder, using multi_get\n"
+                    "\t@arg0    object_pool_pathname\n"
+                    "\t@return  the list of keys."
+            )
+            .def(
                     "create_object_pool", 
                     [](ServiceClientAPI& capi, const std::string& object_pool_pathname, const std::string& service_type, uint32_t subgroup_index) {
                         on_all_subgroup_type(service_type, return create_object_pool, capi, object_pool_pathname, subgroup_index);

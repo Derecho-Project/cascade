@@ -586,6 +586,29 @@ class CascadeClientShell(cmd.Cmd):
                 print(bcolors.FAIL + "Something went wrong, get returns null." + bcolors.RESET)
         pass
 
+    def do_multi_list_keys_in_object_pool(self, arg):
+        '''
+        multi_list_keys_in_object_pool <object_pool_pathname>
+        ==============================
+        List the keys in an object pool.
+        object_pool_pathname:       The object pool
+        '''
+        self.check_capi()
+        args = arg.split()
+        if len(args) < 1:
+            print(bcolors.FAIL + 'At least one argument is required.' + bcolors.RESET)
+        else:
+            results = self.capi.multi_list_keys_in_object_pool(args[0])
+            if results:
+                print(bcolors.OK + '[' + bcolors.RESET)
+                for res in results:
+                    keys = res.get_result()
+                    print(bcolors.OK + f" {str(keys)}" + bcolors.RESET)
+                print(bcolors.OK + ']' + bcolors.RESET)
+            else:
+                print(bcolors.FAIL + "Something went wrong, get returns null." + bcolors.RESET)
+        pass
+
     def do_create_object_pool(self, arg):
         '''
         create_object_pool <pathname> <subgroup_type> <subgroup_index>
