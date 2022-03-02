@@ -61,7 +61,7 @@ public class ShardSupplier implements Supplier<ByteBuffer>{
     @Override
     public ByteBuffer get(){
         if (ptr >= keyList.size()) return null;
-        Map<Integer, CascadeObject> getResults = client.get(type, keyList.get(ptr++), version, subgroupIndex, shardIndex).get();
+        Map<Integer, CascadeObject> getResults = client.get(type, keyList.get(ptr++), version, true/*always use stable*/, subgroupIndex, shardIndex).get();
         // System.out.println("reply map:" + getResults);
         return getResults.values().iterator().next().object;
     }

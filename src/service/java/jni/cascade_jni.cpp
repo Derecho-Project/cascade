@@ -400,10 +400,11 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_putInternal(JNIEnv *env, jobject 
  * @param shard_index the subgroup index to get the object.
  * @param key the Java byte buffer key to get.
  * @param ver the version number of the key-value pair to get.
+ * @param stable return stable version or not.
  * @return a handle of the future that stores the buffer of the value.
  */
 template <typename T>
-jlong get(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong subgroup_index, jlong shard_index, jobject key, jlong ver, std::function<typename T::KeyType(JNIEnv *, jobject)> f)
+jlong get(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong subgroup_index, jlong shard_index, jobject key, jlong ver, jboolean stable, std::function<typename T::KeyType(JNIEnv *, jobject)> f)
 {
 #ifndef NDEBUG
     std::cout << "start get!" << std::endl;
@@ -411,7 +412,7 @@ jlong get(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong subgroup_
     // translate the key
     typename T::KeyType obj = f(env, key);
     // execute get
-    derecho::rpc::QueryResults<const typename T::ObjectType> res = capi->get<T>(obj, ver, subgroup_index, shard_index);
+    derecho::rpc::QueryResults<const typename T::ObjectType> res = capi->get<T>(obj, ver, stable, subgroup_index, shard_index);
     // store the result in a handler
     QueryResultHolder<const typename T::ObjectType> *qrh = new QueryResultHolder<const typename T::ObjectType>(res);
     return reinterpret_cast<jlong>(qrh);
@@ -420,9 +421,9 @@ jlong get(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong subgroup_
 /*
  * Class:     io_cascade_Client
  * Method:    getInternal
- * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;J)J
+ * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;JZ)J
  */
-JNIEXPORT jlong JNICALL Java_io_cascade_Client_getInternal(JNIEnv *env, jobject obj, jobject j_service_type, jlong subgroup_index, jlong shard_index, jobject key, jlong version)
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_getInternal(JNIEnv *env, jobject obj, jobject j_service_type, jlong subgroup_index, jlong shard_index, jobject key, jlong version, jboolean stable)
 {
 #ifndef NDEBUG
     std::cout << "start get internal!" << std::endl;
@@ -431,7 +432,7 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_getInternal(JNIEnv *env, jobject 
     int service_type = get_int_value(env, j_service_type);
 
     // executing the get
-    on_service_type(service_type, return get, env, capi, subgroup_index, shard_index, key, version, translate_str_key);
+    on_service_type(service_type, return get, env, capi, subgroup_index, shard_index, key, version, stable, translate_str_key);
 
     // if service_type does not match successfully, return -1
     return -1;
@@ -449,12 +450,12 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_getInternal(JNIEnv *env, jobject 
  * @return a handle of the future that stores the buffer of the value.
  */
 template <typename T>
-jlong get_by_time(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong subgroup_index, jlong shard_index, jobject key, jlong timestamp, std::function<typename T::KeyType(JNIEnv *, jobject)> f)
+jlong get_by_time(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong subgroup_index, jlong shard_index, jobject key, jlong timestamp, jboolean stable, std::function<typename T::KeyType(JNIEnv *, jobject)> f)
 {
     // translate the key
     typename T::KeyType obj = f(env, key);
     // execute get
-    derecho::rpc::QueryResults<const typename T::ObjectType> res = capi->get_by_time<T>(obj, timestamp, subgroup_index, shard_index);
+    derecho::rpc::QueryResults<const typename T::ObjectType> res = capi->get_by_time<T>(obj, timestamp, stable, subgroup_index, shard_index);
     // store the result in a handler
     QueryResultHolder<const typename T::ObjectType> *qrh = new QueryResultHolder<const typename T::ObjectType>(res);
     return reinterpret_cast<jlong>(qrh);
@@ -465,12 +466,12 @@ jlong get_by_time(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong s
  * Method:    getInternalByTime
  * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;J)J
  */
-JNIEXPORT jlong JNICALL Java_io_cascade_Client_getInternalByTime(JNIEnv *env, jobject obj, jobject j_service_type, jlong subgroup_index, jlong shard_index, jobject key, jlong timestamp)
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_getInternalByTime(JNIEnv *env, jobject obj, jobject j_service_type, jlong subgroup_index, jlong shard_index, jobject key, jlong timestamp, jboolean stable)
 {
     derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
     int service_type = get_int_value(env, j_service_type);
 
-    on_service_type(service_type, return get_by_time, env, capi, subgroup_index, shard_index, key, timestamp, translate_str_key);
+    on_service_type(service_type, return get_by_time, env, capi, subgroup_index, shard_index, key, timestamp, stable, translate_str_key);
 
     return -1;
 }
@@ -517,15 +518,16 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_removeInternal(JNIEnv *env, jobje
  * @param env the Java environment to find JVM.
  * @param capi the service client API for this client.
  * @param version the upper bound of the versions of all keys to look for.
+ * @param stable
  * @param subgroup_index the subgroup index to get the object.
  * @param shard_index the subgroup index to get the object.
  * @return a handle of the future that stores the vector of all keys.
  */
 template <typename T>
-jlong list_keys(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong version, jlong subgroup_index, jlong shard_index)
+jlong list_keys(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong version, jboolean stable, jlong subgroup_index, jlong shard_index)
 {
     // execute list keys
-    derecho::rpc::QueryResults<std::vector<typename T::KeyType>> res = capi->list_keys<T>(version, subgroup_index, shard_index);
+    derecho::rpc::QueryResults<std::vector<typename T::KeyType>> res = capi->list_keys<T>(version, stable, subgroup_index, shard_index);
 #ifndef NDEBUG
     std::cout << "acquired list keys!" << std::endl;
 #endif
@@ -537,10 +539,10 @@ jlong list_keys(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong ver
 /*
  * Class:     io_cascade_Client
  * Method:    listKeysInternal
- * Signature: (Lio/cascade/ServiceType;JJJ)J
+ * Signature: (Lio/cascade/ServiceType;JZJJ)J
  */
 JNIEXPORT jlong JNICALL Java_io_cascade_Client_listKeysInternal
-  (JNIEnv * env, jobject obj, jobject j_service_type, jlong version, jlong subgroup_index, jlong shard_index){
+  (JNIEnv * env, jobject obj, jobject j_service_type, jlong version, jboolean stable, jlong subgroup_index, jlong shard_index){
     derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
 #ifndef NDEBUG
     std::cout << "called list keys internal!" << std::endl;
@@ -548,7 +550,7 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_listKeysInternal
 #endif
     int service_type = get_int_value(env, j_service_type);
 
-    on_service_type(service_type, return list_keys, env, capi, version, subgroup_index, shard_index);
+    on_service_type(service_type, return list_keys, env, capi, version, stable, subgroup_index, shard_index);
 
     // impossible
     return -1;
@@ -559,15 +561,16 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_listKeysInternal
  * @param env the Java environment to find JVM.
  * @param capi the service client API for this client.
  * @param timestamp the upper bound of the timestamps of all keys to look for.
+ * @param stable
  * @param subgroup_index the subgroup index to get the object.
  * @param shard_index the subgroup index to get the object.
  * @return a handle of the future that stores the vector of all keys.
  */
 template <typename T>
-jlong list_keys_by_time(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong timestamp, jlong subgroup_index, jlong shard_index)
+jlong list_keys_by_time(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong timestamp, jboolean stable, jlong subgroup_index, jlong shard_index)
 {
     // execute list keys
-    derecho::rpc::QueryResults<std::vector<typename T::KeyType>> res = capi->list_keys_by_time<T>(timestamp, subgroup_index, shard_index);
+    derecho::rpc::QueryResults<std::vector<typename T::KeyType>> res = capi->list_keys_by_time<T>(timestamp, stable, subgroup_index, shard_index);
 #ifndef NDEBUG
     std::cout << "acquired list keys by time!" << std::endl;
 #endif
@@ -579,10 +582,10 @@ jlong list_keys_by_time(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, j
 /*
  * Class:     io_cascade_Client
  * Method:    listKeysByTimeInternal
- * Signature: (Lio/cascade/ServiceType;JJJ)J
+ * Signature: (Lio/cascade/ServiceType;JZJJ)J
  */
 JNIEXPORT jlong JNICALL Java_io_cascade_Client_listKeysByTimeInternal
-  (JNIEnv * env, jobject obj, jobject j_service_type, jlong timestamp, jlong subgroup_index, jlong shard_index){
+  (JNIEnv * env, jobject obj, jobject j_service_type, jlong timestamp, jboolean stable, jlong subgroup_index, jlong shard_index){
     derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
 #ifndef NDEBUG
     std::cout << "called list keys internal!" << std::endl;
@@ -591,7 +594,7 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_listKeysByTimeInternal
     int service_type = get_int_value(env, j_service_type);
 
     // translate the type into string
-    on_service_type(service_type, return list_keys_by_time, env, capi, timestamp, subgroup_index, shard_index);
+    on_service_type(service_type, return list_keys_by_time, env, capi, timestamp, stable, subgroup_index, shard_index);
 
     // impossible
     return -1;

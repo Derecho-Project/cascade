@@ -52,9 +52,9 @@ class CascadeClientShell(cmd.Cmd):
             subgroup_index = 0
             shard_index = 0
             if len(args) > 1:
-                subgroup_index = int(args[1])
+                subgroup_index = int(args[1],0)
             if len(args) > 2:
-                shard_index = int(args[2])
+                shard_index = int(args[2],0)
             print("Nodes in shard (%s:%d:%d):%s" % (subgroup_type,subgroup_index,shard_index,str(self.capi.get_shard_members(subgroup_type,subgroup_index,shard_index))))
         else:
             print("Nodes in Cascade service:%s" % str(self.capi.get_members()))
@@ -86,8 +86,8 @@ class CascadeClientShell(cmd.Cmd):
             print(bcolors.FAIL + "At least four arguments are required." + bcolors.RESET)
         else:
             subgroup_type = args[0]
-            subgroup_index = int(args[1])
-            shard_index = int(args[2])
+            subgroup_index = int(args[1],0)
+            shard_index = int(args[2],0)
             policy = args[3]
             node_id = 0
             if policy == 'UserSpecified':
@@ -95,7 +95,7 @@ class CascadeClientShell(cmd.Cmd):
                     print(bcolors.FAIL + "Please specify the user-specified node id." + bcolors.RESET)
                     return
                 else:
-                    node_id = int(args[4])
+                    node_id = int(args[4],0)
             self.capi.set_member_selection_policy(subgroup_type,subgroup_index,shard_index,policy,node_id)
 
     def do_get_member_selection_policy(self, arg):
@@ -117,8 +117,8 @@ class CascadeClientShell(cmd.Cmd):
             print(bcolors.FAIL + "At least three arguments are required." + bcolors.RESET)
         else:
             subgroup_type = args[0]
-            subgroup_index = int(args[1])
-            shard_index = int(args[2])
+            subgroup_index = int(args[1],0)
+            shard_index = int(args[2],0)
             policy,node_id = self.capi.get_member_selection_policy(subgroup_type,subgroup_index,shard_index)
             print(bcolors.OK + f"{policy}:{node_id}" + bcolors.RESET)
 
@@ -170,15 +170,15 @@ class CascadeClientShell(cmd.Cmd):
                 elif extra_option[0] == 'subgroup_type':
                     subgroup_type = extra_option[1]
                 elif extra_option[0] == 'subgroup_index':
-                    subgroup_index = int(extra_option[1])
+                    subgroup_index = int(extra_option[1],0)
                 elif extra_option[0] == 'shard_index':
-                    shard_index = int(extra_option[1])
+                    shard_index = int(extra_option[1],0)
                 elif extra_option[0] == 'previous_version':
-                    previous_version = int(extra_option[1])
+                    previous_version = int(extra_option[1],0)
                 elif extra_option[0] == 'previous_version_by_key':
-                    previous_version_by_key = int(extra_option[1])
+                    previous_version_by_key = int(extra_option[1],0)
                 elif extra_option[0] == 'message_id':
-                    message_id = int(extra_option[1])
+                    message_id = int(extra_option[1],0)
                 elif extra_option[0] == 'blocking' and ( extra_option[1].lower() == 'no' or extra_option[1].lower() == 'false' or extra_option[1].lower() == 'off' or extra_option[1].lower() == '0'  ):
                     blocking = False
                 elif extra_option[0] == 'trigger' and ( extra_option[1].lower() == 'yes' or extra_option[1].lower() == 'true' or extra_option[1].lower() == 'on' or extra_option[1].lower() == '1'  ):
@@ -228,9 +228,9 @@ class CascadeClientShell(cmd.Cmd):
                 elif extra_option[0] == 'subgroup_type':
                     subgroup_type = extra_option[1]
                 elif extra_option[0] == 'subgroup_index':
-                    subgroup_index = int(extra_option[1])
+                    subgroup_index = int(extra_option[1],0)
                 elif extra_option[0] == 'shard_index':
-                    shard_index = int(extra_option[1])
+                    shard_index = int(extra_option[1],0)
                 argpos = argpos + 1
             res = self.capi.remove(args[0],subgroup_type=subgroup_type,subgroup_index=subgroup_index,shard_index=shard_index)
             if res:
@@ -240,7 +240,7 @@ class CascadeClientShell(cmd.Cmd):
 
     def do_get(self, arg):
         '''
-        get <key> [subgroup_type= subgroup_index= shard_index= version= timestamp=]
+        get <key> [subgroup_type= subgroup_index= shard_index= stable= version= timestamp=]
         ===
         Get an Object
 
@@ -254,6 +254,7 @@ class CascadeClientShell(cmd.Cmd):
                                     by default, put try to find object pool by parsing key
         subgroup_index:             the subgroup index
         shard_index:                the shard index
+        stable:                     If this is a stable read or not, default to stable.
         version:                    the version. For versioned get only
         timestamp:                  the unix EPOCH timestamp in microseconds. For timestamped-get only
         '''
@@ -265,6 +266,7 @@ class CascadeClientShell(cmd.Cmd):
             subgroup_type = ""
             subgroup_index = 0
             shard_index = 0
+            stable = True
             version = ServiceClientAPI.CURRENT_VERSION
             timestamp = 0
             argpos = 1
@@ -276,18 +278,333 @@ class CascadeClientShell(cmd.Cmd):
                 elif extra_option[0] == 'subgroup_type':
                     subgroup_type = extra_option[1]
                 elif extra_option[0] == 'subgroup_index':
-                    subgroup_index = int(extra_option[1])
+                    subgroup_index = int(extra_option[1],0)
                 elif extra_option[0] == 'shard_index':
-                    shard_index = int(extra_option[1])
+                    shard_index = int(extra_option[1],0)
+                elif extra_option[0] == 'stable':
+                    if extra_option[1].lower == 'false' or extra_option[1].lower == 'no' or extra_option[1].lower() == 'off' or extra_option[1].lower() == '0':
+                        stable = False;
                 elif extra_option[0] == 'version':
-                    version = int(extra_option[1])
+                    version = int(extra_option[1],0)
                 elif extra_option[0] == 'timestamp':
-                    timestamp = int(extra_option[1])
+                    timestamp = int(extra_option[1],0)
                 argpos = argpos + 1
             res = self.capi.get(args[0],subgroup_type=subgroup_type,subgroup_index=subgroup_index,shard_index=shard_index,version=version,timestamp=timestamp)
             if res:
                 odict = res.get_result()
                 print(bcolors.OK + f"{str(odict)}" + bcolors.RESET)
+            else:
+                print(bcolors.FAIL + "Something went wrong, get returns null." + bcolors.RESET)
+        pass
+
+    def do_multi_get(self, arg):
+        '''
+        multi_get <key> [subgroup_type= subgroup_index= shard_index=]
+        =========
+        Get an Object using multi_get
+
+        key:            the key string
+
+        *** optional key arguments ***
+        subgroup_type:              optional subgroup type, could be either of the following:
+                                    VolatileCascadeStoreWithStringKey
+                                    PersistentCascadeStoreWithStringKey
+                                    TriggerCascadeNoStoreWithStringKey
+                                    by default, put try to find object pool by parsing key
+        subgroup_index:             the subgroup index
+        shard_index:                the shard index
+        '''
+        self.check_capi()
+        args = arg.split()
+        if len(args) < 1:
+            print(bcolors.FAIL + 'At least one argument is required.' + bcolors.RESET)
+        else:
+            subgroup_type = ""
+            subgroup_index = 0
+            shard_index = 0
+            argpos = 1
+            while argpos < len(args):
+                extra_option = args[argpos].split('=')
+                if len(extra_option) != 2:
+                    print(bcolors.FAIL + "Unknown argument:" + args[2] + bcolors.RESET)
+                    return
+                elif extra_option[0] == 'subgroup_type':
+                    subgroup_type = extra_option[1]
+                elif extra_option[0] == 'subgroup_index':
+                    subgroup_index = int(extra_option[1],0)
+                elif extra_option[0] == 'shard_index':
+                    shard_index = int(extra_option[1],0)
+                argpos = argpos + 1
+            res = self.capi.multi_get(args[0],subgroup_type=subgroup_type,subgroup_index=subgroup_index,shard_index=shard_index)
+            if res:
+                odict = res.get_result()
+                print(bcolors.OK + f"{str(odict)}" + bcolors.RESET)
+            else:
+                print(bcolors.FAIL + "Something went wrong, get returns null." + bcolors.RESET)
+        pass
+
+    def do_get_size(self, arg):
+        '''
+        get_size <key> [subgroup_type= subgroup_index= shard_index= stable= version= timestamp=]
+        ========
+        Get the size of an bject
+
+        key:            the key string
+
+        *** optional key arguments ***
+        subgroup_type:              optional subgroup type, could be either of the following:
+                                    VolatileCascadeStoreWithStringKey
+                                    PersistentCascadeStoreWithStringKey
+                                    TriggerCascadeNoStoreWithStringKey
+                                    by default, put try to find object pool by parsing key
+        subgroup_index:             the subgroup index
+        shard_index:                the shard index
+        stable:                     If this is a stable read or not, default to staVble.
+        version:                    the version. For versioned get only
+        timestamp:                  the unix EPOCH timestamp in microseconds. For timestamped-get only
+        '''
+        self.check_capi()
+        args = arg.split()
+        if len(args) < 1:
+            print(bcolors.FAIL + 'At least one argument is required.' + bcolors.RESET)
+        else:
+            subgroup_type = ""
+            subgroup_index = 0
+            shard_index = 0
+            stable = True
+            version = ServiceClientAPI.CURRENT_VERSION
+            timestamp = 0
+            argpos = 1
+            while argpos < len(args):
+                extra_option = args[argpos].split('=')
+                if len(extra_option) != 2:
+                    print(bcolors.FAIL + "Unknown argument:" + args[2] + bcolors.RESET)
+                    return
+                elif extra_option[0] == 'subgroup_type':
+                    subgroup_type = extra_option[1]
+                elif extra_option[0] == 'subgroup_index':
+                    subgroup_index = int(extra_option[1],0)
+                elif extra_option[0] == 'shard_index':
+                    shard_index = int(extra_option[1],0)
+                elif extra_option[0] == 'stable':
+                    if extra_option[1].lower == 'false' or extra_option[1].lower == 'no' or extra_option[1].lower() == 'off' or extra_option[1].lower() == '0':
+                        stable = False;
+                elif extra_option[0] == 'version':
+                    version = int(extra_option[1],0)
+                elif extra_option[0] == 'timestamp':
+                    timestamp = int(extra_option[1],0)
+                argpos = argpos + 1
+            res = self.capi.get_size(args[0],subgroup_type=subgroup_type,subgroup_index=subgroup_index,shard_index=shard_index,version=version,timestamp=timestamp)
+            if res:
+                obj_size = res.get_result()
+                print(bcolors.OK + f"Serialized object is {obj_size} bytes" + bcolors.RESET)
+            else:
+                print(bcolors.FAIL + "Something went wrong, get returns null." + bcolors.RESET)
+        pass
+
+    def do_multi_get_size(self, arg):
+        '''
+        multi_get_size <key> [subgroup_type= subgroup_index= shard_index=]
+        ==============
+        Get the size of an object using multi_get
+
+        key:            the key string
+
+        *** optional key arguments ***
+        subgroup_type:              optional subgroup type, could be either of the following:
+                                    VolatileCascadeStoreWithStringKey
+                                    PersistentCascadeStoreWithStringKey
+                                    TriggerCascadeNoStoreWithStringKey
+                                    by default, put try to find object pool by parsing key
+        subgroup_index:             the subgroup index
+        shard_index:                the shard index
+        '''
+        self.check_capi()
+        args = arg.split()
+        if len(args) < 1:
+            print(bcolors.FAIL + 'At least one argument is required.' + bcolors.RESET)
+        else:
+            subgroup_type = ""
+            subgroup_index = 0
+            shard_index = 0
+            argpos = 1
+            while argpos < len(args):
+                extra_option = args[argpos].split('=')
+                if len(extra_option) != 2:
+                    print(bcolors.FAIL + "Unknown argument:" + args[2] + bcolors.RESET)
+                    return
+                elif extra_option[0] == 'subgroup_type':
+                    subgroup_type = extra_option[1]
+                elif extra_option[0] == 'subgroup_index':
+                    subgroup_index = int(extra_option[1],0)
+                elif extra_option[0] == 'shard_index':
+                    shard_index = int(extra_option[1],0)
+                argpos = argpos + 1
+            res = self.capi.multi_get_size(args[0],subgroup_type=subgroup_type,subgroup_index=subgroup_index,shard_index=shard_index)
+            if res:
+                obj_size = res.get_result()
+                print(bcolors.OK + f"Serialized object is {obj_size} bytes" + bcolors.RESET)
+            else:
+                print(bcolors.FAIL + "Something went wrong, get returns null." + bcolors.RESET)
+        pass
+
+    def do_list_keys_in_shard(self, arg):
+        '''
+        list_keys_in_shard <subgroup_type> [subgroup_index= shard_index= stable= version= timestamp=]
+        ==================
+        List the keys in a shard
+        subgroup_type:      
+                                    VolatileCascadeStoreWithStringKey
+                                    PersistentCascadeStoreWithStringKey
+                                    TriggerCascadeNoStoreWithStringKey
+
+        *** optional key arguments ***
+        subgroup_index:             the subgroup index, default to 0
+        shard_index:                the shard index, default to 0
+        stable:                     If this is a stable read or not, default to staVble.
+        version:                    the version. For versioned get only
+        timestamp:                  the unix EPOCH timestamp in microseconds. For timestamped-get only
+        '''
+        self.check_capi()
+        args = arg.split()
+        if len(args) < 1:
+            print(bcolors.FAIL + 'At least one argument is required.' + bcolors.RESET)
+        else:
+            subgroup_index = 0
+            shard_index = 0
+            stable = True
+            version = ServiceClientAPI.CURRENT_VERSION
+            timestamp = 0
+            argpos = 1
+            while argpos < len(args):
+                extra_option = args[argpos].split('=')
+                if len(extra_option) != 2:
+                    print(bcolors.FAIL + "Unknown argument:" + args[2] + bcolors.RESET)
+                    return
+                elif extra_option[0] == 'subgroup_index':
+                    subgroup_index = int(extra_option[1],0)
+                elif extra_option[0] == 'shard_index':
+                    shard_index = int(extra_option[1],0)
+                elif extra_option[0] == 'stable':
+                    if extra_option[1].lower == 'false' or extra_option[1].lower == 'no' or extra_option[1].lower() == 'off' or extra_option[1].lower() == '0':
+                        stable = False;
+                elif extra_option[0] == 'version':
+                    version = int(extra_option[1],0)
+                elif extra_option[0] == 'timestamp':
+                    timestamp = int(extra_option[1],0)
+                argpos = argpos + 1
+            res = self.capi.list_keys_in_shard(args[0],subgroup_index=subgroup_index,shard_index=shard_index,version=version,stable=stable,timestamp=timestamp)
+            if res:
+                keys = res.get_result()
+                print(bcolors.OK + f" {str(keys)}" + bcolors.RESET)
+            else:
+                print(bcolors.FAIL + "Something went wrong, get returns null." + bcolors.RESET)
+        pass
+
+    def do_multi_list_keys_in_shard(self, arg):
+        '''
+        multi_list_keys_in_shard <subgroup_type> [subgroup_index= shard_index=]
+        ========================
+        List the keys in a shard
+        subgroup_type:      
+                                    VolatileCascadeStoreWithStringKey
+                                    PersistentCascadeStoreWithStringKey
+                                    TriggerCascadeNoStoreWithStringKey
+
+        *** optional key arguments ***
+        subgroup_index:             the subgroup index, default to 0
+        shard_index:                the shard index, default to 0
+        '''
+        self.check_capi()
+        args = arg.split()
+        if len(args) < 1:
+            print(bcolors.FAIL + 'At least one argument is required.' + bcolors.RESET)
+        else:
+            subgroup_index = 0
+            shard_index = 0
+            argpos = 1
+            while argpos < len(args):
+                extra_option = args[argpos].split('=')
+                if len(extra_option) != 2:
+                    print(bcolors.FAIL + "Unknown argument:" + args[2] + bcolors.RESET)
+                    return
+                elif extra_option[0] == 'subgroup_index':
+                    subgroup_index = int(extra_option[1],0)
+                elif extra_option[0] == 'shard_index':
+                    shard_index = int(extra_option[1],0)
+                argpos = argpos + 1
+            res = self.capi.multi_list_keys_in_shard(args[0],subgroup_index=subgroup_index,shard_index=shard_index)
+            if res:
+                keys = res.get_result()
+                print(bcolors.OK + f" {str(keys)}" + bcolors.RESET)
+            else:
+                print(bcolors.FAIL + "Something went wrong, get returns null." + bcolors.RESET)
+        pass
+
+    def do_list_keys_in_object_pool(self, arg):
+        '''
+        list_keys_in_object_pool <object_pool_pathname> [stable= version= timestamp=]
+        ========================
+        List the keys in an object pool.
+        object_pool_pathname:       The object pool
+
+        *** optional key arguments ***
+        stable:                     If this is a stable read or not, default to staVble.
+        version:                    the version. For versioned get only
+        timestamp:                  the unix EPOCH timestamp in microseconds. For timestamped-get only
+        '''
+        self.check_capi()
+        args = arg.split()
+        if len(args) < 1:
+            print(bcolors.FAIL + 'At least one argument is required.' + bcolors.RESET)
+        else:
+            stable = True
+            timestamp = 0
+            version = ServiceClientAPI.CURRENT_VERSION
+            argpos = 1
+            while argpos < len(args):
+                extra_option = args[argpos].split('=')
+                if len(extra_option) != 2:
+                    print(bcolors.FAIL + "Unknown argument:" + args[2] + bcolors.RESET)
+                    return
+                elif extra_option[0] == 'stable':
+                    if extra_option[1].lower == 'false' or extra_option[1].lower == 'no' or extra_option[1].lower() == 'off' or extra_option[1].lower() == '0':
+                        stable = False;
+                elif extra_option[0] == 'version':
+                    version = int(extra_option[1],0)
+                elif extra_option[0] == 'timestamp':
+                    timestamp = int(extra_option[1],0)
+                argpos = argpos + 1
+            results = self.capi.list_keys_in_object_pool(args[0],stable=stable,version=version,timestamp=timestamp)
+            if results:
+                print(bcolors.OK + '[' + bcolors.RESET)
+                for res in results:
+                    keys = res.get_result()
+                    print(bcolors.OK + f" {str(keys)}" + bcolors.RESET)
+                print(bcolors.OK + ']' + bcolors.RESET)
+            else:
+                print(bcolors.FAIL + "Something went wrong, get returns null." + bcolors.RESET)
+        pass
+
+    def do_multi_list_keys_in_object_pool(self, arg):
+        '''
+        multi_list_keys_in_object_pool <object_pool_pathname>
+        ==============================
+        List the keys in an object pool.
+        object_pool_pathname:       The object pool
+        '''
+        self.check_capi()
+        args = arg.split()
+        if len(args) < 1:
+            print(bcolors.FAIL + 'At least one argument is required.' + bcolors.RESET)
+        else:
+            results = self.capi.multi_list_keys_in_object_pool(args[0])
+            if results:
+                print(bcolors.OK + '[' + bcolors.RESET)
+                for res in results:
+                    keys = res.get_result()
+                    print(bcolors.OK + f" {str(keys)}" + bcolors.RESET)
+                print(bcolors.OK + ']' + bcolors.RESET)
             else:
                 print(bcolors.FAIL + "Something went wrong, get returns null." + bcolors.RESET)
         pass
@@ -311,7 +628,7 @@ class CascadeClientShell(cmd.Cmd):
         if len(args) < 3:
             print(bcolors.FAIL + 'At least three arguments are required.' + bcolors.RESET)
         else:
-            subgroup_index = int(args[2])
+            subgroup_index = int(args[2],0)
             res = self.capi.create_object_pool(args[0],args[1],subgroup_index)
             if res:
                 ver = res.get_result()

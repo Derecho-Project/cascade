@@ -1,5 +1,6 @@
 #include <cascade/object.hpp>
 #include <unistd.h>
+#include <stdlib.h>
 
 namespace derecho {
 namespace cascade {
@@ -35,10 +36,10 @@ ObjectWithStringKey ObjectWithStringKey::IV;
 // #define PAGE_ALIGNED_NEW(x) (new uint8_t[((x)+page_size-1)/page_size*page_size])
 
 Blob::Blob(const uint8_t* const b, const decltype(size) s) :
-    bytes(nullptr), size(0), is_emplaced(false) {
+    bytes(nullptr), size(0), capacity(0), is_emplaced(false) {
     if(s > 0) {
         // uint8_t* t_bytes = PAGE_ALIGNED_NEW(s);
-        uint8_t* t_bytes = new uint8_t[s];
+        uint8_t* t_bytes = static_cast<uint8_t*>(malloc(s));
         if (b != nullptr) {
             memcpy(t_bytes, b, s);
         } else {
@@ -46,14 +47,15 @@ Blob::Blob(const uint8_t* const b, const decltype(size) s) :
         }
         bytes = t_bytes;
         size = s;
+        capacity = size;
     }
 }
 
 Blob::Blob(const uint8_t* b, const decltype(size) s, bool emplaced) :
-    bytes(b), size(s), is_emplaced(emplaced) {
+    bytes(b), size(s), capacity(s), is_emplaced(emplaced) {
     if ( (size>0) && (is_emplaced==false)) {
         // uint8_t* t_bytes = PAGE_ALIGNED_NEW(s);
-        uint8_t* t_bytes = new uint8_t[s];
+        uint8_t* t_bytes = static_cast<uint8_t*>(malloc(s));
         if (b != nullptr) {
             memcpy(t_bytes, b, s);
         } else {
@@ -68,53 +70,65 @@ Blob::Blob(const uint8_t* b, const decltype(size) s, bool emplaced) :
 }
 
 Blob::Blob(const Blob& other) :
-    bytes(nullptr), size(0), is_emplaced(false) {
+    bytes(nullptr), size(0), capacity(0), is_emplaced(false) {
     if(other.size > 0) {
         // uint8_t* t_bytes = PAGE_ALIGNED_NEW(other.size);
-        uint8_t* t_bytes = new uint8_t[other.size];
+        uint8_t* t_bytes = static_cast<uint8_t*>(malloc(other.size));
         memcpy(t_bytes, other.bytes, other.size);
         bytes = t_bytes;
         size = other.size;
+        capacity = other.size;
     }
 }
 
 Blob::Blob(Blob&& other) : 
-    bytes(other.bytes), size(other.size), is_emplaced(false) {
+    bytes(other.bytes), size(other.size), capacity(other.size), is_emplaced(other.is_emplaced) {
     other.bytes = nullptr;
     other.size = 0;
+    other.capacity = 0;
 }
 
-Blob::Blob() : bytes(nullptr), size(0) {}
+Blob::Blob() : bytes(nullptr), size(0), capacity(0), is_emplaced(false) {}
 
 Blob::~Blob() {
     if(bytes && ! is_emplaced) {
-        delete [] bytes;
+        free(const_cast<void*>(reinterpret_cast<const void*>(bytes)));
     }
 }
 
 Blob& Blob::operator=(Blob&& other) {
     const uint8_t* swp_bytes = other.bytes;
     std::size_t swp_size = other.size;
+    std::size_t swp_cap  = other.capacity;
+    bool swap_is_emplaced = other.is_emplaced;
     other.bytes = bytes;
     other.size = size;
+    other.capacity = capacity;
+    is_emplaced = swap_is_emplaced;
     bytes = swp_bytes;
     size = swp_size;
+    capacity = swp_cap;
     return *this;
 }
 
 Blob& Blob::operator=(const Blob& other) {
-    if(bytes != nullptr) {
-        delete bytes;
+    // 1) this->is_emplaced has to be false;
+    if (is_emplaced) {
+        throw std::runtime_error("Copy to a Blob that does not own the data (is_emplaced = false) is prohibited.");
     }
-    size = other.size;
-    if(size > 0) {
-        // uint8_t* t_bytes = PAGE_ALIGNED_NEW(size);
-        uint8_t* t_bytes = new uint8_t[size]; 
-        memcpy(t_bytes, other.bytes, size);
-        bytes = t_bytes;
-    } else {
-        bytes = nullptr;
+
+    // 2) verify that this->capacity has enough memory;
+    if (this->capacity < other.size) {
+        bytes = static_cast<uint8_t*>(realloc(const_cast<void*>(static_cast<const void*>(bytes)),other.size));
+        this->capacity = other.size;
+    } 
+
+    // 3) update this->size; copy data, if there is any.
+    this->size = other.size;
+    if(this->size > 0) {
+        memcpy(const_cast<void*>(static_cast<const void*>(this->bytes)), other.bytes, size);
     }
+
     return *this;
 }
 
@@ -268,6 +282,19 @@ const uint64_t& ObjectWithUInt64Key::get_key_ref() const {
 
 bool ObjectWithUInt64Key::is_null() const {
     return (this->blob.size == 0);
+}
+
+void ObjectWithUInt64Key::copy_from(const ObjectWithUInt64Key& rhs) {
+#ifdef ENABLE_EVALUATION
+    this->message_id = rhs.message_id;
+#endif
+    this->version = rhs.version;
+    this->timestamp_us = rhs.timestamp_us;
+    this->previous_version = rhs.previous_version;
+    this->previous_version_by_key = rhs.previous_version_by_key;
+    this->key = rhs.key;
+    // copy assignment
+    this->blob = rhs.blob;
 }
 
 void ObjectWithUInt64Key::set_version(persistent::version_t ver) const {
@@ -572,6 +599,19 @@ const std::string& ObjectWithStringKey::get_key_ref() const {
 
 bool ObjectWithStringKey::is_null() const {
     return (this->blob.size == 0);
+}
+
+void ObjectWithStringKey::copy_from(const ObjectWithStringKey& rhs) {
+#ifdef ENABLE_EVALUATION
+    this->message_id = rhs.message_id;
+#endif
+    this->version = rhs.version;
+    this->timestamp_us = rhs.timestamp_us;
+    this->previous_version = rhs.previous_version;
+    this->previous_version_by_key = rhs.previous_version_by_key;
+    this->key = rhs.key;
+    // copy assignment
+    this->blob = rhs.blob;
 }
 
 void ObjectWithStringKey::set_version(persistent::version_t ver) const {
