@@ -160,35 +160,6 @@ public class Client implements AutoCloseable {
     }
 
     /**
-     * Get the value corresponding to the long key from cascade.
-     * 
-     * @param type          The type of the subgroup. In Cascade, this would be VCSU
-     *                      and PCSU. Requires: This field should be VCSU or PCSU.
-     * @param key           The long key of the key-value pair. Requires:
-     *                      {@code key} should be non-negative.
-     * @param version       The version field returned by the Bundle object for put
-     *                      operation. Should be -1 when the version field is not
-     *                      known.
-     * @param subgroupIndex The index of the subgroup with type {@code type} to
-     *                      acquire the key-value pair.
-     * @param shardID       The index of the shard within the subgroup with type
-     *                      {@code type} and subgroup index {@code subgroupIndex} to
-     *                      acquire this key-value pair.
-     * @return A Future that stores a handle to a direct byte buffer that contains
-     *         the value that corresponds to the key in the specified
-     *         subgroup/shard. The byte buffer would be empty if the key has not
-     *         been put into cascade.
-     */
-    public QueryResults<CascadeObject> get(ServiceType type, long key, long version, long subgroupIndex, long shardID) {
-        String str = Long.toString(key);
-        byte[] arr = str.getBytes();
-        ByteBuffer bbkey = ByteBuffer.allocateDirect(arr.length);
-        bbkey.put(arr);
-        long res = getInternal(type, subgroupIndex, shardID, bbkey, version);
-        return new QueryResults<CascadeObject>(res, 1);
-    }
-
-    /**
      * Get the value corresponding to the byte buffer key from cascade.
      * 
      * @param type          The type of the subgroup.
@@ -200,6 +171,7 @@ public class Client implements AutoCloseable {
      * @param version       The version field returned by the Bundle object for put
      *                      operation. Should be -1 when the version field is not
      *                      known.
+     * @param stable        get stable version or not.
      * @param subgroupIndex The index of the subgroup with type {@code type} to
      *                      acquire the key-value pair.
      * @param shardID       The index of the shard within the subgroup with type
@@ -210,9 +182,9 @@ public class Client implements AutoCloseable {
      *         subgroup/shard. The byte buffer would be empty if the key has not
      *         been put into cascade.
      */
-    public QueryResults<CascadeObject> get(ServiceType type, ByteBuffer key, long version, long subgroupIndex,
-            long shardID) {
-        long res = getInternal(type, subgroupIndex, shardID, key, version);
+    public QueryResults<CascadeObject> get(ServiceType type, ByteBuffer key, long version, boolean stable,
+            long subgroupIndex, long shardID) {
+        long res = getInternal(type, subgroupIndex, shardID, key, version, stable);
         return new QueryResults<CascadeObject>(res, 1);
     }
 
@@ -225,6 +197,7 @@ public class Client implements AutoCloseable {
      *                      {@code key} should be non-negative.
      * @param timestamp     The timestamp field returned by the Bundle object for
      *                      put operation.
+     * @param stable        get stable version or not.
      * @param subgroupIndex The index of the subgroup with type {@code type} to
      *                      acquire the key-value pair.
      * @param shardID       The index of the shard within the subgroup with type
@@ -235,13 +208,13 @@ public class Client implements AutoCloseable {
      *         subgroup/shard. The byte buffer would be empty if the key has not
      *         been put into cascade.
      */
-    public QueryResults<CascadeObject> getByTime(ServiceType type, long key, long timestamp, long subgroupIndex,
+    public QueryResults<CascadeObject> getByTime(ServiceType type, long key, long timestamp, boolean stable, long subgroupIndex,
             long shardID) {
         String str = Long.toString(key);
         byte[] arr = str.getBytes();
         ByteBuffer bbkey = ByteBuffer.allocateDirect(arr.length);
         bbkey.put(arr);
-        long res = getInternalByTime(type, subgroupIndex, shardID, bbkey, timestamp);
+        long res = getInternalByTime(type, subgroupIndex, shardID, bbkey, timestamp, stable);
         return new QueryResults<CascadeObject>(res, 1);
     }
 
@@ -257,6 +230,7 @@ public class Client implements AutoCloseable {
      * @param timestamp     The timestamp field returned by the Bundle object for
      *                      put operation. Should be -1 when the version field is
      *                      not known.
+     * @param stable        get stable version or not.
      * @param subgroupIndex The index of the subgroup with type {@code type} to
      *                      acquire the key-value pair.
      * @param shardID       The index of the shard within the subgroup with type
@@ -267,9 +241,9 @@ public class Client implements AutoCloseable {
      *         subgroup/shard. The byte buffer would be empty if the key has not
      *         been put into cascade.
      */
-    public QueryResults<CascadeObject> getByTime(ServiceType type, ByteBuffer key, long timestamp, long subgroupIndex,
-            long shardID) {
-        long res = getInternalByTime(type, subgroupIndex, shardID, key, timestamp);
+    public QueryResults<CascadeObject> getByTime(ServiceType type, ByteBuffer key, long timestamp, boolean stable,
+            long subgroupIndex, long shardID) {
+        long res = getInternalByTime(type, subgroupIndex, shardID, key, timestamp, stable);
         return new QueryResults<CascadeObject>(res, 1);
     }
 
@@ -334,7 +308,7 @@ public class Client implements AutoCloseable {
      *         all keys included in the operation.
      */
     public QueryResults<List<ByteBuffer>> listKeys(ServiceType type, long version, long subgroupIndex, long shardIndex){
-        long res = listKeysInternal(type, version, subgroupIndex, shardIndex);
+        long res = listKeysInternal(type, version, true/*TODO:stable*/, subgroupIndex, shardIndex);
         return new QueryResults<List<ByteBuffer>>(res, 2);
     }
 
@@ -352,7 +326,7 @@ public class Client implements AutoCloseable {
      *         all keys included in the operation.
      */
     public QueryResults<List<ByteBuffer>> listKeysByTime(ServiceType type, long timestamp, long subgroupIndex, long shardIndex){
-        long res = listKeysByTimeInternal(type, timestamp, subgroupIndex, shardIndex);
+        long res = listKeysByTimeInternal(type, timestamp, true/*TODO:stable*/, subgroupIndex, shardIndex);
         return new QueryResults<List<ByteBuffer>>(res, 2);
     }
 
@@ -399,10 +373,11 @@ public class Client implements AutoCloseable {
      * @param key           The byte buffer key of the key-value pair.
      * @param version       The version returned by the Future object of past put.
      *                      -1 if no version is available.
+     * @param stable        get stable version or not.
      * @return A handle of the C++ future that stores the byte buffer for values.
      */
     private native long getInternal(ServiceType type, long subgroupIndex, long shardIndex, ByteBuffer key,
-            long version);
+            long version, boolean stable);
 
     /**
      * Internal interface for get by time operation.
@@ -415,10 +390,11 @@ public class Client implements AutoCloseable {
      *                      get this key-value pair from.
      * @param key           The byte buffer key of the key-value pair.
      * @param timestamp     The timestamp returned by the Future object of past put.
+     * @param stable        get stable data or not.
      * @return A handle of the C++ future that stores the byte buffer for values.
      */
     private native long getInternalByTime(ServiceType type, long subgroupIndex, long shardIndex, ByteBuffer key,
-            long timestamp);
+            long timestamp, boolean stable);
 
     /**
      * Internal interface for remove operation.
@@ -441,6 +417,7 @@ public class Client implements AutoCloseable {
      * @param type          The type of the subgroup.
      * @param version       The upper bound persistent version of all keys listed.
      *                      -1 if you want to list all keys.
+     * @param stable        get stable data or not.
      * @param subgroupIndex The index of the subgroup with type {@code type} to
      *                      remove this key-value pair from.
      * @param shardIndex    The index of the shard within the subgroup with type
@@ -448,13 +425,14 @@ public class Client implements AutoCloseable {
      *                      remove this key-value pair from.
      * @return A handle of the C++ future that stores a vector with all keys included.
      */
-    private native long listKeysInternal(ServiceType type, long version, long subgroupIndex, long shardIndex);
+    private native long listKeysInternal(ServiceType type, long version, boolean stable, long subgroupIndex, long shardIndex);
 
     /**
      * Internal interface for list key by time operation.
      * 
      * @param type          The type of the subgroup.
      * @param timestamp     The upper bound timestamp of all keys listed.
+     * @param stable        get stable data or not.
      * @param subgroupIndex The index of the subgroup with type {@code type} to
      *                      remove this key-value pair from.
      * @param shardIndex    The index of the shard within the subgroup with type
@@ -462,7 +440,7 @@ public class Client implements AutoCloseable {
      *                      remove this key-value pair from.
      * @return A handle of the C++ future that stores a vector with all keys included.
      */
-    private native long listKeysByTimeInternal(ServiceType type, long timestamp, long subgroupIndex, long shardIndex);
+    private native long listKeysByTimeInternal(ServiceType type, long timestamp, boolean stable, long subgroupIndex, long shardIndex);
 
     /**
      * Create an object pool
