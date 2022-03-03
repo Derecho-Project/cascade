@@ -940,8 +940,6 @@ PYBIND11_MODULE(client, m) {
             .def(
                     "multi_list_keys_in_object_pool",
                     [](ServiceClientAPI& capi, std::string& object_pool_pathname, py::kwargs kwargs) {
-                        persistent::version_t version = CURRENT_VERSION;
-
                         std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<std::string>>>> results;
                         results = std::move(capi.multi_list_keys(object_pool_pathname));
                         py::list future_list;

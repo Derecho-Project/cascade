@@ -1,5 +1,4 @@
 #pragma once
-#include <c10/core/DispatchKeySet.h>
 #include <derecho/conf/conf.hpp>
 #include <derecho/persistent/PersistentInterface.hpp>
 #include <derecho/persistent/detail/PersistLog.hpp>
