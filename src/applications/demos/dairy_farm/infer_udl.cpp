@@ -4,10 +4,11 @@
 #include <vector>
 #include <thread>
 #include <opencv2/opencv.hpp>
-#include <cppflow/cppflow.h>
 #include <torch/script.h>
 #include <ANN/ANN.h>
-#include "demo_udl.hpp"
+#include <tensorflow/c/c_api.h>
+#include <tensorflow/c/eager/c_api.h>
+#include "demo_common.hpp"
 #include "time_probes.hpp"
 
 namespace derecho{
@@ -163,25 +164,72 @@ void infer_cow_id(uint32_t* cow_id, const void* img_buf, size_t img_size) {
 #define BCS_TENSOR_BUFFER_SIZE     (BCS_IMAGE_HEIGHT*BCS_IMAGE_WIDTH*3)
 #define CONF_INFER_BCS_MODEL       "bcs-model"
 
+#define CHECK_STATUS(tfs) \
+    if (TF_GetCode(tfs) != TF_OK) { \
+        std::runtime_error rerr(TF_Message(tfs)); \
+        TF_DeleteStatus(tfs); \
+        throw rerr; \
+    }
+
 void infer_bcs(float* bcs, const void* img_buf, size_t img_size) {
-    /* step 1: load the model */ 
-    static thread_local cppflow::model model(CONF_INFER_BCS_MODEL);
-    
+    /* step 1: load the model */
+    static thread_local std::unique_ptr<TF_Graph,decltype(TF_DeleteGraph)&> graph = {TF_NewGraph(), TF_DeleteGraph};
+    static thread_local std::unique_ptr<TF_SessionOptions,decltype(TF_DeleteSessionOptions)&> session_options{TF_NewSessionOptions(), TF_DeleteSessionOptions};
+    static thread_local std::unique_ptr<TF_Buffer,decltype(TF_DeleteBuffer)&> run_options{TF_NewBufferFromString("",0), TF_DeleteBuffer};
+    static thread_local std::unique_ptr<TF_Buffer,decltype(TF_DeleteBuffer)&> meta_graph{TF_NewBuffer(), TF_DeleteBuffer};
+    static thread_local auto session_deleter = [](TF_Session* sess) {
+        auto tf_status = TF_NewStatus();
+        TF_DeleteSession(sess, tf_status);
+        CHECK_STATUS(tf_status);
+        TF_DeleteStatus(tf_status);
+    };
+
+    static thread_local int tag_len = 1;
+    static thread_local const char* tag = "serve";
+    static thread_local std::unique_ptr<TF_Status,decltype(TF_DeleteStatus)&> tf_status{TF_NewStatus(),TF_DeleteStatus};
+    static thread_local std::unique_ptr<TF_Session,decltype(session_deleter)&> session = {
+        TF_LoadSessionFromSavedModel(session_options.get(), run_options.get(), CONF_INFER_BCS_MODEL,
+                &tag, tag_len, graph.get(), meta_graph.get(), tf_status.get()),
+        session_deleter
+    };
+    CHECK_STATUS(tf_status.get());
+    static thread_local TF_Output input_op = {
+        .oper = TF_GraphOperationByName(graph.get(),"serving_default_conv2d_5_input"),
+        .index = 0
+    };
+    if (!input_op.oper) {
+        throw std::runtime_error("No operation with name 'serving_default_conv2d_5_input' is found.");
+    }
+    static thread_local TF_Output output_op = {
+        .oper = TF_GraphOperationByName(graph.get(),"StatefulPartitionedCall"),
+        .index = 0
+    };
+    if (!output_op.oper) {
+        throw std::runtime_error("No operation with name 'StatefulPartitionedCall' is found.");
+    }
+
     /* step 2: Load the image & convert to tensor */
-    std::vector<unsigned char> out_buf(img_size);
+    static thread_local std::vector<unsigned char> out_buf(img_size);
     std::memcpy(static_cast<void*>(out_buf.data()),img_buf,img_size);
     cv::Mat mat(240,352,CV_32FC3,out_buf.data());
-    cv::Mat resized;
+    static thread_local cv::Mat resized;
     // resize to desired dimension matching with the model & convert to tensor
     cv::resize(mat, resized, cv::Size(BCS_IMAGE_WIDTH,BCS_IMAGE_HEIGHT));
-    std::vector<float> bcs_tensor_buf(BCS_TENSOR_BUFFER_SIZE);
-    std::memcpy(static_cast<void*>(bcs_tensor_buf.data()), static_cast<const void*>(resized.data),BCS_TENSOR_BUFFER_SIZE*sizeof(float));
-    cppflow::tensor input_tensor(bcs_tensor_buf, {BCS_IMAGE_WIDTH,BCS_IMAGE_HEIGHT,3});
-    input_tensor = cppflow::expand_dims(input_tensor, 0);
-    
+    static thread_local std::vector<int64_t> shape = {1,BCS_IMAGE_WIDTH,BCS_IMAGE_HEIGHT,3};
+    auto input_tensor = TF_NewTensor(TF_FLOAT,shape.data(),shape.size(),resized.data,BCS_TENSOR_BUFFER_SIZE*sizeof(float),
+                                     [](void*,size_t,void*){/*do nothing for stack memory,.*/},nullptr);
+
     /* step 3: Predict */
-    cppflow::tensor output = model({{"serving_default_conv2d_5_input:0", input_tensor}},{"StatefulPartitionedCall:0"})[0];
-    float prediction = output.get_data<float>()[0];
+    static thread_local auto output_vals = std::make_unique<TF_Tensor*[]>(1);
+    TF_SessionRun(session.get(),nullptr,&input_op, &input_tensor, 1,
+                  &output_op, output_vals.get(), 1,
+                  nullptr,0,nullptr,tf_status.get());
+    CHECK_STATUS(tf_status.get());
+
+    auto raw_data = TF_TensorData(*output_vals.get());
+    float prediction = *static_cast<float*>(raw_data);
+    TF_DeleteTensor(input_tensor);
+
     *bcs = prediction;
     dbg_default_trace("bcs prediction is: {}", prediction);
 }
@@ -320,16 +368,7 @@ void initialize(ICascadeContext* ctxt) {
         return;
     }
     std::cout << "Configuring tensorflow GPU context" << std::endl;
-    // Serialized config options (example of 30% memory fraction)
-    // TODO: configure gpu settings, link: https://serizba.github.io/cppflow/quickstart.html#gpu-config-options
-    // std::vector<uint8_t> config{0x32,0x9,0x9,0x9a,0x99,0x99,0x99,0x99,0x99,0xb9,0x3f};
-    // std::vector<uint8_t> config{0x32,0xb,0x9,0xcd,0xcc,0xcc,0xcc,0xcc,0xcc,0xec,0x3f,0x20,0x1};
-    std::vector<uint8_t> config{DEFAULT_TFE_CONFIG};
-    // Create new options with your configuration
-    TFE_ContextOptions* options = TFE_NewContextOptions();
-    TFE_ContextOptionsSetConfig(options, config.data(), config.size(), cppflow::context::get_status());
-    // Replace the global context with your options
-    cppflow::get_global_context() = cppflow::context(options);
+    initialize_tf_context();
 #endif 
     DairyFarmInferOCDPO::initialize();
 }
