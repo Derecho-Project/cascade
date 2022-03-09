@@ -22,7 +22,9 @@ add_jar(cascade_jar
         io/cascade/QueryResults.java
         io/cascade/ServiceType.java
         io/cascade/ShardMemberSelectionPolicy.java
+        io/cascade/ShardingPolicy.java
         io/cascade/CascadeObject.java
+        io/cascade/CascadeObjectPoolMetadata.java
         io/cascade/stream/ShardSupplier.java
         io/cascade/stream/ShardTimeSupplier.java
         io/cascade/stream/VersionSupplier.java
@@ -67,7 +69,7 @@ add_jar(stream_test
         cascade_jar
 )
 
-add_library(cascade_jni SHARED ${CMAKE_CURRENT_SOURCE_DIR}/jni/cascade_java.cpp)
+add_library(cascade_jni SHARED ${CMAKE_CURRENT_SOURCE_DIR}/jni/cascade_jni.cpp)
 target_include_directories(cascade_jni PRIVATE
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>

@@ -39,12 +39,12 @@ typedef enum {
 class FileBytes {
 public:
     size_t size;
-    char* bytes;
+    uint8_t* bytes;
     FileBytes():size(0),bytes(nullptr){}
     FileBytes(size_t s):size(s) {
         bytes = nullptr;
         if (s > 0) {
-            bytes = (char*)malloc(s);
+            bytes = (uint8_t*)malloc(s);
         }
     }
     virtual ~FileBytes() {
@@ -189,10 +189,10 @@ public:
                 update_contents();
             }
             file_bytes->size = contents.size();
-            file_bytes->bytes = strdup(contents.c_str());
+            file_bytes->bytes = reinterpret_cast<uint8_t*>(strdup(contents.c_str()));
         } else {
             file_bytes->size = contents.size();
-            file_bytes->bytes = strdup(contents.c_str());
+            file_bytes->bytes = reinterpret_cast<uint8_t*>(strdup(contents.c_str()));
         }
         return 0;
     }
@@ -235,7 +235,7 @@ public:
         std::map<std::string,fuse_ino_t> ret_map;
         /** we always retrieve the key list for a shard inode because the data is highly dynamic */
         uint32_t subgroup_index = reinterpret_cast<SubgroupINode<CascadeType, ServiceClientType>*>(this->parent)->subgroup_index;
-        auto result =  capi_ptr->template list_keys<CascadeType>(CURRENT_VERSION, subgroup_index, this->shard_index);
+        auto result =  capi_ptr->template list_keys<CascadeType>(CURRENT_VERSION, true, subgroup_index, this->shard_index);
         for (auto& reply_future:result.get()) {
             auto reply = reply_future.second.get();
             std::unique_lock wlck(this->children_mutex);
@@ -340,10 +340,10 @@ public:
                 update_contents();
             }
             file_bytes->size = contents.size();
-            file_bytes->bytes = strdup(contents.c_str());
+            file_bytes->bytes = reinterpret_cast<uint8_t*>(strdup(contents.c_str()));
         } else {
             file_bytes->size = contents.size();
-            file_bytes->bytes = strdup(contents.c_str());
+            file_bytes->bytes = reinterpret_cast<uint8_t*>(strdup(contents.c_str()));
         }
         return 0;
     }
@@ -406,10 +406,10 @@ public:
                 update_contents();
             }
             file_bytes->size = contents.size();
-            file_bytes->bytes = strdup(contents.c_str());
+            file_bytes->bytes = reinterpret_cast<uint8_t*>(strdup(contents.c_str()));
         } else {
             file_bytes->size = contents.size();
-            file_bytes->bytes = strdup(contents.c_str());
+            file_bytes->bytes = reinterpret_cast<uint8_t*>(strdup(contents.c_str()));
         }
         return 0;
     }
@@ -549,9 +549,6 @@ public:
     }
 };
 
-
-
-
 template <typename CascadeType, typename ServiceClientType>
 class KeyINode : public FuseClientINode {
 public:
@@ -579,11 +576,11 @@ public:
         ShardINode<CascadeType,ServiceClientType> *pino_shard = reinterpret_cast<ShardINode<CascadeType,ServiceClientType>*>(this->parent);
         SubgroupINode<CascadeType,ServiceClientType> *pino_subgroup = reinterpret_cast<SubgroupINode<CascadeType,ServiceClientType>*>(pino_shard->parent);
         auto result = capi_ptr->template get<CascadeType>(
-                key,CURRENT_VERSION,pino_subgroup->subgroup_index,pino_shard->shard_index);
+                key,CURRENT_VERSION,true/*always use stable version*/,pino_subgroup->subgroup_index,pino_shard->shard_index);
         for (auto& reply_future:result.get()) {
             auto reply = reply_future.second.get();
             file_bytes->size = mutils::bytes_size(reply);
-            file_bytes->bytes = static_cast<char*>(malloc(file_bytes->size));
+            file_bytes->bytes = static_cast<uint8_t*>(malloc(file_bytes->size));
             mutils::to_bytes(reply,file_bytes->bytes);
         }
         dbg_default_trace("[{}]leaving {}.", gettid(), __func__);
@@ -595,7 +592,7 @@ public:
         ShardINode<CascadeType,ServiceClientType> *pino_shard = reinterpret_cast<ShardINode<CascadeType,ServiceClientType>*>(this->parent);
         SubgroupINode<CascadeType,ServiceClientType> *pino_subgroup = reinterpret_cast<SubgroupINode<CascadeType,ServiceClientType>*>(pino_shard->parent);
         auto result = capi_ptr->template get_size<CascadeType>(
-                key,CURRENT_VERSION,pino_subgroup->subgroup_index,pino_shard->shard_index);
+                key,CURRENT_VERSION,true,pino_subgroup->subgroup_index,pino_shard->shard_index);
         uint64_t fsize = 0;
         for (auto& reply_future:result.get()) {
             fsize = reply_future.second.get();

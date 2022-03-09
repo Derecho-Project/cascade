@@ -722,6 +722,8 @@ namespace cascade {
          * @param key               the object key
          * @param version           if version is CURRENT_VERSION, this "get" will fire a ordered send to get the latest
          *                          state of the key. Otherwise, it will try to read the key's state at version.
+         * @param stable            if true, get only report the version whose persistent data is safe, meaning the
+         *                          persistent data is persisted on all replicas.
          * @param subugroup_index   the subgroup index of CascadeType
          * @param shard_index       the shard index.
          *
@@ -729,17 +731,21 @@ namespace cascade {
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
          */
         template <typename SubgroupType>
-        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> get(const typename SubgroupType::KeyType& key, const persistent::version_t& version,
-                uint32_t subgroup_index, uint32_t shard_index);
-
+        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> get(
+                const typename SubgroupType::KeyType& key,
+                const persistent::version_t& version,
+                bool stable,
+                uint32_t subgroup_index,
+                uint32_t shard_index);
         /**
          * "type_recursive_get" is a helper function for internal use only.
-         * @type_index              the index of the subgroup type in the CascadeTypes... list. and the FirstType,
+         * @param type_index        the index of the subgroup type in the CascadeTypes... list. and the FirstType,
          *                          SecondType, .../ RestTypes should be in the same order.
-         * @key                     the key
-         * @version                 the version
-         * @subgroup_index          the subgroup index in the subgroup type designated by type_index
-         * @shard_index             the shard index
+         * @param key               the key
+         * @param version           the version
+         * @param stable            stable or not?
+         * @param subgroup_index    the subgroup index in the subgroup type designated by type_index
+         * @param shard_index       the shard index
          *
          * @return a future for the object.
          */
@@ -749,6 +755,7 @@ namespace cascade {
                 uint32_t type_index,
                 const KeyType& key,
                 const persistent::version_t& version,
+                bool stable,
                 uint32_t subgroup_index,
                 uint32_t shard_index);
 
@@ -757,6 +764,7 @@ namespace cascade {
                 uint32_t type_index,
                 const KeyType& key,
                 const persistent::version_t& version,
+                bool stable,
                 uint32_t subgroup_index,
                 uint32_t shard_index);
     public:
@@ -767,13 +775,60 @@ namespace cascade {
         template <typename KeyType>
         auto get(
                 const KeyType& key,
-                const persistent::version_t& version = CURRENT_VERSION);
+                const persistent::version_t& version,
+                bool stable);
+
+        /**
+         * "multi_get" retrieve the object of a given key, this operation involves atomic broadcast
+         *
+         * @param key               the object key
+         * @param subugroup_index   the subgroup index of CascadeType
+         * @param shard_index       the shard index.
+         *
+         * @return a future to the retrieved object.
+         */
+        template <typename SubgroupType>
+        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> multi_get(const typename SubgroupType::KeyType& key,
+                uint32_t subgroup_index, uint32_t shard_index);
+
+        /**
+         * "type_recursive_multi_get"   is a helper function for internal use only.
+         * @type_index                  the index of the subgroup type in the CascadeTypes... list. and the FirstType,
+         *                              SecondType, .../ RestTypes should be in the same order.
+         * @key                         the key
+         * @subgroup_index              the subgroup index in the subgroup type designated by type_index
+         * @shard_index                 the shard index
+         *
+         * @return a future for the object.
+         */
+    protected:
+        template <typename KeyType, typename FirstType, typename SecondType, typename... RestTypes>
+        auto type_recursive_multi_get(
+                uint32_t type_index,
+                const KeyType& key,
+                uint32_t subgroup_index,
+                uint32_t shard_index);
+
+        template <typename KeyType, typename LastType>
+        auto type_recursive_multi_get(
+                uint32_t type_index,
+                const KeyType& key,
+                uint32_t subgroup_index,
+                uint32_t shard_index);
+    public:
+
+        /**
+         * object pool version
+         */
+        template <typename KeyType>
+        auto multi_get(const KeyType& key);
 
         /**
          * "get_by_time" retrieve the object of a given key
          *
          * @param key               the object key
          * @param ts_us             Wall clock time in microseconds.
+         * @param stable            stable get or not
          * @param subugroup_index   the subgroup index of CascadeType
          * @param shard_index       the shard index.
          *
@@ -781,8 +836,12 @@ namespace cascade {
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
          */
         template <typename SubgroupType>
-        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> get_by_time(const typename SubgroupType::KeyType& key, const uint64_t& ts_us,
-                uint32_t subgroup_index, uint32_t shard_index);
+        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> get_by_time(
+                const typename SubgroupType::KeyType& key,
+                const uint64_t& ts_us,
+                const bool stable,
+                uint32_t subgroup_index,
+                uint32_t shard_index);
 
         /**
          * "type_recursive_get_by_time" is a helper function for internal use only.
@@ -790,6 +849,7 @@ namespace cascade {
          *                          SecondType, .../ RestTypes should be in the same order.
          * @param key               the key
          * @param ts_us             Wall clock time in microseconds.
+         * @param stable            stable get or not
          * @param subgroup_index    the subgroup index in the subgroup type designated by type_index
          * @param shard_index       the shard index
          *
@@ -801,6 +861,7 @@ namespace cascade {
                 uint32_t type_index,
                 const KeyType& key,
                 const uint64_t& ts_us,
+                const bool stable,
                 uint32_t subgroup_index,
                 uint32_t shard_index);
 
@@ -809,6 +870,7 @@ namespace cascade {
                 uint32_t type_index,
                 const KeyType& key,
                 const uint64_t& ts_us,
+                const bool stable,
                 uint32_t subgroup_index,
                 uint32_t shard_index);
     public:
@@ -819,7 +881,8 @@ namespace cascade {
         template <typename KeyType>
         auto get_by_time(
                 const KeyType& key,
-                const uint64_t& ts_us);
+                const uint64_t& ts_us,
+                const bool stable);
 
         /**
          * "get_size" retrieve size of the object of a given key
@@ -827,6 +890,7 @@ namespace cascade {
          * @param key               the object key
          * @param version           if version is CURRENT_VERSION, this "get" will fire a ordered send to get the latest
          *                          state of the key. Otherwise, it will try to read the key's state at version.
+         * @param stable            stable get or not
          * @param subugroup_index   the subgroup index of CascadeType
          * @param shard_index       the shard index.
          *
@@ -834,7 +898,10 @@ namespace cascade {
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
          */
         template <typename SubgroupType>
-        derecho::rpc::QueryResults<uint64_t> get_size(const typename SubgroupType::KeyType& key, const persistent::version_t& version,
+        derecho::rpc::QueryResults<uint64_t> get_size(
+                const typename SubgroupType::KeyType& key,
+                const persistent::version_t& version,
+                const bool stable,
                 uint32_t subgroup_index, uint32_t shard_index);
 
         /**
@@ -843,6 +910,7 @@ namespace cascade {
          *                          SecondType, .../ RestTypes should be in the same order.
          * @param key               the key
          * @param version           version
+         * @param stable            stable get size or not
          * @param subgroup_index    the subgroup index in the subgroup type designated by type_index
          * @param shard_index       the shard index
          *
@@ -854,6 +922,7 @@ namespace cascade {
                 uint32_t type_index,
                 const KeyType& key,
                 const persistent::version_t& version,
+                const bool stable,
                 uint32_t subgroup_index,
                 uint32_t shard_index);
 
@@ -862,23 +931,72 @@ namespace cascade {
                 uint32_t type_index,
                 const KeyType& key,
                 const persistent::version_t& version,
+                const bool stable,
                 uint32_t subgroup_index,
                 uint32_t shard_index);
-    public:
 
+    public:
         /**
          * object pool version
          */
         template <typename KeyType>
         derecho::rpc::QueryResults<uint64_t> get_size(
                 const KeyType& key,
-                const persistent::version_t& version = CURRENT_VERSION);
+                const persistent::version_t& version,
+                const bool stable);
+
+        /**
+         * "multi_get_size" retrieve size of the object of a given key
+         *
+         * @param key               the object key
+         * @param subugroup_index   the subgroup index of CascadeType
+         * @param shard_index       the shard index.
+         *
+         * @return a future to the retrieved size.
+         */
+        template <typename SubgroupType>
+        derecho::rpc::QueryResults<uint64_t> multi_get_size(
+                const typename SubgroupType::KeyType& key,
+                uint32_t subgroup_index, uint32_t shard_index);
+
+        /**
+         * "type_recursive_multi_get_size" is a helper function for internal use only.
+         * @param type_index        the index of the subgroup type in the CascadeTypes... list. and the FirstType,
+         *                          SecondType, .../ RestTypes should be in the same order.
+         * @param key               the key
+         * @param subgroup_index    the subgroup index in the subgroup type designated by type_index
+         * @param shard_index       the shard index
+         *
+         * @return a future for the object.
+         */
+    protected:
+        template <typename KeyType, typename FirstType, typename SecondType, typename... RestTypes>
+        derecho::rpc::QueryResults<uint64_t> type_recursive_multi_get_size(
+                uint32_t type_index,
+                const KeyType& key,
+                uint32_t subgroup_index,
+                uint32_t shard_index);
+
+        template <typename KeyType, typename LastType>
+        derecho::rpc::QueryResults<uint64_t> type_recursive_multi_get_size(
+                uint32_t type_index,
+                const KeyType& key,
+                uint32_t subgroup_index,
+                uint32_t shard_index);
+
+    public:
+        /**
+         * object pool version
+         */
+        template <typename KeyType>
+        derecho::rpc::QueryResults<uint64_t> multi_get_size(const KeyType& key);
 
         /**
          * "get_size_by_time" retrieve size of the object of a given key
          *
          * @param key               the object key
          * @param ts_us             Wall clock time in microseconds.
+         * @param stable            stable get or not
          * @param subugroup_index   the subgroup index of CascadeType
          * @param shard_index       the shard index.
          *
@@ -886,8 +1004,12 @@ namespace cascade {
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
          */
         template <typename SubgroupType>
-        derecho::rpc::QueryResults<uint64_t> get_size_by_time(const typename SubgroupType::KeyType& key, const uint64_t& ts_us,
-                uint32_t subgroup_index, uint32_t shard_index);
+        derecho::rpc::QueryResults<uint64_t> get_size_by_time(
+                const typename SubgroupType::KeyType& key,
+                const uint64_t& ts_us,
+                const bool stable,
+                uint32_t subgroup_index,
+                uint32_t shard_index);
 
         /**
          * "type_recursive_get_size" is a helper function for internal use only.
@@ -895,6 +1017,7 @@ namespace cascade {
          *                          SecondType, .../ RestTypes should be in the same order.
          * @param key               the key
          * @param ts_us             Wall clock time in microseconds.
+         * @param stable            stable get or not
          * @param subgroup_index    the subgroup index in the subgroup type designated by type_index
          * @param shard_index       the shard index
          *
@@ -906,6 +1029,7 @@ namespace cascade {
                 uint32_t type_index,
                 const KeyType& key,
                 const uint64_t& ts_us,
+                const bool stable,
                 uint32_t subgroup_index,
                 uint32_t shard_index);
 
@@ -914,6 +1038,7 @@ namespace cascade {
                 uint32_t type_index,
                 const KeyType& key,
                 const uint64_t& ts_us,
+                const bool stable,
                 uint32_t subgroup_index,
                 uint32_t shard_index);
     public:
@@ -924,13 +1049,15 @@ namespace cascade {
         template <typename KeyType>
         derecho::rpc::QueryResults<uint64_t> get_size_by_time(
                 const KeyType& key,
-                const uint64_t& ts_us);
+                const uint64_t& ts_us,
+                const bool stable);
 
         /**
          * "list_keys" retrieve the list of keys in a shard
          *
          * @param version           if version is CURRENT_VERSION, this "get" will fire a ordered send to get the latest
          *                          state of the key. Otherwise, it will try to read the key's state at version.
+         * @param stable            stable or not
          * @param subugroup_index   the subgroup index of CascadeType
          * @param shard_index       the shard index.
          *
@@ -938,70 +1065,112 @@ namespace cascade {
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
          */
         template <typename SubgroupType>
-        derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> list_keys(const persistent::version_t& version,
-                uint32_t subgroup_index, uint32_t shard_index);
+        derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> list_keys(
+                const persistent::version_t& version,
+                const bool stable,
+                uint32_t subgroup_index,
+                uint32_t shard_index);
 
     protected:
         template <typename FirstType, typename SecondType, typename... RestTypes>
         auto type_recursive_list_keys(
                 uint32_t type_index,
                 const persistent::version_t& version,
+                const bool stable,
                 const std::string& object_pool_pathname);
         template <typename LastType>
         auto type_recursive_list_keys(
                 uint32_t type_index,
                 const persistent::version_t& version,
+                const bool stable,
                 const std::string& object_pool_pathname);
         template <typename SubgroupType>
         std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>>
-            __list_keys(const persistent::version_t& version, const std::string& object_pool_pathname);
+            __list_keys(const persistent::version_t& version, const bool stable, const std::string& object_pool_pathname);
     public:
         /**
          * object pool version
          * @param version               if version is
          * @param object_pool_pathname  the object pathname
          */
-        auto list_keys(const persistent::version_t& version, const std::string& object_pool_pathname);
+        auto list_keys(const persistent::version_t& version, const bool stable, const std::string& object_pool_pathname);
 
         template <typename KeyType>
         std::vector<KeyType> wait_list_keys(
                                 std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<KeyType>>>>& future);
 
         /**
-         * "list_keys_by_time" retrieve the list of keys in a shard
+         * "multi_list_keys" retrieve the list of keys in a shard
          *
-         * @param ts_us             Wall clock time in microseconds.
          * @param subugroup_index   the subgroup index of CascadeType
          * @param shard_index       the shard index.
          *
          * @return a future to the retrieved object.
-         * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
          */
         template <typename SubgroupType>
-        derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> list_keys_by_time(const uint64_t& ts_us,
-                uint32_t subgroup_index, uint32_t shard_index);
+        derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> multi_list_keys(
+                uint32_t subgroup_index,
+                uint32_t shard_index);
+
+    protected:
+        template <typename FirstType, typename SecondType, typename... RestTypes>
+        auto type_recursive_multi_list_keys(
+                uint32_t type_index,
+                const std::string& object_pool_pathname);
+        template <typename LastType>
+        auto type_recursive_multi_list_keys(
+                uint32_t type_index,
+                const std::string& object_pool_pathname);
+        template <typename SubgroupType>
+        std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>>
+            __multi_list_keys(const std::string& object_pool_pathname);
+    public:
+        /**
+         * object pool version
+         * @param object_pool_pathname  the object pathname
+         */
+        auto multi_list_keys(const std::string& object_pool_pathname);
+
+        /**
+         * "list_keys_by_time" retrieve the list of keys in a shard
+         *
+         * @param ts_us             Wall clock time in microseconds.
+         * @param stable
+         * @param subugroup_index   the subgroup index of CascadeType
+         * @param shard_index       the shard index.
+         *
+         * @return a future to the retrieved object.
+         */
+        template <typename SubgroupType>
+        derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> list_keys_by_time(
+                const uint64_t& ts_us,
+                const bool stable,
+                uint32_t subgroup_index,
+                uint32_t shard_index);
 
     protected:
         template <typename FirstType, typename SecondType, typename... RestTypes>
         auto type_recursive_list_keys_by_time(
                 uint32_t type_index,
                 const uint64_t& ts_us,
+                const bool stable,
                 const std::string& object_pool_pathname);
         template <typename LastType>
         auto type_recursive_list_keys_by_time(
                 uint32_t type_index,
                 const uint64_t& ts_us,
+                const bool stable,
                 const std::string& object_pool_pathname);
         template <typename SubgroupType>
         std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>>
-            __list_keys_by_time(const uint64_t& ts_us, const std::string& object_pool_pathname);
+            __list_keys_by_time(const uint64_t& ts_us, const bool stable, const std::string& object_pool_pathname);
     public:
         /**
         * object pool version
         * @param ts_us                  timestamp
         * @param object_pool_pathname   the object pathname
         */
-        auto list_keys_by_time(const uint64_t& ts_us, const std::string& object_pool_pathname);
+        auto list_keys_by_time(const uint64_t& ts_us, const bool stable, const std::string& object_pool_pathname);
 
         /**
          * "get_signature" retrieves the signature on a particular key for a particular update.

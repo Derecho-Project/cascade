@@ -1,0 +1,7 @@
+@PACKAGE_INIT@
+
+set_and_check(cascade_INCLUDE_DIRS "@PACKAGE_CMAKE_INSTALL_INCLUDEDIR@")
+set(cascade_LIBRARIES "-L@PACKAGE_CMAKE_INSTALL_LIBDIR@ -lcascade")
+include("@PACKAGE_ConfigPackageLocation@/cascadeTargets.cmake")
+
+check_required_components(cascade)

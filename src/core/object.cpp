@@ -1,6 +1,7 @@
 #include "cascade/object.hpp"
 
 #include <unistd.h>
+#include <stdlib.h>
 
 namespace derecho {
 namespace cascade {
@@ -33,13 +34,13 @@ ObjectWithStringKey ObjectWithStringKey::IV;
  *  The right way to avoid this is to use an optimal trim_threshold value instead of setting page alignment.
  */
 // static const std::size_t page_size = sysconf(_SC_PAGESIZE);
-// #define PAGE_ALIGNED_NEW(x) (new char[((x)+page_size-1)/page_size*page_size])
+// #define PAGE_ALIGNED_NEW(x) (new uint8_t[((x)+page_size-1)/page_size*page_size])
 
-Blob::Blob(const char* const b, const decltype(size) s) :
-    bytes(nullptr), size(0), is_emplaced(false) {
+Blob::Blob(const uint8_t* const b, const decltype(size) s) :
+    bytes(nullptr), size(0), capacity(0), is_emplaced(false) {
     if(s > 0) {
-        // char* t_bytes = PAGE_ALIGNED_NEW(s);
-        char* t_bytes = new char[s];
+        // uint8_t* t_bytes = PAGE_ALIGNED_NEW(s);
+        uint8_t* t_bytes = static_cast<uint8_t*>(malloc(s));
         if (b != nullptr) {
             memcpy(t_bytes, b, s);
         } else {
@@ -47,14 +48,15 @@ Blob::Blob(const char* const b, const decltype(size) s) :
         }
         bytes = t_bytes;
         size = s;
+        capacity = size;
     }
 }
 
-Blob::Blob(const char* b, const decltype(size) s, bool emplaced) :
-    bytes(b), size(s), is_emplaced(emplaced) {
+Blob::Blob(const uint8_t* b, const decltype(size) s, bool emplaced) :
+    bytes(b), size(s), capacity(s), is_emplaced(emplaced) {
     if ( (size>0) && (is_emplaced==false)) {
-        // char* t_bytes = PAGE_ALIGNED_NEW(s);
-        char* t_bytes = new char[s];
+        // uint8_t* t_bytes = PAGE_ALIGNED_NEW(s);
+        uint8_t* t_bytes = static_cast<uint8_t*>(malloc(s));
         if (b != nullptr) {
             memcpy(t_bytes, b, s);
         } else {
@@ -69,57 +71,69 @@ Blob::Blob(const char* b, const decltype(size) s, bool emplaced) :
 }
 
 Blob::Blob(const Blob& other) :
-    bytes(nullptr), size(0), is_emplaced(false) {
+    bytes(nullptr), size(0), capacity(0), is_emplaced(false) {
     if(other.size > 0) {
-        // char* t_bytes = PAGE_ALIGNED_NEW(other.size);
-        char* t_bytes = new char[other.size];
+        // uint8_t* t_bytes = PAGE_ALIGNED_NEW(other.size);
+        uint8_t* t_bytes = static_cast<uint8_t*>(malloc(other.size));
         memcpy(t_bytes, other.bytes, other.size);
         bytes = t_bytes;
         size = other.size;
+        capacity = other.size;
     }
 }
 
 Blob::Blob(Blob&& other) :
-    bytes(other.bytes), size(other.size), is_emplaced(false) {
+    bytes(other.bytes), size(other.size), capacity(other.size), is_emplaced(other.is_emplaced) {
     other.bytes = nullptr;
     other.size = 0;
+    other.capacity = 0;
 }
 
-Blob::Blob() : bytes(nullptr), size(0) {}
+Blob::Blob() : bytes(nullptr), size(0), capacity(0), is_emplaced(false) {}
 
 Blob::~Blob() {
     if(bytes && ! is_emplaced) {
-        delete [] bytes;
+        free(const_cast<void*>(reinterpret_cast<const void*>(bytes)));
     }
 }
 
 Blob& Blob::operator=(Blob&& other) {
-    const char* swp_bytes = other.bytes;
+    const uint8_t* swp_bytes = other.bytes;
     std::size_t swp_size = other.size;
+    std::size_t swp_cap  = other.capacity;
+    bool swap_is_emplaced = other.is_emplaced;
     other.bytes = bytes;
     other.size = size;
+    other.capacity = capacity;
+    is_emplaced = swap_is_emplaced;
     bytes = swp_bytes;
     size = swp_size;
+    capacity = swp_cap;
     return *this;
 }
 
 Blob& Blob::operator=(const Blob& other) {
-    if(bytes != nullptr) {
-        delete bytes;
+    // 1) this->is_emplaced has to be false;
+    if (is_emplaced) {
+        throw std::runtime_error("Copy to a Blob that does not own the data (is_emplaced = false) is prohibited.");
     }
-    size = other.size;
-    if(size > 0) {
-        // char* t_bytes = PAGE_ALIGNED_NEW(size);
-        char* t_bytes = new char[size];
-        memcpy(t_bytes, other.bytes, size);
-        bytes = t_bytes;
-    } else {
-        bytes = nullptr;
+
+    // 2) verify that this->capacity has enough memory;
+    if (this->capacity < other.size) {
+        bytes = static_cast<uint8_t*>(realloc(const_cast<void*>(static_cast<const void*>(bytes)),other.size));
+        this->capacity = other.size;
     }
+
+    // 3) update this->size; copy data, if there is any.
+    this->size = other.size;
+    if(this->size > 0) {
+        memcpy(const_cast<void*>(static_cast<const void*>(this->bytes)), other.bytes, size);
+    }
+
     return *this;
 }
 
-std::size_t Blob::to_bytes(char* v) const {
+std::size_t Blob::to_bytes(uint8_t* v) const {
     ((std::size_t*)(v))[0] = size;
     if(size > 0) {
         memcpy(v + sizeof(size), bytes, size);
@@ -131,20 +145,20 @@ std::size_t Blob::bytes_size() const {
     return size + sizeof(size);
 }
 
-void Blob::post_object(const std::function<void(char const* const, std::size_t)>& f) const {
-    f((char*)&size, sizeof(size));
+void Blob::post_object(const std::function<void(uint8_t const* const, std::size_t)>& f) const {
+    f((uint8_t*)&size, sizeof(size));
     f(bytes, size);
 }
 
-mutils::context_ptr<Blob> Blob::from_bytes_noalloc(mutils::DeserializationManager* ctx, const char* const v) {
-    return mutils::context_ptr<Blob>{new Blob(const_cast<char*>(v) + sizeof(std::size_t), ((std::size_t*)(v))[0], true)};
+mutils::context_ptr<Blob> Blob::from_bytes_noalloc(mutils::DeserializationManager* ctx, const uint8_t* const v) {
+    return mutils::context_ptr<Blob>{new Blob(const_cast<uint8_t*>(v) + sizeof(std::size_t), ((std::size_t*)(v))[0], true)};
 }
 
-mutils::context_ptr<const Blob> Blob::from_bytes_noalloc_const(mutils::DeserializationManager* ctx, const char* const v) {
-    return mutils::context_ptr<const Blob>{new Blob(const_cast<char*>(v) + sizeof(std::size_t), ((std::size_t*)(v))[0], true)};
+mutils::context_ptr<Blob> Blob::from_bytes_noalloc_const(mutils::DeserializationManager* ctx, const uint8_t* const v) {
+    return mutils::context_ptr<Blob>{new Blob(const_cast<uint8_t*>(v) + sizeof(std::size_t), ((std::size_t*)(v))[0], true)};
 }
 
-std::unique_ptr<Blob> Blob::from_bytes(mutils::DeserializationManager*, const char* const v) {
+std::unique_ptr<Blob> Blob::from_bytes(mutils::DeserializationManager*, const uint8_t* const v) {
     return std::make_unique<Blob>(v + sizeof(std::size_t), ((std::size_t*)(v))[0]);
 }
 
@@ -194,7 +208,7 @@ ObjectWithUInt64Key::ObjectWithUInt64Key(
 
 // constructor 1 : copy consotructor
 ObjectWithUInt64Key::ObjectWithUInt64Key(const uint64_t _key,
-                                         const char* const _b,
+                                         const uint8_t* const _b,
                                          const std::size_t _s) :
 #ifdef ENABLE_EVALUATION
     message_id(0),
@@ -216,7 +230,7 @@ ObjectWithUInt64Key::ObjectWithUInt64Key(
                                          const persistent::version_t _previous_version,
                                          const persistent::version_t _previous_version_by_key,
                                          const uint64_t _key,
-                                         const char* const _b,
+                                         const uint8_t* const _b,
                                          const std::size_t _s) :
 #ifdef ENABLE_EVALUATION
     message_id(_message_id),
@@ -271,6 +285,19 @@ bool ObjectWithUInt64Key::is_null() const {
     return (this->blob.size == 0);
 }
 
+void ObjectWithUInt64Key::copy_from(const ObjectWithUInt64Key& rhs) {
+#ifdef ENABLE_EVALUATION
+    this->message_id = rhs.message_id;
+#endif
+    this->version = rhs.version;
+    this->timestamp_us = rhs.timestamp_us;
+    this->previous_version = rhs.previous_version;
+    this->previous_version_by_key = rhs.previous_version_by_key;
+    this->key = rhs.key;
+    // copy assignment
+    this->blob = rhs.blob;
+}
+
 void ObjectWithUInt64Key::set_version(persistent::version_t ver) const {
     this->version = ver;
 }
@@ -317,7 +344,7 @@ ObjectWithUInt64Key create_null_object_cb<uint64_t,ObjectWithUInt64Key,&ObjectWi
     return ObjectWithUInt64Key(key,Blob{});
 }
 
-std::size_t ObjectWithUInt64Key::to_bytes(char* v) const {
+std::size_t ObjectWithUInt64Key::to_bytes(uint8_t* v) const {
     std::size_t pos = 0;
 #ifdef ENABLE_EVALUATION
     pos+=mutils::to_bytes(message_id, v + pos);
@@ -344,7 +371,7 @@ std::size_t ObjectWithUInt64Key::bytes_size() const {
            mutils::bytes_size(blob);
 }
 
-void ObjectWithUInt64Key::post_object(const std::function<void(char const* const, std::size_t)>& f) const {
+void ObjectWithUInt64Key::post_object(const std::function<void(uint8_t const* const, std::size_t)>& f) const {
 #ifdef ENABLE_EVALUATION
     mutils::post_object(f, message_id);
 #endif
@@ -356,7 +383,7 @@ void ObjectWithUInt64Key::post_object(const std::function<void(char const* const
     mutils::post_object(f, blob);
 }
 
-std::unique_ptr<ObjectWithUInt64Key> ObjectWithUInt64Key::from_bytes(mutils::DeserializationManager* dsm, const char* const v) {
+std::unique_ptr<ObjectWithUInt64Key> ObjectWithUInt64Key::from_bytes(mutils::DeserializationManager* dsm, const uint8_t* const v) {
     size_t pos = 0;
 #ifdef ENABLE_EVALUATION
     auto p_message_id = mutils::from_bytes_noalloc<uint64_t>(dsm,v + pos);
@@ -388,7 +415,7 @@ std::unique_ptr<ObjectWithUInt64Key> ObjectWithUInt64Key::from_bytes(mutils::Des
 
 mutils::context_ptr<ObjectWithUInt64Key> ObjectWithUInt64Key::from_bytes_noalloc(
     mutils::DeserializationManager* dsm,
-    const char* const v) {
+    const uint8_t* const v) {
     size_t pos = 0;
 #ifdef ENABLE_EVALUATION
     auto p_message_id = mutils::from_bytes_noalloc<uint64_t>(dsm,v + pos);
@@ -420,7 +447,7 @@ mutils::context_ptr<ObjectWithUInt64Key> ObjectWithUInt64Key::from_bytes_noalloc
 
 mutils::context_ptr<const ObjectWithUInt64Key> ObjectWithUInt64Key::from_bytes_noalloc_const(
     mutils::DeserializationManager* dsm,
-    const char* const v) {
+    const uint8_t* const v) {
     size_t pos = 0;
 #ifdef ENABLE_EVALUATION
     auto p_message_id = mutils::from_bytes_noalloc<uint64_t>(dsm,v + pos);
@@ -499,7 +526,7 @@ ObjectWithStringKey::ObjectWithStringKey(
 
 // constructor 1 : copy consotructor
 ObjectWithStringKey::ObjectWithStringKey(const std::string& _key,
-                                         const char* const _b,
+                                         const uint8_t* const _b,
                                          const std::size_t _s) :
 #ifdef ENABLE_EVALUATION
     message_id(0),
@@ -520,7 +547,7 @@ ObjectWithStringKey::ObjectWithStringKey(
                                          const persistent::version_t _previous_version,
                                          const persistent::version_t _previous_version_by_key,
                                          const std::string& _key,
-                                         const char* const _b,
+                                         const uint8_t* const _b,
                                          const std::size_t _s) :
 #ifdef ENABLE_EVALUATION
     message_id(_message_id),
@@ -588,6 +615,19 @@ bool ObjectWithStringKey::is_null() const {
     return (this->blob.size == 0);
 }
 
+void ObjectWithStringKey::copy_from(const ObjectWithStringKey& rhs) {
+#ifdef ENABLE_EVALUATION
+    this->message_id = rhs.message_id;
+#endif
+    this->version = rhs.version;
+    this->timestamp_us = rhs.timestamp_us;
+    this->previous_version = rhs.previous_version;
+    this->previous_version_by_key = rhs.previous_version_by_key;
+    this->key = rhs.key;
+    // copy assignment
+    this->blob = rhs.blob;
+}
+
 void ObjectWithStringKey::set_version(persistent::version_t ver) const {
     this->version = ver;
 }
@@ -635,7 +675,7 @@ ObjectWithStringKey create_null_object_cb<std::string,ObjectWithStringKey,&Objec
     return ObjectWithStringKey(key,Blob{});
 }
 
-std::size_t ObjectWithStringKey::to_bytes(char* v) const {
+std::size_t ObjectWithStringKey::to_bytes(uint8_t* v) const {
     std::size_t pos = 0;
 #ifdef ENABLE_EVALUATION
     pos+=mutils::to_bytes(message_id, v + pos);
@@ -662,7 +702,7 @@ std::size_t ObjectWithStringKey::bytes_size() const {
            mutils::bytes_size(blob);
 }
 
-void ObjectWithStringKey::post_object(const std::function<void(char const* const, std::size_t)>& f) const {
+void ObjectWithStringKey::post_object(const std::function<void(uint8_t const* const, std::size_t)>& f) const {
 #ifdef ENABLE_EVALUATION
     mutils::post_object(f, message_id);
 #endif
@@ -674,7 +714,7 @@ void ObjectWithStringKey::post_object(const std::function<void(char const* const
     mutils::post_object(f, blob);
 }
 
-std::unique_ptr<ObjectWithStringKey> ObjectWithStringKey::from_bytes(mutils::DeserializationManager* dsm, const char* const v) {
+std::unique_ptr<ObjectWithStringKey> ObjectWithStringKey::from_bytes(mutils::DeserializationManager* dsm, const uint8_t* const v) {
     size_t pos = 0;
 #ifdef ENABLE_EVALUATION
     auto p_message_id = mutils::from_bytes_noalloc<uint64_t>(dsm,v + pos);
@@ -706,7 +746,7 @@ std::unique_ptr<ObjectWithStringKey> ObjectWithStringKey::from_bytes(mutils::Des
 
 mutils::context_ptr<ObjectWithStringKey> ObjectWithStringKey::from_bytes_noalloc(
     mutils::DeserializationManager* dsm,
-    const char* const v) {
+    const uint8_t* const v) {
     size_t pos = 0;
 #ifdef ENABLE_EVALUATION
     auto p_message_id = mutils::from_bytes_noalloc<uint64_t>(dsm,v + pos);
@@ -739,7 +779,7 @@ mutils::context_ptr<ObjectWithStringKey> ObjectWithStringKey::from_bytes_noalloc
 
 mutils::context_ptr<const ObjectWithStringKey> ObjectWithStringKey::from_bytes_noalloc_const(
     mutils::DeserializationManager* dsm,
-    const char* const v) {
+    const uint8_t* const v) {
     size_t pos = 0;
 #ifdef ENABLE_EVALUATION
     auto p_message_id = mutils::from_bytes_noalloc<uint64_t>(dsm,v + pos);

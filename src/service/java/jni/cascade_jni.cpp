@@ -1,34 +1,50 @@
 #include <cascade/service_client_api.hpp>
+#include <memory>
+#include <unordered_map>
 #include "io_cascade_Client.h"
 #include "io_cascade_QueryResults.h"
 
 /**
+ * This should agree with io.cascade.ServiceType
+ *
+ */
+typedef enum {
+    VolatileCascadeStoreWithStringKey = 0,
+    PersistentCascadeStoreWithStringKey = 1,
+    TriggerCascadeNoStoreWithStringKey = 2,
+} ServiceType;
+
+/**
  * macros for handling multiple subgroup types
  */
-#define on_subgroup_type(x, ft, ...)             \
-    if ((x) == "VCSS")                           \
-    {                                            \
-        ft<derecho::cascade::VolatileCascadeStoreWithStringKey>(__VA_ARGS__); \
-    }                                            \
-    else if ((x) == "PCSS")                      \
-    {                                            \
-        ft<derecho::cascade::PersistentCascadeStoreWithStringKey>(__VA_ARGS__); \
-    }
-
-#define on_service_val(service_val, ft, ...)        \
-    switch (service_val)                             \
-    {                                                \
-    case 0:                                          \
-        ft<derecho::cascade::VolatileCascadeStoreWithStringKey>(__VA_ARGS__);     \
-        break;                                       \
-    case 1:                                          \
+#define on_service_type(service_type, ft, ...)                                      \
+    switch (service_type)                                                           \
+    {                                                                               \
+    case ServiceType::VolatileCascadeStoreWithStringKey:                            \
+        ft<derecho::cascade::VolatileCascadeStoreWithStringKey>(__VA_ARGS__);       \
+        break;                                                                      \
+    case ServiceType::PersistentCascadeStoreWithStringKey:                          \
         ft<derecho::cascade::PersistentCascadeStoreWithStringKey>(__VA_ARGS__);     \
-        break;                                       \
-    default:                                         \
-        break;                                       \
+        break;                                                                      \
+    case ServiceType::TriggerCascadeNoStoreWithStringKey:                           \
+        ft<derecho::cascade::TriggerCascadeNoStoreWithStringKey>(__VA_ARGS__);      \
+        break;                                                                      \
+    default:                                                                        \
+        break;                                                                      \
     }
 
-std::string type_arr[2] = {"VCSS", "PCSS"};
+#define on_no_trigger_service_type(service_type, ft, ...)                           \
+    switch (service_type)                                                           \
+    {                                                                               \
+    case ServiceType::VolatileCascadeStoreWithStringKey:                            \
+        ft<derecho::cascade::VolatileCascadeStoreWithStringKey>(__VA_ARGS__);       \
+        break;                                                                      \
+    case ServiceType::PersistentCascadeStoreWithStringKey:                          \
+        ft<derecho::cascade::PersistentCascadeStoreWithStringKey>(__VA_ARGS__);     \
+        break;                                                                      \
+    default:                                                                        \
+        break;                                                                      \
+    }
 
 /*
  * Class:     io_cascade_Client
@@ -41,6 +57,23 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_createClient(JNIEnv *env, jobject
     derecho::cascade::ServiceClientAPI *capi = new derecho::cascade::ServiceClientAPI();
     // send the memory address back as a handle
     return reinterpret_cast<jlong>(capi);
+}
+
+/**
+ * Class:       io_cascade_Client
+ * Method:      closeClient
+ * Signature:   ()V
+ */
+JNIEXPORT void JNICALL Java_io_cascade_Client_closeClient(JNIEnv *env, jobject obj)
+{
+    jclass client_cls = env->GetObjectClass(obj);
+    jfieldID client_fid = env->GetFieldID(client_cls, "handle", "J");
+    jlong jhandle = env->GetLongField(obj, client_fid);
+    derecho::cascade::ServiceClientAPI *capi = reinterpret_cast<derecho::cascade::ServiceClientAPI*>(jhandle);
+    if (capi != nullptr) {
+        delete capi;
+    }
+    env->SetLongField(obj,client_fid,0L);
 }
 
 /**
@@ -116,11 +149,11 @@ JNIEXPORT jobject JNICALL Java_io_cascade_Client_getShardMembers__JJ(JNIEnv *env
 /**
  * Get the value for any Java object with an integer getValue() function.
  */
-int get_value(JNIEnv *env, jobject service_type)
+int get_int_value(JNIEnv *env, jobject j_obj)
 {
-    jclass service_types_cls = env->GetObjectClass(service_type);
-    jmethodID get_val_mid = env->GetMethodID(service_types_cls, "getValue", "()I");
-    return static_cast<int>(env->CallIntMethod(service_type, get_val_mid));
+    jclass obj_cls = env->GetObjectClass(j_obj);
+    jmethodID get_val_mid = env->GetMethodID(obj_cls, "getValue", "()I");
+    return static_cast<int>(env->CallIntMethod(j_obj, get_val_mid));
 }
 
 /*
@@ -128,18 +161,15 @@ int get_value(JNIEnv *env, jobject service_type)
  * Method:    getShardMembers
  * Signature: (Lio/cascade/ServiceType;JJ)Ljava/util/List;
  */
-JNIEXPORT jobject JNICALL Java_io_cascade_Client_getShardMembers(JNIEnv *env, jobject obj, jobject service_type, jlong subgroup_index, jlong shard_index)
+JNIEXPORT jobject JNICALL Java_io_cascade_Client_getShardMembers(JNIEnv *env, jobject obj, jobject j_service_type, jlong subgroup_index, jlong shard_index)
 {
     // get the value of the service type
-    int val = get_value(env, service_type);
+    int service_type = get_int_value(env, j_service_type);
     derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
     std::vector<node_id_t> members;
 
-    // translate the type into string
-    std::string real_type = type_arr[val];
-
     // call get shard members
-    on_subgroup_type(real_type, members = capi->get_shard_members, subgroup_index, shard_index);
+    on_service_type(service_type, members = capi->get_shard_members, subgroup_index, shard_index);
 
     // convert the result back to Java list
     return cpp_int_vector_to_java_list(env, members);
@@ -150,11 +180,11 @@ JNIEXPORT jobject JNICALL Java_io_cascade_Client_getShardMembers(JNIEnv *env, jo
  * Method:    setMemberSelectionPolicy
  * Signature: (Lio/cascade/ServiceType;JJLio/cascade/ShardMemberSelectionPolicy;)V
  */
-JNIEXPORT void JNICALL Java_io_cascade_Client_setMemberSelectionPolicy(JNIEnv *env, jobject obj, jobject service_type, jlong subgroup_index, jlong shard_index, jobject java_policy)
+JNIEXPORT void JNICALL Java_io_cascade_Client_setMemberSelectionPolicy(JNIEnv *env, jobject obj, jobject j_service_type, jlong subgroup_index, jlong shard_index, jobject java_policy)
 {
-    int val = get_value(env, service_type);
+    int service_type = get_int_value(env, j_service_type);
     derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
-    int pol = get_value(env, java_policy);
+    int pol = get_int_value(env, java_policy);
     derecho::cascade::ShardMemberSelectionPolicy policy = static_cast<derecho::cascade::ShardMemberSelectionPolicy>(pol);
 
     // translate policy
@@ -168,10 +198,8 @@ JNIEXPORT void JNICALL Java_io_cascade_Client_setMemberSelectionPolicy(JNIEnv *e
         special_node = env->CallIntMethod(java_policy, get_unode_mid);
     }
 
-    std::string real_type = type_arr[val];
-
     // set!
-    on_subgroup_type(real_type, capi->set_member_selection_policy, subgroup_index, shard_index, policy, special_node);
+    on_service_type(service_type, capi->set_member_selection_policy, subgroup_index, shard_index, policy, special_node);
 }
 
 /*
@@ -179,16 +207,14 @@ JNIEXPORT void JNICALL Java_io_cascade_Client_setMemberSelectionPolicy(JNIEnv *e
  * Method:    getMemberSelectionPolicy
  * Signature: (Lio/cascade/ServiceType;JJ)Lio/cascade/ShardMemberSelectionPolicy;
  */
-JNIEXPORT jobject JNICALL Java_io_cascade_Client_getMemberSelectionPolicy(JNIEnv *env, jobject obj, jobject service_type, jlong subgroup_index, jlong shard_index)
+JNIEXPORT jobject JNICALL Java_io_cascade_Client_getMemberSelectionPolicy(JNIEnv *env, jobject obj, jobject j_service_type, jlong subgroup_index, jlong shard_index)
 {
-    int val = get_value(env, service_type);
+    int service_type = get_int_value(env, j_service_type);
     derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
     std::tuple<derecho::cascade::ShardMemberSelectionPolicy, unsigned int> policy;
 
-    std::string real_type = type_arr[val];
-
     // get the policy
-    on_subgroup_type(real_type, policy = capi->get_member_selection_policy, subgroup_index, shard_index);
+    on_service_type(service_type, policy = capi->get_member_selection_policy, subgroup_index, shard_index);
 
     std::string java_policy_str;
     switch (std::get<0>(policy))
@@ -280,7 +306,7 @@ std::string translate_str_key(JNIEnv *env, jobject key)
 /**
  * Translate Java key-value pair into C++ object with std::string keys.
  */
-derecho::cascade::ObjectWithStringKey *translate_str_obj(JNIEnv *env, jobject key, jobject val)
+std::unique_ptr<derecho::cascade::ObjectWithStringKey> translate_str_obj(JNIEnv *env, jobject key, jobject val)
 {
     // get val from byte buffer
     const char *buf = static_cast<const char *>(env->GetDirectBufferAddress(val));
@@ -292,10 +318,10 @@ derecho::cascade::ObjectWithStringKey *translate_str_obj(JNIEnv *env, jobject ke
     // translate the object.
     derecho::cascade::ObjectWithStringKey *cas_obj = new derecho::cascade::ObjectWithStringKey();
     cas_obj->key = translate_str_key(env, key);
-    cas_obj->blob = derecho::cascade::Blob(buf, len);
+    cas_obj->blob = derecho::cascade::Blob(reinterpret_cast<const uint8_t*>(buf), len);
     cas_obj->blob.is_emplaced = 1;
 
-    return cas_obj;
+    return std::unique_ptr<derecho::cascade::ObjectWithStringKey>{cas_obj};
 }
 
 /**
@@ -310,7 +336,7 @@ derecho::cascade::ObjectWithStringKey *translate_str_obj(JNIEnv *env, jobject ke
  * @return a handle of the future that stores the version and timestamp.
  */
 template <typename T>
-jlong put(std::function<typename T::ObjectType *(JNIEnv *, jobject, jobject)> f, JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong subgroup_index, jlong shard_index, jobject key, jobject val)
+jlong put(std::function<std::unique_ptr<typename T::ObjectType>(JNIEnv *, jobject, jobject)> f, JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong subgroup_index, jlong shard_index, jobject key, jobject val)
 {
 #ifndef NDEBUG
     std::cout << "entering jlong put! Here am I! " << std::endl;
@@ -323,7 +349,7 @@ jlong put(std::function<typename T::ObjectType *(JNIEnv *, jobject, jobject)> f,
     printf("\n");
 #endif
     // translate Java objects to C++ objects.
-    typename T::ObjectType *obj = f(env, key, val);
+    auto obj = f(env, key, val);
 #ifndef NDEBUG
     std::cout << "putting! " << subgroup_index << " " << shard_index << std::endl;
 #endif
@@ -337,24 +363,31 @@ jlong put(std::function<typename T::ObjectType *(JNIEnv *, jobject, jobject)> f,
     return reinterpret_cast<jlong>(qrh);
 }
 
+template <typename ServiceType>
+jlong create_object_pool(derecho::cascade::ServiceClientAPI* capi, const std::string& pathname, uint32_t subgroup_index, derecho::cascade::sharding_policy_t sharding_policy, const std::unordered_map<std::string,uint32_t>& object_locations) {
+    auto res = capi->create_object_pool<ServiceType>(pathname,subgroup_index,sharding_policy,object_locations);
+    QueryResultHolder<std::tuple<persistent::version_t, uint64_t>> *qrh = new QueryResultHolder<std::tuple<persistent::version_t, uint64_t>>(res);
+    return reinterpret_cast<jlong>(qrh);
+}
+
 /*
  * Class:     io_cascade_Client
  * Method:    putInternal
  * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;Ljava/nio/ByteBuffer;)J
  */
-JNIEXPORT jlong JNICALL Java_io_cascade_Client_putInternal(JNIEnv *env, jobject obj, jobject service_type, jlong subgroup_index, jlong shard_index, jobject key, jobject val)
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_putInternal(JNIEnv *env, jobject obj, jobject j_service_type, jlong subgroup_index, jlong shard_index, jobject key, jobject val)
 {
     derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
-    int service_val = get_value(env, service_type);
+    int service_type = get_int_value(env, j_service_type);
 
 #ifndef NDEBUG
-    std::cout << "service value:" << service_val << std::endl;
+    std::cout << "service value:" << service_type << std::endl;
 #endif
 
     // executing the put
-    on_service_val(service_val, return put, translate_str_obj, env, capi, subgroup_index, shard_index, key, val);
+    on_service_type(service_type, return put, translate_str_obj, env, capi, subgroup_index, shard_index, key, val);
 
-    // if service_val does not match successfully, return -1
+    // if service_type does not match successfully, return -1
     return -1;
 }
 
@@ -367,10 +400,11 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_putInternal(JNIEnv *env, jobject 
  * @param shard_index the subgroup index to get the object.
  * @param key the Java byte buffer key to get.
  * @param ver the version number of the key-value pair to get.
+ * @param stable return stable version or not.
  * @return a handle of the future that stores the buffer of the value.
  */
 template <typename T>
-jlong get(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong subgroup_index, jlong shard_index, jobject key, jlong ver, std::function<typename T::KeyType(JNIEnv *, jobject)> f)
+jlong get(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong subgroup_index, jlong shard_index, jobject key, jlong ver, jboolean stable, std::function<typename T::KeyType(JNIEnv *, jobject)> f)
 {
 #ifndef NDEBUG
     std::cout << "start get!" << std::endl;
@@ -378,7 +412,7 @@ jlong get(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong subgroup_
     // translate the key
     typename T::KeyType obj = f(env, key);
     // execute get
-    derecho::rpc::QueryResults<const typename T::ObjectType> res = capi->get<T>(obj, ver, subgroup_index, shard_index);
+    derecho::rpc::QueryResults<const typename T::ObjectType> res = capi->get<T>(obj, ver, stable, subgroup_index, shard_index);
     // store the result in a handler
     QueryResultHolder<const typename T::ObjectType> *qrh = new QueryResultHolder<const typename T::ObjectType>(res);
     return reinterpret_cast<jlong>(qrh);
@@ -387,20 +421,20 @@ jlong get(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong subgroup_
 /*
  * Class:     io_cascade_Client
  * Method:    getInternal
- * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;J)J
+ * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;JZ)J
  */
-JNIEXPORT jlong JNICALL Java_io_cascade_Client_getInternal(JNIEnv *env, jobject obj, jobject service_type, jlong subgroup_index, jlong shard_index, jobject key, jlong version)
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_getInternal(JNIEnv *env, jobject obj, jobject j_service_type, jlong subgroup_index, jlong shard_index, jobject key, jlong version, jboolean stable)
 {
 #ifndef NDEBUG
     std::cout << "start get internal!" << std::endl;
 #endif
     derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
-    int service_val = get_value(env, service_type);
+    int service_type = get_int_value(env, j_service_type);
 
     // executing the get
-    on_service_val(service_val, return get, env, capi, subgroup_index, shard_index, key, version, translate_str_key);
+    on_service_type(service_type, return get, env, capi, subgroup_index, shard_index, key, version, stable, translate_str_key);
 
-    // if service_val does not match successfully, return -1
+    // if service_type does not match successfully, return -1
     return -1;
 }
 
@@ -416,12 +450,12 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_getInternal(JNIEnv *env, jobject 
  * @return a handle of the future that stores the buffer of the value.
  */
 template <typename T>
-jlong get_by_time(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong subgroup_index, jlong shard_index, jobject key, jlong timestamp, std::function<typename T::KeyType(JNIEnv *, jobject)> f)
+jlong get_by_time(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong subgroup_index, jlong shard_index, jobject key, jlong timestamp, jboolean stable, std::function<typename T::KeyType(JNIEnv *, jobject)> f)
 {
     // translate the key
     typename T::KeyType obj = f(env, key);
     // execute get
-    derecho::rpc::QueryResults<const typename T::ObjectType> res = capi->get_by_time<T>(obj, timestamp, subgroup_index, shard_index);
+    derecho::rpc::QueryResults<const typename T::ObjectType> res = capi->get_by_time<T>(obj, timestamp, stable, subgroup_index, shard_index);
     // store the result in a handler
     QueryResultHolder<const typename T::ObjectType> *qrh = new QueryResultHolder<const typename T::ObjectType>(res);
     return reinterpret_cast<jlong>(qrh);
@@ -432,12 +466,12 @@ jlong get_by_time(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong s
  * Method:    getInternalByTime
  * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;J)J
  */
-JNIEXPORT jlong JNICALL Java_io_cascade_Client_getInternalByTime(JNIEnv *env, jobject obj, jobject service_type, jlong subgroup_index, jlong shard_index, jobject key, jlong timestamp)
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_getInternalByTime(JNIEnv *env, jobject obj, jobject j_service_type, jlong subgroup_index, jlong shard_index, jobject key, jlong timestamp, jboolean stable)
 {
     derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
-    int service_val = get_value(env, service_type);
+    int service_type = get_int_value(env, j_service_type);
 
-    on_service_val(service_val, return get_by_time, env, capi, subgroup_index, shard_index, key, timestamp, translate_str_key);
+    on_service_type(service_type, return get_by_time, env, capi, subgroup_index, shard_index, key, timestamp, stable, translate_str_key);
 
     return -1;
 }
@@ -469,12 +503,12 @@ jlong remove(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong subgro
  * Method:    removeInternal
  * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;)J
  */
-JNIEXPORT jlong JNICALL Java_io_cascade_Client_removeInternal(JNIEnv *env, jobject obj, jobject service_type, jlong subgroup_index, jlong shard_index, jobject key)
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_removeInternal(JNIEnv *env, jobject obj, jobject j_service_type, jlong subgroup_index, jlong shard_index, jobject key)
 {
     derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
-    int service_val = get_value(env, service_type);
+    int service_type = get_int_value(env, j_service_type);
 
-    on_service_val(service_val, return remove, env, capi, subgroup_index, shard_index, key, translate_str_key);
+    on_service_type(service_type, return remove, env, capi, subgroup_index, shard_index, key, translate_str_key);
 
     return -1;
 }
@@ -484,15 +518,16 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_removeInternal(JNIEnv *env, jobje
  * @param env the Java environment to find JVM.
  * @param capi the service client API for this client.
  * @param version the upper bound of the versions of all keys to look for.
+ * @param stable
  * @param subgroup_index the subgroup index to get the object.
  * @param shard_index the subgroup index to get the object.
  * @return a handle of the future that stores the vector of all keys.
  */
 template <typename T>
-jlong list_keys(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong version, jlong subgroup_index, jlong shard_index)
+jlong list_keys(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong version, jboolean stable, jlong subgroup_index, jlong shard_index)
 {
     // execute list keys
-    derecho::rpc::QueryResults<std::vector<typename T::KeyType>> res = capi->list_keys<T>(version, subgroup_index, shard_index);
+    derecho::rpc::QueryResults<std::vector<typename T::KeyType>> res = capi->list_keys<T>(version, stable, subgroup_index, shard_index);
 #ifndef NDEBUG
     std::cout << "acquired list keys!" << std::endl;
 #endif
@@ -504,21 +539,18 @@ jlong list_keys(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong ver
 /*
  * Class:     io_cascade_Client
  * Method:    listKeysInternal
- * Signature: (Lio/cascade/ServiceType;JJJ)J
+ * Signature: (Lio/cascade/ServiceType;JZJJ)J
  */
 JNIEXPORT jlong JNICALL Java_io_cascade_Client_listKeysInternal
-  (JNIEnv * env, jobject obj, jobject service_type, jlong version, jlong subgroup_index, jlong shard_index){
+  (JNIEnv * env, jobject obj, jobject j_service_type, jlong version, jboolean stable, jlong subgroup_index, jlong shard_index){
     derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
 #ifndef NDEBUG
     std::cout << "called list keys internal!" << std::endl;
     std::cout.flush();
 #endif
-    int service_val = get_value(env, service_type);
+    int service_type = get_int_value(env, j_service_type);
 
-    // translate the type into string
-    std::string real_type = type_arr[service_val];
-
-    on_subgroup_type(real_type, return list_keys, env, capi, version, subgroup_index, shard_index);
+    on_service_type(service_type, return list_keys, env, capi, version, stable, subgroup_index, shard_index);
 
     // impossible
     return -1;
@@ -529,15 +561,16 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_listKeysInternal
  * @param env the Java environment to find JVM.
  * @param capi the service client API for this client.
  * @param timestamp the upper bound of the timestamps of all keys to look for.
+ * @param stable
  * @param subgroup_index the subgroup index to get the object.
  * @param shard_index the subgroup index to get the object.
  * @return a handle of the future that stores the vector of all keys.
  */
 template <typename T>
-jlong list_keys_by_time(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong timestamp, jlong subgroup_index, jlong shard_index)
+jlong list_keys_by_time(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong timestamp, jboolean stable, jlong subgroup_index, jlong shard_index)
 {
     // execute list keys
-    derecho::rpc::QueryResults<std::vector<typename T::KeyType>> res = capi->list_keys_by_time<T>(timestamp, subgroup_index, shard_index);
+    derecho::rpc::QueryResults<std::vector<typename T::KeyType>> res = capi->list_keys_by_time<T>(timestamp, stable, subgroup_index, shard_index);
 #ifndef NDEBUG
     std::cout << "acquired list keys by time!" << std::endl;
 #endif
@@ -549,20 +582,19 @@ jlong list_keys_by_time(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, j
 /*
  * Class:     io_cascade_Client
  * Method:    listKeysByTimeInternal
- * Signature: (Lio/cascade/ServiceType;JJJ)J
+ * Signature: (Lio/cascade/ServiceType;JZJJ)J
  */
 JNIEXPORT jlong JNICALL Java_io_cascade_Client_listKeysByTimeInternal
-  (JNIEnv * env, jobject obj, jobject service_type, jlong timestamp, jlong subgroup_index, jlong shard_index){
+  (JNIEnv * env, jobject obj, jobject j_service_type, jlong timestamp, jboolean stable, jlong subgroup_index, jlong shard_index){
     derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
 #ifndef NDEBUG
     std::cout << "called list keys internal!" << std::endl;
     std::cout.flush();
 #endif
-    int service_val = get_value(env, service_type);
+    int service_type = get_int_value(env, j_service_type);
 
     // translate the type into string
-    std::string real_type = type_arr[service_val];
-    on_subgroup_type(real_type, return list_keys_by_time, env, capi, timestamp, subgroup_index, shard_index);
+    on_service_type(service_type, return list_keys_by_time, env, capi, timestamp, stable, subgroup_index, shard_index);
 
     // impossible
     return -1;
@@ -574,13 +606,12 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_listKeysByTimeInternal
  * Signature: (Lio/cascade/ServiceType;J)J
  */
 JNIEXPORT jlong JNICALL Java_io_cascade_Client_getNumberOfShards
-  (JNIEnv * env, jobject obj, jobject service_type, jlong subgroup_index){
+  (JNIEnv * env, jobject obj, jobject j_service_type, jlong subgroup_index){
     derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
-    int service_val = get_value(env, service_type);
+    int service_type = get_int_value(env, j_service_type);
 
     // translate the type into string
-    std::string real_type = type_arr[service_val];
-    on_subgroup_type(real_type, return capi->get_number_of_shards, subgroup_index);
+    on_service_type(service_type, return capi->get_number_of_shards, subgroup_index);
 
     // impossible
     return -1;
@@ -678,15 +709,6 @@ JNIEXPORT jobject JNICALL Java_io_cascade_QueryResults_getReplyMap(JNIEnv *env, 
     jclass querycls = env->GetObjectClass(obj);
     jfieldID mode_fid = env->GetFieldID(querycls, "mode", "I");
     jint mode = env->GetIntField(obj, mode_fid);
-    jfieldID type_fid = env->GetFieldID(querycls, "type", "Lio/cascade/ServiceType;");
-    jobject type = env->GetObjectField(obj, type_fid);
-
-    int type_val = get_value(env, type);
-
-#ifndef NDEBUG
-    std::cout << "in reply map: value is " << type_val << " and mode is " << (int)mode << std::endl;
-#endif
-
 
     // lambda that translates into bundle types
     auto bundle_f = [env](std::tuple<persistent::version_t, uint64_t> obj) {
@@ -710,33 +732,9 @@ JNIEXPORT jobject JNICALL Java_io_cascade_QueryResults_getReplyMap(JNIEnv *env, 
     };
 
 
-    // lambda that translates into byte buffer types and receives objects with uint64 keys.
-/*    auto u64_f = [env](derecho::cascade::ObjectWithUInt64Key obj) {
-        char *data = obj.blob.bytes;
-        std::size_t size = obj.blob.size;
-
-#ifndef NDEBUG
-        std::cout << "processing at u64 f!" << size << " " << std::endl;
-#endif
-        // Set temporary to be 1 so that obj will not be destructed at the end of this function.
-        // This is used to avoid copying when allocating buffers.
-        obj.blob.is_temporary = 1;
-
-#ifndef NDEBUG
-        std::cout << "is temporary" << obj.blob.is_temporary << std::endl;
-#endif
-        jobject new_byte_buf = allocate_byte_buffer(env, data, size);
-        jclass obj_class = env->FindClass("io/cascade/CascadeObject");
-        jmethodID obj_constructor = env->GetMethodID(obj_class, "<init>", "(JJJLjava/nio/ByteBuffer;)V"); // TODO: the correct constructor
-        return env->NewObject(obj_class, obj_constructor, static_cast<jlong>(obj.version), static_cast<jlong>(obj.timestamp_us), static_cast<jlong>(obj.previous_version_by_key), new_byte_buf);
-    };
-*/
     auto s_f = [env](derecho::cascade::ObjectWithStringKey obj) {
-// #ifndef NDEBUG
-//         std::cout << "converting objects with string keys!" << std::endl;
-// #endif
 
-        const char *data = obj.blob.bytes;
+        const char *data = reinterpret_cast<const char*>(obj.blob.bytes);
         std::size_t size = obj.blob.size;
 
         // Set temporary to be 1 so that obj will not be destructed at the end of this function.
@@ -751,40 +749,15 @@ JNIEXPORT jobject JNICALL Java_io_cascade_QueryResults_getReplyMap(JNIEnv *env, 
 
         jobject new_byte_buf = allocate_byte_buffer(env, (char *)data, size);
         jclass obj_class = env->FindClass("io/cascade/CascadeObject");
-        jmethodID obj_constructor = env->GetMethodID(obj_class, "<init>", "(JJJLjava/nio/ByteBuffer;)V"); // TODO: the correct constructor
-        return env->NewObject(obj_class, obj_constructor, static_cast<jlong>(obj.version), static_cast<jlong>(obj.timestamp_us), static_cast<jlong>(obj.previous_version_by_key), new_byte_buf);
+        jmethodID obj_constructor = env->GetMethodID(obj_class, "<init>", "(JJJJLjava/nio/ByteBuffer;)V");
+        return env->NewObject(obj_class, 
+                              obj_constructor,
+                              static_cast<jlong>(obj.version),
+                              static_cast<jlong>(obj.timestamp_us),
+                              static_cast<jlong>(obj.previous_version),
+                              static_cast<jlong>(obj.previous_version_by_key),
+                              new_byte_buf);
     };
-
-        //env->SetByteArrayRegion(data_byte_arr, 0, size, reinterpret_cast<const jbyte *>(data));
-
-        // lambda that translates into a list of byte buffers and receives a vector of uint64 keys.
-/*    auto u64_vf = [env](std::vector<uint64_t> obj) {
-#ifndef NDEBUG
-        std::cout << "calling u64_vf! " << std::endl;
-        std::cout.flush();
-#endif
-        // create a Java array list
-        jclass arr_list_cls = env->FindClass("java/util/ArrayList");
-        jmethodID arr_init_mid = env->GetMethodID(arr_list_cls, "<init>", "()V");
-        jobject arr_obj = env->NewObject(arr_list_cls, arr_init_mid);
-
-        // list add method
-        jclass list_cls = env->FindClass("java/util/List");
-        jmethodID list_add_mid = env->GetMethodID(list_cls, "add", "(Ljava/lang/Object;)Z");
-
-        // fill everything in
-        std::vector<uint64_t>::iterator it = obj.begin();
-        while (it != obj.end())
-        {
-            std::string s_val = std::to_string(*it);
-            jobject direct_buffer_obj = allocate_byte_buffer_by_copy(env, &s_val[0], s_val.length());
-            
-            env->CallObjectMethod(arr_obj, list_add_mid, direct_buffer_obj);
-            it++;
-        }
-        return arr_obj;
-    };
-*/
 
     // lambda that translates into a list of byte buffers and receives a vector of string keys.
     auto s_vf = [env](std::vector<std::string> obj) {
@@ -809,7 +782,6 @@ JNIEXPORT jobject JNICALL Java_io_cascade_QueryResults_getReplyMap(JNIEnv *env, 
             std::cout << "key: " << *it << " ";
 #endif
             jobject direct_buffer_obj = allocate_byte_buffer_by_copy(env, &(*it)[0], (*it).length());
-            // jobject direct_buffer_obj = env->NewDirectByteBuffer(&(*it), (*it).length());
             
             env->CallObjectMethod(arr_obj, list_add_mid, direct_buffer_obj);
             it++;
@@ -832,40 +804,161 @@ JNIEXPORT jobject JNICALL Java_io_cascade_QueryResults_getReplyMap(JNIEnv *env, 
         break;
     // buffers
     case 1:
-        switch (type_val)
-        {
-        case 0:
-        case 1:
-/*            create_object_from_query<const derecho::cascade::ObjectWithUInt64Key>(env, handle, hash_map_object, u64_f);
-            break;
-        case 2:
-        case 3:
-*/
-            create_object_from_query<const derecho::cascade::ObjectWithStringKey>(env, handle, hash_map_object, s_f);
-            break;
-        }
+        create_object_from_query<const derecho::cascade::ObjectWithStringKey>(env, handle, hash_map_object, s_f);
         break;
     // vectors of buffers
     case 2:
-        switch (type_val)
-        {
-        case 0:
-        case 1:
-/*            create_object_from_query<std::vector<uint64_t>>(env, handle, hash_map_object, u64_vf);
-            break;
-        case 2:
-        case 3:
-*/
-#ifndef NDEBUG
-            std::cout << "did go here!" << std::endl;
-            std::cout.flush();
-#endif
-            create_object_from_query<std::vector<std::string>>(env, handle, hash_map_object, s_vf);
-            break;
-        }
+        create_object_from_query<std::vector<std::string>>(env, handle, hash_map_object, s_vf);
         break;
     default:
         break;
     }
     return hash_map_object;
+}
+
+static void javaMapToStlMap(JNIEnv *env, jobject map, std::unordered_map<std::string, uint32_t>& mapOut) {
+  // Get the Map's entry Set.
+  jclass mapClass = env->FindClass("java/util/Map");
+  if (mapClass == NULL) {
+    return;
+  }
+  jmethodID entrySet =
+    env->GetMethodID(mapClass, "entrySet", "()Ljava/util/Set;");
+  if (entrySet == NULL) {
+    return;
+  }
+  jobject set = env->CallObjectMethod(map, entrySet);
+  if (set == NULL) {
+    return;
+  }
+  // Obtain an iterator over the Set
+  jclass setClass = env->FindClass("java/util/Set");
+  if (setClass == NULL) {
+    return;
+  }
+  jmethodID iterator =
+    env->GetMethodID(setClass, "iterator", "()Ljava/util/Iterator;");
+  if (iterator == NULL) {
+    return;
+  }
+  jobject iter = env->CallObjectMethod(set, iterator);
+  if (iter == NULL) {
+    return;
+  }
+  // Get the Iterator method IDs
+  jclass iteratorClass = env->FindClass("java/util/Iterator");
+  if (iteratorClass == NULL) {
+    return;
+  }
+  jmethodID hasNext = env->GetMethodID(iteratorClass, "hasNext", "()Z");
+  if (hasNext == NULL) {
+    return;
+  }
+  jmethodID next =
+    env->GetMethodID(iteratorClass, "next", "()Ljava/lang/Object;");
+  if (next == NULL) {
+    return;
+  }
+  // Get the Entry class method IDs
+  jclass entryClass = env->FindClass("java/util/Map$Entry");
+  if (entryClass == NULL) {
+    return;
+  }
+  jmethodID getKey =
+    env->GetMethodID(entryClass, "getKey", "()Ljava/lang/Object;");
+  if (getKey == NULL) {
+    return;
+  }
+  jmethodID getValue =
+    env->GetMethodID(entryClass, "getValue", "()Ljava/lang/Object;");
+  if (getValue == NULL) {
+    return;
+  }
+  jmethodID intValue = 
+      env->GetMethodID(entryClass, "intvalue", "()I;");
+  if (intValue == NULL) {
+      return;
+  }
+  // Iterate over the entry Set
+  while (env->CallBooleanMethod(iter, hasNext)) {
+    jobject entry = env->CallObjectMethod(iter, next);
+    jstring j_key = (jstring) env->CallObjectMethod(entry, getKey);
+    jobject j_value = env->CallObjectMethod(entry, getValue);
+    const char* key = env->GetStringUTFChars(j_key, NULL);
+    if (!key) {  // Out of memory
+      return;
+    }
+	uint32_t value = static_cast<uint32_t>(env->CallIntMethod(j_value, intValue));
+
+    mapOut.insert(std::make_pair(std::string(key),value));
+
+    env->DeleteLocalRef(entry);
+    env->ReleaseStringUTFChars(j_key, key);
+    env->DeleteLocalRef(j_key);
+    env->DeleteLocalRef(j_value);
+  }
+}
+
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_createObjectPool (JNIEnv* env, jobject obj, jstring j_pathname, jobject j_service_type, jint j_subgroup_index, jobject j_sharding_policy, jobject j_object_locations) {
+    derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
+    // 1 - pathname
+    auto pathname = env->GetStringUTFChars(j_pathname, nullptr);
+    // 2 - service_type
+    int service_type = get_int_value(env, j_service_type);
+    // 3 - subgroup index
+    uint32_t subgroup_index = static_cast<uint32_t>(j_subgroup_index);
+    // 4 - shardingPolicy
+    auto sharding_policy = static_cast<derecho::cascade::sharding_policy_t>(get_int_value(env, j_sharding_policy));
+    // 5 - object locations
+    std::unordered_map<std::string,uint32_t> object_locations;
+	javaMapToStlMap(env,j_object_locations,object_locations);
+
+    jlong ret = 0;
+    on_service_type(service_type, ret = create_object_pool, capi, pathname, subgroup_index, sharding_policy, object_locations);
+    // release resource
+    env->ReleaseStringUTFChars(j_pathname,pathname);
+    return ret;
+}
+
+/**
+ * Class:       io_cascade_Client
+ * Method:      closeClient
+ * Signature:   ()V
+ */
+JNIEXPORT void JNICALL Java_io_cascade_QueryResults_closeHandle (JNIEnv* env, jobject obj) {
+    jclass query_results_cls = env->GetObjectClass(obj);
+    jfieldID query_results_fid = env->GetFieldID(query_results_cls, "handle", "J");
+    jfieldID mode_fid = env->GetFieldID(query_results_cls, "mode", "I");
+    jlong jhandle = env->GetLongField(obj,query_results_fid);
+    jint mode = env->GetIntField(obj,mode_fid);
+    switch(mode) {
+        case 0:
+            {
+                QueryResultHolder<std::tuple<persistent::version_t, uint64_t>>* qrh =
+                    reinterpret_cast<QueryResultHolder<std::tuple<persistent::version_t, uint64_t>>*>(jhandle);
+                if (qrh != nullptr) {
+                    delete qrh;
+                }
+            }
+            break;
+        case 1:
+            {
+                QueryResultHolder<derecho::cascade::ObjectWithStringKey>* qrh = 
+                    reinterpret_cast<QueryResultHolder<derecho::cascade::ObjectWithStringKey>*>(jhandle);
+                if (qrh != nullptr) {
+                    delete qrh;
+                }
+            }
+            break;
+        case 2:
+            {
+                QueryResultHolder<std::vector<derecho::cascade::ObjectWithStringKey>>* qrh = 
+                    reinterpret_cast<QueryResultHolder<std::vector<derecho::cascade::ObjectWithStringKey>>*>(jhandle);
+                if (qrh != nullptr) {
+                    delete qrh;
+                }
+            }
+            break;
+    }
+    env->SetLongField(obj,query_results_fid,0L);
 }

@@ -27,19 +27,20 @@ public class ShardTimeSupplier extends ShardSupplier implements Supplier<ByteBuf
      * @return true if the supplier is built successfully, false otherwise.
      */
     public boolean build(){
-        QueryResults<List<ByteBuffer>> queryResults = client.listKeysByTime(type, timestamp, subgroupIndex, shardIndex);
-        Map<Integer, List<ByteBuffer>> replyMap = queryResults.get();
-        if (replyMap != null){
-            keyList = new ArrayList<>();
-            replyMap.values().forEach(keyList::addAll);
+        try (QueryResults<List<ByteBuffer>> queryResults = client.listKeysByTime(type, timestamp, subgroupIndex, shardIndex)) {
+            Map<Integer, List<ByteBuffer>> replyMap = queryResults.get();
+            if (replyMap != null){
+                keyList = new ArrayList<>();
+                replyMap.values().forEach(keyList::addAll);
+            }
+            return this.keyList != null;
         }
-        return this.keyList != null;
     }
 
     @Override
     public ByteBuffer get(){
         if (ptr >= keyList.size()) return null;
-        Map<Integer, CascadeObject> getResults = client.getByTime(type, keyList.get(ptr++), timestamp, subgroupIndex, shardIndex).get();
+        Map<Integer, CascadeObject> getResults = client.getByTime(type, keyList.get(ptr++), timestamp, true/*always get stable data*/, subgroupIndex, shardIndex).get();
         System.out.println("reply map:" + getResults);
         return getResults.values().iterator().next().object;
     }
