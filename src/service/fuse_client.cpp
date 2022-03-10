@@ -28,7 +28,7 @@
  */
 
 using namespace derecho::cascade;
-using FuseClientContextType = FuseClientContext<VolatileCascadeStoreWithStringKey, PersistentCascadeStoreWithStringKey>;
+using FuseClientContextType = FuseClientContext<VolatileCascadeStoreWithStringKey, PersistentCascadeStoreWithStringKey, TriggerCascadeNoStoreWithStringKey>;
 
 #define FCC(p) static_cast<FuseClientContextType*>(p)
 #define FCC_REQ(req) FCC(fuse_req_userdata(req))
