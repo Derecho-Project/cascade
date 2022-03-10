@@ -678,10 +678,10 @@ namespace cascade {
         template <typename SubgroupType>
         derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> get(
                 const typename SubgroupType::KeyType& key, 
-                const persistent::version_t& version,
-                bool stable,
-                uint32_t subgroup_index,
-                uint32_t shard_index);
+                const persistent::version_t& version = CURRENT_VERSION,
+                bool stable = true,
+                uint32_t subgroup_index = 0,
+                uint32_t shard_index = 0);
         /**
          * "type_recursive_get" is a helper function for internal use only.
          * @param type_index        the index of the subgroup type in the CascadeTypes... list. and the FirstType,
@@ -720,8 +720,8 @@ namespace cascade {
         template <typename KeyType>
         auto get(
                 const KeyType& key,
-                const persistent::version_t& version,
-                bool stable);
+                const persistent::version_t& version = CURRENT_VERSION,
+                bool stable = true);
 
         /**
          * "multi_get" retrieve the object of a given key, this operation involves atomic broadcast
@@ -784,9 +784,9 @@ namespace cascade {
         derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> get_by_time(
                 const typename SubgroupType::KeyType& key,
                 const uint64_t& ts_us,
-                const bool stable,
-                uint32_t subgroup_index,
-                uint32_t shard_index);
+                const bool stable = true,
+                uint32_t subgroup_index = 0,
+                uint32_t shard_index = 0);
 
         /**
          * "type_recursive_get_by_time" is a helper function for internal use only.
@@ -827,7 +827,7 @@ namespace cascade {
         auto get_by_time(
                 const KeyType& key,
                 const uint64_t& ts_us,
-                const bool stable);
+                const bool stable = true);
 
         /**
          * "get_size" retrieve size of the object of a given key
@@ -846,8 +846,9 @@ namespace cascade {
         derecho::rpc::QueryResults<uint64_t> get_size(
                 const typename SubgroupType::KeyType& key,
                 const persistent::version_t& version,
-                const bool stable,
-                uint32_t subgroup_index, uint32_t shard_index);
+                const bool stable = true,
+                uint32_t subgroup_index = 0,
+                uint32_t shard_index = 0);
 
         /**
          * "type_recursive_get_size" is a helper function for internal use only.
@@ -888,7 +889,7 @@ namespace cascade {
         derecho::rpc::QueryResults<uint64_t> get_size(
                 const KeyType& key,
                 const persistent::version_t& version,
-                const bool stable);
+                const bool stable = true);
 
         /**
          * "multi_get_size" retrieve size of the object of a given key
@@ -952,9 +953,9 @@ namespace cascade {
         derecho::rpc::QueryResults<uint64_t> get_size_by_time(
                 const typename SubgroupType::KeyType& key,
                 const uint64_t& ts_us,
-                const bool stable,
-                uint32_t subgroup_index,
-                uint32_t shard_index);
+                const bool stable = true,
+                uint32_t subgroup_index = 0,
+                uint32_t shard_index = 0);
 
         /**
          * "type_recursive_get_size" is a helper function for internal use only.
@@ -995,7 +996,7 @@ namespace cascade {
         derecho::rpc::QueryResults<uint64_t> get_size_by_time(
                 const KeyType& key,
                 const uint64_t& ts_us,
-                const bool stable);
+                const bool stable = true);
 
         /**
          * "list_keys" retrieve the list of keys in a shard
@@ -1012,9 +1013,9 @@ namespace cascade {
         template <typename SubgroupType>
         derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> list_keys(
                 const persistent::version_t& version,
-                const bool stable,
-                uint32_t subgroup_index,
-                uint32_t shard_index);
+                const bool stable = true,
+                uint32_t subgroup_index = 0,
+                uint32_t shard_index = 0);
 
     protected:
         template <typename FirstType, typename SecondType, typename... RestTypes>
@@ -1089,9 +1090,9 @@ namespace cascade {
         template <typename SubgroupType>
         derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> list_keys_by_time(
                 const uint64_t& ts_us,
-                const bool stable,
-                uint32_t subgroup_index,
-                uint32_t shard_index);
+                const bool stable = true,
+                uint32_t subgroup_index = 0,
+                uint32_t shard_index = 0);
         
     protected:
         template <typename FirstType, typename SecondType, typename... RestTypes>
