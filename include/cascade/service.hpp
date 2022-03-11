@@ -1166,6 +1166,59 @@ namespace cascade {
          */
         std::vector<std::string> list_object_pools(bool refresh = false);
 
+        /**
+         * Register notification handler. If such a handler has been registered, it will be replaced by the new one.
+         *
+         * @tparam SubgroupType     The Subgroup Type
+         * @param handler           The handler to reigster
+         * @param node_id           To which server this handler register to. This argument can be INVALID_NODE_ID to
+         *                          allow cascade system pick one based on the shard member selection policy.
+         * @param subgroup_index    Index of the subgroup
+         * @param shard_index       The shard number.
+         *
+         * @return the node id of the server picked.
+         */
+        template <typename SubgroupType>
+        node_id_t register_notification_handler(
+                const notification_handler_t& handler,
+                const node_id_t node_id = INVALID_NODE_ID,
+                const uint32_t subgroup_index = 0,
+                const uint32_t shard_index = 0);
+
+    protected:
+        template <typename FirstType,typename SecondType, typename...RestTypes>
+        node_id_t type_recursive_register_notification_handler(
+                uint32_t type_index, 
+                const notification_handler_t& handler,
+                const node_id_t node_id,
+                const uint32_t subgroup_index,
+                const uint32_t shard_index);
+        template <typename LastType>
+        node_id_t type_recursive_register_notification_handler(
+                uint32_t type_index, 
+                const notification_handler_t& handler,
+                const node_id_t node_id,
+                const uint32_t subgroup_index,
+                const uint32_t shard_index);
+
+    public:
+        /**
+         * Register notification handler(object pool version). If such a handler has been registered, it will be
+         * replaced by the new one.
+         *
+         * @tparam SubgroupType         The Subgroup Type
+         * @param handler               The handler to reigster
+         * @param key                   The key is used to identify the subgroup and shard.
+         * @param node_id               To which server this handler register to. This argument can be INVALID_NODE_ID
+         *                              to allow cascade system pick one based on the shard member selection policy.
+         *
+         * @return the node id of the server picked.
+         */
+        node_id_t register_notification_handler(
+                const notification_handler_t& handler,
+                const std::string& key,
+                const node_id_t node_id = INVALID_NODE_ID);
+
 #ifdef ENABLE_EVALUATION
         /**
          * Dump the timestamp log entries into a file on each of the nodes in a subgroup.

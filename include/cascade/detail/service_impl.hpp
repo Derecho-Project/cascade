@@ -302,25 +302,6 @@ std::tuple<uint32_t,uint32_t,uint32_t> ServiceClient<CascadeTypes...>::key_to_sh
         opm.key_to_shard_index(key,get_number_of_shards(opm.subgroup_type_index,opm.subgroup_index),check_object_location)};
 }
 
-/**
- * Deprecated: use key_to_shard() instead.
-template <typename... CascadeTypes>
-template <typename SubgroupType>
-std::pair<uint32_t,uint32_t> ServiceClient<CascadeTypes...>::key_to_subgroup_index_and_shard_index(
-	const typename SubgroupType::KeyType& key,
-    bool check_object_location) {
-    std::string object_pool_pathname = get_pathname<typename SubgroupType::KeyType>(key);
-    if (object_pool_pathname.empty()) {
-        std::string exp_msg("Key:");
-        throw derecho::derecho_exception(std::string("Key:") + key + " does not belong to any object pool.");
-    }
-
-    auto opm = find_object_pool(object_pool_pathname);
-    uint32_t shard_index = opm.key_to_shard_index(key,get_number_of_shards<SubgroupType>(opm.subgroup_index),check_object_location);
-    return std::pair<uint32_t,uint32_t>{opm.subgroup_index,shard_index};
-}
-**/
-
 template <typename... CascadeTypes>
 template <typename SubgroupType>
 node_id_t ServiceClient<CascadeTypes...>::pick_member_by_policy(uint32_t subgroup_index,
@@ -1601,6 +1582,72 @@ std::vector<std::string> ServiceClient<CascadeTypes...>::list_object_pools(bool 
 
     return ret;
 }
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+node_id_t ServiceClient<CascadeTypes...>::register_notification_handler(
+        const notification_handler_t& handler,
+        const node_id_t node_id,
+        const uint32_t subgroup_index,
+        const uint32_t shard_index) {
+    if (!this->external_group_ptr) {
+        throw derecho_exception(std::string(__PRETTY_FUNCTION__) + 
+            "Cannot register notification handler because external_group_ptr is null.");
+    }
+
+    node_id_t nid = node_id;
+    if (nid == INVALID_NODE_ID) {
+        nid = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
+    }
+    
+    auto& subgroup_handle = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
+    subgroup_handle->register_notification_handler(handler, nid);
+    return nid;
+}
+
+template <typename... CascadeTypes>
+template <typename FirstType,typename SecondType, typename...RestTypes>
+node_id_t ServiceClient<CascadeTypes...>::type_recursive_register_notification_handler(
+        uint32_t type_index,
+        const notification_handler_t& handler,
+        const node_id_t node_id,
+        const uint32_t subgroup_index,
+        const uint32_t shard_index) {
+    if (type_index == 0) {
+        return this->template register_notification_handler<FirstType>(handler,node_id,subgroup_index,shard_index);
+    } else {
+        return this->template type_recursive_register_notification_handler<SecondType,RestTypes...>(
+            type_index-1,handler,node_id,subgroup_index,shard_index);
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename LastType>
+node_id_t ServiceClient<CascadeTypes...>::type_recursive_register_notification_handler(
+        uint32_t type_index,
+        const notification_handler_t& handler,
+        const node_id_t node_id,
+        const uint32_t subgroup_index,
+        const uint32_t shard_index) {
+    if (type_index == 0) {
+        return this->template register_notification_handler<LastType>(handler,node_id,subgroup_index,shard_index);
+    } else {
+        throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) + ": type index is out of boundary.");
+    }
+}
+
+template <typename... CascadeTypes>
+node_id_t ServiceClient<CascadeTypes...>::register_notification_handler(
+        const notification_handler_t& handler,
+        const std::string& key,
+        const node_id_t node_id) {
+    uint32_t subgroup_type_index, subgroup_index, shard_index;
+    std::tie(subgroup_type_index,subgroup_index,shard_index) = this->template key_to_shard(key);
+
+    return this->template type_recursive_register_notification_handler<CascadeTypes...>(
+        subgroup_type_index,handler,node_id,subgroup_index,shard_index);
+}
+
 
 #ifdef ENABLE_EVALUATION
 
