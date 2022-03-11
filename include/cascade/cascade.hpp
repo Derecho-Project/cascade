@@ -366,7 +366,8 @@ namespace cascade {
     template <typename KT, typename VT, KT* IK, VT* IV>
     class VolatileCascadeStore : public ICascadeStore<KT, VT, IK, IV>,
                                  public mutils::ByteRepresentable,
-                                 public derecho::GroupReference {
+                                 public derecho::GroupReference,
+                                 public derecho::NotificationSupport {
     private:
         bool internal_ordered_put(const VT& value);
 #if defined(__i386__) || defined(__x86_64__) || defined(_M_AMD64) || defined(_M_IX86)
@@ -387,7 +388,7 @@ namespace cascade {
         /* cascade context */
         ICascadeContext* cascade_context_ptr;
         
-        REGISTER_RPC_FUNCTIONS(VolatileCascadeStore,
+        REGISTER_RPC_FUNCTIONS_WITH_NOTIFICATION(VolatileCascadeStore,
                                P2P_TARGETS(
                                    put,
                                    put_and_forget,
@@ -593,7 +594,8 @@ namespace cascade {
     class PersistentCascadeStore : public ICascadeStore<KT, VT, IK, IV>,
                                    public mutils::ByteRepresentable,
                                    public derecho::PersistsFields,
-                                   public derecho::GroupReference {
+                                   public derecho::GroupReference,
+                                   public derecho::NotificationSupport {
     private:
         bool internal_ordered_put(const VT& value);
     public:
@@ -603,7 +605,7 @@ namespace cascade {
         /* cascade context */
         ICascadeContext* cascade_context_ptr;
         
-        REGISTER_RPC_FUNCTIONS(PersistentCascadeStore,
+        REGISTER_RPC_FUNCTIONS_WITH_NOTIFICATION(PersistentCascadeStore,
                                P2P_TARGETS(
                                    put,
                                    put_and_forget,
@@ -875,14 +877,15 @@ namespace cascade {
     template <typename KT, typename VT, KT* IK, VT* IV>
     class TriggerCascadeNoStore : public ICascadeStore<KT,VT,IK,IV>,
                                   public mutils::ByteRepresentable,
-                                  public derecho::GroupReference {
+                                  public derecho::GroupReference,
+                                  public derecho::NotificationSupport {
     public:
         using derecho::GroupReference::group;
         CriticalDataPathObserver<TriggerCascadeNoStore<KT,VT,IK,IV>>* cascade_watcher_ptr;
         /* cascade context */
         ICascadeContext* cascade_context_ptr;
         
-        REGISTER_RPC_FUNCTIONS(TriggerCascadeNoStore,
+        REGISTER_RPC_FUNCTIONS_WITH_NOTIFICATION(TriggerCascadeNoStore,
                                P2P_TARGETS(
                                    put,
                                    put_and_forget,
