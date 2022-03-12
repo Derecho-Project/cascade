@@ -1200,7 +1200,7 @@ namespace cascade {
                 const notification_handler_t& handler,
                 const node_id_t node_id = INVALID_NODE_ID,
                 const uint32_t subgroup_index = 0,
-                const uint32_t shard_index = 0);
+                const uint32_t shard_index = 0) const;
 
     protected:
         template <typename FirstType,typename SecondType, typename...RestTypes>
@@ -1209,14 +1209,14 @@ namespace cascade {
                 const notification_handler_t& handler,
                 const node_id_t node_id,
                 const uint32_t subgroup_index,
-                const uint32_t shard_index);
+                const uint32_t shard_index) const;
         template <typename LastType>
         node_id_t type_recursive_register_notification_handler(
                 uint32_t type_index, 
                 const notification_handler_t& handler,
                 const node_id_t node_id,
                 const uint32_t subgroup_index,
-                const uint32_t shard_index);
+                const uint32_t shard_index) const;
 
     public:
         /**
@@ -1234,7 +1234,44 @@ namespace cascade {
         node_id_t register_notification_handler(
                 const notification_handler_t& handler,
                 const std::string& key,
-                const node_id_t node_id = INVALID_NODE_ID);
+                const node_id_t node_id = INVALID_NODE_ID) const;
+
+        /**
+         * Send a notification message to an external client.
+         *
+         * @tparam SubgroupType     The Subgroup Type
+         * @param msg               The message to send
+         * @param client_id         The node id of the external client to be notified
+         * @param subgroup_index    The subgroup index
+         */
+        template <typename SubgroupType>
+        void notify(const derecho::NotificationMessage& msg,
+                const node_id_t client_id,
+                const uint32_t subgroup_index = 0) const;
+    protected:
+        template <typename FirstType, typename SecondType, typename... RestTypes>
+        void type_recursive_notify(
+                uint32_t type_index,
+                const derecho::NotificationMessage& msg,
+                const node_id_t client_id,
+                const uint32_t subgroup_index) const;
+        template <typename LastType>
+        void type_recursive_notify(
+                uint32_t type_index,
+                const derecho::NotificationMessage& msg,
+                const node_id_t client_id,
+                const uint32_t subgroup_index) const;
+    public:
+        /**
+         * Send a notification message to an external client.
+         *
+         * @param msg                   The messgae to send
+         * @param client_id             The client id
+         * @param object_pool_pathname  In which object_pool the notification is in.
+         */
+        void notify(const derecho::NotificationMessage& msg,
+                const node_id_t client_id,
+                const std::string& object_pool_pathname) const;
 
 #ifdef ENABLE_EVALUATION
         /**
