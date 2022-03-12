@@ -107,6 +107,7 @@ class CascadeServiceCDPO: public CriticalDataPathObserver<CascadeType> {
                     // handler.first is handler uuid
                     // handler.second is a 3-tuple of shard dispatcher,ocdpo,and outputs;
                     Action action(
+                            derecho::RPCManager::get_rpc_caller_id(),
                             key,
                             per_prefix.first.size(),
                             value.get_version(),

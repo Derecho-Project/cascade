@@ -22,6 +22,7 @@ std::string get_description() {
 
 class PipelineOCDPO: public OffCriticalDataPathObserver {
     virtual void operator () (
+            const node_id_t,
             const std::string& key_string,
             const uint32_t prefix_length,
             persistent::version_t version,
