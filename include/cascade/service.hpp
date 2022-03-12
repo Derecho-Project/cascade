@@ -403,6 +403,16 @@ namespace cascade {
          *                   client to communicate with group members.
          */
         ServiceClient(derecho::Group<CascadeMetadataService<CascadeTypes...>, CascadeTypes...>* _group_ptr=nullptr);
+
+        /**
+         * ServiceClient can be an external client or a cascade server. is_external_client() test this condition.
+         * The external client implementation is based on ExternalGroupClient<> while the cascade node implementation is
+         * based on Group<>.
+         *
+         * @return true for external client; other wise false.
+         */
+        inline bool is_external_client() const;
+
         /**
          * Derecho group helpers: They derive the API in derecho::ExternalClient.
          * - get_my_id          return my local node id.
