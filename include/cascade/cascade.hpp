@@ -689,6 +689,7 @@ namespace cascade {
         PersistentCascadeStore(persistent::Persistent<DeltaCascadeStoreCore<KT,VT,IK,IV>,ST>&& _persistent_core,
                                CriticalDataPathObserver<PersistentCascadeStore<KT,VT,IK,IV>>* cw=nullptr,
                                ICascadeContext* cc=nullptr); // move persistent_core
+        PersistentCascadeStore();
 
         // destructor
         virtual ~PersistentCascadeStore();

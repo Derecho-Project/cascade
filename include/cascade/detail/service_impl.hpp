@@ -128,12 +128,20 @@ void Service<CascadeTypes...>::wait() {
     }
 }
 
+template <typename CascadeType>
+std::unique_ptr<CascadeType> client_stub_factory() {
+    return std::make_unique<CascadeType>();
+}
+
 template <typename... CascadeTypes>
 ServiceClient<CascadeTypes...>::ServiceClient(derecho::Group<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>* _group_ptr):
     external_group_ptr(nullptr),
     group_ptr(_group_ptr) {
     if (group_ptr == nullptr) {
-        this->external_group_ptr = std::make_unique<derecho::ExternalGroupClient<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>>();
+        this->external_group_ptr = 
+            std::make_unique<derecho::ExternalGroupClient<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>>(
+                    client_stub_factory<CascadeMetadataService<CascadeTypes...>>,
+                    client_stub_factory<CascadeTypes>...);
     } 
 }
 
@@ -1561,7 +1569,7 @@ node_id_t ServiceClient<CascadeTypes...>::register_notification_handler(
         const notification_handler_t& handler,
         const node_id_t node_id,
         const uint32_t subgroup_index,
-        const uint32_t shard_index) const {
+        const uint32_t shard_index) {
     if (!is_external_client()) {
         throw derecho_exception(std::string(__PRETTY_FUNCTION__) + 
             "Cannot register notification handler because external_group_ptr is null.");
@@ -1573,7 +1581,7 @@ node_id_t ServiceClient<CascadeTypes...>::register_notification_handler(
     }
     
     auto& subgroup_handle = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
-    subgroup_handle->register_notification_handler(handler, nid);
+    subgroup_handle.register_notification_handler(handler, nid);
     return nid;
 }
 
@@ -1584,7 +1592,7 @@ node_id_t ServiceClient<CascadeTypes...>::type_recursive_register_notification_h
         const notification_handler_t& handler,
         const node_id_t node_id,
         const uint32_t subgroup_index,
-        const uint32_t shard_index) const {
+        const uint32_t shard_index) {
     if (type_index == 0) {
         return this->template register_notification_handler<FirstType>(handler,node_id,subgroup_index,shard_index);
     } else {
@@ -1600,7 +1608,7 @@ node_id_t ServiceClient<CascadeTypes...>::type_recursive_register_notification_h
         const notification_handler_t& handler,
         const node_id_t node_id,
         const uint32_t subgroup_index,
-        const uint32_t shard_index) const {
+        const uint32_t shard_index) {
     if (type_index == 0) {
         return this->template register_notification_handler<LastType>(handler,node_id,subgroup_index,shard_index);
     } else {
@@ -1612,7 +1620,7 @@ template <typename... CascadeTypes>
 node_id_t ServiceClient<CascadeTypes...>::register_notification_handler(
         const notification_handler_t& handler,
         const std::string& key,
-        const node_id_t node_id) const {
+        const node_id_t node_id) {
     uint32_t subgroup_type_index, subgroup_index, shard_index;
     std::tie(subgroup_type_index,subgroup_index,shard_index) = this->template key_to_shard(key);
 
@@ -1632,7 +1640,7 @@ void ServiceClient<CascadeTypes...>::notify(
     }
 
     auto& client_handle = group_ptr->template get_client_callback<SubgroupType>(subgroup_index);
-    client_handle->p2p_send<RPC_NAME(notify)>(client_id, msg);
+    client_handle.template p2p_send<RPC_NAME(notify)>(client_id, msg);
 }
 
 template <typename... CascadeTypes>
@@ -1645,7 +1653,7 @@ void ServiceClient<CascadeTypes...>::type_recursive_notify(
     if (type_index == 0) {
         this->template notify<FirstType>(msg,client_id,subgroup_index);
     } else {
-        this->template type_recursive_notify<SecondType,RestTypes...>(msg,client_id,subgroup_index);
+        this->template type_recursive_notify<SecondType,RestTypes...>(type_index-1,msg,client_id,subgroup_index);
     }
 }
 
@@ -1667,7 +1675,7 @@ template <typename... CascadeTypes>
 void ServiceClient<CascadeTypes...>::notify(
         const derecho::NotificationMessage& msg,
         const node_id_t client_id,
-        const std::string& object_pool_pathname) const {
+        const std::string& object_pool_pathname) {
     auto opm = find_object_pool(object_pool_pathname);
     if (!opm.is_valid() || opm.is_null() || opm.deleted) {
         throw derecho::derecho_exception("Failed to find object_pool:" + object_pool_pathname);

@@ -1535,6 +1535,18 @@ PersistentCascadeStore<KT,VT,IK,IV,ST>::PersistentCascadeStore(
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+PersistentCascadeStore<KT,VT,IK,IV,ST>::PersistentCascadeStore():
+                                               persistent_core(
+                                                   [](){
+                                                       return std::make_unique<DeltaCascadeStoreCore<KT,VT,IK,IV>>();
+                                                   },
+                                                   nullptr,
+                                                   nullptr),
+                                               cascade_watcher_ptr(nullptr),
+                                               cascade_context_ptr(nullptr) {
+}
+
+template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 PersistentCascadeStore<KT,VT,IK,IV,ST>::~PersistentCascadeStore() {}
 
 template<typename KT, typename VT, KT* IK, VT* IV>
@@ -1718,7 +1730,6 @@ TriggerCascadeNoStore<KT,VT,IK,IV>::TriggerCascadeNoStore(CriticalDataPathObserv
                                             ICascadeContext* cc):
                                             cascade_watcher_ptr(cw),
                                             cascade_context_ptr(cc) {}
-
 
 }//namespace cascade
 }//namespace derecho
