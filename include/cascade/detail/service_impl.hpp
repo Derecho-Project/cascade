@@ -1565,95 +1565,124 @@ std::vector<std::string> ServiceClient<CascadeTypes...>::list_object_pools(bool 
 
 template <typename... CascadeTypes>
 template <typename SubgroupType>
-node_id_t ServiceClient<CascadeTypes...>::register_notification_handler(
-        const notification_handler_t& handler,
-        const node_id_t node_id,
-        const uint32_t subgroup_index,
-        const uint32_t shard_index) {
+bool ServiceClient<CascadeTypes...>::register_notification_handler(
+        const cascade_notification_handler_t& handler,
+        const uint32_t subgroup_index) {
+    return ServiceClient<CascadeTypes...>::register_notification_handler(handler,"",subgroup_index);
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+bool ServiceClient<CascadeTypes...>::register_notification_handler(
+        const cascade_notification_handler_t& handler,
+        const std::string& object_pool_pathname,
+        const uint32_t subgroup_index) {
     if (!is_external_client()) {
         throw derecho_exception(std::string(__PRETTY_FUNCTION__) + 
             "Cannot register notification handler because external_group_ptr is null.");
     }
 
-    node_id_t nid = node_id;
-    if (nid == INVALID_NODE_ID) {
-        nid = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
+    auto& per_type_registry = notification_handler_registry.template get<SubgroupType>();
+    // Register Cascade's root handler:
+    // if subgroup_index exists in the per_type_registry, Cascade's root handler is registered already.
+    if (per_type_registry.find(subgroup_index) == per_type_registry.cend()) {
+        per_type_registry.emplace(subgroup_index,SubgroupNotificationHandler<SubgroupType>{});
+        // register to subgroup_caller
+        auto& subgroup_caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
+        // to do ... register it.
+        per_type_registry.at(subgroup_index).initialize(subgroup_caller);
     }
-    
-    auto& subgroup_handle = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
-    subgroup_handle.register_notification_handler(handler, nid);
-    return nid;
+
+    // Register the handler
+    bool ret = (per_type_registry.at(subgroup_index).object_pool_notification_handlers.find(object_pool_pathname) !=
+                per_type_registry.at(subgroup_index).object_pool_notification_handlers.cend());
+
+    per_type_registry.at(subgroup_index).object_pool_notification_handlers[object_pool_pathname] = handler;
+    return ret;
 }
 
 template <typename... CascadeTypes>
 template <typename FirstType,typename SecondType, typename...RestTypes>
-node_id_t ServiceClient<CascadeTypes...>::type_recursive_register_notification_handler(
+bool ServiceClient<CascadeTypes...>::type_recursive_register_notification_handler(
         uint32_t type_index,
-        const notification_handler_t& handler,
-        const node_id_t node_id,
-        const uint32_t subgroup_index,
-        const uint32_t shard_index) {
+        const cascade_notification_handler_t& handler,
+        const std::string& object_pool_pathname,
+        const uint32_t subgroup_index) {
     if (type_index == 0) {
-        return this->template register_notification_handler<FirstType>(handler,node_id,subgroup_index,shard_index);
+        return this->template register_notification_handler<FirstType>(handler,object_pool_pathname,subgroup_index);
     } else {
         return this->template type_recursive_register_notification_handler<SecondType,RestTypes...>(
-            type_index-1,handler,node_id,subgroup_index,shard_index);
+            type_index-1,handler,object_pool_pathname,subgroup_index);
     }
 }
 
 template <typename... CascadeTypes>
 template <typename LastType>
-node_id_t ServiceClient<CascadeTypes...>::type_recursive_register_notification_handler(
+bool ServiceClient<CascadeTypes...>::type_recursive_register_notification_handler(
         uint32_t type_index,
-        const notification_handler_t& handler,
-        const node_id_t node_id,
-        const uint32_t subgroup_index,
-        const uint32_t shard_index) {
+        const cascade_notification_handler_t& handler,
+        const std::string& object_pool_pathname,
+        const uint32_t subgroup_index) {
     if (type_index == 0) {
-        return this->template register_notification_handler<LastType>(handler,node_id,subgroup_index,shard_index);
+        return this->template register_notification_handler<LastType>(handler,object_pool_pathname,subgroup_index);
     } else {
         throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) + ": type index is out of boundary.");
     }
 }
 
 template <typename... CascadeTypes>
-node_id_t ServiceClient<CascadeTypes...>::register_notification_handler(
-        const notification_handler_t& handler,
-        const std::string& key,
-        const node_id_t node_id) {
-    uint32_t subgroup_type_index, subgroup_index, shard_index;
-    std::tie(subgroup_type_index,subgroup_index,shard_index) = this->template key_to_shard(key);
+bool ServiceClient<CascadeTypes...>::register_notification_handler(
+        const cascade_notification_handler_t& handler,
+        const std::string& object_pool_pathname) {
+    auto opm = find_object_pool(object_pool_pathname);
 
     return this->template type_recursive_register_notification_handler<CascadeTypes...>(
-        subgroup_type_index,handler,node_id,subgroup_index,shard_index);
+        opm.subgroup_type_index,handler,object_pool_pathname,opm.subgroup_index);
 }
 
 template <typename... CascadeTypes>
 template <typename SubgroupType>
 void ServiceClient<CascadeTypes...>::notify(
-        const derecho::NotificationMessage& msg,
-        const node_id_t client_id,
-        const uint32_t subgroup_index) const {
+        const Blob& msg,
+        const uint32_t subgroup_index,
+        const node_id_t client_id) const {
+    notify<SubgroupType>(msg,"",subgroup_index,client_id);
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+void ServiceClient<CascadeTypes...>::notify(
+        const Blob& msg,
+        const std::string& object_pool_pathname,
+        const uint32_t subgroup_index,
+        const node_id_t client_id) const {
     if (is_external_client()) {
         throw derecho_exception(std::string(__PRETTY_FUNCTION__) +
                 "Cannot notify an external client from an external client.");
     }
 
     auto& client_handle = group_ptr->template get_client_callback<SubgroupType>(subgroup_index);
-    client_handle.template p2p_send<RPC_NAME(notify)>(client_id, msg);
+    
+    //TODO: redesign to avoid memory copies.
+    CascadeNotificationMessage cascade_notification_message(object_pool_pathname,msg);
+    derecho::NotificationMessage derecho_notification_message(mutils::bytes_size(cascade_notification_message));
+    mutils::to_bytes(cascade_notification_message,derecho_notification_message.body);
+
+    client_handle.template p2p_send<RPC_NAME(notify)>(client_id,derecho_notification_message);
 }
 
 template <typename... CascadeTypes>
 template <typename FirstType,typename SecondType, typename...RestTypes>
 void ServiceClient<CascadeTypes...>::type_recursive_notify(
         uint32_t type_index,
-        const derecho::NotificationMessage& msg,
-        const node_id_t client_id,
-        const uint32_t subgroup_index) const {
+        const Blob& msg,
+        const std::string& object_pool_pathname,
+        const uint32_t subgroup_index,
+        const node_id_t client_id) const {
     if (type_index == 0) {
-        this->template notify<FirstType>(msg,client_id,subgroup_index);
+        this->template notify<FirstType>(msg,object_pool_pathname,subgroup_index,client_id);
     } else {
-        this->template type_recursive_notify<SecondType,RestTypes...>(type_index-1,msg,client_id,subgroup_index);
+        this->template type_recursive_notify<SecondType,RestTypes...>(type_index-1,msg,object_pool_pathname,subgroup_index,client_id);
     }
 }
 
@@ -1661,11 +1690,12 @@ template <typename... CascadeTypes>
 template <typename LastType>
 void ServiceClient<CascadeTypes...>::type_recursive_notify(
         uint32_t type_index,
-        const derecho::NotificationMessage& msg,
-        const node_id_t client_id,
-        const uint32_t subgroup_index) const {
+        const Blob& msg,
+        const std::string& object_pool_pathname,
+        const uint32_t subgroup_index,
+        const node_id_t client_id) const {
     if (type_index == 0) {
-        this->template notify<LastType>(msg,client_id,subgroup_index);
+        this->template notify<LastType>(msg,object_pool_pathname,subgroup_index,client_id);
     } else {
         throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) + ": type index is out of boundary.");
     }
@@ -1673,14 +1703,14 @@ void ServiceClient<CascadeTypes...>::type_recursive_notify(
 
 template <typename... CascadeTypes>
 void ServiceClient<CascadeTypes...>::notify(
-        const derecho::NotificationMessage& msg,
-        const node_id_t client_id,
-        const std::string& object_pool_pathname) {
+        const Blob& msg,
+        const std::string& object_pool_pathname,
+        const node_id_t client_id) {
     auto opm = find_object_pool(object_pool_pathname);
     if (!opm.is_valid() || opm.is_null() || opm.deleted) {
         throw derecho::derecho_exception("Failed to find object_pool:" + object_pool_pathname);
     }
-    this->template type_recursive_notify<CascadeTypes...>(opm.subgroup_type_index,msg,client_id,opm.subgroup_index);
+    this->template type_recursive_notify<CascadeTypes...>(opm.subgroup_type_index,msg,opm.subgroup_index,client_id);
 }
 
 #ifdef ENABLE_EVALUATION

@@ -1295,24 +1295,19 @@ std::vector<command_entry_t> commands =
     },
     {
         "register_notification",
-        "Register a raw data notification to a server node.",
-        "reigster_notification <key> [server_node_id]",
+        "Register a notification to an object pool",
+        "reigster_notification <object_pool_pathname>",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             CHECK_FORMAT(cmd_tokens, 2);
-            node_id_t server_node_id = INVALID_NODE_ID;
-            if (cmd_tokens.size() >= 3) {
-                server_node_id = static_cast<node_id_t>(std::stol(cmd_tokens[2]));
-            }
-            server_node_id = capi.register_notification_handler(
-                    [](const derecho::NotificationMessage& msg){
+            bool ret = capi.register_notification_handler(
+                    [](const Blob& msg)->void{
                         std::cout << "Notification received:"
-                                  << "type:" << msg.message_type
-                                  << "data:" << msg.body
+                                  << "data:" << std::string(reinterpret_cast<const char*>(msg.bytes),msg.size)
                                   << std::endl;
                     },
-                    cmd_tokens[1],
-                    server_node_id);
-            std::cout << "Notification Registered to Node:" << server_node_id << std::endl;
+                    cmd_tokens[1]);
+            std::cout << "Notification Registered to object pool:" << cmd_tokens[1]
+                      << ". Old handler replaced? " << ret << std::endl;
             return true;
         }
     },

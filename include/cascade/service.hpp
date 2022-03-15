@@ -1,5 +1,7 @@
 #pragma once
 #include <cstdint>
+#include <derecho/core/notification.hpp>
+#include <derecho/mutils-serialization/SerializationSupport.hpp>
 #include <derecho/persistent/PersistentInterface.hpp>
 #include <memory>
 #include <mutex>
@@ -316,7 +318,82 @@ namespace cascade {
         }
     };
 
-    
+
+    /** The notification handler type */
+    using cascade_notification_handler_t = std::function<void(const Blob&)>;
+
+    /** The CascadeNotificationMessage type */
+#define CASCADE_NOTIFICATION_MESSAGE_TYPE   (0x100000000ull)
+    struct CascadeNotificationMessage: public mutils::ByteRepresentable {
+        /** The object pool pathname, empty string for raw cascade notification message */
+        std::string object_pool_pathname;
+        /** data */
+        Blob blob;
+
+        /** TODO: the default serialization support macro might contain unnecessary copies. Check it!!! */
+        DEFAULT_SERIALIZATION_SUPPORT(CascadeNotificationMessage,object_pool_pathname,blob);
+
+        /** constructors */
+        CascadeNotificationMessage():
+            object_pool_pathname(),
+            blob() {}
+        CascadeNotificationMessage(CascadeNotificationMessage&& other):
+            object_pool_pathname(other.object_pool_pathname),
+            blob(std::move(other.blob)) {}
+        CascadeNotificationMessage(const CascadeNotificationMessage& other):
+            object_pool_pathname(other.object_pool_pathname),
+            blob(other.blob) {}
+        CascadeNotificationMessage(const std::string& _object_pool_pathname,
+                const Blob& _blob) :
+            object_pool_pathname(_object_pool_pathname),
+            blob(_blob) {}
+    };
+
+    /**
+     * This is the structure for the server side notification handlers
+     */
+    template <typename SubgroupType>
+    struct SubgroupNotificationHandler {
+        // key: object_pool_pathname
+        // value: an option for the handler
+        // The handler for "" key is the default handler, which will always be triggered.
+        std::unordered_map<std::string, std::optional<cascade_notification_handler_t>> object_pool_notification_handlers;
+
+        template <typename T>
+        inline void initialize(derecho::ExternalClientCaller<SubgroupType,T>& subgroup_caller) {
+            subgroup_caller.register_notification_handler(
+                    [this](const derecho::NotificationMessage& msg){
+                        (*this)(msg);    
+                    });
+        }
+
+        inline void operator ()(const derecho::NotificationMessage& msg) {
+            if (msg.message_type != CASCADE_NOTIFICATION_MESSAGE_TYPE) {
+                return;
+            }
+            // mutils::deserialize_and_run<CascadeNotificationMessage>(nullptr, msg.body, 
+            mutils::deserialize_and_run(nullptr, msg.body, 
+                    [this](const CascadeNotificationMessage& cascade_message)->void {
+                        // call default handler
+                        if (object_pool_notification_handlers.find("") !=
+                            object_pool_notification_handlers.cend()) {
+                            (*object_pool_notification_handlers.at(""))(cascade_message.blob);
+                        }
+                        // call object pool handler
+                        if (object_pool_notification_handlers.find(cascade_message.object_pool_pathname) !=
+                            object_pool_notification_handlers.cend()) {
+                            if (object_pool_notification_handlers.at(cascade_message.object_pool_pathname)) {
+                                (*object_pool_notification_handlers.at(cascade_message.object_pool_pathname))(cascade_message.blob);
+                            }
+                        }
+                    });
+        }
+    };
+
+    template <typename SubgroupType>
+    using per_type_notification_handler_registry_t = 
+        std::unordered_map<uint32_t,SubgroupNotificationHandler<SubgroupType>>;
+
     template <typename... CascadeTypes>
     class ServiceClient {
     private:
@@ -326,6 +403,8 @@ namespace cascade {
         // caller as a group member.
         derecho::Group<CascadeMetadataService<CascadeTypes...>, CascadeTypes...>* group_ptr;
         mutable std::mutex group_ptr_mutex;
+        // cascade server side notification handler registry.
+        mutable mutils::KindMap<per_type_notification_handler_registry_t,CascadeTypes...> notification_handler_registry;
         /**
          * 'member_selection_policies' is a map from derecho shard to its member selection policy.
          * We use a 3-tuple consisting of subgroup type index, subgroup index, and shard index to identify a shard. And
@@ -1184,39 +1263,38 @@ namespace cascade {
         std::vector<std::string> list_object_pools(bool refresh = false);
 
         /**
-         * Register notification handler. If such a handler has been registered, it will be replaced by the new one.
+         * Register an notification handler to a subgroup. If such a handler has been registered, it will be replaced
+         * by the new one.
          *
          * @tparam SubgroupType     The Subgroup Type
          * @param handler           The handler to reigster
-         * @param node_id           To which server this handler register to. This argument can be INVALID_NODE_ID to
-         *                          allow cascade system pick one based on the shard member selection policy.
          * @param subgroup_index    Index of the subgroup
-         * @param shard_index       The shard number.
          *
-         * @return the node id of the server picked.
+         * @return true if a previous notification handler is replaced.
          */
         template <typename SubgroupType>
-        node_id_t register_notification_handler(
-                const notification_handler_t& handler,
-                const node_id_t node_id = INVALID_NODE_ID,
-                const uint32_t subgroup_index = 0,
-                const uint32_t shard_index = 0);
+        bool register_notification_handler(
+                const cascade_notification_handler_t& handler,
+                const uint32_t subgroup_index = 0);
 
     protected:
+        template <typename SubgroupType>
+        bool register_notification_handler(
+                const cascade_notification_handler_t& handler,
+                const std::string& object_pool_pathname,
+                const uint32_t subgroup_index);
         template <typename FirstType,typename SecondType, typename...RestTypes>
-        node_id_t type_recursive_register_notification_handler(
+        bool type_recursive_register_notification_handler(
                 uint32_t type_index, 
-                const notification_handler_t& handler,
-                const node_id_t node_id,
-                const uint32_t subgroup_index,
-                const uint32_t shard_index);
+                const cascade_notification_handler_t& handler,
+                const std::string& object_pool_pathname,
+                const uint32_t subgroup_index);
         template <typename LastType>
-        node_id_t type_recursive_register_notification_handler(
+        bool type_recursive_register_notification_handler(
                 uint32_t type_index, 
-                const notification_handler_t& handler,
-                const node_id_t node_id,
-                const uint32_t subgroup_index,
-                const uint32_t shard_index);
+                const cascade_notification_handler_t& handler,
+                const std::string& object_pool_pathname,
+                const uint32_t subgroup_index);
 
     public:
         /**
@@ -1225,53 +1303,57 @@ namespace cascade {
          *
          * @tparam SubgroupType         The Subgroup Type
          * @param handler               The handler to reigster
-         * @param key                   The key is used to identify the subgroup and shard.
-         * @param node_id               To which server this handler register to. This argument can be INVALID_NODE_ID
-         *                              to allow cascade system pick one based on the shard member selection policy.
+         * @param object_pool_pathname  To with object pool is this handler registered.
          *
-         * @return the node id of the server picked.
+         * @return true if a previous notification handler is replaced.
          */
-        node_id_t register_notification_handler(
-                const notification_handler_t& handler,
-                const std::string& key,
-                const node_id_t node_id = INVALID_NODE_ID);
+        bool register_notification_handler(
+                const cascade_notification_handler_t& handler,
+                const std::string& object_pool_pathname);
 
         /**
          * Send a notification message to an external client.
          *
          * @tparam SubgroupType     The Subgroup Type
          * @param msg               The message to send
-         * @param client_id         The node id of the external client to be notified
          * @param subgroup_index    The subgroup index
+         * @param client_id         The node id of the external client to be notified
          */
         template <typename SubgroupType>
-        void notify(const derecho::NotificationMessage& msg,
-                const node_id_t client_id,
-                const uint32_t subgroup_index = 0) const;
+        void notify(const Blob& msg,
+                const uint32_t subgroup_index,
+                const node_id_t client_id) const;
     protected:
+        template <typename SubgroupType>
+        void notify(const Blob& msg,
+                const std::string& object_pool_pathname,
+                const uint32_t subgroup_index,
+                const node_id_t client_id) const;
         template <typename FirstType, typename SecondType, typename... RestTypes>
         void type_recursive_notify(
                 uint32_t type_index,
-                const derecho::NotificationMessage& msg,
-                const node_id_t client_id,
-                const uint32_t subgroup_index) const;
+                const Blob& msg,
+                const std::string& object_pool_pathname,
+                const uint32_t subgroup_index,
+                const node_id_t client_id) const;
         template <typename LastType>
         void type_recursive_notify(
                 uint32_t type_index,
-                const derecho::NotificationMessage& msg,
-                const node_id_t client_id,
-                const uint32_t subgroup_index) const;
+                const Blob& msg,
+                const std::string& object_pool_pathname,
+                const uint32_t subgroup_index,
+                const node_id_t client_id) const;
     public:
         /**
          * Send a notification message to an external client.
          *
          * @param msg                   The messgae to send
-         * @param client_id             The client id
          * @param object_pool_pathname  In which object_pool the notification is in.
+         * @param client_id             The client id
          */
-        void notify(const derecho::NotificationMessage& msg,
-                const node_id_t client_id,
-                const std::string& object_pool_pathname);
+        void notify(const Blob& msg,
+                const std::string& object_pool_pathname,
+                const node_id_t client_id);
 
 #ifdef ENABLE_EVALUATION
         /**
