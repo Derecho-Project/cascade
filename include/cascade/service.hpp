@@ -361,19 +361,26 @@ namespace cascade {
 
         template <typename T>
         inline void initialize(derecho::ExternalClientCaller<SubgroupType,T>& subgroup_caller) {
+            dbg_default_trace("SubgroupNotificationHandler(this={:x}) is initialized for SubgroupType:{}",
+                    reinterpret_cast<uint64_t>(this),typeid(SubgroupType).name());
             subgroup_caller.register_notification_handler(
                     [this](const derecho::NotificationMessage& msg){
+                        dbg_default_trace("subgroup notification handler is triggered with this={:x}, msg type={}", 
+                                reinterpret_cast<uint64_t>(this), msg.message_type);
                         (*this)(msg);    
                     });
         }
 
         inline void operator ()(const derecho::NotificationMessage& msg) {
+            dbg_default_trace("SubgroupNotificationHandler(this={:x}) is triggered with message_type={:x}.",
+                    reinterpret_cast<uint64_t>(this),msg.message_type);
             if (msg.message_type != CASCADE_NOTIFICATION_MESSAGE_TYPE) {
                 return;
             }
             // mutils::deserialize_and_run<CascadeNotificationMessage>(nullptr, msg.body, 
             mutils::deserialize_and_run(nullptr, msg.body, 
                     [this](const CascadeNotificationMessage& cascade_message)->void {
+                        dbg_default_trace("Handling cascade_message: {}.", cascade_message.object_pool_pathname);
                         // call default handler
                         if (object_pool_notification_handlers.find("") !=
                             object_pool_notification_handlers.cend()) {

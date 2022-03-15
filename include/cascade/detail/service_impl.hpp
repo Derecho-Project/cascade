@@ -1665,7 +1665,7 @@ void ServiceClient<CascadeTypes...>::notify(
     
     //TODO: redesign to avoid memory copies.
     CascadeNotificationMessage cascade_notification_message(object_pool_pathname,msg);
-    derecho::NotificationMessage derecho_notification_message(mutils::bytes_size(cascade_notification_message));
+    derecho::NotificationMessage derecho_notification_message(CASCADE_NOTIFICATION_MESSAGE_TYPE, mutils::bytes_size(cascade_notification_message));
     mutils::to_bytes(cascade_notification_message,derecho_notification_message.body);
 
     client_handle.template p2p_send<RPC_NAME(notify)>(client_id,derecho_notification_message);
@@ -1710,7 +1710,7 @@ void ServiceClient<CascadeTypes...>::notify(
     if (!opm.is_valid() || opm.is_null() || opm.deleted) {
         throw derecho::derecho_exception("Failed to find object_pool:" + object_pool_pathname);
     }
-    this->template type_recursive_notify<CascadeTypes...>(opm.subgroup_type_index,msg,opm.subgroup_index,client_id);
+    this->template type_recursive_notify<CascadeTypes...>(opm.subgroup_type_index,msg,object_pool_pathname,opm.subgroup_index,client_id);
 }
 
 #ifdef ENABLE_EVALUATION
