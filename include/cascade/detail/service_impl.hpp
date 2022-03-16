@@ -1568,7 +1568,7 @@ template <typename SubgroupType>
 bool ServiceClient<CascadeTypes...>::register_notification_handler(
         const cascade_notification_handler_t& handler,
         const uint32_t subgroup_index) {
-    return ServiceClient<CascadeTypes...>::register_notification_handler(handler,"",subgroup_index);
+    return register_notification_handler<SubgroupType>(handler,std::string{},subgroup_index);
 }
 
 template <typename... CascadeTypes>
