@@ -1597,7 +1597,11 @@ bool ServiceClient<CascadeTypes...>::register_notification_handler(
     bool ret = (per_type_registry.at(subgroup_index).object_pool_notification_handlers.find(object_pool_pathname) !=
                 per_type_registry.at(subgroup_index).object_pool_notification_handlers.cend());
 
-    per_type_registry.at(subgroup_index).object_pool_notification_handlers[object_pool_pathname] = handler;
+    if (handler) {
+        per_type_registry.at(subgroup_index).object_pool_notification_handlers[object_pool_pathname] = handler;
+    } else {
+        per_type_registry.at(subgroup_index).object_pool_notification_handlers[object_pool_pathname].reset();
+    }
     return ret;
 }
 
