@@ -384,12 +384,14 @@ namespace cascade {
                         // call default handler
                         if (object_pool_notification_handlers.find("") !=
                             object_pool_notification_handlers.cend()) {
-                            (*object_pool_notification_handlers.at(""))(cascade_message.blob);
+                            if (object_pool_notification_handlers.at("").has_value()) {
+                                (*object_pool_notification_handlers.at(""))(cascade_message.blob);
+                            }
                         }
                         // call object pool handler
                         if (object_pool_notification_handlers.find(cascade_message.object_pool_pathname) !=
                             object_pool_notification_handlers.cend()) {
-                            if (object_pool_notification_handlers.at(cascade_message.object_pool_pathname)) {
+                            if (object_pool_notification_handlers.at(cascade_message.object_pool_pathname).has_value()) {
                                 (*object_pool_notification_handlers.at(cascade_message.object_pool_pathname))(cascade_message.blob);
                             }
                         }
