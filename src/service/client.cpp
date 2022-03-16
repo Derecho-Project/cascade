@@ -525,6 +525,18 @@ void list_data_in_objectpool(ServiceClientAPI& capi, persistent::version_t versi
 }
 #endif// HAS_BOOLINQ
 
+// register notification
+template <typename SubgroupType>
+bool register_notification(ServiceClientAPI& capi, uint32_t subgroup_index) {
+    return capi.template register_notification_handler<SubgroupType>(
+            [](const Blob& msg)->void{
+                std::cout << "Subgroup Notification received:"
+                          << "data:" << std::string(reinterpret_cast<const char*>(msg.bytes),msg.size)
+                          << std::endl;
+            },
+            subgroup_index);
+}
+
 #ifdef ENABLE_EVALUATION
 // The object pool version of perf test
 template <typename SubgroupType>
@@ -1294,20 +1306,37 @@ std::vector<command_entry_t> commands =
         "Notification Test Commands","","",command_handler_t()
     },
     {
-        "register_notification",
+        "op_register_notification",
         "Register a notification to an object pool",
-        "reigster_notification <object_pool_pathname>",
+        "op_reigster_notification <object_pool_pathname>",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             CHECK_FORMAT(cmd_tokens, 2);
             bool ret = capi.register_notification_handler(
                     [](const Blob& msg)->void{
-                        std::cout << "Notification received:"
+                        std::cout << "Object Pool Notification received:"
                                   << "data:" << std::string(reinterpret_cast<const char*>(msg.bytes),msg.size)
                                   << std::endl;
                     },
                     cmd_tokens[1]);
             std::cout << "Notification Registered to object pool:" << cmd_tokens[1]
                       << ". Old handler replaced? " << ret << std::endl;
+            return true;
+        }
+    },
+    {
+        "register_notification",
+        "Register a notification handler to a subgroup",
+        "register_notification <type> <subgroup_index> \n"
+            "type := " SUBGROUP_TYPE_LIST,
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+            CHECK_FORMAT(cmd_tokens,3);
+            uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[2],nullptr,0));
+            
+            bool ret = false;
+            on_subgroup_type(cmd_tokens[1], ret = register_notification, capi, subgroup_index);
+
+            std::cout << "Notification Registered to Subgroup " << cmd_tokens[1] << ":" << subgroup_index 
+                      << ". Old handler replaced?" << ret << std::endl;
             return true;
         }
     },
