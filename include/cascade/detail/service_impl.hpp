@@ -1851,6 +1851,7 @@ void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeMetadataSe
                 register_prefixes(
                         {vertex.second.pathname},
                         vertex.second.shard_dispatchers.at(edge.first),
+                        vertex.second.hooks.at(edge.first),
                         edge.first,
                         user_defined_logic_manager->get_observer(
                             edge.first, // UUID
@@ -2017,12 +2018,13 @@ template <typename... CascadeTypes>
 void CascadeContext<CascadeTypes...>::register_prefixes(
         const std::unordered_set<std::string>& prefixes,
         const DataFlowGraph::VertexShardDispatcher shard_dispatcher,
+        const DataFlowGraph::VertexHook hook,
         const std::string& user_defined_logic_id,
         const std::shared_ptr<OffCriticalDataPathObserver>& ocdpo_ptr,
         const std::unordered_map<std::string,bool>& outputs) {
     for (const auto& prefix:prefixes) {
         prefix_registry_ptr->atomically_modify(prefix,
-            [&prefix,&shard_dispatcher,&user_defined_logic_id,&ocdpo_ptr,&outputs](const std::shared_ptr<prefix_entry_t>& entry){
+            [&prefix,&shard_dispatcher,&hook,&user_defined_logic_id,&ocdpo_ptr,&outputs](const std::shared_ptr<prefix_entry_t>& entry){
                 std::shared_ptr<prefix_entry_t> new_entry;
                 if (entry) {
                     new_entry = std::make_shared<prefix_entry_t>(*entry);
@@ -2030,9 +2032,9 @@ void CascadeContext<CascadeTypes...>::register_prefixes(
                     new_entry = std::make_shared<prefix_entry_t>(prefix_entry_t{});
                 }
                 if (new_entry->find(user_defined_logic_id) == new_entry->end()) {
-                    new_entry->emplace(user_defined_logic_id,std::tuple{shard_dispatcher,ocdpo_ptr,outputs});
+                    new_entry->emplace(user_defined_logic_id,std::tuple{shard_dispatcher,hook,ocdpo_ptr,outputs});
                 } else {
-                    std::get<2>(new_entry->at(user_defined_logic_id)).insert(outputs.cbegin(),outputs.cend());
+                    std::get<3>(new_entry->at(user_defined_logic_id)).insert(outputs.cbegin(),outputs.cend());
                 }
                 return new_entry;
             },true);

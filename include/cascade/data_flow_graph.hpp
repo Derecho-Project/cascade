@@ -27,6 +27,10 @@ namespace cascade {
  *                 "4e4ecc86-9b3c-11eb-b70c-0242ac110002",
  *                 "4f0373a2-9b3c-11eb-a651-0242ac110002"
  *             ],
+ *             "user_defined_logic_hook_list: [
+ *                 "trigger",
+ *                 "ordered",
+ *             ],
  *             "user_defined_logic_config_list": [
  *                 {"udl_config_op1":"val1","udl_config_op2":"val2"},
  *                 {"udl_config_op1":"val1","udl_config_op2":"val2"}
@@ -55,11 +59,15 @@ namespace cascade {
  * 2) The OPTIONAL "shard_dispatcher_list" attribute specifies how a k/v pair is dispatched to shard members for each
  * of the UDLs. The only two options supported are "all" and "one", meaning that this k/v pair is handled by all members
  * or just one of the members. Cascade will randomly pick one of the node using key hash and node's rank in the shard.
- * This option is only relevant to put operation and does not apply to trigger put operation. The default value is "ONE".
+ * This option is only relevant to put operation and does not apply to trigger put operation. The default value is "one".
  * 3) The MANDATORY "user_defined_logic_list" attribute gives a list of UDLs that should be registered for this vertex.
- * 4) The OPTIONAL "user_defined_logic_config_list" is for a list of the json configurations for all UDLs listed in
+ * 4) The OPTIONAL "user_defined_logic_hook_list" attribute defines on which hook(s) the UDLs will be triggered. It can be
+ * "trigger", "ordered", or  "both". "trigger" means the corresponding UDL is only triggered by trigger_put;
+ * "ordered" means that the corresponding UDL is only triggered by ordered_put; "both" means the corresponding UDL is
+ * triggered by both trigger_put and ordered_put.
+ * 5) The OPTIONAL "user_defined_logic_config_list" is for a list of the json configurations for all UDLs listed in
  * "user_Defined_logic_list".
- * 5) The "destinations" attribute lists the vertices where the output of UDLs should go. Each element of the 
+ * 6) The "destinations" attribute lists the vertices where the output of UDLs should go. Each element of the 
  * "destinations" value is a dictionary specifying the vertex and the method (put/trigger_put).
  *
  * Please note that the lengthes of "destinations", "user_defined_logic_list", and "user_defined_logic_config_list" 
@@ -71,7 +79,8 @@ namespace cascade {
 #define DFG_JSON_GRAPH                  "graph"
 #define DFG_JSON_PATHNAME               "pathname"
 #define DFG_JSON_SHARD_DISPATCHER_LIST  "shard_dispatcher_list"
-#define DFG_JSON_DATA_PATH_LOGIC_LIST   "user_defined_logic_list"
+#define DFG_JSON_UDL_LIST               "user_defined_logic_list"
+#define DFG_JSON_UDL_HOOK_LIST          "user_defined_logic_hook_list"
 #define DFG_JSON_UDL_CONFIG_LIST        "user_defined_logic_config_list"
 #define DFG_JSON_DESTINATIONS           "destinations"
 #define DFG_JSON_PUT                    "put"
@@ -83,6 +92,12 @@ public:
     enum VertexShardDispatcher {
         ONE,
         ALL,
+    };
+
+    enum VertexHook {
+        TRIGGER_PUT,
+        ORDERED_PUT,
+        BOTH,
     };
 
     // the Hex UUID
@@ -97,6 +112,8 @@ public:
         // The optional shard dispatcher configuration
         // uuid->shard_dispatcher
         std::unordered_map<std::string,VertexShardDispatcher> shard_dispatchers;
+        // uuid->hook
+        std::unordered_map<std::string,VertexHook> hooks;
         // The optional initialization string for each UUID
         std::unordered_map<std::string,json> configurations;
         // The edges is a map from UDL uuid string to a vector of destiation vertex pathnames.

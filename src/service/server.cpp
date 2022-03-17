@@ -64,8 +64,8 @@ class CascadeServiceCDPO: public CriticalDataPathObserver<CascadeType> {
                 return;
             }
             // filter for normal put (put/put_and_forget)
-            bool new_actions = is_trigger;
-            if (!is_trigger) {
+            bool new_actions = false;
+            {
                 auto shard_members = ctxt->get_service_client_ref().template get_shard_members<CascadeType>(sgidx,shidx);
                 bool icare = (shard_members[std::hash<std::string>{}(key)%shard_members.size()] == ctxt->get_service_client_ref().get_my_id());
                 for(auto& per_prefix: handlers) {
@@ -73,23 +73,36 @@ class CascadeServiceCDPO: public CriticalDataPathObserver<CascadeType> {
                     // per_prefix.second is a set of handlers
                     for (auto it=per_prefix.second.cbegin();it!=per_prefix.second.cend();) {
                         // it->first is handler uuid
-                        // it->second is a 3-tuple of shard dispatcher,ocdpo,and outputs;
-                        switch(std::get<0>(it->second)) {
-                        case DataFlowGraph::VertexShardDispatcher::ONE:
-                            if (icare) {
-                                new_actions = true;
-                                it++;
-                            } else {
-                                per_prefix.second.erase(it++);
-                            }
-                            break;
-                        case DataFlowGraph::VertexShardDispatcher::ALL:
+                        // it->second is a 4-tuple of shard dispatcher,hook,ocdpo,and outputs;
+                        if ((std::get<1>(it->second) == DataFlowGraph::VertexHook::ORDERED_PUT && is_trigger) ||
+                            (std::get<1>(it->second) == DataFlowGraph::VertexHook::TRIGGER_PUT && !is_trigger)){
+                            // not my hook, skip it.
+                            per_prefix.second.erase(it++);
+                        } else if ((std::get<1>(it->second) != DataFlowGraph::VertexHook::ORDERED_PUT) && is_trigger) {
                             new_actions = true;
                             it++;
-                            break;
-                        default:
-                            per_prefix.second.erase(it++);
-                            break;
+                        } else {
+                            // HERE: 
+                            // 1) trigger must be false
+                            // 2) std::get<1>(it->second) is either ORDERED_PUT or BOTH
+                            // so, do we do the following test:
+                            switch(std::get<0>(it->second)) {
+                            case DataFlowGraph::VertexShardDispatcher::ONE:
+                                if (icare) {
+                                    new_actions = true;
+                                    it++;
+                                } else {
+                                    per_prefix.second.erase(it++);
+                                }
+                                break;
+                            case DataFlowGraph::VertexShardDispatcher::ALL:
+                                new_actions = true;
+                                it++;
+                                break;
+                            default:
+                                per_prefix.second.erase(it++);
+                                break;
+                            }
                         }
                     }
                 }
@@ -111,9 +124,9 @@ class CascadeServiceCDPO: public CriticalDataPathObserver<CascadeType> {
                             key,
                             per_prefix.first.size(),
                             value.get_version(),
-                            std::get<1>(handler.second), // ocdpo
+                            std::get<2>(handler.second), // ocdpo
                             value_ptr,
-                            std::get<2>(handler.second)  // outputs
+                            std::get<3>(handler.second)  // outputs
                     );
                     ctxt->post(std::move(action),is_trigger);
                 }
