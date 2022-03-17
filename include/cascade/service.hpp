@@ -1472,6 +1472,7 @@ namespace cascade {
                     std::string, // udl_id
                     std::tuple<
                         DataFlowGraph::VertexShardDispatcher,         // shard dispatcher
+                        DataFlowGraph::VertexHook,                    // hook
                         std::shared_ptr<OffCriticalDataPathObserver>, // ocdpo
                         std::unordered_map<std::string,bool>          // output map{prefix->bool}
                     >
@@ -1592,6 +1593,8 @@ namespace cascade {
          * Register a set of prefixes
          *
          * @param prefixes              - the prefixes set
+         * @param user_defined_logic_hook
+         *                              - the hook for this ocdpo
          * @param shard_dispatcher      - the shard dispatcher
          * @param user_defined_logic_id - the UDL id, presumably an UUID string
          * @param ocdpo_ptr             - the data path observer
@@ -1600,6 +1603,7 @@ namespace cascade {
          */
         virtual void register_prefixes(const std::unordered_set<std::string>& prefixes,
                                        const DataFlowGraph::VertexShardDispatcher shard_dispatcher,
+                                       const DataFlowGraph::VertexHook hook,
                                        const std::string& user_defined_logic_id,
                                        const std::shared_ptr<OffCriticalDataPathObserver>& ocdpo_ptr,
                                        const std::unordered_map<std::string,bool>& outputs);
