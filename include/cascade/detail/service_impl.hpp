@@ -1582,6 +1582,7 @@ bool ServiceClient<CascadeTypes...>::register_notification_handler(
             "Cannot register notification handler because external_group_ptr is null.");
     }
 
+    std::unique_lock<std::mutex> type_registry_lock(this->notification_handler_registry_mutex);
     auto& per_type_registry = notification_handler_registry.template get<SubgroupType>();
     // Register Cascade's root handler:
     // if subgroup_index exists in the per_type_registry, Cascade's root handler is registered already.
@@ -1592,15 +1593,17 @@ bool ServiceClient<CascadeTypes...>::register_notification_handler(
         // to do ... register it.
         per_type_registry.at(subgroup_index).initialize(subgroup_caller);
     }
+    auto& subgroup_handlers = per_type_registry.at(subgroup_index);
 
     // Register the handler
-    bool ret = (per_type_registry.at(subgroup_index).object_pool_notification_handlers.find(object_pool_pathname) !=
-                per_type_registry.at(subgroup_index).object_pool_notification_handlers.cend());
+    std::lock_guard<std::mutex> subgroup_handlers_lock(*subgroup_handlers.object_pool_notification_handlers_mutex);
+    bool ret = (subgroup_handlers.object_pool_notification_handlers.find(object_pool_pathname) !=
+                subgroup_handlers.object_pool_notification_handlers.cend());
 
     if (handler) {
-        per_type_registry.at(subgroup_index).object_pool_notification_handlers[object_pool_pathname] = handler;
+        subgroup_handlers.object_pool_notification_handlers[object_pool_pathname] = handler;
     } else {
-        per_type_registry.at(subgroup_index).object_pool_notification_handlers[object_pool_pathname].reset();
+        subgroup_handlers.object_pool_notification_handlers[object_pool_pathname].reset();
     }
     return ret;
 }

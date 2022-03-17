@@ -358,6 +358,10 @@ namespace cascade {
         // value: an option for the handler
         // The handler for "" key is the default handler, which will always be triggered.
         std::unordered_map<std::string, std::optional<cascade_notification_handler_t>> object_pool_notification_handlers;
+        mutable std::unique_ptr<std::mutex> object_pool_notification_handlers_mutex;
+
+        SubgroupNotificationHandler():
+            object_pool_notification_handlers_mutex(std::make_unique<std::mutex>()) {}
 
         template <typename T>
         inline void initialize(derecho::ExternalClientCaller<SubgroupType,T>& subgroup_caller) {
@@ -381,6 +385,7 @@ namespace cascade {
             mutils::deserialize_and_run(nullptr, msg.body, 
                     [this](const CascadeNotificationMessage& cascade_message)->void {
                         dbg_default_trace("Handling cascade_message: {}.", cascade_message.object_pool_pathname);
+                        std::lock_guard<std::mutex> lck(*object_pool_notification_handlers_mutex);
                         // call default handler
                         if (object_pool_notification_handlers.find("") !=
                             object_pool_notification_handlers.cend()) {
@@ -414,6 +419,7 @@ namespace cascade {
         mutable std::mutex group_ptr_mutex;
         // cascade server side notification handler registry.
         mutable mutils::KindMap<per_type_notification_handler_registry_t,CascadeTypes...> notification_handler_registry;
+        mutable std::mutex notification_handler_registry_mutex;
         /**
          * 'member_selection_policies' is a map from derecho shard to its member selection policy.
          * We use a 3-tuple consisting of subgroup type index, subgroup index, and shard index to identify a shard. And
