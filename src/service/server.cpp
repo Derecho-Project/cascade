@@ -41,6 +41,7 @@ template <typename CascadeType>
 class CascadeServiceCDPO: public CriticalDataPathObserver<CascadeType> {
     virtual void operator() (const uint32_t sgidx,
                              const uint32_t shidx,
+                             const node_id_t sender_id,
                              const typename CascadeType::KeyType& key,
                              const typename CascadeType::ObjectType& value,
                              ICascadeContext* cascade_ctxt,
@@ -120,7 +121,7 @@ class CascadeServiceCDPO: public CriticalDataPathObserver<CascadeType> {
                     // handler.first is handler uuid
                     // handler.second is a 3-tuple of shard dispatcher,ocdpo,and outputs;
                     Action action(
-                            derecho::RPCManager::get_rpc_caller_id(),
+                            sender_id,
                             key,
                             per_prefix.first.size(),
                             value.get_version(),
