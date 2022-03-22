@@ -43,6 +43,7 @@ namespace cascade {
          *
          * @param subgroup_idx
          * @param shard_idx
+         * @param sender_id
          * @param key
          * @param value
          * @param cascade_ctxt - The cascade context to be used later
@@ -50,6 +51,7 @@ namespace cascade {
          */
         virtual void operator () (const uint32_t subgroup_idx,
                                   const uint32_t shard_idx,
+                                  const node_id_t sender_id,
                                   const typename CascadeType::KeyType& key,
                                   const typename CascadeType::ObjectType& value,
                                   ICascadeContext* cascade_ctxt,
