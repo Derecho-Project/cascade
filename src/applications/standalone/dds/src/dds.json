@@ -1,0 +1,5 @@
+{
+    "metadata_pathname": "/dds/metadata",
+    "data_plane_pathnames": ["/dds/tiny_text","/dds/big_chunk"],
+    "control_plane_suffix": "__control__"
+}

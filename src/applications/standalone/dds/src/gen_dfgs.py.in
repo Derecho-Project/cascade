@@ -1,0 +1,38 @@
+#!/usr/bin/env python3
+import sys
+import json
+import uuid
+
+if __name__ == '__main__':
+    if len(sys.argv) != 2:
+        print(f"Usage:{sys.argv[0]} <input.json>")
+        quit(1)
+    input_file = sys.argv[1]
+    udl_uuid = "@UDL_UUID@"
+    dfg_uuid = uuid.uuid5(uuid.NAMESPACE_DNS,"cascade.dds")
+    dds_json = json.load(open(input_file))
+    control_plane_suffix = dds_json['control_plane_suffix']
+    # print header
+    print('[')
+    print('  {')
+    print(f'    "id" : "{dfg_uuid}",')
+    print(f'    "desc" : "Cascade DDS - generated from {sys.argv[0]}",')
+    print( '    "graph" : [')
+    # print data planes
+    entries_left = len(dds_json['data_plane_pathnames'])
+    for data_plane_object_pool in dds_json['data_plane_pathnames']:
+        entries_left = entries_left - 1
+        print('      {')
+        print(f'        "pathname" : "{data_plane_object_pool}",')
+        print(f'        "hook" : ["both"],')
+        print(f'        "user_defined_logic_list" : ["{udl_uuid}"],')
+        print(f'        "user_defined_logic_config_list" : [{{"control_plane_suffix":"{control_plane_suffix}"}}],')
+        print('        "destinations" : [{}]')
+        if entries_left == 0:
+            print('      }')
+        else:
+            print('      },')
+    # print footer
+    print('    ]')
+    print('  }')
+    print("]")
