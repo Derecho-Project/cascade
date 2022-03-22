@@ -26,7 +26,9 @@ class DDSConfig {
 
 class Topic:public mutils::ByteRepresentable {
 public:
+    // topic name
     std::string name;
+    // the object pool
     std::string pathname;
     DEFAULT_SERIALIZATION_SUPPORT(Topic,name,pathname);
 
@@ -34,6 +36,8 @@ public:
     Topic(const std::string& _name,const std::string& _pathname);
     Topic(const Topic& rhs);
     Topic(Topic&& rhs);
+
+    std::string get_full_path() const;
 };
 
 //TODO
@@ -55,6 +59,8 @@ public:
     void refresh_topics();
 
     Topic get_topic(const std::string& topic_name,bool refresh=true);
+
+    void create_topic(const Topic& topic);
 
     virtual ~DDSMetadataClient();
 

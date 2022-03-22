@@ -1,5 +1,6 @@
 #include <cascade_dds/dds.hpp>
 #include <derecho/core/derecho_exception.hpp>
+#include <derecho/mutils-serialization/SerializationSupport.hpp>
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -25,6 +26,10 @@ Topic::Topic(const Topic& rhs):
 Topic::Topic(Topic&& rhs):
     name(std::move(rhs.name)),
     pathname(std::move(rhs.pathname)) {}
+
+std::string Topic::get_full_path() const {
+    return pathname + PATH_SEPARATOR + name;
+}
 
 DDSMetadataClient::DDSMetadataClient(
         const std::shared_ptr<ServiceClientAPI>& _capi,
@@ -71,6 +76,34 @@ Topic DDSMetadataClient::get_topic(const std::string& topic_name,bool refresh) {
         return topics.at(topic_name);
     } else {
         return Topic{};
+    }
+}
+
+void DDSMetadataClient::create_topic(const Topic& topic) {
+    std::shared_lock<std::shared_mutex> rlock(topics_shared_mutex);
+    if (topics.find(topic.name)!=topics.cend()) {
+        throw derecho::derecho_exception("Cannot create topic:"+topic.name+" because it has already existed.");
+    }
+    rlock.unlock();
+
+    refresh_topics();
+
+    rlock.lock();
+    if (topics.find(topic.name)!=topics.cend()) {
+        throw derecho::derecho_exception("Cannot create topic:"+topic.name+" because it has already existed.");
+    }
+
+    // prepare the object
+    std::size_t size = mutils::bytes_size(topic);
+    uint8_t stack_buffer[size];
+    mutils::to_bytes(topic,stack_buffer);
+    Blob blob(stack_buffer,size,true);
+    ObjectWithStringKey topic_object(metadata_pathname+PATH_SEPARATOR+topic.name,blob);
+    auto result = capi->put(topic_object);
+    for (auto& reply_future: result.get() ) {
+        auto reply = reply_future.second.get();
+        dbg_default_trace("Node {} replied with (v:0x{:x},t:{}us)", reply_future.first, 
+                std::get<0>(reply), std::get<1>(reply));
     }
 }
 

@@ -54,6 +54,13 @@ ssize_t find_command(const std::vector<command_entry_t>& command_list, const std
     return pos;
 }
 
+#define CHECK_FORMAT(tks,sz) \
+    if (tks.size() < sz) { \
+        std::cerr << "Expecting " << sz << " arguments, but get " \
+                  << tks.size() << " only." << std::endl; \
+        return false; \
+    }
+
 std::vector<command_entry_t> commands = {
     {
         "General Commands", "", "", command_handler_t()
@@ -105,6 +112,25 @@ std::vector<command_entry_t> commands = {
                         }
                     }
             );
+            return true;
+        }
+    },
+    {
+        "create_topic",
+        "Create an topic",
+        "create_topic <topic_name> <object_pool_pathname>",
+        [](DDSMetadataClient& metadata_client,DDSClient&,const std::vector<std::string>& cmd_tokens) {
+            CHECK_FORMAT(cmd_tokens,3);
+            Topic topic(cmd_tokens[1],cmd_tokens[2]);
+            try {
+                metadata_client.create_topic(topic);
+            } catch (derecho::derecho_exception& ex){
+                std::cerr << "Exception:" << ex.what() << std::endl;
+                return false;
+            } catch (...) {
+                std::cerr << "Unknown Exception Caught." << std::endl;
+                return false;
+            }
             return true;
         }
     },
