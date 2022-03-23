@@ -3,6 +3,8 @@
 #include <derecho/mutils-serialization/SerializationSupport.hpp>
 #include <memory>
 #include <mutex>
+#include <vector>
+#include <unordered_map>
 #include <shared_mutex>
 #include <nlohmann/json.hpp>
 
@@ -17,6 +19,36 @@ namespace cascade {
 #define DDS_CONFIG_METADATA_PATHNAME    "metadata_pathname"
 #define DDS_CONFIG_DATA_PLANE_PATHNAMES "data_plane_pathnames"
 #define DDS_CONFIG_CONTROL_PLANE_SUFFIX "control_plane_suffix"
+
+/**
+ * load json configuration
+ */
+class DDSConfig {
+private:
+    static std::shared_ptr<DDSConfig> dds_config_singleton;
+    static std::mutex dds_config_singleton_mutex;
+
+public:
+    /**
+     * getter for metadata_pathname
+     * @return
+     */
+    virtual std::string get_metadata_pathname() const = 0;
+    /**
+     * getter for data_plane_pathnames
+     * @return
+     */
+    virtual std::vector<std::string> get_data_plane_pathnames() const = 0;
+    /**
+     * getter for control_plane_suffix
+     * @return
+     */
+    virtual std::string get_control_plane_suffix() const = 0;
+    /**
+     * get the singleton
+     */
+    static std::shared_ptr<DDSConfig> get();
+};
 
 /**
  * The topic type
@@ -128,7 +160,7 @@ public:
     /**
      * create an DDSMetadataClient object.
      */
-    static std::unique_ptr<DDSMetadataClient> create(const std::shared_ptr<ServiceClientAPI>& capi, const json& dds_config);
+    static std::unique_ptr<DDSMetadataClient> create(const std::shared_ptr<ServiceClientAPI>& capi, std::shared_ptr<DDSConfig> dds_config);
 };
 
 //TODO
@@ -151,7 +183,9 @@ public:
     virtual ~DDSSubscriber();
 };
 
-//TODO
+/**
+ * DDS Client
+ */
 class DDSClient {
 public:
     template <typename MessageType>
@@ -161,11 +195,8 @@ public:
 
     virtual ~DDSClient();
 
-    static std::unique_ptr<DDSClient> create(const std::shared_ptr<ServiceClientAPI>& capi, const json& dds_config);
+    static std::unique_ptr<DDSClient> create(const std::shared_ptr<ServiceClientAPI>& capi, std::shared_ptr<DDSConfig> dds_config);
 };
-
-//TODO
-json load_config();
 
 }
 }

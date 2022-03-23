@@ -11,6 +11,50 @@
 namespace derecho{
 namespace cascade {
 
+std::shared_ptr<DDSConfig> DDSConfig::dds_config_singleton;
+std::mutex DDSConfig::dds_config_singleton_mutex;
+
+std::shared_ptr<DDSConfig> DDSConfig::get() {
+    if (dds_config_singleton == nullptr) {
+        std::lock_guard<std::mutex> lock(dds_config_singleton_mutex);
+        if (dds_config_singleton == nullptr) {
+            dds_config_singleton = std::make_shared<DDSConfigJsonImpl>();
+        }
+    }
+    return dds_config_singleton;
+}
+
+DDSConfigJsonImpl::DDSConfigJsonImpl(const std::string& conf_file) {
+    if (access(conf_file.c_str(),F_OK|R_OK)!=0) {
+        throw derecho::derecho_exception("Failed to load dds configuration.");
+    }
+
+    std::ifstream infile(conf_file);
+
+    infile >> config;
+    infile.close();
+}
+
+std::string DDSConfigJsonImpl::get_metadata_pathname() const {
+    return config[DDS_CONFIG_METADATA_PATHNAME].get<std::string>();
+}
+
+std::vector<std::string> DDSConfigJsonImpl::get_data_plane_pathnames() const {
+    std::vector<std::string> vec;
+    for(const auto& dp: config[DDS_CONFIG_DATA_PLANE_PATHNAMES]) {
+        vec.emplace_back(dp.get<std::string>());
+    }
+    return vec;
+}
+
+std::string DDSConfigJsonImpl::get_control_plane_suffix() const {
+    return config[DDS_CONFIG_CONTROL_PLANE_SUFFIX].get<std::string>();
+}
+
+DDSConfigJsonImpl::~DDSConfigJsonImpl() {
+    // do nothing so far
+}
+
 Topic::Topic():
     name(""),
     pathname("") {}
@@ -66,8 +110,8 @@ DDSMetadataClient::~DDSMetadataClient() {}
 
 std::unique_ptr<DDSMetadataClient> DDSMetadataClient::create(
         const std::shared_ptr<ServiceClientAPI>& capi, 
-        const json& dds_config) {
-    return std::make_unique<DDSMetadataClient>(capi,dds_config[DDS_CONFIG_METADATA_PATHNAME].get<std::string>());
+        std::shared_ptr<DDSConfig> dds_config) {
+    return std::make_unique<DDSMetadataClient>(capi,dds_config->get_metadata_pathname());
 }
 
 Topic DDSMetadataClient::get_topic(const std::string& topic_name,bool refresh) {
@@ -137,24 +181,9 @@ void DDSMetadataClient::remove_topic(const std::string& topic_name) {
 
 DDSClient::~DDSClient() {}
 
-std::unique_ptr<DDSClient> DDSClient::create(const std::shared_ptr<ServiceClientAPI>& capi, const json& dds_config) {
+std::unique_ptr<DDSClient> DDSClient::create(const std::shared_ptr<ServiceClientAPI>& capi, std::shared_ptr<DDSConfig> dds_config) {
     //TODO:
     return std::make_unique<DDSClient>();
-}
-
-json load_config() {
-    static const char* dds_config_file = "dds.json";
-    if (access(dds_config_file,F_OK|R_OK)!=0) {
-        throw derecho::derecho_exception("Failed to load dds configuration.");
-    }
-
-    std::ifstream infile(dds_config_file);
-
-    json config;
-    infile >> config;
-    infile.close();
-    
-    return config;
 }
 
 }
