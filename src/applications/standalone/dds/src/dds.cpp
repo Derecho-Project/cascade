@@ -47,6 +47,10 @@ void DDSMetadataClient::refresh_topics() {
         auto res = capi->get(topic_key);
         for (auto& reply_future : res.get()) {
             auto reply = reply_future.second.get();
+            // skip the deleted objects.
+            if (reply.is_null()) {
+                continue;
+            }
             mutils::deserialize_and_run(nullptr,reply.blob.bytes,
                 [&topics_map](const Topic& topic)->void{
                     topics_map.emplace(topic.name,topic);
@@ -99,12 +103,36 @@ void DDSMetadataClient::create_topic(const Topic& topic) {
     mutils::to_bytes(topic,stack_buffer);
     Blob blob(stack_buffer,size,true);
     ObjectWithStringKey topic_object(metadata_pathname+PATH_SEPARATOR+topic.name,blob);
+    dbg_default_trace("create topic:{}", topic.name);
     auto result = capi->put(topic_object);
     for (auto& reply_future: result.get() ) {
         auto reply = reply_future.second.get();
         dbg_default_trace("Node {} replied with (v:0x{:x},t:{}us)", reply_future.first, 
                 std::get<0>(reply), std::get<1>(reply));
     }
+
+    topics.emplace(topic.name,topic);
+}
+
+void DDSMetadataClient::remove_topic(const std::string& topic_name) {
+    refresh_topics();
+
+    std::shared_lock<std::shared_mutex> rlock(topics_shared_mutex);
+    if (topics.find(topic_name)==topics.cend()) {
+        return;
+    }
+    rlock.unlock();
+
+    std::lock_guard<std::shared_mutex> wlock(topics_shared_mutex);
+    dbg_default_trace("remove topic:{}",topic_name);
+    auto result = capi->remove(metadata_pathname+PATH_SEPARATOR+topic_name);
+    for (auto& reply_future: result.get() ) {
+        auto reply = reply_future.second.get();
+        dbg_default_trace("Node {} replied with (v:0x{:x},t:{}us)", reply_future.first, 
+                std::get<0>(reply), std::get<1>(reply));
+    }
+
+    topics.erase(topic_name);
 }
 
 DDSClient::~DDSClient() {}

@@ -117,7 +117,7 @@ std::vector<command_entry_t> commands = {
     },
     {
         "create_topic",
-        "Create an topic",
+        "Create a topic",
         "create_topic <topic_name> <object_pool_pathname>",
         [](DDSMetadataClient& metadata_client,DDSClient&,const std::vector<std::string>& cmd_tokens) {
             CHECK_FORMAT(cmd_tokens,3);
@@ -134,6 +134,24 @@ std::vector<command_entry_t> commands = {
             return true;
         }
     },
+    {
+        "remove_topic",
+        "Remove a topic",
+        "remove_topic <topic_name>",
+        [](DDSMetadataClient& metadata_client,DDSClient&,const std::vector<std::string>& cmd_tokens) {
+            CHECK_FORMAT(cmd_tokens,2);
+            try {
+                metadata_client.remove_topic(cmd_tokens[1]);
+            } catch (derecho::derecho_exception& ex) {
+                std::cerr << "Exception:" << ex.what() << std::endl;
+                return false;
+            } catch (...) {
+                std::cerr << "Unknown Exception Caught." << std::endl;
+                return false;
+            }
+            return true;
+        }
+    }
 };
 
 static void do_command(

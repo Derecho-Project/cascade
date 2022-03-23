@@ -19,51 +19,115 @@ namespace cascade {
 #define DDS_CONFIG_CONTROL_PLANE_SUFFIX "control_plane_suffix"
 
 /**
- * DDSConfiguration
+ * The topic type
  */
-class DDSConfig {
-};
-
 class Topic:public mutils::ByteRepresentable {
 public:
-    // topic name
+    /** topic name */
     std::string name;
-    // the object pool
+    /** the object pool */
     std::string pathname;
+    /** serialization support */
     DEFAULT_SERIALIZATION_SUPPORT(Topic,name,pathname);
 
+    /**
+     * Constructor 1
+     */
     Topic();
+
+    /**
+     * Contructor 2
+     * @param _name     topic name
+     * @param _pathname object pool
+     */
     Topic(const std::string& _name,const std::string& _pathname);
+
+    /**
+     * Constructor 3: copy constructor
+     * @param rhs
+     */
     Topic(const Topic& rhs);
+
+    /**
+     * Constructor 4: move constructor
+     * @param rhs
+     */
     Topic(Topic&& rhs);
 
+    /**
+     * get the full path or 'key' for this topic.
+     * @return the key.
+     */
     std::string get_full_path() const;
 };
 
-//TODO
+/**
+ * DDSMetadataClient is the API for accessing DDS Metadata
+ */
 class DDSMetadataClient {
 private:
+    /** shared cascade client */
     std::shared_ptr<ServiceClientAPI> capi;
+    /** the object pool for DDS metadata */
     std::string metadata_pathname;
+    /* local cache of the topics, a map from topic name to topic object. */
     std::unordered_map<std::string,Topic> topics;
+    /* local cache lock */
     mutable std::shared_mutex topics_shared_mutex;
 
 public:
+    /**
+     * Constructor
+     * @param _capi             shared cascade client
+     * @param metadata_pathname the object pool for DDS metadata
+     */
     DDSMetadataClient(const std::shared_ptr<ServiceClientAPI>& _capi,const std::string& metadata_pathname);
 
+    /**
+     * list the topics
+     * @tparam  T       the type of the return value
+     * @param func      a lambda function that will be fed with the local topic cache.
+     * @param refresh   true for refresh the topic list, otherwise, just use the local cache.
+     *
+     * @return return value is decided by func
+     */
     template <typename T>
     auto list_topics(
             const std::function<T(const std::unordered_map<std::string,Topic>&)>& func,
             bool refresh=true);
 
+    /** refresh local topic cache */
     void refresh_topics();
 
+    /**
+     * Get a topic
+     * @param topic_name        the name of the topic
+     * @param refresh           true for refresh the topic list, otherwise, just use the local cache.
+     *
+     * @return the topic object
+     */
     Topic get_topic(const std::string& topic_name,bool refresh=true);
 
+    /**
+     * create a topic, if such a topic does exist, it will through an exception
+     * @param topic             The topic object
+     */
     void create_topic(const Topic& topic);
 
+    /**
+     * remove a topic, if such a topic does not exist, it return silently.
+     * @param topic_name        The topic name
+     */
+    void remove_topic(const std::string& topic_name);
+
+    /**
+     * the destructor
+     */
     virtual ~DDSMetadataClient();
 
+    /**
+     * create an DDSMetadataClient object.
+     */
     static std::unique_ptr<DDSMetadataClient> create(const std::shared_ptr<ServiceClientAPI>& capi, const json& dds_config);
 };
 
