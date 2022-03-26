@@ -7,9 +7,18 @@
 #include <typeindex>
 #include <sys/prctl.h>
 #include <unistd.h>
+#include <thread>
 
 namespace derecho{
 namespace cascade {
+
+/**
+ * Message Format
+ * ObjectWithStringKey[full_path_topic,blob]
+ *                                      |
+ *                                      V
+ *                                 DDSMessage[topic,blob]
+ */
 
 std::shared_ptr<DDSConfig> DDSConfig::dds_config_singleton;
 std::mutex DDSConfig::dds_config_singleton_mutex;
@@ -179,12 +188,108 @@ void DDSMetadataClient::remove_topic(const std::string& topic_name) {
     topics.erase(topic_name);
 }
 
+DDSCommand::DDSCommand():
+    command_type(DDSCommand::INVALID_TYPE),
+    topic() {}
+
+DDSCommand::DDSCommand(const CommandType _command_type, const std::string& _topic):
+    command_type(_command_type),
+    topic(_topic) {}
+
 DDSClient::~DDSClient() {}
 
 std::unique_ptr<DDSClient> DDSClient::create(const std::shared_ptr<ServiceClientAPI>& capi, std::shared_ptr<DDSConfig> dds_config) {
     //TODO:
     return std::make_unique<DDSClient>();
 }
+
+DDSMessage::DDSMessage():
+    topic(),
+    app_data() {}
+
+DDSMessage::DDSMessage(const std::string& _topic,const Blob& _blob):
+    topic(_topic),
+    app_data(_blob) {}
+
+DDSMessage::DDSMessage(const DDSMessage& rhs):
+    topic(rhs.topic),
+    app_data(rhs.app_data) {}
+
+DDSMessage::DDSMessage(DDSMessage&& rhs):
+    topic(std::move(rhs.topic)),
+    app_data(std::move(rhs.app_data)) {}
+
+SubscriberCore::SubscriberCore(const std::string& _topic, const uint32_t _index):
+    topic(_topic),
+    index(_index),
+    online(true),
+    handlers() {
+    message_worker = std::thread([this](){
+        while(online) {
+            std::unique_lock<std::mutex> qlck(message_queue_mutex);
+            message_queue_cv.wait(qlck,[this](){return !message_queue.empty() || !online;});
+            std::deque<Blob> q(std::move(message_queue));
+            qlck.unlock();
+
+            while(!q.empty()) {
+                std::lock_guard<std::mutex> hlck(handlers_mutex);
+                for (const auto& handle:handlers) {
+                    dbg_default_trace("call: handler {} on topic {}",handle.first,topic);
+                    handle.second(q.front());
+                    dbg_default_trace("done: handler {} on topic {}",handle.first,topic);
+                }
+                q.pop_front();
+            }
+        }
+    });
+}
+
+void SubscriberCore::add_handler(const std::string& handler_name, const cascade_notification_handler_t& handler) {
+    std::lock_guard<std::mutex> lck(handlers_mutex);
+    handlers.emplace(handler_name, handler);
+}
+
+std::vector<std::string> SubscriberCore::list_handlers() const {
+    std::lock_guard<std::mutex> lck(handlers_mutex);
+    std::vector<std::string> vec;
+    for (const auto& ent:handlers) {
+        vec.emplace_back(ent.first);
+    }
+    return vec;
+}
+
+void SubscriberCore::delete_handler(const std::string& handler_name) {
+    std::lock_guard<std::mutex> lck(handlers_mutex);
+    handlers.erase(handler_name);
+}
+
+void SubscriberCore::post(const Blob& blob) {
+    std::lock_guard<std::mutex> lck(message_queue_mutex);
+    message_queue.emplace_back(blob);
+    message_queue_cv.notify_one();
+}
+
+void SubscriberCore::shutdown() {
+    if (online) {
+        online.store(false);
+        message_queue_cv.notify_all();
+        message_worker.join();
+    }
+}
+
+SubscriberCore::~SubscriberCore() {
+    shutdown();
+}
+
+void DDSSubscriberRegistry::_topic_control(std::shared_ptr<ServiceClientAPI>& capi, const Topic& topic_info, DDSCommand::CommandType command_type) {
+        DDSCommand command(command_type,topic_info.name);
+        std::size_t buffer_size = mutils::bytes_size(command);
+        uint8_t stack_buffer[buffer_size];
+        mutils::to_bytes(command,stack_buffer);
+        ObjectWithStringKey object(topic_info.pathname + PATH_SEPARATOR + control_plane_suffix,Blob(stack_buffer,buffer_size,true));
+        capi->trigger_put(object);
+        dbg_default_trace("Send DDS command:{} to service", command.to_string());
+    }
 
 }
 }
