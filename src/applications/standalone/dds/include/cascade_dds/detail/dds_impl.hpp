@@ -59,8 +59,8 @@ class DDSPublisherImpl: public DDSPublisher<MessageType> {
     std::shared_ptr<ServiceClientAPI> capi;
     const std::string topic;
     const std::string cascade_key;
-    static thread_local ObjectWithStringKey object_buffer;
-    static thread_local bool object_buffer_initialized;
+    static thread_local std::vector<uint8_t> static_buffer;
+
 public:
     /** Constructor
      * @param _capi         The shared cascade client handle
@@ -82,27 +82,37 @@ public:
     }
 
     virtual void send(const MessageType& message) override {
-        if (!object_buffer_initialized) {
-            object_buffer.key = cascade_key;
-            object_buffer_initialized = true;
-        }
         std::size_t requested_size = mutils::bytes_size(message) + DDS_MESSAGE_HEADER_SIZE;
-        if (object_buffer.blob.capacity < (requested_size)) {
-            uint8_t* bytes = new uint8_t[requested_size];
-            // set up header
-            DDSMessageHeader* msg_ptr = reinterpret_cast<DDSMessageHeader*>(bytes);
+        DDSMessageHeader* msg_ptr = reinterpret_cast<DDSMessageHeader*>(static_buffer.data());
+
+        if (static_buffer.size() < requested_size) {
+            static_buffer.reserve(requested_size);
+            // update pointer.
+            msg_ptr = reinterpret_cast<DDSMessageHeader*>(static_buffer.data());
             std::memcpy(msg_ptr->topic_name,topic.c_str(),topic.size());
-            msg_ptr->message_bytes = topic.size();
-            // fill data
-            mutils::to_bytes(message,msg_ptr->message_bytes);
-            object_buffer.blob = std::move(Blob(bytes,requested_size));
-            delete[] bytes;
-        } else {
-            DDSMessageHeader* msg_ptr = reinterpret_cast<DDSMessageHeader*>(object_buffer.blob.bytes);
-            object_buffer.blob.size = mutils::to_bytes(message,msg_ptr->message_bytes);
+            msg_ptr->topic_name_length = topic.size();
         }
+        
+        // prepare the buffer 
+        Blob blob(static_buffer.data(),requested_size,true);//emplace for zero-copy
+        ObjectWithStringKey object(
+#ifdef ENABLE_EVALUATION
+                    0,
+#endif//ENABLE_EVALUATION
+                    CURRENT_VERSION,
+                    0,
+                    CURRENT_VERSION,
+                    CURRENT_VERSION,
+                    cascade_key,
+                    blob,
+                    true//emplace for zero-copy
+                );
+
+        // fill the buffer
+        mutils::to_bytes(message,&msg_ptr->message_bytes);
+
         // send message
-        capi->put_and_forget(object_buffer);
+        capi->put_and_forget(object);
     }
 
     /** Destructor */
@@ -112,10 +122,7 @@ public:
 };
 
 template<typename MessageType>
-thread_local ObjectWithStringKey DDSPublisherImpl<MessageType>::object_buffer;
-
-template<typename MessageType>
-thread_local bool DDSPublisherImpl<MessageType>::object_buffer_initialized=false;
+thread_local std::vector<uint8_t> DDSPublisherImpl<MessageType>::static_buffer;
 
 class PerTopicRegistry;
 class DDSSubscriberRegistry;
@@ -331,10 +338,10 @@ public:
     void unsubscribe(
             std::shared_ptr<ServiceClientAPI>& capi,
             DDSMetadataClient& metadata_service,
-            DDSSubscriber<MessageType>& subscriber) {
+            const DDSSubscriber<MessageType>& subscriber) {
         // apply the big lock
         std::lock_guard<std::mutex> lck(registry_mutex);
-        DDSSubscriberImpl<MessageType>* impl = dynamic_cast<DDSSubscriberImpl<MessageType>*>(&subscriber);
+        const DDSSubscriberImpl<MessageType>* impl = dynamic_cast<const DDSSubscriberImpl<MessageType>*>(&subscriber);
         // test the existence of corresponding subscriber core.
         if (registry.find(impl->core.topic) == registry.cend()) {
             dbg_default_warn("unsubscribe abort because subscriber's topic '{}' does not exist in registry.", impl->core.topic);
@@ -360,6 +367,29 @@ public:
      */
     virtual ~DDSSubscriberRegistry() {}
 };
+
+template <typename MessageType>
+std::unique_ptr<DDSPublisher<MessageType>> DDSClient::create_publisher(const std::string& topic) {
+    auto topic_info = metadata_service->get_topic(topic);
+    if (topic_info.is_valid()) {
+        return std::make_unique<DDSPublisherImpl<MessageType>>(capi,topic_info.name,topic_info.pathname);
+    } else {
+        dbg_default_error("create_publisher failed because topic:'{}' does not exist.", topic);
+        return nullptr;
+    }
+}
+
+template <typename MessageType>
+std::unique_ptr<DDSSubscriber<MessageType>> DDSClient::subscribe(
+        const std::string& topic,
+        const std::unordered_map<std::string,message_handler_t<MessageType>>& handlers) {
+    return subscriber_registry->subscribe(capi,metadata_service,topic,handlers);
+}
+
+template <typename MessageType>
+void DDSClient::unsubscribe(const std::unique_ptr<DDSSubscriber<MessageType>>& subscriber) {
+    return subscriber_registry->unsubscribe(capi,metadata_service,*subscriber);
+}
 
 }
 }

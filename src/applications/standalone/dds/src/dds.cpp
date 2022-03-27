@@ -80,6 +80,10 @@ Topic::Topic(Topic&& rhs):
     name(std::move(rhs.name)),
     pathname(std::move(rhs.pathname)) {}
 
+bool Topic::is_valid() {
+    return !name.empty() && !pathname.empty();
+}
+
 std::string Topic::get_full_path() const {
     return pathname + PATH_SEPARATOR + name;
 }
@@ -196,13 +200,6 @@ DDSCommand::DDSCommand(const CommandType _command_type, const std::string& _topi
     command_type(_command_type),
     topic(_topic) {}
 
-DDSClient::~DDSClient() {}
-
-std::unique_ptr<DDSClient> DDSClient::create(const std::shared_ptr<ServiceClientAPI>& capi, std::shared_ptr<DDSConfig> dds_config) {
-    //TODO:
-    return std::make_unique<DDSClient>();
-}
-
 DDSMessage::DDSMessage():
     topic(),
     app_data() {}
@@ -290,6 +287,21 @@ void DDSSubscriberRegistry::_topic_control(std::shared_ptr<ServiceClientAPI>& ca
         capi->trigger_put(object);
         dbg_default_trace("Send DDS command:{} to service", command.to_string());
     }
+
+DDSClient::DDSClient(const std::shared_ptr<ServiceClientAPI>& _capi,
+        const std::shared_ptr<DDSConfig>& _dds_config):
+        capi(_capi) {
+    subscriber_registry = std::make_unique<DDSSubscriberRegistry>();
+    metadata_service = std::make_unique<DDSMetadataClient>(_capi,_dds_config->get_metadata_pathname());
+}
+
+DDSClient::~DDSClient() {
+    // nothing to release manually
+}
+
+std::unique_ptr<DDSClient> DDSClient::create(const std::shared_ptr<ServiceClientAPI>& capi, const std::shared_ptr<DDSConfig>& dds_config) {
+    return std::make_unique<DDSClient>(capi, dds_config);
+}
 
 }
 }

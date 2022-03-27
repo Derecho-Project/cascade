@@ -151,7 +151,33 @@ std::vector<command_entry_t> commands = {
             }
             return true;
         }
-    }
+    },
+    {
+        "Pub/Sub Commands", "", "", command_handler_t()
+    },
+    {
+        "publish",
+        "Publish to a topic",
+        "publish <topic_name> <number_of_message>",
+        [](DDSMetadataClient& metadata_client,DDSClient& client,const std::vector<std::string>& cmd_tokens) {
+            CHECK_FORMAT(cmd_tokens,3);
+            uint32_t num_messages = std::stol(cmd_tokens[2]);
+            try{
+                auto publisher = client.template create_publisher<std::string>(cmd_tokens[1]);
+                std::cout << "publisher created for topic:" << publisher->get_topic() << std::endl;;
+                for (uint32_t i=0;i<num_messages;i++) {
+                    publisher->send(std::string("Message #" + std::to_string(i) + " in topic " + publisher->get_topic()));
+                }
+            } catch (derecho::derecho_exception& ex) {
+                std::cerr << "Exception" << ex.what() << std::endl;
+                return false;
+            } catch (...) {
+                std::cerr << "Uknown exception caught." << std::endl;
+                return false;
+            }
+            return true;
+        }
+    },
 };
 
 static void do_command(

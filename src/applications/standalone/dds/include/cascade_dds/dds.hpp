@@ -87,6 +87,11 @@ public:
     Topic(Topic&& rhs);
 
     /**
+     * Test if the topic is valid or not
+     */
+    bool is_valid();
+
+    /**
      * get the full path or 'key' for this topic.
      * @return the key.
      */
@@ -246,7 +251,15 @@ private:
     std::unique_ptr<DDSSubscriberRegistry>  subscriber_registry;
     std::shared_ptr<ServiceClientAPI>       capi;
     std::unique_ptr<DDSMetadataClient>      metadata_service;
+
 public:
+    /**
+     * Constructor
+     * @param capi                  A shared capi handle
+     * @param dds_config            The dds configuration
+     */
+    DDSClient(const std::shared_ptr<ServiceClientAPI>& _capi,
+            const std::shared_ptr<DDSConfig>& _dds_config);
     /**
      * create a publisher
      * @tparam MessageType          Serializable application message type, must be either pod types, stl types, or
@@ -262,18 +275,20 @@ public:
      * @tparam MessageType          Serializable application message type, must be either pod types, stl types, or
      *                              derived from mutil::BytesRepresentable.
      * @param topic                 topic name
-     * @param handler               The message handler will be called on an incoming message.
+     * @param handlers              The optional named message handlers.
      *
      * @return a unique pointer to the subscriber
      */
     template <typename MessageType>
-    std::unique_ptr<DDSSubscriber<MessageType>>  create_subscriber(const std::string& topic, const message_handler_t<MessageType>& handler);
+    std::unique_ptr<DDSSubscriber<MessageType>> subscribe(
+            const std::string& topic,
+            const std::unordered_map<std::string,message_handler_t<MessageType>>& handlers = {});
     /**
      * remove a subscriber (or unsubscribe)
      * @param subscriber            The created subscriber
      */
     template <typename MessageType>
-    void remove_subscriber(const std::unique_ptr<DDSSubscriber<MessageType>>& subscriber);
+    void unsubscribe(const std::unique_ptr<DDSSubscriber<MessageType>>& subscriber);
 
     /**
      * destructor
@@ -285,7 +300,9 @@ public:
      * @param capi                  A shared capi handle
      * @param dds_config            The dds configuration
      */
-    static std::unique_ptr<DDSClient> create(const std::shared_ptr<ServiceClientAPI>& capi, std::shared_ptr<DDSConfig> dds_config);
+    static std::unique_ptr<DDSClient> create(
+            const std::shared_ptr<ServiceClientAPI>& capi,
+            const std::shared_ptr<DDSConfig>& dds_config);
 };
 
 }
