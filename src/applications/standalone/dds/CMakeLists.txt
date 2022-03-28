@@ -74,5 +74,6 @@ add_custom_command(TARGET cascade_dds_udl POST_BUILD
             ${CMAKE_CURRENT_SOURCE_DIR}/src/dds.json
     COMMENT "prepare cascade_dds demo configuration"
 )
+target_link_libraries(cascade_dds_udl derecho::cascade cascade_dds)
 
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/src/gen_dfgs.py.in ${CMAKE_CURRENT_BINARY_DIR}/cfg/gen_dfgs.py)
