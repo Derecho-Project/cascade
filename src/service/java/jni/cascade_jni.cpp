@@ -962,3 +962,84 @@ JNIEXPORT void JNICALL Java_io_cascade_QueryResults_closeHandle (JNIEnv* env, jo
     }
     env->SetLongField(obj,query_results_fid,0L);
 }
+
+template <typename T>
+jlong put_and_forget(std::function<typename T::ObjectType *(JNIEnv *, jobject, jobject)> f, JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong subgroup_index, jlong shard_index, jobject key, jobject val)
+{
+    #ifndef NDEBUG
+        std::cout << "Entering jlong put_and_forget! Here am I! " << std::endl;
+        char *key_buf = static_cast<char *>(env->GetDirectBufferAddress(key));
+        jlong len = env->GetDirectBufferCapacity(key);
+        for (int i = 0; i < len; ++i){
+            printf("%d,", key_buf[i]);
+        }
+        printf("\n");
+    #endif
+    // Translate Java objects to C++ objects.
+    typename T::ObjectType *obj = f(env, key, val);
+    #ifndef NDEBUG
+    std::cout << "Start to put_and_forget." << std::endl;
+    #endif
+    // Execute the put_and_forget function call.
+    capi->put_and_forget<T>(*obj, subgroup_index, shard_index);
+    #ifndef NDEBUG
+    std::cout << "Finish put_and_forget." << std::endl;
+    #endif
+    return 0;
+}
+
+/*
+ * Class:     io_cascade_Client
+ * Method:    putAndForgetInternal
+ * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;Ljava/nio/ByteBuffer;)J
+ */
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_putAndForgetInternal
+  (JNIEnv *env, jobject obj, jobject service_type, jlong subgroup_index, jlong shard_index, jobject key, jobject val)
+{
+    derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
+    int service_val = get_value(env, service_type);
+
+    #ifndef NDEBUG
+    std::cout << "called from jni handler." << std::endl;
+    std::cout << "service value:" << service_val << std::endl;
+    #endif
+
+    // executing the put
+    on_service_val(service_val, return put_and_forget, translate_str_obj, env,
+      capi, subgroup_index, shard_index, key, val);
+
+    // if service_val does not match successfully, return -1
+    return -1;
+}
+
+template <typename T>
+jlong multi_get(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong subgroup_index,
+                jlong shard_index, jobject key, jlong ver, jboolean stable,
+                std::function<typename T::KeyType(JNIEnv *, jobject)> f)
+{
+#ifndef NDEBUG
+    std::cout << "start get!" << std::endl;
+#endif
+    // translate the key
+    typename T::KeyType obj = f(env, key);
+    // execute get
+    derecho::rpc::QueryResults<const typename T::ObjectType> res = capi->get<T>(obj, ver, stable, subgroup_index, shard_index);
+    // store the result in a handler
+    QueryResultHolder<const typename T::ObjectType> *qrh = new QueryResultHolder<const typename T::ObjectType>(res);
+    return reinterpret_cast<jlong>(qrh);
+}
+
+/*
+ * Class:     io_cascade_Client
+ * Method:    multiGetInternal
+ * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;)J
+ */
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_multiGetInternal
+  (JNIEnv *env, jobject obj, jobject service_type, jlong subgroup_index,
+   jlong shard_index, jobject key)
+{
+    derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
+    int service_val = get_value(env, service_type);    
+
+    return -1;
+}
