@@ -127,6 +127,22 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_createObjectPoolInternal
 JNIEXPORT jobject JNICALL Java_io_cascade_Client_listObjectPools
   (JNIEnv *, jobject);
 
+/*
+ * Class:     io_cascade_Client
+ * Method:    putAndForgetInternal
+ * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;Ljava/nio/ByteBuffer;)J
+ */
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_putAndForgetInternal
+  (JNIEnv *, jobject, jobject, jlong, jlong, jobject, jobject);
+
+/*
+ * Class:     io_cascade_Client
+ * Method:    multiGetInternal
+ * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;)J
+ */
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_multiGetInternal
+  (JNIEnv *, jobject, jobject, jlong, jlong, jobject);
+
 #ifdef __cplusplus
 }
 #endif

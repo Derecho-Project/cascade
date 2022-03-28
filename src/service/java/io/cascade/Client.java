@@ -477,4 +477,155 @@ public class Client implements AutoCloseable {
      * @return a list of object pools
      */
     public native List<String> listObjectPools();
+
+    /**
+     * Put a String key and its corresponding value into cascade using put and
+     * forget mechanism.
+     *
+     * Put_and_forget differs from normal put in that we do not check if the put
+     * is successful or not and hence there is no return value.
+     *
+     * @param type          The type of the subgroup. In Cascade, this would be VCSS
+     *                      and PCSS
+     * @param key           The string key of the key-value pair. Requires:
+     *                      {@code key} should be non-negative.
+     * @param buf           A Java direct byte buffer that holds the value of the
+     *                      key-value pair. Requires: {@code buf} should be a direct
+     *                      byte buffer.
+     * @param subgroupIndex The index of the subgroup with type {@code type} to put
+     *                      this key-value pair into.
+     * @param shardID       The index of the shard within the subgroup with type
+     *                      {@code type} and subgroup index {@code subgroupIndex} to
+     *                      put this key-value pair into.
+     * @return None.
+     */
+    public void put_and_forget(ServiceType type, String key, ByteBuffer buf,
+            long subgroupIndex, long shardID) {
+        byte[] arr = key.getBytes();
+        ByteBuffer bbkey = ByteBuffer.allocateDirect(arr.length);
+        bbkey.put(arr);
+        putAndForgetInternal(type, subgroupIndex, shardID, bbkey, buf);
+        return;
+    }
+
+    /**
+     * Put a String key and its corresponding value into cascade using put and
+     * forget mechanism.
+     *
+     * Put_and_forget differs from normal put in that we do not check if the put
+     * is successful or not and hence there is no return value.
+     *
+     * @param type          The type of the subgroup. In Cascade, this would be VCSS
+     *                      and PCSS
+     * @param key           The ByteBuffer key of the key-value pair. 
+     * @param buf           A Java direct byte buffer that holds the value of the
+     *                      key-value pair. Requires: {@code buf} should be a direct
+     *                      byte buffer.
+     * @param subgroupIndex The index of the subgroup with type {@code type} to put
+     *                      this key-value pair into.
+     * @param shardID       The index of the shard within the subgroup with type
+     *                      {@code type} and subgroup index {@code subgroupIndex} to
+     *                      put this key-value pair into.
+     * @return None.
+     */
+    public void put_and_forget(ServiceType type, ByteBuffer key, ByteBuffer buf,
+            long subgroupIndex,long shardID) {
+        putAndForgetInternal(type, subgroupIndex, shardID, key, buf);
+        return;
+    }
+
+    /**
+     * Internal interface for put_and_forget operation.
+     *
+     * @param type          The type of the subgroup. In Cascade, this would be
+     *                      VCSS or PCSS.
+     * @param subgroupIndex The index of the subgroup with type {@code type} to put
+     *                      this key-value pair into.
+     * @param shardIndex    The index of the shard within the subgroup with type
+     *                      {@code type} and subgroup index {@code subgroupIndex} to
+     *                      put this key-value pair into.
+     * @param key           The byte buffer key of the key-value pair.
+     * @param val           The byte buffer value of the key-value pair.
+     * @return A handle of the C++ future that stores the version and timestamp of
+     *         the operation.
+     */
+    private native long putAndForgetInternal(ServiceType type,
+            long subgroupIndex, long shardIndex, ByteBuffer key,
+            ByteBuffer val);
+
+
+    /**
+     * Get the value corresponding to the key from cascade using multi_get.
+     * 
+     * Multi_get differs from get in that atomic broadcast is involved in the
+     * former.
+     * 
+     * @param type          The type of the subgroup.
+     * @param key           The byte buffer key of the key-value pair. The user
+     *                      should serialize their key formats into this byte
+     *                      format in order to use this method. If you use VCSU
+     *                      and PCSU as types, the hexadecimal translation of
+     *                      the byte buffer would be the long key.
+     * @param subgroupIndex The index of the subgroup with type {@code type} to
+     *                      acquire the key-value pair.
+     * @param shardID       The index of the shard within the subgroup with type
+     *                      {@code type} and subgroup index
+     *                      {@code subgroupIndex} to acquire this key-value
+     *                      pair.
+     * @return A Future that stores a handle to a direct byte buffer that
+     *         contains the value that corresponds to the key in the specified
+     *         subgroup/shard. The byte buffer would be empty if the key has not
+     *         been put into cascade.
+     */
+    public QueryResults<CascadeObject> multi_get(ServiceType type,
+            ByteBuffer key, long subgroupIndex, long shardID) {
+        long res = multiGetInternal(type, subgroupIndex, shardID, key);
+        return new QueryResults<CascadeObject>(res, 1);
+    }
+
+    /**
+     * Get the value corresponding to the key from cascade using multi_get.
+     * 
+     * Multi_get differs from get in that atomic broadcast is involved in the
+     * former.
+     * 
+     * @param type          The type of the subgroup.
+     * @param key           The string key of the key-value pair. If you use
+     *                      VCSU and PCSU as types, the hexadecimal translation
+     *                      of the byte buffer would be the long key.
+     * @param subgroupIndex The index of the subgroup with type {@code type} to
+     *                      acquire the key-value pair.
+     * @param shardID       The index of the shard within the subgroup with type
+     *                      {@code type} and subgroup index
+     *                      {@code subgroupIndex} to acquire this key-value
+     *                      pair.
+     * @return A Future that stores a handle to a direct byte buffer that
+     *         contains the value that corresponds to the key in the specified
+     *         subgroup/shard. The byte buffer would be empty if the key has not
+     *         been put into cascade.
+     */
+    public QueryResults<CascadeObject> multi_get(ServiceType type,
+            String key, long subgroupIndex, long shardID) {
+        byte[] arr = key.getBytes();
+        ByteBuffer bbkey = ByteBuffer.allocateDirect(arr.length);
+        bbkey.put(arr);
+        long res = multiGetInternal(type, subgroupIndex, shardID, bbkey);
+        return new QueryResults<CascadeObject>(res, 1);
+    }
+
+    /**
+     * Internal interface for multi_get operation.
+     * 
+     * @param type          The type of the subgroup.
+     * @param subgroupIndex The index of the subgroup with type {@code type} to get
+     *                      this key-value pair from.
+     * @param shardIndex    The index of the shard within the subgroup with type
+     *                      {@code type} and subgroup index {@code subgroupIndex} to
+     *                      get this key-value pair from.
+     * @param key           The byte buffer key of the key-value pair.
+     * @return A handle of the C++ future that stores the byte buffer for values.
+     */
+    private native long multiGetInternal(ServiceType type, long subgroupIndex,
+            long shardIndex, ByteBuffer key);
+
 }
