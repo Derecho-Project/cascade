@@ -38,7 +38,12 @@ class DDSOCDPO: public OffCriticalDataPathObserver {
                               const std::unordered_map<std::string,bool>&, // output
                               ICascadeContext* ctxt,
                               uint32_t /*worker_id*/) override {
-        std::string key_without_prefix = key_string.substr(prefix_length+1);
+        if (key_string.size() <= prefix_length) {
+            dbg_default_warn("{}: skipping invalid key_string:{}.", __PRETTY_FUNCTION__, key_string);
+            return;
+        }
+        std::string key_without_prefix = key_string.substr(prefix_length);
+        dbg_default_trace("{}: key_without_prefix={}.", __PRETTY_FUNCTION__, key_without_prefix);
         const ObjectWithStringKey* object = dynamic_cast<const ObjectWithStringKey*>(value_ptr);
         if (key_without_prefix == control_plane_suffix) {
             // control plane
@@ -71,7 +76,7 @@ class DDSOCDPO: public OffCriticalDataPathObserver {
                 auto* typed_ctxt = dynamic_cast<DefaultCascadeContextType*>(ctxt);
                 for (const auto& client_id: subscriber_registry.at(key_without_prefix)) {
                     dbg_default_trace("Reply a message from topic '{}' to external client {}.",key_without_prefix,client_id);
-                    typed_ctxt->get_service_client_ref().notify(object->blob,key_string.substr(0,prefix_length),client_id);
+                    typed_ctxt->get_service_client_ref().notify(object->blob,key_string.substr(0,prefix_length-1),client_id);
                 }
             }
         }

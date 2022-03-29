@@ -112,6 +112,7 @@ public:
         mutils::to_bytes(message,&msg_ptr->message_bytes);
 
         // send message
+        dbg_default_trace("in {}: put object with key:{}", __PRETTY_FUNCTION__, cascade_key);
         capi->put_and_forget(object);
     }
 
@@ -296,6 +297,7 @@ class DDSSubscriberRegistry {
     void _topic_control(std::shared_ptr<ServiceClientAPI>& capi, const Topic& topic_info, DDSCommand::CommandType command_type);
 
 public:
+    DDSSubscriberRegistry(const std::string& _control_plane_suffix);
     /**
      * Create a subscriber
      * @tparam  MessageType         the message type
@@ -322,12 +324,14 @@ public:
             // register universal per-topic handler, which dispatches messages to subscriber cores.
             capi->register_notification_handler(
                     [this,topic](const Blob& blob)->void{
+                        dbg_default_trace("notification handler is triggered on topic:{}",topic);
                         for(auto& subscriber_core:registry.at(topic).registry) {
                             if (subscriber_core.second->online) {
                                 subscriber_core.second->post(blob);
                             }
                         }
                     },topic_info.pathname);
+            dbg_default_trace("registered a handler for topic:{} on pathname:{}",topic,topic_info.pathname);
             // subscribe to a cascade server.
             _topic_control(capi,topic_info,DDSCommand::SUBSCRIBE);
         }

@@ -278,6 +278,9 @@ SubscriberCore::~SubscriberCore() {
     shutdown();
 }
 
+DDSSubscriberRegistry::DDSSubscriberRegistry(const std::string& _control_plane_suffix) :
+    control_plane_suffix(_control_plane_suffix) {}
+
 void DDSSubscriberRegistry::_topic_control(std::shared_ptr<ServiceClientAPI>& capi, const Topic& topic_info, DDSCommand::CommandType command_type) {
         DDSCommand command(command_type,topic_info.name);
         std::size_t buffer_size = mutils::bytes_size(command);
@@ -285,13 +288,13 @@ void DDSSubscriberRegistry::_topic_control(std::shared_ptr<ServiceClientAPI>& ca
         mutils::to_bytes(command,stack_buffer);
         ObjectWithStringKey object(topic_info.pathname + PATH_SEPARATOR + control_plane_suffix,Blob(stack_buffer,buffer_size,true));
         capi->trigger_put(object);
-        dbg_default_trace("Send DDS command:{} to service", command.to_string());
+        dbg_default_trace("Sent DDS command:{} to service, command key={}", command.to_string(), object.get_key_ref());
     }
 
 DDSClient::DDSClient(const std::shared_ptr<ServiceClientAPI>& _capi,
         const std::shared_ptr<DDSConfig>& _dds_config):
         capi(_capi) {
-    subscriber_registry = std::make_unique<DDSSubscriberRegistry>();
+    subscriber_registry = std::make_unique<DDSSubscriberRegistry>(_dds_config->get_control_plane_suffix());
     metadata_service = std::make_unique<DDSMetadataClient>(_capi,_dds_config->get_metadata_pathname());
 }
 
