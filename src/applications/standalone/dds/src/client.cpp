@@ -166,6 +166,10 @@ std::vector<command_entry_t> commands = {
             uint32_t num_messages = std::stol(cmd_tokens[2]);
             try{
                 auto publisher = client.template create_publisher<std::string>(cmd_tokens[1]);
+                if (!publisher) {
+                    std::cerr << "failed to create publisher for topic:" << cmd_tokens[1] << std::endl;
+                    return false;
+                }
                 std::cout << "publisher created for topic:" << publisher->get_topic() << std::endl;;
                 for (uint32_t i=0;i<num_messages;i++) {
                     publisher->send(std::string("Message #" + std::to_string(i) + " in topic " + publisher->get_topic()));
