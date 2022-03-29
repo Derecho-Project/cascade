@@ -61,6 +61,8 @@ ssize_t find_command(const std::vector<command_entry_t>& command_list, const std
         return false; \
     }
 
+std::unordered_map<std::string,std::unique_ptr<DDSSubscriber<std::string>>> subscribers;
+
 std::vector<command_entry_t> commands = {
     {
         "General Commands", "", "", command_handler_t()
@@ -157,7 +159,7 @@ std::vector<command_entry_t> commands = {
     },
     {
         "publish",
-        "Publish to a topic",
+        "Publish to a topic (with predefined messages: Message #N in topic XXX)",
         "publish <topic_name> <number_of_message>",
         [](DDSMetadataClient& metadata_client,DDSClient& client,const std::vector<std::string>& cmd_tokens) {
             CHECK_FORMAT(cmd_tokens,3);
@@ -174,6 +176,74 @@ std::vector<command_entry_t> commands = {
             } catch (...) {
                 std::cerr << "Uknown exception caught." << std::endl;
                 return false;
+            }
+            return true;
+        }
+    },
+    {
+        "subscribe",
+        "Subscribe to a topic",
+        "subscribe <topic_name> <subscriber_name>",
+        [](DDSMetadataClient& metadata_client,DDSClient& client,const std::vector<std::string>& cmd_tokens) {
+            CHECK_FORMAT(cmd_tokens,3);
+            const std::string& topic = cmd_tokens[1];
+            const std::string& sname = cmd_tokens[2];
+            try {
+                auto subscriber = client.template subscribe<std::string>(
+                        topic,
+                        std::unordered_map<std::string,message_handler_t<std::string>>{{
+                            std::string{"default"},
+                            [topic](const std::string& msg){
+                                std::cout << "Message received in topic '" << topic << "': " << msg << std::endl;
+                            }
+                        }}
+                );
+                // keep trace of it
+                subscribers.emplace(sname,std::move(subscriber));
+            } catch (derecho::derecho_exception& ex) {
+                std::cerr << "Exception" << ex.what() << std::endl;
+                return false;
+            } catch (...) {
+                std::cerr << "Uknown exception caught." << std::endl;
+                return false;
+            }
+            return true;
+        }
+    },
+    {
+        "unsubscribe",
+        "unsubscribe from a topic",
+        "unsubscribe <subscriber_name>",
+        [](DDSMetadataClient& metadata_client,DDSClient& client,const std::vector<std::string>& cmd_tokens) {
+            CHECK_FORMAT(cmd_tokens,2);
+            const std::string& sname = cmd_tokens[1];
+            try {
+                if (subscribers.find(sname) == subscribers.cend()) {
+                    std::cerr << "No subscriber with name '" << sname << " is found." << std::endl;
+                    return false;
+                }
+                client.unsubscribe(subscribers.at(sname));
+                subscribers.erase(sname);
+            } catch (derecho::derecho_exception& ex) {
+                std::cerr << "Exception" << ex.what() << std::endl;
+                return false;
+            } catch (...) {
+                std::cerr << "Uknown exception caught." << std::endl;
+                return false;
+            }
+            return true;
+        }
+    },
+    {
+        "list_subscribers",
+        "list current subscribers",
+        "list_subscribers",
+        [](DDSMetadataClient& metadata_client,DDSClient& client,const std::vector<std::string>& cmd_tokens) {
+            std::cout << subscribers.size() << " subscribers found" << std::endl;
+            std::cout << "NAME\tTOPIC" << std::endl;
+            std::cout << "=============" << std::endl;
+            for (const auto& pair:subscribers) {
+                std::cout << pair.first << "\t" << pair.second->get_topic() << std::endl;
             }
             return true;
         }

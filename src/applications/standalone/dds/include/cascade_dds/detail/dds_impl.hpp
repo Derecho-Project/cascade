@@ -126,6 +126,8 @@ thread_local std::vector<uint8_t> DDSPublisherImpl<MessageType>::static_buffer;
 
 class PerTopicRegistry;
 class DDSSubscriberRegistry;
+template <typename MessageType>
+class DDSSubscriberImpl;
 
 /**
  * @class SubscriberCore
@@ -133,6 +135,8 @@ class DDSSubscriberRegistry;
 class SubscriberCore {
     friend PerTopicRegistry;
     friend DDSSubscriberRegistry;
+    template <typename MessageType>
+    friend class DDSSubscriberImpl;
 
 private:
     const std::string topic;
@@ -207,6 +211,10 @@ public:
     DDSSubscriberImpl(const std::shared_ptr<SubscriberCore>& _core):
         core(_core) {}
 
+    virtual const std::string& get_topic() override {
+        return core->topic;
+    }
+
     /**
      * add handler
      * @param handler_name
@@ -263,7 +271,7 @@ class PerTopicRegistry {
     template <typename MessageType>
     std::shared_ptr<SubscriberCore> create_subscriber_core(const std::unordered_map<std::string,message_handler_t<MessageType>>& handlers={}) {
         //2 - create a subscriber core
-        registry.emplace(counter, std::make_shared<SubscriberCore>(topic));
+        registry.emplace(counter, std::make_shared<SubscriberCore>(topic,counter));
         for (const auto& handler: handlers) {
             registry[counter]->add_handler(handler.first,
                 [handler](const Blob& blob){
@@ -314,7 +322,7 @@ public:
             // register universal per-topic handler, which dispatches messages to subscriber cores.
             capi->register_notification_handler(
                     [this,topic](const Blob& blob)->void{
-                        for(auto& subscriber_core:registry[topic].registry) {
+                        for(auto& subscriber_core:registry.at(topic).registry) {
                             if (subscriber_core.second->online) {
                                 subscriber_core.second->post(blob);
                             }
@@ -324,7 +332,7 @@ public:
             _topic_control(capi,topic_info,DDSCommand::SUBSCRIBE);
         }
         // register the handlers
-        auto subscriber_core = registry[topic].template create_subscriber_core<MessageType>(handlers);
+        auto subscriber_core = registry.at(topic).template create_subscriber_core<MessageType>(handlers);
         // create a Subscriber object wrapping the Subscriber Core
         return std::make_unique<DDSSubscriberImpl<MessageType>>(subscriber_core);
     }
@@ -343,22 +351,22 @@ public:
         std::lock_guard<std::mutex> lck(registry_mutex);
         const DDSSubscriberImpl<MessageType>* impl = dynamic_cast<const DDSSubscriberImpl<MessageType>*>(&subscriber);
         // test the existence of corresponding subscriber core.
-        if (registry.find(impl->core.topic) == registry.cend()) {
-            dbg_default_warn("unsubscribe abort because subscriber's topic '{}' does not exist in registry.", impl->core.topic);
+        if (registry.find(impl->core->topic) == registry.cend()) {
+            dbg_default_warn("unsubscribe abort because subscriber's topic '{}' does not exist in registry.", impl->core->topic);
             return;
         }
-        if (registry[impl->core.topic].registry.find(impl->core.index) == registry[impl->core.topic].registry.cend()) {
-            dbg_default_warn("unsubscribe abort because subscriber's index '{}' does not exist in the per topic registry.", impl->core.index);
+        if (registry.at(impl->core->topic).registry.find(impl->core->index) == registry.at(impl->core->topic).registry.cend()) {
+            dbg_default_warn("unsubscribe abort because subscriber's index '{}' does not exist in the per topic registry.", impl->core->index);
             return;
         }
         // remove the subscriber core
-        registry[impl->core.topic].registry.erase(impl->core.index);
-        if (registry[impl->core.topic].registry.empty()) {
-            auto topic_info = metadata_service.get_topic(impl->core.topic);
+        registry.at(impl->core->topic).registry.erase(impl->core->index);
+        if (registry.at(impl->core->topic).registry.empty()) {
+            auto topic_info = metadata_service.get_topic(impl->core->topic);
             // unsubscribe from a cascade server
             _topic_control(capi,topic_info,DDSCommand::UNSUBSCRIBE);
             // remove the topic entry
-            registry.erase(impl->core.topic);
+            registry.erase(impl->core->topic);
         }
     }
 
@@ -383,12 +391,12 @@ template <typename MessageType>
 std::unique_ptr<DDSSubscriber<MessageType>> DDSClient::subscribe(
         const std::string& topic,
         const std::unordered_map<std::string,message_handler_t<MessageType>>& handlers) {
-    return subscriber_registry->subscribe(capi,metadata_service,topic,handlers);
+    return subscriber_registry->template subscribe<MessageType>(capi,*metadata_service,topic,handlers);
 }
 
 template <typename MessageType>
 void DDSClient::unsubscribe(const std::unique_ptr<DDSSubscriber<MessageType>>& subscriber) {
-    return subscriber_registry->unsubscribe(capi,metadata_service,*subscriber);
+    return subscriber_registry->template unsubscribe<MessageType>(capi,*metadata_service,*subscriber);
 }
 
 }
