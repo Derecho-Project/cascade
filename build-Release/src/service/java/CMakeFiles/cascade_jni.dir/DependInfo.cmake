@@ -1,0 +1,33 @@
+# The set of languages for which implicit dependencies are needed:
+set(CMAKE_DEPENDS_LANGUAGES
+  "CXX"
+  )
+# The set of files for implicit dependencies of each language:
+set(CMAKE_DEPENDS_CHECK_CXX
+  "/root/workspace/cascade/src/service/java/jni/cascade_jni.cpp" "/root/workspace/cascade/build-Release/src/service/java/CMakeFiles/cascade_jni.dir/jni/cascade_jni.cpp.o"
+  )
+set(CMAKE_CXX_COMPILER_ID "GNU")
+
+# Preprocessor definitions for this target.
+set(CMAKE_TARGET_DEFINITIONS_CXX
+  "JSON_USE_IMPLICIT_CONVERSIONS=1"
+  "SPDLOG_COMPILED_LIB"
+  "cascade_jni_EXPORTS"
+  )
+
+# The include file search paths:
+set(CMAKE_CXX_TARGET_INCLUDE_PATH
+  "include"
+  "../include"
+  "../src/service/java"
+  "/usr/lib/jvm/java-16-openjdk-amd64/include"
+  "/usr/lib/jvm/java-16-openjdk-amd64/include/linux"
+  )
+
+# Targets to which this target links.
+set(CMAKE_TARGET_LINKED_INFO_FILES
+  "/root/workspace/cascade/build-Release/CMakeFiles/cascade.dir/DependInfo.cmake"
+  )
+
+# Fortran module output directory.
+set(CMAKE_Fortran_TARGET_MODULE_DIR "")

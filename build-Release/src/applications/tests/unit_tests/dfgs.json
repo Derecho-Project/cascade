@@ -1,0 +1,31 @@
+[
+    {
+        "id": "26639e22-9b3c-11eb-a237-0242ac110002",
+        "desc": "example DFG",
+        "graph": [
+            {
+                "pathname": "/pool0",
+                "user_defined_logic_list": [
+                    "4e4ecc86-9b3c-11eb-b70c-0242ac110002",
+                    "4f0373a2-9b3c-11eb-a651-0242ac110002"
+                ],
+                "destinations": [
+                    {"/pool1.1":"put","/pool1.2":"trigger_put"},
+                    {"/pool2":"put"}
+                ]
+            },
+            {
+                "pathname": "/pool1.1",
+                "user_defined_logic_list": [
+                    "43fecc86-9b3c-11eb-b70c-0242ac110002"
+                ],
+                "user_defined_logic_config_list": [
+                    "configuration string for UDL-43fecc86..."
+                ],
+                "destinations": [
+                    {"/pool3":"put"}
+                ]
+            }
+        ]
+    }
+]

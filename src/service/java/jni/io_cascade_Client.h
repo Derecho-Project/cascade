@@ -140,8 +140,16 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_putAndForgetInternal
  * Method:    multiGetInternal
  * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;)J
  */
-JNIEXPORT jlong JNICALL Java_io_cascade_Client_multiGetInternal
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_multiGetInternal__Lio_cascade_ServiceType_2JJLjava_nio_ByteBuffer_2
   (JNIEnv *, jobject, jobject, jlong, jlong, jobject);
+
+/*
+ * Class:     io_cascade_Client
+ * Method:    multiGetInternal
+ * Signature: (Lio/cascade/ServiceType;Ljava/nio/ByteBuffer;)J
+ */
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_multiGetInternal__Lio_cascade_ServiceType_2Ljava_nio_ByteBuffer_2
+  (JNIEnv *, jobject, jobject, jobject);
 
 #ifdef __cplusplus
 }

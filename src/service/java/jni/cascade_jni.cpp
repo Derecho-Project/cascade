@@ -1015,6 +1015,18 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_putAndForgetInternal
     return -1;
 }
 
+/*
+ * Helper function to multi_get from Cascade.
+ *
+ * @param f a lambda function that converts Java keys into C++ keys.
+ * @param env the Java environment to find JVM.
+ * @param capi the service client API for this client.
+ * @param subgroup_index the subgroup index to get the object.
+ * @param shard_index the subgroup index to get the object.
+ * @param key the Java byte buffer key to get.
+ *
+ * @return a handle of the future that stores the buffer of the value.
+ */
 template <typename T>
 jlong multi_get(std::function<typename T::KeyType(JNIEnv *, jobject)> f,
                 JNIEnv *env, derecho::cascade::ServiceClientAPI *capi,
@@ -1039,7 +1051,7 @@ jlong multi_get(std::function<typename T::KeyType(JNIEnv *, jobject)> f,
  * Method:    multiGetInternal
  * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;)J
  */
-JNIEXPORT jlong JNICALL Java_io_cascade_Client_multiGetInternal
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_multiGetInternal__Lio_cascade_ServiceType_2JJLjava_nio_ByteBuffer_2
     (JNIEnv *env, jobject obj, jobject j_service_type, jlong subgroup_index,
      jlong shard_index, jobject key)
 {
@@ -1053,4 +1065,75 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_multiGetInternal
     on_service_type(service_type, return multi_get, translate_str_key, env,
         capi, subgroup_index, shard_index, key);
     return -1;
+}
+
+/*
+ * Helper function to multi_get an object from an object pool in Cascade.
+ *
+ * @param f a lambda function that converts Java keys into C++ keys.
+ * @param env the Java environment to find JVM.
+ * @param capi the service client API for this client.
+ * @param key the Java byte buffer key to get.
+ *
+ * @return a handle of the future that stores the buffer of the value.
+ */
+template <typename T>
+jlong multi_get_obj(std::function<typename T::KeyType(JNIEnv *, jobject)> f,
+                JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jobject key)
+{
+#ifndef NDEBUG
+    std::cout << "Start multi_get_obj!" << std::endl;
+#endif
+    // Translate the key.
+    std::string typed_key = f(env, key);
+    // Execute multi_get for object pool.
+    // derecho::rpc::QueryResults<const typename T::ObjectType> res =
+    //    capi->multi_get<T>(typed_key);
+    auto res = capi-> multi_get(typed_key);
+
+    // Store the result in a handler.
+    QueryResultHolder<const typename T::ObjectType> *qrh =
+        new QueryResultHolder<const typename T::ObjectType>(res);
+    return reinterpret_cast<jlong>(qrh);
+}
+
+/*
+ * Class:     io_cascade_Client
+ * Method:    multiGetInternal
+ * Signature: (Lio/cascade/ServiceType;Ljava/nio/ByteBuffer;)J
+ */
+/*
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_multiGetInternal__Lio_cascade_ServiceType_2Ljava_nio_ByteBuffer_2
+    (JNIEnv *env, jobject obj, jobject j_service_type, jobject key)
+{
+    derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
+    int service_type = get_int_value(env, j_service_type);
+#ifndef NDEBUG
+    std::cout << "Entering multi_get for object pool, with service value " <<
+        service_val << std::endl;
+#endif
+    // Executing multi-get.
+    on_service_type(service_type, return multi_get_obj, translate_str_key, env,
+        capi, key);
+    return -1;
+}
+*/
+
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_multiGetInternal__Lio_cascade_ServiceType_2Ljava_nio_ByteBuffer_2
+    (JNIEnv *env, jobject obj, jobject j_service_type, jobject key)
+{
+    derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
+    int service_type = get_int_value(env, j_service_type);
+#ifndef NDEBUG
+    std::cout << "Entering multi_get for object pool." << std::endl;
+#endif
+    // Execute multi_get for object pool.
+    std::string obj_key = translate_str_key(env, key);
+    auto res = capi-> multi_get(obj_key);
+
+    // Store the result in a handler.
+    QueryResultHolder<const derecho::cascade::ObjectWithStringKey> *qrh =
+        new QueryResultHolder<const derecho::cascade::ObjectWithStringKey>(res);
+
+    return reinterpret_cast<jlong>(qrh);
 }

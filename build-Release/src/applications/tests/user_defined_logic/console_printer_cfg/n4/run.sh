@@ -1,0 +1,1 @@
+/root/workspace/cascade/build-Release/src/applications/tests/user_defined_logic/console_printer_cfg/run.sh.tmp

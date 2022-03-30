@@ -628,4 +628,12 @@ public class Client implements AutoCloseable {
     private native long multiGetInternal(ServiceType type, long subgroupIndex,
             long shardIndex, ByteBuffer key);
 
+    /**
+     * Internal interface for multi_get operation for object pool.
+     * 
+     * @param type          The type of the subgroup.
+     * @param key           The byte buffer key of the key-value pair.
+     * @return A handle of the C++ future that stores the byte buffer for values.
+     */
+    private native long multiGetInternal(ServiceType type, ByteBuffer key);
 }
