@@ -369,22 +369,23 @@ namespace cascade {
                     reinterpret_cast<uint64_t>(this),typeid(SubgroupType).name());
             subgroup_caller.register_notification_handler(
                     [this](const derecho::NotificationMessage& msg){
-                        dbg_default_trace("subgroup notification handler is triggered with this={:x}, msg type={}", 
-                                reinterpret_cast<uint64_t>(this), msg.message_type);
+                        dbg_default_trace("subgroup notification handler is triggered with this={:x}, msg type={}, size={} bytes", 
+                                reinterpret_cast<uint64_t>(this), msg.message_type, msg.size);
                         (*this)(msg);    
                     });
         }
 
         inline void operator ()(const derecho::NotificationMessage& msg) {
-            dbg_default_trace("SubgroupNotificationHandler(this={:x}) is triggered with message_type={:x}.",
-                    reinterpret_cast<uint64_t>(this),msg.message_type);
+            dbg_default_trace("SubgroupNotificationHandler(this={:x}) is triggered with message_type={:x}, size={} bytes",
+                    reinterpret_cast<uint64_t>(this),msg.message_type, msg.size);
             if (msg.message_type != CASCADE_NOTIFICATION_MESSAGE_TYPE) {
                 return;
             }
             // mutils::deserialize_and_run<CascadeNotificationMessage>(nullptr, msg.body, 
             mutils::deserialize_and_run(nullptr, msg.body, 
                     [this](const CascadeNotificationMessage& cascade_message)->void {
-                        dbg_default_trace("Handling cascade_message: {}.", cascade_message.object_pool_pathname);
+                        dbg_default_trace("Handling cascade_message: {}. size={} bytes",
+                                cascade_message.object_pool_pathname,cascade_message.blob.size);
                         std::lock_guard<std::mutex> lck(*object_pool_notification_handlers_mutex);
                         // call default handler
                         if (object_pool_notification_handlers.find("") !=
