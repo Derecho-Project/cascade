@@ -1,1 +1,0 @@
-/usr/bin/g++ -fPIC -O3 -DNDEBUG -Wall -DEVALUATION -fcompare-debug-second  -shared -Wl,-soname,libconsole_printer_udl.so -o libconsole_printer_udl.so CMakeFiles/console_printer_udl.dir/console_printer_udl.cpp.o 
