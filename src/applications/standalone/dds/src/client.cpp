@@ -172,8 +172,9 @@ std::vector<command_entry_t> commands = {
                 }
                 std::cout << "publisher created for topic:" << publisher->get_topic() << std::endl;;
                 for (uint32_t i=0;i<num_messages;i++) {
+                    const std::string msg = std::string("Message #" + std::to_string(i) + " in topic " + publisher->get_topic());
                     dbg_default_trace("publishing msg #{} to topic:{}", i, publisher->get_topic());
-                    publisher->send(std::string("Message #" + std::to_string(i) + " in topic " + publisher->get_topic()));
+                    publisher->send(msg);
                 }
             } catch (derecho::derecho_exception& ex) {
                 std::cerr << "Exception" << ex.what() << std::endl;
@@ -199,7 +200,8 @@ std::vector<command_entry_t> commands = {
                         std::unordered_map<std::string,message_handler_t<std::string>>{{
                             std::string{"default"},
                             [topic](const std::string& msg){
-                                std::cout << "Message received in topic '" << topic << "': " << msg << std::endl;
+                                std::cout << "Message of " << msg.size() << " bytes"
+                                          << " received in topic '" << topic << "': " << msg << std::endl;
                             }
                         }}
                 );

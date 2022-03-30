@@ -231,9 +231,9 @@ SubscriberCore::SubscriberCore(const std::string& _topic, const uint32_t _index)
             while(!q.empty()) {
                 std::lock_guard<std::mutex> hlck(handlers_mutex);
                 for (const auto& handle:handlers) {
-                    dbg_default_trace("call: handler {} on topic {}",handle.first,topic);
+                    dbg_default_trace("call: handler {} on topic {}, size = {} bytes.",handle.first,topic,q.front().size);
                     handle.second(q.front());
-                    dbg_default_trace("done: handler {} on topic {}",handle.first,topic);
+                    dbg_default_trace("done: handler {} on topic {}, size = {} bytes.",handle.first,topic,q.front().size);
                 }
                 q.pop_front();
             }
@@ -261,6 +261,7 @@ void SubscriberCore::delete_handler(const std::string& handler_name) {
 }
 
 void SubscriberCore::post(const Blob& blob) {
+    dbg_default_trace("{} post a blob of {} bytes.", __PRETTY_FUNCTION__, blob.size);
     std::lock_guard<std::mutex> lck(message_queue_mutex);
     message_queue.emplace_back(blob);
     message_queue_cv.notify_one();

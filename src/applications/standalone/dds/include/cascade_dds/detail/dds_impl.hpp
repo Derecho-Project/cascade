@@ -224,7 +224,9 @@ public:
     void add_handler(const std::string& handler_name,const message_handler_t<MessageType>& handler) {
         core->add_handler(handler_name,
             [handler](const Blob& blob)->void {
-                mutils::deserialize_and_run(nullptr,blob.bytes,handler);
+                dbg_default_trace("subscriber core handler: blob size = {} bytes.", blob.size);
+                const DDSMessageHeader* header_ptr = reinterpret_cast<const DDSMessageHeader*>(blob.bytes);
+                mutils::deserialize_and_run(nullptr,&header_ptr->message_bytes,handler);
         });
     }
 
@@ -275,13 +277,15 @@ class PerTopicRegistry {
         registry.emplace(counter, std::make_shared<SubscriberCore>(topic,counter));
         for (const auto& handler: handlers) {
             registry[counter]->add_handler(handler.first,
-                [handler](const Blob& blob){
-                    mutils::deserialize_and_run(nullptr,blob.bytes,handler.second);
+                [hdlr=handler.second](const Blob& blob)->void{
+                    dbg_default_trace("subscriber core handler: blob size = {} bytes.", blob.size);
+                    const DDSMessageHeader* header_ptr = reinterpret_cast<const DDSMessageHeader*>(blob.bytes);
+                    mutils::deserialize_and_run(nullptr,&header_ptr->message_bytes,hdlr);
                 }
             );
         }
         counter ++;
-        return registry[counter-1];
+        return registry.at(counter-1);
     }
 };
 
@@ -323,8 +327,10 @@ public:
             registry.emplace(topic,PerTopicRegistry(topic,topic_info.pathname));
             // register universal per-topic handler, which dispatches messages to subscriber cores.
             capi->register_notification_handler(
-                    [this,topic](const Blob& blob)->void{
-                        dbg_default_trace("notification handler is triggered on topic:{}",topic);
+                    [this](const Blob& blob)->void{
+                        const DDSMessageHeader* ptr = reinterpret_cast<const DDSMessageHeader*>(blob.bytes);
+                        std::string topic(ptr->topic_name,ptr->topic_name_length);
+                        dbg_default_trace("notification handler is triggered on topic:{}, size={]",topic,blob.size);
                         for(auto& subscriber_core:registry.at(topic).registry) {
                             if (subscriber_core.second->online) {
                                 subscriber_core.second->post(blob);
