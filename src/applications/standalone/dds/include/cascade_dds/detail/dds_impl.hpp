@@ -60,6 +60,7 @@ class DDSPublisherImpl: public DDSPublisher<MessageType> {
     const std::string topic;
     const std::string cascade_key;
     static thread_local std::vector<uint8_t> static_buffer;
+    static thread_local bool static_buffer_is_uninitialized;
 
 public:
     /** Constructor
@@ -85,12 +86,13 @@ public:
         std::size_t requested_size = mutils::bytes_size(message) + DDS_MESSAGE_HEADER_SIZE;
         DDSMessageHeader* msg_ptr = reinterpret_cast<DDSMessageHeader*>(static_buffer.data());
 
-        if (static_buffer.size() < requested_size) {
+        if (static_buffer_is_uninitialized || (static_buffer.capacity() < requested_size)) {
             static_buffer.reserve(requested_size);
             // update pointer.
             msg_ptr = reinterpret_cast<DDSMessageHeader*>(static_buffer.data());
             std::memcpy(msg_ptr->topic_name,topic.c_str(),topic.size());
             msg_ptr->topic_name_length = topic.size();
+            static_buffer_is_uninitialized = false;
         }
         
         // prepare the buffer 
@@ -123,7 +125,10 @@ public:
 };
 
 template<typename MessageType>
-thread_local std::vector<uint8_t> DDSPublisherImpl<MessageType>::static_buffer;
+thread_local std::vector<uint8_t> DDSPublisherImpl<MessageType>::static_buffer{};
+
+template<typename MessageType>
+thread_local bool DDSPublisherImpl<MessageType>::static_buffer_is_uninitialized = false;
 
 class PerTopicRegistry;
 class DDSSubscriberRegistry;
