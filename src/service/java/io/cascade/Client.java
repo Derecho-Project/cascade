@@ -479,6 +479,20 @@ public class Client implements AutoCloseable {
     public native List<String> listObjectPools();
 
     /**
+     * Helper function to convert String to ByteBuffer.
+     *
+     * @param str The String object to be converted.
+     *
+     * @return A ByteBuffer containing the String.
+     */
+    private ByteBuffer str2ByteBuffer(String str){
+        byte[] arr = str.getBytes();
+        ByteBuffer bb = ByteBuffer.allocateDirect(arr.length);
+        bb.put(arr);
+        return bb;
+    }
+
+    /**
      * Put a String key and its corresponding value into cascade using put and
      * forget mechanism.
      *
@@ -501,9 +515,7 @@ public class Client implements AutoCloseable {
      */
     public void put_and_forget(ServiceType type, String key, ByteBuffer buf,
             long subgroupIndex, long shardID) {
-        byte[] arr = key.getBytes();
-        ByteBuffer bbkey = ByteBuffer.allocateDirect(arr.length);
-        bbkey.put(arr);
+        ByteBuffer bbkey = str2ByteBuffer(key);
         putAndForgetInternal(type, subgroupIndex, shardID, bbkey, buf);
         return;
     }
@@ -606,9 +618,8 @@ public class Client implements AutoCloseable {
      */
     public QueryResults<CascadeObject> multi_get(ServiceType type,
             String key, long subgroupIndex, long shardID) {
-        byte[] arr = key.getBytes();
-        ByteBuffer bbkey = ByteBuffer.allocateDirect(arr.length);
-        bbkey.put(arr);
+
+        ByteBuffer bbkey = str2ByteBuffer(key);
         long res = multiGetInternal(type, subgroupIndex, shardID, bbkey);
         return new QueryResults<CascadeObject>(res, 1);
     }
@@ -635,5 +646,48 @@ public class Client implements AutoCloseable {
      * @param key           The byte buffer key of the key-value pair.
      * @return A handle of the C++ future that stores the byte buffer for values.
      */
-    private native long multiGetInternal(ServiceType type, ByteBuffer key);
+    private native long multiGetInternal(ByteBuffer key);
+
+    /**
+     * Get the value corresponding to the key from cascade object pool using
+     * multi_get.
+     *
+     * Multi_get differs from get in that atomic broadcast is involved in the
+     * former.
+     *
+     * @param key           The byte buffer key of the key-value pair. The user
+     *                      should serialize their key formats into this byte
+     *                      format in order to use this method. If you use VCSU
+     *                      and PCSU as types, the hexadecimal translation of
+     *                      the byte buffer would be the long key.
+     * @return A Future that stores a handle to a direct byte buffer that
+     *         contains the value that corresponds to the key in the specified
+     *         subgroup/shard. The byte buffer would be empty if the key has not
+     *         been put into cascade.
+     */
+    public QueryResults<CascadeObject> multi_get(ByteBuffer key) {
+        long res = multiGetInternal(key);
+        return new QueryResults<CascadeObject>(res, 1);
+    }
+
+    /**
+     * Get the value corresponding to the key from cascade object pool using
+     * multi_get.
+     *
+     * Multi_get differs from get in that atomic broadcast is involved in the
+     * former.
+     *
+     * @param key           The string key of the key-value pair. If you use
+     *                      VCSU and PCSU as types, the hexadecimal translation
+     *                      of the byte buffer would be the long key.
+     * @return A Future that stores a handle to a direct byte buffer that
+     *         contains the value that corresponds to the key in the specified
+     *         subgroup/shard. The byte buffer would be empty if the key has not
+     *         been put into cascade.
+     */
+    public QueryResults<CascadeObject> multi_get(String key) {
+        ByteBuffer bbkey = str2ByteBuffer(key);
+        long res = multiGetInternal(bbkey);
+        return new QueryResults<CascadeObject>(res, 1);
+    }
 }

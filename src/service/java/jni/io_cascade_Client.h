@@ -146,10 +146,10 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_multiGetInternal__Lio_cascade_Ser
 /*
  * Class:     io_cascade_Client
  * Method:    multiGetInternal
- * Signature: (Lio/cascade/ServiceType;Ljava/nio/ByteBuffer;)J
+ * Signature: (Ljava/nio/ByteBuffer;)J
  */
-JNIEXPORT jlong JNICALL Java_io_cascade_Client_multiGetInternal__Lio_cascade_ServiceType_2Ljava_nio_ByteBuffer_2
-  (JNIEnv *, jobject, jobject, jobject);
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_multiGetInternal__Ljava_nio_ByteBuffer_2
+  (JNIEnv *, jobject, jobject);
 
 #ifdef __cplusplus
 }
