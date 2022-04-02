@@ -975,38 +975,37 @@ JNIEXPORT void JNICALL Java_io_cascade_QueryResults_closeHandle (JNIEnv* env, jo
  * @return a handle of the future that stores the version and timestamp.
  */
 template <typename T>
-jlong put_and_forget(std::function<std::unique_ptr<typename T::ObjectType>(JNIEnv *, jobject, jobject)> f,
+void put_and_forget(std::function<std::unique_ptr<typename T::ObjectType>(JNIEnv *, jobject, jobject)> f,
                      JNIEnv *env, derecho::cascade::ServiceClientAPI *capi,
                      jlong subgroup_index, jlong shard_index, jobject key, jobject val)
 {
-    #ifndef NDEBUG
-        std::cout << "Entering put_and_forget helper function." << std::endl;
-        char *key_buf = static_cast<char *>(env->GetDirectBufferAddress(key));
-        jlong len = env->GetDirectBufferCapacity(key);
-        for (int i = 0; i < len; ++i){
-            printf("%d,", key_buf[i]);
-        }
-        printf("\n");
-    #endif
+#ifndef NDEBUG
+    std::cout << "Entering put_and_forget helper function." << std::endl;
+    char *key_buf = static_cast<char *>(env->GetDirectBufferAddress(key));
+    jlong len = env->GetDirectBufferCapacity(key);
+    for (int i = 0; i < len; ++i){
+        printf("%d,", key_buf[i]);
+    }
+    printf("\n");
+#endif
     // Translate Java objects to C++ objects.
     auto obj = f(env, key, val);
-    #ifndef NDEBUG
+#ifndef NDEBUG
     std::cout << "Start to put_and_forget." << std::endl;
-    #endif
+#endif
     // Execute the put_and_forget function call.
     capi->put_and_forget<T>(*obj, subgroup_index, shard_index);
-    #ifndef NDEBUG
+#ifndef NDEBUG
     std::cout << "Finish put_and_forget." << std::endl;
-    #endif
-    return 0;
+#endif
 }
 
 /*
  * Class:     io_cascade_Client
  * Method:    putAndForgetInternal
- * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;Ljava/nio/ByteBuffer;)J
+ * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;Ljava/nio/ByteBuffer;)V
  */
-JNIEXPORT jlong JNICALL Java_io_cascade_Client_putAndForgetInternal
+JNIEXPORT void JNICALL Java_io_cascade_Client_putAndForgetInternal__Lio_cascade_ServiceType_2JJLjava_nio_ByteBuffer_2Ljava_nio_ByteBuffer_2
   (JNIEnv *env, jobject obj, jobject j_service_type, jlong subgroup_index, jlong shard_index, jobject key, jobject val)
 {
     derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
@@ -1015,10 +1014,8 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_putAndForgetInternal
     std::cout << "put_and_forget_internal is called from jni handler, with service value: " << service_val << std::endl;
 #endif
     // Execute put_and_forget by calling the corresponding helper function.
-    on_service_type(service_type, return put_and_forget, translate_str_obj, env,
+    on_service_type(service_type, put_and_forget, translate_str_obj, env,
                     capi, subgroup_index, shard_index, key, val);
-    // If service_val does not match successfully, return -1.
-    return -1;
 }
 
 /*

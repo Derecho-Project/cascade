@@ -558,13 +558,9 @@ public class Client implements AutoCloseable {
      *                      put this key-value pair into.
      * @param key           The byte buffer key of the key-value pair.
      * @param val           The byte buffer value of the key-value pair.
-     * @return A handle of the C++ future that stores the version and timestamp of
-     *         the operation.
      */
-    private native long putAndForgetInternal(ServiceType type,
-            long subgroupIndex, long shardIndex, ByteBuffer key,
-            ByteBuffer val);
-
+    private native void putAndForgetInternal(ServiceType type,
+            long subgroupIndex, long shardIndex, ByteBuffer key, ByteBuffer val);
 
     /**
      * Get the value corresponding to the key from cascade using multi_get.
@@ -690,13 +686,47 @@ public class Client implements AutoCloseable {
      * @return A handle of the C++ future that stores the byte buffer for values.
      */
     private native long multiGetInternal(ByteBuffer key);
+    
+    /*TODO: Below are the internal methods pending implementation*/
 
     /**
      * Internal interface for get operation for object pool.
      * 
-     * @param type          The type of the subgroup.
      * @param key           The byte buffer key of the key-value pair.
      * @return A handle of the C++ future that stores the byte buffer for values.
      */
     private native long getInternal(ByteBuffer key);
+
+    /**
+     * Internal interface for put operation for the object pool.
+     *
+     * @param key           The byte buffer key of the key-value pair. Object pool can be extracted
+     *                      from the key.
+     * @param val           The byte buffer value of the key-value pair.
+     * 
+     * @return A handle of the C++ future that stores the version and timestamp of
+     *         the operation.
+     */
+    private native long putInternal(ByteBuffer key, ByteBuffer val);
+
+    /**
+     * Internal interface for put_and_forget operation for the object pool.
+     * 
+     * @param key           The byte buffer key of the key-value pair. Object pool can be extracted
+     *                      from the key.
+     * @param val           The byte buffer value of the key-value pair.
+     * @return A handle of the C++ future that stores the version and timestamp of
+     *         the operation.
+     */
+    private native void putAndForgetInternal(ByteBuffer key, ByteBuffer val);
+
+    /**
+     * Internal interface for remove operation for object pool.
+     * 
+     * @param key           The byte buffer key of the key-value pair. Object pool can be extracted
+     *                      from the key.
+     * @return A handle of the C++ future that stores the version and timestamp of
+     *         the operation.
+     */
+    private native long removeInternal(ByteBuffer key);
 }

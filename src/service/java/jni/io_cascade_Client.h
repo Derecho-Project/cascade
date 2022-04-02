@@ -68,7 +68,7 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_getNumberOfShards
  * Method:    putInternal
  * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;Ljava/nio/ByteBuffer;)J
  */
-JNIEXPORT jlong JNICALL Java_io_cascade_Client_putInternal
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_putInternal__Lio_cascade_ServiceType_2JJLjava_nio_ByteBuffer_2Ljava_nio_ByteBuffer_2
   (JNIEnv *, jobject, jobject, jlong, jlong, jobject, jobject);
 
 /*
@@ -76,7 +76,7 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_putInternal
  * Method:    getInternal
  * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;JZ)J
  */
-JNIEXPORT jlong JNICALL Java_io_cascade_Client_getInternal
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_getInternal__Lio_cascade_ServiceType_2JJLjava_nio_ByteBuffer_2JZ
   (JNIEnv *, jobject, jobject, jlong, jlong, jobject, jlong, jboolean);
 
 /*
@@ -92,7 +92,7 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_getInternalByTime
  * Method:    removeInternal
  * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;)J
  */
-JNIEXPORT jlong JNICALL Java_io_cascade_Client_removeInternal
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_removeInternal__Lio_cascade_ServiceType_2JJLjava_nio_ByteBuffer_2
   (JNIEnv *, jobject, jobject, jlong, jlong, jobject);
 
 /*
@@ -130,9 +130,9 @@ JNIEXPORT jobject JNICALL Java_io_cascade_Client_listObjectPools
 /*
  * Class:     io_cascade_Client
  * Method:    putAndForgetInternal
- * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;Ljava/nio/ByteBuffer;)J
+ * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;Ljava/nio/ByteBuffer;)V
  */
-JNIEXPORT jlong JNICALL Java_io_cascade_Client_putAndForgetInternal
+JNIEXPORT void JNICALL Java_io_cascade_Client_putAndForgetInternal__Lio_cascade_ServiceType_2JJLjava_nio_ByteBuffer_2Ljava_nio_ByteBuffer_2
   (JNIEnv *, jobject, jobject, jlong, jlong, jobject, jobject);
 
 /*
@@ -149,6 +149,38 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_multiGetInternal__Lio_cascade_Ser
  * Signature: (Ljava/nio/ByteBuffer;)J
  */
 JNIEXPORT jlong JNICALL Java_io_cascade_Client_multiGetInternal__Ljava_nio_ByteBuffer_2
+  (JNIEnv *, jobject, jobject);
+
+/*
+ * Class:     io_cascade_Client
+ * Method:    getInternal
+ * Signature: (Ljava/nio/ByteBuffer;)J
+ */
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_getInternal__Ljava_nio_ByteBuffer_2
+  (JNIEnv *, jobject, jobject);
+
+/*
+ * Class:     io_cascade_Client
+ * Method:    putInternal
+ * Signature: (Ljava/nio/ByteBuffer;Ljava/nio/ByteBuffer;)J
+ */
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_putInternal__Ljava_nio_ByteBuffer_2Ljava_nio_ByteBuffer_2
+  (JNIEnv *, jobject, jobject, jobject);
+
+/*
+ * Class:     io_cascade_Client
+ * Method:    putAndForgetInternal
+ * Signature: (Ljava/nio/ByteBuffer;Ljava/nio/ByteBuffer;)V
+ */
+JNIEXPORT void JNICALL Java_io_cascade_Client_putAndForgetInternal__Ljava_nio_ByteBuffer_2Ljava_nio_ByteBuffer_2
+  (JNIEnv *, jobject, jobject, jobject);
+
+/*
+ * Class:     io_cascade_Client
+ * Method:    removeInternal
+ * Signature: (Ljava/nio/ByteBuffer;)J
+ */
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_removeInternal__Ljava_nio_ByteBuffer_2
   (JNIEnv *, jobject, jobject);
 
 #ifdef __cplusplus
