@@ -363,10 +363,43 @@ jlong put(std::function<std::unique_ptr<typename T::ObjectType>(JNIEnv *, jobjec
     return reinterpret_cast<jlong>(qrh);
 }
 
+/**
+ * Helper function to create an object pool using caller-provided configuration.
+ * @param capi             The service client api for this client.
+ * @param pathname         The path name for the object pool.
+ * @param subgroup_index   Index of the subgroup.
+ * @param sharding_policy  The default sharding policy for this object pool
+ * @param object_locations The set of special object locations.
+ * @return a future to the version and timestamp of the put operation.
+ */
 template <typename ServiceType>
-jlong create_object_pool(derecho::cascade::ServiceClientAPI* capi, const std::string& pathname, uint32_t subgroup_index, derecho::cascade::sharding_policy_t sharding_policy, const std::unordered_map<std::string,uint32_t>& object_locations) {
-    auto res = capi->create_object_pool<ServiceType>(pathname,subgroup_index,sharding_policy,object_locations);
-    QueryResultHolder<std::tuple<persistent::version_t, uint64_t>> *qrh = new QueryResultHolder<std::tuple<persistent::version_t, uint64_t>>(res);
+jlong create_object_pool(derecho::cascade::ServiceClientAPI* capi, const std::string& pathname,
+        uint32_t subgroup_index, derecho::cascade::sharding_policy_t sharding_policy,
+        const std::unordered_map<std::string,uint32_t>& object_locations) {
+    auto res = capi->create_object_pool<ServiceType>(pathname, subgroup_index, sharding_policy,
+            object_locations);
+    QueryResultHolder<std::tuple<persistent::version_t, uint64_t>> *qrh =
+        new QueryResultHolder<std::tuple<persistent::version_t, uint64_t>>(res);
+    return reinterpret_cast<jlong>(qrh);
+}
+
+/**
+ * Helper function to create an object pool using the default configuration.
+ * @param capi           The service client api for this client.
+ * @param pathname       The path name for the object pool.
+ * @param subgroup_index Index of the subgroup.
+ * @return a future to the version and timestamp of the put operation.
+ */
+template <typename ServiceType>
+jlong create_object_pool(derecho::cascade::ServiceClientAPI* capi, const std::string& pathname,
+        uint32_t subgroup_index)
+{
+    std::cout << "Entering create_object_pool using default sharding policy and location."
+              << std::endl;
+    auto res = capi->create_object_pool<ServiceType>(pathname, subgroup_index);
+    QueryResultHolder<std::tuple<persistent::version_t, uint64_t>> *qrh =
+        new QueryResultHolder<std::tuple<persistent::version_t, uint64_t>>(res);
+    std::cout << "Exiting create_object_pool defaul mode." << std::endl;
     return reinterpret_cast<jlong>(qrh);
 }
 
@@ -375,7 +408,9 @@ jlong create_object_pool(derecho::cascade::ServiceClientAPI* capi, const std::st
  * Method:    putInternal
  * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;Ljava/nio/ByteBuffer;)J
  */
-JNIEXPORT jlong JNICALL Java_io_cascade_Client_putInternal(JNIEnv *env, jobject obj, jobject j_service_type, jlong subgroup_index, jlong shard_index, jobject key, jobject val)
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_putInternal__Lio_cascade_ServiceType_2JJLjava_nio_ByteBuffer_2Ljava_nio_ByteBuffer_2
+    (JNIEnv *env, jobject obj, jobject j_service_type, jlong subgroup_index, jlong shard_index,
+     jobject key, jobject val)
 {
     derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
     int service_type = get_int_value(env, j_service_type);
@@ -423,7 +458,9 @@ jlong get(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong subgroup_
  * Method:    getInternal
  * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;JZ)J
  */
-JNIEXPORT jlong JNICALL Java_io_cascade_Client_getInternal(JNIEnv *env, jobject obj, jobject j_service_type, jlong subgroup_index, jlong shard_index, jobject key, jlong version, jboolean stable)
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_getInternal__Lio_cascade_ServiceType_2JJLjava_nio_ByteBuffer_2JZ
+    (JNIEnv *env, jobject obj, jobject j_service_type, jlong subgroup_index, jlong shard_index,
+     jobject key, jlong version, jboolean stable)
 {
 #ifndef NDEBUG
     std::cout << "start get internal!" << std::endl;
@@ -503,13 +540,13 @@ jlong remove(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong subgro
  * Method:    removeInternal
  * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;)J
  */
-JNIEXPORT jlong JNICALL Java_io_cascade_Client_removeInternal(JNIEnv *env, jobject obj, jobject j_service_type, jlong subgroup_index, jlong shard_index, jobject key)
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_removeInternal__Lio_cascade_ServiceType_2JJLjava_nio_ByteBuffer_2
+(JNIEnv *env, jobject obj, jobject j_service_type, jlong subgroup_index, jlong shard_index, jobject key)
 {
     derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
     int service_type = get_int_value(env, j_service_type);
 
     on_service_type(service_type, return remove, env, capi, subgroup_index, shard_index, key, translate_str_key);
-
     return -1;
 }
 
@@ -899,7 +936,15 @@ static void javaMapToStlMap(JNIEnv *env, jobject map, std::unordered_map<std::st
   }
 }
 
-JNIEXPORT jlong JNICALL Java_io_cascade_Client_createObjectPool (JNIEnv* env, jobject obj, jstring j_pathname, jobject j_service_type, jint j_subgroup_index, jobject j_sharding_policy, jobject j_object_locations) {
+/*
+ * Class:     io_cascade_Client
+ * Method:    createObjectPoolInternal
+ * Signature: (Ljava/lang/String;Lio/cascade/ServiceType;JLio/cascade/ShardingPolicy;Ljava/util/Map;)J
+ */
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_createObjectPoolInternal
+    (JNIEnv* env, jobject obj, jstring j_pathname, jobject j_service_type, jlong j_subgroup_index,
+     jobject j_sharding_policy, jobject j_object_locations)
+{
     derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
     // 1 - pathname
     auto pathname = env->GetStringUTFChars(j_pathname, nullptr);
@@ -914,7 +959,31 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_createObjectPool (JNIEnv* env, jo
 	javaMapToStlMap(env,j_object_locations,object_locations);
 
     jlong ret = 0;
-    on_service_type(service_type, ret = create_object_pool, capi, pathname, subgroup_index, sharding_policy, object_locations);
+    on_service_type(service_type, ret = create_object_pool, capi, pathname, subgroup_index,
+            sharding_policy, object_locations);
+    // release resource
+    env->ReleaseStringUTFChars(j_pathname,pathname);
+    return ret;
+}
+
+/*
+ * Class:     io_cascade_Client
+ * Method:    createObjectPoolDefaultInternal
+ * Signature: (Ljava/lang/String;Lio/cascade/ServiceType;J)J
+ */
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_createObjectPoolDefaultInternal
+    (JNIEnv* env, jobject obj, jstring j_pathname, jobject j_service_type, jlong j_subgroup_index)
+{
+    derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
+    // 1 - pathname
+    auto pathname = env->GetStringUTFChars(j_pathname, nullptr);
+    // 2 - service_type
+    int service_type = get_int_value(env, j_service_type);
+    // 3 - subgroup index
+    uint32_t subgroup_index = static_cast<uint32_t>(j_subgroup_index);
+
+    jlong ret = 0;
+    on_service_type(service_type, ret = create_object_pool, capi, pathname, subgroup_index);
     // release resource
     env->ReleaseStringUTFChars(j_pathname,pathname);
     return ret;
@@ -1084,5 +1153,93 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_multiGetInternal__Ljava_nio_ByteB
     // Store the result in a handler.
     QueryResultHolder<const derecho::cascade::ObjectWithStringKey> *qrh =
         new QueryResultHolder<const derecho::cascade::ObjectWithStringKey>(res);
+    return reinterpret_cast<jlong>(qrh);
+}
+
+/*
+ * Class:     io_cascade_Client
+ * Method:    getInternal
+ * Signature: (Ljava/nio/ByteBuffer;)J
+ */
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_getInternal__Ljava_nio_ByteBuffer_2
+    (JNIEnv *env, jobject obj, jobject key)
+{
+    derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
+#ifndef NDEBUG
+    std::cout << "Entering get for object pool." << std::endl;
+#endif
+    // Execute multi_get for object pool.
+    std::string obj_key = translate_str_key(env, key);
+    auto res = capi-> get(obj_key);
+    // Store the result in a handler.
+    QueryResultHolder<const derecho::cascade::ObjectWithStringKey> *qrh =
+        new QueryResultHolder<const derecho::cascade::ObjectWithStringKey>(res);
+    return reinterpret_cast<jlong>(qrh);
+}
+
+/*
+ * Class:     io_cascade_Client
+ * Method:    putInternal
+ * Signature: (Ljava/nio/ByteBuffer;Ljava/nio/ByteBuffer;)J
+ */
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_putInternal__Ljava_nio_ByteBuffer_2Ljava_nio_ByteBuffer_2
+    (JNIEnv *env, jobject obj, jobject key, jobject val)
+{
+    derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
+#ifndef NDEBUG
+    std::cout << "Entering put for object pool." << std::endl;
+#endif
+    auto put_obj = translate_str_obj(env, key, val);
+    auto res = capi->put(*put_obj);
+    //Store the result in a handler and return it!
+#ifndef NDEBUG
+    std::cout << "Finished put!" << std::endl;
+#endif
+    QueryResultHolder<std::tuple<persistent::version_t, uint64_t>> *qrh =
+        new QueryResultHolder<std::tuple<persistent::version_t, uint64_t>>(res);
+    return reinterpret_cast<jlong>(qrh);
+}
+
+/*
+ * Class:     io_cascade_Client
+ * Method:    putAndForgetInternal
+ * Signature: (Ljava/nio/ByteBuffer;Ljava/nio/ByteBuffer;)V
+ */
+JNIEXPORT void JNICALL Java_io_cascade_Client_putAndForgetInternal__Ljava_nio_ByteBuffer_2Ljava_nio_ByteBuffer_2
+    (JNIEnv *env, jobject obj, jobject key, jobject val)
+{
+    derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
+#ifndef NDEBUG
+    std::cout << "Entering put for object pool." << std::endl;
+#endif
+    auto put_obj = translate_str_obj(env, key, val);
+    capi->put_and_forget(*put_obj);
+    //Store the result in a handler and return it!
+#ifndef NDEBUG
+    std::cout << "Finished put_and_forget for object pool!" << std::endl;
+#endif
+    return;
+}
+
+/*
+ * Class:     io_cascade_Client
+ * Method:    removeInternal
+ * Signature: (Ljava/nio/ByteBuffer;)J
+ */
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_removeInternal__Ljava_nio_ByteBuffer_2
+    (JNIEnv *env, jobject obj, jobject key)
+{
+#ifndef NDEBUG
+    std::cout<<"Entering remove internal for object pool."<<std::endl;
+#endif
+    derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
+    std::string obj_key = translate_str_key(env, key);
+    // Execute remove.
+    derecho::rpc::QueryResults<std::tuple<persistent::version_t, uint64_t>> res = capi->remove(obj_key);
+    // store the results in a handle
+    QueryResultHolder<std::tuple<persistent::version_t, uint64_t>> *qrh = new QueryResultHolder<std::tuple<persistent::version_t, uint64_t>>(res);
+#ifndef NDEBUG
+    std::cout<<"Remove internal completes."<<std::endl;
+#endif
     return reinterpret_cast<jlong>(qrh);
 }

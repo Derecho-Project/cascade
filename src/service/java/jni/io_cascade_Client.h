@@ -65,6 +65,14 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_getNumberOfShards
 
 /*
  * Class:     io_cascade_Client
+ * Method:    listObjectPools
+ * Signature: ()Ljava/util/List;
+ */
+JNIEXPORT jobject JNICALL Java_io_cascade_Client_listObjectPools
+  (JNIEnv *, jobject);
+
+/*
+ * Class:     io_cascade_Client
  * Method:    putInternal
  * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;Ljava/nio/ByteBuffer;)J
  */
@@ -114,18 +122,18 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_listKeysByTimeInternal
 /*
  * Class:     io_cascade_Client
  * Method:    createObjectPoolInternal
- * Signature: (Ljava/lang/String;Lio/cascade/ServiceType;ILio/cascade/ShardingPolicy;Ljava/util/Map;)J
+ * Signature: (Ljava/lang/String;Lio/cascade/ServiceType;JLio/cascade/ShardingPolicy;Ljava/util/Map;)J
  */
 JNIEXPORT jlong JNICALL Java_io_cascade_Client_createObjectPoolInternal
-  (JNIEnv *, jobject, jstring, jobject, jint, jobject, jobject);
+  (JNIEnv *, jobject, jstring, jobject, jlong, jobject, jobject);
 
 /*
  * Class:     io_cascade_Client
- * Method:    listObjectPools
- * Signature: ()Ljava/util/List;
+ * Method:    createObjectPoolDefaultInternal
+ * Signature: (Ljava/lang/String;Lio/cascade/ServiceType;J)J
  */
-JNIEXPORT jobject JNICALL Java_io_cascade_Client_listObjectPools
-  (JNIEnv *, jobject);
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_createObjectPoolDefaultInternal
+  (JNIEnv *, jobject, jstring, jobject, jlong);
 
 /*
  * Class:     io_cascade_Client
