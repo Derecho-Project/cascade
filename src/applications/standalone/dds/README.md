@@ -1,33 +1,23 @@
-## How to use this template
-1. Make sure Cascade and its dependencies are installed and in path.
-1. Copy the `console_printer_udl` folder to your own project.
-1. Build the project as follows:
-```
-project-folder $ makedir build; cd build
-project-folder/build $ make
-```
-Then you should see the udl binary `libconsole_printer_udl.so` in your build folder.
+## Cascade Data Distribution Service (DDS)
+Cascade DDS is a pub/sub system implemented as a Cascade Application. It composes of three components:
+- a client side library for developing DDS applications: `libcascade_dds.so`,
+- a server side UDL running in Cascade servers' address space: `libcascade_dds_udl.so`,
+- a DDS configuration file defining DDS's metadata service, data plane, and control plane, which will be discussed later: `dds.cfg`, and
+- DDS service's object pool (we plan to use 'placement group' for 'object pool' in the future) layout: `dfgs.json`
 
-To test, use the minimal configuration in the `cfg` folder. Please start three terminal consoles and change the current directory to `cfg/n0`, `cfg/n1`, and `cfg/n2`. We use folder `cfg/n0` and `cfg/n1` for the configuration for tow Cascade Server nodes; while `cfg/n2` is for the client node. In the server consoles, start the server as follows.
-```
-project-folder/build/cfg/n0 $ cascade_server
-Press Enter to Shutdown.
-```
-```
-project-folder/build/cfg/n1 $ cascade_server
-Press Enter to Shutdown.
-```
-When both processes starts successfully, you should see it prompt `Press Enter to Shutdown.` Now you can run the client to test if the udl works. To do that, in the client console, run the following commands.
-```
-project-folder/build/cfg/n2 $ cascade_client create_object_pool /console_printer VCSS 0
-node(0) replied with version:4294967296,ts_us:1644272887105954
-create_object_pool is done.
--> Succeeded.
-project-folder/build/cfg/n2 $ cascade_client op_put /console_printer/obj_a AAAAA
-node(1) replied with version:4294967296,ts_us:1644272911367617
--> Succeeded.
-```
-In the console of node 1 (`cfg/n1`), you should see the following message, showing that the udl is triggered successfully.
-```
-[console printer ocdpo]: I(0) received an object with key=/console_printer/obj_a, matching prefix=/console_printer/
-```
+Before diving into the details, let's talk about sever concepts in Cascade DDS. In the DDS, a topic maps to a key in some object pool in the Cascade Service. A DDS client works as an externcal client. To publish to a topic, the DDS client simply put a key/value pair with the key corresponding to the topic and the blob value representing the message. On receiving the messages, the DDS UDL is triggered and check if there are any subscribers on the corresponding topic. If yes, it relays the message to all the subscribers using Cascade server side notification. To subscribe to a topic, the DDS client does two things: one is to register the application-provided lambda a.k.a topic message handler in a local registry maintained by the client side library; the other is to put a key/value pair as a control message. The key of the control message is the topic key with a control plane suffix (defined in `dds.cfg`). On a control message, the DDS UDL will pick it from the data plane and modify the subscriber's status in the server's local memory. Unsubscribing is done similarly.
+
+DDS topics are stored as metadata in a separate Cascade object pool defined in `dds.cfg`. The DDS metadata is simply a persumably persistent object pool. The keys are the topic names and the values are the object pool working as the data plane for that topic. For example, a key pair "topic_a":"/dds/tiny_text" indicates that the topic "topic_a" is backed up by the object pool "/dds/tiny_text". To publish to "topic_a", the DDS client will append the topic name after the object pool to derive the key "/dds/tiny_text/topic_a" for its internal `put` operation.
+
+The control plane suffix in `dds.cfg` indicates how to separate control messages from data. In the above example, let's assume the control plan suffix is '__control__', which is the default value. To subscribe to "topic_a", a DDS client will put a K/V pair to the same object pool of the data plane "/dds/tiny_text". Instead of using the data plane topic key, it append the control plan suffix to derive the key for the control plane, which is "/dds/tiny_text/topic_a/__control__". The value is a serialized request of subscribing to topic "topic_a".
+
+Despite above details of the internal design, the client side library covers them with [clean and simple APIs](include/cascade_dds/dds.hpp) for application developers.
+
+### A Step-by-step Tutorial
+
+### Limitations and Future Works
+- Thread stickness
+- Server side logic
+- Performance evaluation and optimization
+- Python and Java API
+- RoundRobin/Random server node stickness.
