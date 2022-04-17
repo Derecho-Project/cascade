@@ -14,6 +14,43 @@ The control plane suffix in `dds.cfg` indicates how to separate control messages
 Despite above details of the internal design, the client side library covers them with [clean and simple APIs](include/cascade_dds/dds.hpp) for application developers.
 
 ### A Step-by-step Tutorial
+Cascade DDS depends on Cascade and Derecho. Please make sure Derecho and Cascade are installed correctly before following this section.
+
+1) Build Cascade DDS
+
+```
+# mkdir build; cd build
+# cmake ..
+# make -j `nproc`
+```
+You should see the following three binaries after building it successfully
+- `libcascade_dds.so` the client side library,
+- `libcascade_dds_udl.so` the UDL for DDS service, and
+- `cascade_dds_client` a demo client showing how to use cascade dds.
+
+2) Run Test
+
+In the build folder, you should see a folder called 'cfg', which contains the configuration for a local DDS service deployment, which consists only two Cascade server nodes. 
+- *Start the service*. Start two consoles and cd to 'cfg/n0' and 'cfg/n1' respectively. From there, you can start the service by simply run `cascade_server`. Once two servers are all started, you should see a message on both console saying 'Press Enter to Shutdown.'
+```
+# cd cfg/n0
+# cascade_server
+Press Enter to Shutdown.
+```
+- *Create the object pools for DDS metadata and data planes*. We need to create the object pools for DDS metadata and data planes. Those object pools are defined in `dds.json`. Start a third console and change directory to 'cfg/n2', which will be used for the external client.
+```
+# cd cfg/n2
+# cat dds.json
+{
+    "metadata_pathname": "/dds/metadata",
+    "data_plane_pathnames": ["/dds/tiny_text","/dds/big_chunk"],
+    "control_plane_suffix": "__control__"
+}
+```
+Here we need to create three object pools. "/dds/metadata" is for the DDS metadata, which should be persistent, "/dds/tiny_text" is for the topics only with small messages like texts, while "/dds/big_chunk" is for the topics with big data chunks.
+//TODO:
+
+3) Installation
 
 ### Limitations and Future Works
 - Thread stickness
