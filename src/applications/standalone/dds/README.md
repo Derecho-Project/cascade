@@ -47,14 +47,75 @@ Press Enter to Shutdown.
     "control_plane_suffix": "__control__"
 }
 ```
-Here we need to create three object pools. "/dds/metadata" is for the DDS metadata, which should be persistent, "/dds/tiny_text" is for the topics only with small messages like texts, while "/dds/big_chunk" is for the topics with big data chunks.
-//TODO:
+Here we need to create three object pools. "/dds/metadata" is for the DDS metadata, which should be persistent. "/dds/tiny_text" is for the topics only with small messages like texts, while "/dds/big_chunk" is for the topics with big data chunks. Both the latter two object pools are volatile.
+```
+# cascade_client create_object_pool /dds/metadata PCSS 0
+node(0) replied with version:0,ts_us:1650245329817136
+create_object_pool is done.
+-> Succeeded.
+# cascade_client create_object_pool /dds/tiny_text VCSS 0
+node(0) replied with version:1,ts_us:1650245395509445
+create_object_pool is done.
+-> Succeeded.
+# cascade_client create_object_pool /dds/big_chunk VCSS 0
+node(0) replied with version:2,ts_us:1650245683243300
+create_object_pool is done.
+-> Succeeded.
+# cascade_client list_object_pools
+refreshed object pools:
+        /dds/tiny_text
+        /dds/metadata
+        /dds/big_chunk
+-> Succeeded.
+```
+Please note that, in a real deployment, the two object pools, "dds/tiny_text" and "/dds/big_chunk", should live in subgroups optimized for the different workloads. Here, for demonstration purpose, we put them in the same volatile subgroup.
 
-3) Installation
+Then, we create a topic "ta" using the cascade dds client.
+```
+# ../../cascade_dds_client
+cmd> create_topic ta /dds/tiny_text
+-> Succeeded.
+cmd> list_topics
+TOPIC-1
+        name:ta
+        path:/dds/tiny_text
+cmd> 
+```
+Now, we subscribe to topic "ta".
+```
+cmd> subscribe ta subscriber_01 
+-> Succeeded.
+cmd> list_subscribers
+1 subscribers found
+NAME    TOPIC
+=============
+subscriber_01   ta
+-> Succeeded.
+```
+Here, the tester will register a message handler which prints the message as a string. However, the API allows a DDS application to register whatever handler.
+
+Then, we publish 10 messages to topic "ta" as follows.
+```
+cmd> publish ta 10
+publisher created for topic:ta
+-> Succeeded.
+cmd> Message of 22 bytes received in topic 'ta': Message #0 in topic ta
+Message of 22 bytes received in topic 'ta': Message #1 in topic ta
+Message of 22 bytes received in topic 'ta': Message #2 in topic ta
+Message of 22 bytes received in topic 'ta': Message #3 in topic ta
+Message of 22 bytes received in topic 'ta': Message #4 in topic ta
+Message of 22 bytes received in topic 'ta': Message #5 in topic ta
+Message of 22 bytes received in topic 'ta': Message #6 in topic ta
+Message of 22 bytes received in topic 'ta': Message #7 in topic ta
+Message of 22 bytes received in topic 'ta': Message #8 in topic ta
+Message of 22 bytes received in topic 'ta': Message #9 in topic ta
+```
+The messages shown above are printed by the subscriber.
+
+Please refer to [`dds.hpp`](include/cascade_dds/dds.hpp) for the DDS API. The [cascade DDS tester](src/client.cpp), as a  demonstrates how to implement the above capabilities using the DDS API.
 
 ### Limitations and Future Works
-- Thread stickness
-- Server side logic
-- Performance evaluation and optimization
-- Python and Java API
-- RoundRobin/Random server node stickness.
+There are couple of limitations we plan to address in the future.
+1) The DDS UDL can run in multiple threads, therefore the messages in a topic might be sent to the subscribers from different threads. Therefore, a subscriber might receive messages out of order. The current workaround is to limit the size of off critical data path thread pool to 1, by setting `num_workers_for_multicast_ocdp` to 1 in `derecho.cfg`. In the future, we plan to add a "thread stickness feature" to control the affinity of messages and worker threads. Using this feature, we can allow only one worker thread for each topic to guarantee message order without disabling multithreading. 
+2) Sometimes, the application wants to leverage the computation power on the Cascade Server nodes to process topic messages. For example, the servers can be used to preprocess high resolution pictures and delete irrelavent pixels. We plan to introduce a server side API for this DDS so that the application can inject such logics to the server side like how we handle the UDLs.
+3) Currently, the DDS service supports only C++ API. We plan to provide Python and Java API soon. 
