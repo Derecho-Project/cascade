@@ -1,0 +1,29 @@
+[
+    {
+        "id": "8ac4c636-9d92-11eb-9dbc-0242ac110002",
+        "desc": "Dairy Farm DEMO DFG",
+        "graph": [
+            {
+                "pathname": "/dairy_farm/front_end",
+                "user_defined_logic_list": [ "22b86c6e-9d92-11eb-81d0-0242ac110002" ],
+                "destinations": [
+                    {"/dairy_farm/compute" : "trigger_put"}
+                ]
+            },
+            {
+                "pathname": "/dairy_farm/compute",
+                "user_defined_logic_list": [ "6793c66c-9d92-11eb-9aa9-0242ac110002" ],
+                "destinations": [
+                    {"/dairy_farm/storage" : "put"}
+                ]
+            },
+            {
+                "pathname": "/dairy_farm/storage",
+                "user_defined_logic_list": [ "36590e58-4ca2-11ec-b26b-0242ac110002" ],
+                "destinations": [
+                    {}
+                ]
+            }
+        ]
+    }
+]
