@@ -1,13 +1,118 @@
 #include <cascade_dds/dds.hpp>
 #include <iostream>
+#include <tuple>
 #include <vector>
 #include <functional>
+#include <mutex>
 #include <string>
+#include <fstream>
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <sys/prctl.h>
+#include <unistd.h>
 
 using namespace derecho::cascade;
+
+struct pingpong_msg_t {
+    uint32_t seqno;
+    uint64_t sending_ts_us;
+};
+
+/**
+ * Ping pong test. 
+ * There are two possible modes: active/passive. In active mode, the pingpong test will publish a series of new
+ * messages and wait for its response. In the passive mode, it only echo the messages.
+ *
+ * @param metadata_client   The DDSMetadata client
+ * @param client            The DDS client
+ * @param send_topic        The topic for publish messages
+ * @param recv_topic        The topic for receive a message
+ * @param is_passive        Passive mode
+ */
+static bool run_pingpong_latency(
+        DDSMetadataClient& metadata_client,
+        DDSClient& client,
+        const std::string& send_topic,
+        const std::string& recv_topic,
+        bool is_passive,
+        uint32_t count) {
+    // check if topic exists or not.
+    Topic st = metadata_client.get_topic(send_topic);
+    if (!st.is_valid()) {
+        std::cerr << "Cannot find: " << send_topic << ", please make sure the topic is created." << std::endl; 
+        return false;
+    }
+    Topic rt = metadata_client.get_topic(recv_topic);
+    if (!rt.is_valid()) {
+        std::cerr << "Cannot find: " << recv_topic << ", please make sure the topic is created." << std::endl; 
+        return false;
+    }
+    // make sure send_topic is not equal to recv_topic
+    if (send_topic == recv_topic) {
+        std::cerr << "Send topic and recv topic have to be different." << std::endl;
+        return false;
+    }
+
+    std::condition_variable finish_cv;
+    std::mutex finish_mtx;
+    std::vector<std::tuple<uint32_t,uint64_t,uint64_t>> ts_log;
+    ts_log.reserve(count);
+
+    // create a publisher
+    auto publisher = client.template create_publisher<pingpong_msg_t>(st.name);
+    
+    // subscribe to the recv_topic
+    auto subscriber = client.subscribe(rt.name,
+            std::unordered_map<std::string,message_handler_t<pingpong_msg_t>>{{
+                std::string("default"),
+                [count,&publisher,&ts_log,&finish_mtx,&finish_cv,is_passive](const pingpong_msg_t& msg)->void {
+                    ts_log.emplace_back(std::tuple{msg.seqno,msg.sending_ts_us,get_time()/1000});
+                    // echo
+                    if (is_passive) {
+                        pingpong_msg_t echo;
+                        echo.seqno = msg.seqno;
+                        echo.sending_ts_us = get_time()/1000;
+                        publisher->send(echo);
+                    }
+                    // end of test
+                    if(ts_log.size() == count) {
+                        std::lock_guard lck(finish_mtx);
+                        finish_cv.notify_one();
+                    }
+                }
+            }});
+
+    // publish
+    if (!is_passive) {
+        pingpong_msg_t ping;
+        for(uint32_t i = 0; i < count; i++) {
+            ping.seqno = i;
+            ping.sending_ts_us = get_time()/1000;
+            publisher->send(ping);
+            usleep(10000);
+        }
+    }
+
+    // waiting for the end of test
+    std::unique_lock<std::mutex> lck(finish_mtx);
+    finish_cv.wait(lck,[&ts_log,count](){return (ts_log.size() == count);});
+    lck.unlock();
+
+    // unsubscribe
+    client.unsubscribe(subscriber);
+
+    // flush to file
+    std::ofstream ofile(rt.name + ".log");
+    ofile << "# topic:" << rt.name << std::endl;
+    ofile << "#seqno send_ts_us recv_ts_us" << std::endl;
+    for(const auto tp: ts_log) {
+        ofile << std::get<0>(tp) << " " 
+              << std::get<1>(tp) << " "
+              << std::get<2>(tp) << std::endl;
+    }
+    ofile.close();
+    return true;
+}
 
 static std::vector<std::string> tokenize(std::string& line, const char* delimiter) {
     std::vector<std::string> tokens;
@@ -253,6 +358,25 @@ std::vector<command_entry_t> commands = {
                 std::cout << pair.first << "\t" << pair.second->get_topic() << std::endl;
             }
             return true;
+        }
+    },
+    {
+        "Perf test Commands", "", "", command_handler_t()
+    },
+    {
+        "pingpong_latency",
+        "perform a pingpong latency test",
+        "pingpong_latency <send_topic> <recv_topic> <0|1 - is passive> [count]",
+        [](DDSMetadataClient& metadata_client,DDSClient& client,const std::vector<std::string>& cmd_tokens) {
+            CHECK_FORMAT(cmd_tokens,4);
+            std::string send_topic = cmd_tokens[1];
+            std::string recv_topic = cmd_tokens[2];
+            bool is_passive = (std::stoul(cmd_tokens[3]) == 1);
+            uint32_t count = 1000;
+            if (cmd_tokens.size() >= 5) {
+                count = (std::stoul(cmd_tokens[4]));
+            }
+            return run_pingpong_latency(metadata_client,client,send_topic,recv_topic,is_passive,count);
         }
     },
 };
