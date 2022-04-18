@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <fstream>
 #include <string>
+#include "config.h"
 
 /**
  * Tensor Flow GPU configuration

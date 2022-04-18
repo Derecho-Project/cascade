@@ -24,6 +24,13 @@ find_package(derecho CONFIG REQUIRED)
 find_package(cascade CONFIG REQUIRED)
 
 include(CheckIncludeFileCXX)
+find_package(CUDA QUIET)
+if (CUDA_FOUND)
+    set (ENABLE_GPU 1)
+endif()
+# set(CMAKE_REQUIRED_LIBRARIES mxnet)
+# CHECK_INCLUDE_FILE_CXX("mxnet-cpp/MxNetCpp.h" HAS_MXNET_CPP)
+# unset(CMAKE_REQUIRED_LIBRARIES)
 find_package(OpenCV QUIET)
 find_library(TENSORFLOW_LIB_FOUND tensorflow)
 find_library(ANN_LIB_FOUND ANN)
@@ -33,6 +40,10 @@ set (ENABLE_EVALUATION 1)
 if (ENABLE_EVALUATION)
     find_package(rpclib 2.3.0 REQUIRED)
 endif()
+
+# configure header
+# CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/config.h)
+CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/config.h)
 
 if (OPENCV_CORE_FOUND)
     # dairy farm client

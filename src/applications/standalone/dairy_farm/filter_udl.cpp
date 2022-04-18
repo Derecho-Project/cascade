@@ -7,6 +7,7 @@
 #include <tensorflow/c/eager/c_api.h>
 #include "demo_common.hpp"
 #include "time_probes.hpp"
+#include "config.h"
 
 namespace derecho{
 namespace cascade{
