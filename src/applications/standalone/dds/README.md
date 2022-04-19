@@ -122,4 +122,6 @@ Please refer to [`dds.hpp`](include/cascade_dds/dds.hpp) for the DDS API. The [c
 There are couple of limitations we plan to address in the future.
 1) The DDS UDL can run in multiple threads, therefore the messages in a topic might be sent to the subscribers from different threads. Therefore, a subscriber might receive messages out of order. The current workaround is to limit the size of off critical data path thread pool to 1, by setting `num_workers_for_multicast_ocdp` to 1 in `derecho.cfg`. In the future, we plan to add a "thread stickness feature" to control the affinity of messages and worker threads. Using this feature, we can allow only one worker thread for each topic to guarantee message order without disabling multithreading. 
 2) Sometimes, the application wants to leverage the computation power on the Cascade Server nodes to process topic messages. For example, the servers can be used to preprocess high resolution pictures and delete irrelavent pixels. We plan to introduce a server side API for this DDS so that the application can inject such logics to the server side like how we handle the UDLs.
-3) Currently, the DDS service supports only C++ API. We plan to provide Python and Java API soon. 
+3) We plan to add stateful DDS by allowing buffering recent topic messages and checkpointing.
+4) Currently, the DDS service supports only C++ API. We plan to provide Python and Java API soon. 
+5) Performance optimization: zero-copy API for big messages.
