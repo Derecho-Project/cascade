@@ -428,22 +428,31 @@ static void do_command(
     }
 }
 
-int main(int, char**) {
+int main(int argc, char** argv) {
     std::cout << "Cascade DDS Client" << std::endl;
     std::shared_ptr<ServiceClientAPI> capi = std::make_shared<ServiceClientAPI>();
     auto dds_config = DDSConfig::get();
     auto metadata_client = DDSMetadataClient::create(capi,dds_config);
     auto client = DDSClient::create(capi,dds_config);
 
-    while (shell_is_active) {
-        char* malloced_cmd = readline("cmd> ");
-        std::string cmdline(malloced_cmd);
-        free(malloced_cmd);
-        if (cmdline == "") continue;
-        add_history(cmdline.c_str());
-
-        std::string delimiter = " ";
-        do_command(*metadata_client,*client,tokenize(cmdline, delimiter.c_str()));
+    // shell mode
+    if (argc == 1) {
+        while (shell_is_active) {
+            char* malloced_cmd = readline("cmd> ");
+            std::string cmdline(malloced_cmd);
+            free(malloced_cmd);
+            if (cmdline == "") continue;
+            add_history(cmdline.c_str());
+    
+            std::string delimiter = " ";
+            do_command(*metadata_client,*client,tokenize(cmdline, delimiter.c_str()));
+        }
+    } else { // command line mode
+        std::vector<std::string> cmd_tokens;
+        for (int i=1;i<argc;i++) {
+            cmd_tokens.emplace_back(argv[i]);
+        }
+        do_command(*metadata_client,*client,cmd_tokens);
     }
     return 0;
 }
