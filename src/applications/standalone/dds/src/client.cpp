@@ -10,12 +10,14 @@
 #include <readline/history.h>
 #include <sys/prctl.h>
 #include <unistd.h>
+#include <cascade/object.hpp>
+#include <derecho/conf/conf.hpp>
 
 using namespace derecho::cascade;
 
-struct pingpong_msg_t {
+struct pingpong_msg_header_t {
     uint32_t seqno;
-    uint64_t sending_ts_us;
+    mutable uint64_t sending_ts_us;
 };
 
 /**
@@ -28,6 +30,8 @@ struct pingpong_msg_t {
  * @param send_topic        The topic for publish messages
  * @param recv_topic        The topic for receive a message
  * @param is_passive        Passive mode
+ * @param rate_mps          Message rate at number of messages per second
+ * @param count             The total number of messages to publish
  */
 static bool run_pingpong_latency(
         DDSMetadataClient& metadata_client,
@@ -35,6 +39,7 @@ static bool run_pingpong_latency(
         const std::string& send_topic,
         const std::string& recv_topic,
         bool is_passive,
+        uint32_t rate_mps,
         uint32_t count) {
     // check if topic exists or not.
     Topic st = metadata_client.get_topic(send_topic);
@@ -47,11 +52,6 @@ static bool run_pingpong_latency(
         std::cerr << "Cannot find: " << recv_topic << ", please make sure the topic is created." << std::endl; 
         return false;
     }
-    // make sure send_topic is not equal to recv_topic
-    if (send_topic == recv_topic) {
-        std::cerr << "Send topic and recv topic have to be different." << std::endl;
-        return false;
-    }
 
     std::condition_variable finish_cv;
     std::mutex finish_mtx;
@@ -59,20 +59,20 @@ static bool run_pingpong_latency(
     ts_log.reserve(count);
 
     // create a publisher
-    auto publisher = client.template create_publisher<pingpong_msg_t>(st.name);
+    auto publisher = client.template create_publisher<Blob>(st.name);
     
     // subscribe to the recv_topic
     auto subscriber = client.subscribe(rt.name,
-            std::unordered_map<std::string,message_handler_t<pingpong_msg_t>>{{
+            std::unordered_map<std::string,message_handler_t<Blob>>{{
                 std::string("default"),
-                [count,&publisher,&ts_log,&finish_mtx,&finish_cv,is_passive](const pingpong_msg_t& msg)->void {
-                    ts_log.emplace_back(std::tuple{msg.seqno,msg.sending_ts_us,get_time()/1000});
+                [count,&publisher,&ts_log,&finish_mtx,&finish_cv,is_passive](const Blob& msg)->void {
+                    const pingpong_msg_header_t* header = reinterpret_cast<const pingpong_msg_header_t*>(msg.bytes);
+                    // ts_log.emplace_back(std::tuple{msg.seqno,msg.sending_ts_us,get_time()/1000});
+                    ts_log.emplace_back(std::tuple{header->seqno,header->sending_ts_us,get_time()/1000});
                     // echo
                     if (is_passive) {
-                        pingpong_msg_t echo;
-                        echo.seqno = msg.seqno;
-                        echo.sending_ts_us = get_time()/1000;
-                        publisher->send(echo);
+                        header->sending_ts_us = get_time()/1000;
+                        publisher->send(msg);
                     }
                     // end of test
                     if(ts_log.size() == count) {
@@ -84,12 +84,31 @@ static bool run_pingpong_latency(
 
     // publish
     if (!is_passive) {
-        pingpong_msg_t ping;
+        // reserve payload space.
+        uint32_t payload_size = derecho::getConfUInt32(CONF_SUBGROUP_DEFAULT_MAX_PAYLOAD_SIZE);
+        if (payload_size < 256) {
+            payload_size = 0;
+        } else {
+            payload_size -= 256;
+        }
+        std::vector<uint8_t> payload;
+        payload.reserve(payload_size);
+        Blob ping(payload.data(),payload_size,true);
+        pingpong_msg_header_t* header = reinterpret_cast<pingpong_msg_header_t*>(payload.data());
+
+        // send the messages at given rate
+        uint64_t interval_us = 1000000/rate_mps;
+        uint64_t now_us = 0,next_us = 0;
         for(uint32_t i = 0; i < count; i++) {
-            ping.seqno = i;
-            ping.sending_ts_us = get_time()/1000;
+            now_us = get_time()/1000;
+            while (next_us > (now_us + 10)) {
+                usleep(next_us - now_us - 10);
+                now_us = get_time()/1000;
+            }
+            header->seqno = i;
+            header->sending_ts_us = get_time()/1000;
             publisher->send(ping);
-            usleep(10000);
+            next_us = header->sending_ts_us + interval_us;
         }
     }
 
@@ -104,7 +123,7 @@ static bool run_pingpong_latency(
     // flush to file
     std::ofstream ofile(rt.name + ".log");
     ofile << "# topic:" << rt.name << std::endl;
-    ofile << "#seqno send_ts_us recv_ts_us" << std::endl;
+    ofile << "# seqno send_ts_us recv_ts_us" << std::endl;
     for(const auto tp: ts_log) {
         ofile << std::get<0>(tp) << " " 
               << std::get<1>(tp) << " "
@@ -366,17 +385,23 @@ std::vector<command_entry_t> commands = {
     {
         "pingpong_latency",
         "perform a pingpong latency test",
-        "pingpong_latency <send_topic> <recv_topic> <0|1 - is passive> [count]",
+        "pingpong_latency <send_topic> <recv_topic> <0|1 - is passive> [rate_mps] [count]\n"
+            "\trate_mps - target sending rate at message per second\n"
+            "\tcount    - the total number of messages to send",
         [](DDSMetadataClient& metadata_client,DDSClient& client,const std::vector<std::string>& cmd_tokens) {
             CHECK_FORMAT(cmd_tokens,4);
             std::string send_topic = cmd_tokens[1];
             std::string recv_topic = cmd_tokens[2];
             bool is_passive = (std::stoul(cmd_tokens[3]) == 1);
+            uint32_t rate_mps = 100;
             uint32_t count = 1000;
             if (cmd_tokens.size() >= 5) {
-                count = (std::stoul(cmd_tokens[4]));
+                rate_mps = std::stoul(cmd_tokens[4]);
             }
-            return run_pingpong_latency(metadata_client,client,send_topic,recv_topic,is_passive,count);
+            if (cmd_tokens.size() >= 6) {
+                count = std::stoul(cmd_tokens[5]);
+            }
+            return run_pingpong_latency(metadata_client,client,send_topic,recv_topic,is_passive,rate_mps,count);
         }
     },
 };
@@ -405,7 +430,6 @@ static void do_command(
 
 int main(int, char**) {
     std::cout << "Cascade DDS Client" << std::endl;
-    // TODO: load dds.json
     std::shared_ptr<ServiceClientAPI> capi = std::make_shared<ServiceClientAPI>();
     auto dds_config = DDSConfig::get();
     auto metadata_client = DDSMetadataClient::create(capi,dds_config);
