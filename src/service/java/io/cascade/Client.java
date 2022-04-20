@@ -248,6 +248,28 @@ public class Client implements AutoCloseable {
     }
 
     /**
+     * Get the value corresponding to the byte buffer key from cascade object
+     * pool by timestamp.
+     *
+     * @param key           The byte buffer key of the key-value pair. The user
+     *                      should serialize their key formats into this byte format
+     *                      in order to use this method. If you use VCSU and PCSU as
+     *                      types, the hexadecimal translation of the byte buffer
+     *                      would be the long key.
+     * @param timestamp     The timestamp field returned by the Bundle object for
+     *                      put operation. Should be -1 when the version field is
+     *                      not known.
+     * @return A Future that stores a handle to a direct byte buffer that contains
+     *         the value that corresponds to the key in the specified
+     *         subgroup/shard. The byte buffer would be empty if the key has not
+     *         been put into cascade.
+     */
+    public QueryResults<CascadeObject> getByTime(ByteBuffer key, long timestamp) {
+        long res = getInternalByTime(key, timestamp);
+        return new QueryResults<CascadeObject>(res, 1);
+    }
+
+    /**
      * Remove a long key and its corresponding value from cascade.
      *
      * @param type          The type of the subgroup.
@@ -410,9 +432,7 @@ public class Client implements AutoCloseable {
      *                      and PCSS
      * @param key           The string key of the key-value pair. Requires:
      *                      {@code key} should be non-negative.
-     * @param val           A String holding the value of the key-value pair. Requires:
-     *                      {@code val} should be a direct
-     *                      byte buffer.
+     * @param val           A String holding the value of the key-value pair.
      * @param subgroupIndex The index of the subgroup with type {@code type} to put
      *                      this key-value pair into.
      * @param shardID       The index of the shard within the subgroup with type
@@ -425,6 +445,33 @@ public class Client implements AutoCloseable {
         ByteBuffer bbkey = str2ByteBuffer(key);
         ByteBuffer bbval = str2ByteBuffer(val);
         putAndForgetInternal(type, subgroupIndex, shardID, bbkey, bbval);
+        return;
+    }
+
+    /**
+     * Put a String key and its corresponding value into cascade using put and
+     * forget mechanism.
+     *
+     * Put_and_forget differs from normal put in that we do not check if the put
+     * is successful or not and hence there is no return value.
+     *
+     * @param type          The type of the subgroup. In Cascade, this would be VCSS
+     *                      and PCSS
+     * @param key           The string key of the key-value pair. Requires:
+     *                      {@code key} should be non-negative.
+     * @param val           A ByteBuffer holding the value of the key-value pair. Requires:
+     *                      {@code val} should be a direct byte buffer.
+     * @param subgroupIndex The index of the subgroup with type {@code type} to put
+     *                      this key-value pair into.
+     * @param shardID       The index of the shard within the subgroup with type
+     *                      {@code type} and subgroup index {@code subgroupIndex} to
+     *                      put this key-value pair into.
+     * @return None.
+     */
+    public void put_and_forget(ServiceType type, String key, ByteBuffer val,
+            long subgroupIndex, long shardID) {
+        ByteBuffer bbkey = str2ByteBuffer(key);
+        putAndForgetInternal(type, subgroupIndex, shardID, bbkey, val);
         return;
     }
 
@@ -751,6 +798,15 @@ public class Client implements AutoCloseable {
             long timestamp, boolean stable);
 
     /**
+     * Internal interface for get by time operation.
+     *
+     * @param key           The byte buffer key of the key-value pair.
+     * @param timestamp     The timestamp returned by the Future object of past put.
+     * @return A handle of the C++ future that stores the byte buffer for values.
+     */
+    private native long getInternalByTime(ByteBuffer key, long timestamp);
+
+    /**
      * Internal interface for remove operation.
      *
      * @param type          The type of the subgroup.
@@ -782,6 +838,17 @@ public class Client implements AutoCloseable {
     private native long listKeysInternal(ServiceType type, long version, boolean stable, long subgroupIndex, long shardIndex);
 
     /**
+     * Internal interface for listing the keys in an object pool.
+     *
+     * @param path          The path of the object pool.
+     * @param version       The upper bound persistent version of all keys listed.
+     *                      -1 if you want to list all keys.
+     * @param stable        get stable data or not.
+     * @return A handle of the C++ future that stores a vector with all keys included.
+     */
+    private native long listKeysInternal(ByteBuffer path, long version, boolean stable);
+
+    /**
      * Internal interface for list key by time operation.
      *
      * @param type          The type of the subgroup.
@@ -790,7 +857,7 @@ public class Client implements AutoCloseable {
      * @param subgroupIndex The index of the subgroup with type {@code type} to
      *                      remove this key-value pair from.
      * @param shardIndex    The index of the shard within the subgroup with type
-     *                      {@code type} and subgroup index {@code subgroupIndex} to
+     *                      {@code type} and subgroup index {@code subgroupIndex} t
      *                      remove this key-value pair from.
      * @return A handle of the C++ future that stores a vector with all keys included.
      */
