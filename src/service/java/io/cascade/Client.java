@@ -259,13 +259,15 @@ public class Client implements AutoCloseable {
      * @param timestamp     The timestamp field returned by the Bundle object for
      *                      put operation. Should be -1 when the version field is
      *                      not known.
+     * @param stable        Get stable version or not.
      * @return A Future that stores a handle to a direct byte buffer that contains
      *         the value that corresponds to the key in the specified
      *         subgroup/shard. The byte buffer would be empty if the key has not
      *         been put into cascade.
      */
-    public QueryResults<CascadeObject> getByTime(ByteBuffer key, long timestamp) {
-        long res = getInternalByTime(key, timestamp);
+    public QueryResults<CascadeObject> getByTime(ByteBuffer key, long timestamp,
+    boolean stable) {
+        long res = getInternalByTime(key, timestamp, stable);
         return new QueryResults<CascadeObject>(res, 1);
     }
 
@@ -802,9 +804,11 @@ public class Client implements AutoCloseable {
      *
      * @param key           The byte buffer key of the key-value pair.
      * @param timestamp     The timestamp returned by the Future object of past put.
+     * @param stable        A boolean flag. If a stable version of the data is
+     *                      needed, this should be set to true.
      * @return A handle of the C++ future that stores the byte buffer for values.
      */
-    private native long getInternalByTime(ByteBuffer key, long timestamp);
+    private native long getInternalByTime(ByteBuffer key, long timestamp, boolean stable);
 
     /**
      * Internal interface for remove operation.
@@ -838,15 +842,25 @@ public class Client implements AutoCloseable {
     private native long listKeysInternal(ServiceType type, long version, boolean stable, long subgroupIndex, long shardIndex);
 
     /**
-     * Internal interface for listing the keys in an object pool.
+     * Internal interface for list keys in an object pool.
      *
-     * @param path          The path of the object pool.
+       @param path          The path of the object pool, stored in a ByteBuffer.
      * @param version       The upper bound persistent version of all keys listed.
      *                      -1 if you want to list all keys.
      * @param stable        get stable data or not.
      * @return A handle of the C++ future that stores a vector with all keys included.
      */
     private native long listKeysInternal(ByteBuffer path, long version, boolean stable);
+
+    /**
+     * Internal interface for listing the keys in an object pool.
+     *
+     * @param path          The path of the object pool.
+     * @param timestamp     The upper bound timestamp of all keys listed.
+     * @param stable        Get stable data or not.
+     * @return A handle of the C++ future that stores a vector with all keys included.
+     */
+    private native long listKeysByTimeInternal(ByteBuffer path, long timestamp, boolean stable);
 
     /**
      * Internal interface for list key by time operation.
