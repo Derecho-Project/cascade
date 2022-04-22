@@ -68,11 +68,11 @@ static bool run_pingpong_latency(
                 std::string("default"),
                 [count,&publisher,&ts_log,&finish_mtx,&finish_cv,is_passive](const Blob& msg)->void {
                     const pingpong_msg_header_t* header = reinterpret_cast<const pingpong_msg_header_t*>(msg.bytes);
-                    // ts_log.emplace_back(std::tuple{msg.seqno,msg.sending_ts_us,get_time()/1000});
-                    ts_log.emplace_back(std::tuple{header->seqno,header->sending_ts_us,get_time()/1000});
+                    // ts_log.emplace_back(std::tuple{msg.seqno,msg.sending_ts_us,get_walltime()/1000});
+                    ts_log.emplace_back(std::tuple{header->seqno,header->sending_ts_us,get_walltime()/1000});
                     // echo
                     if (is_passive) {
-                        header->sending_ts_us = get_time()/1000;
+                        header->sending_ts_us = get_walltime()/1000;
                         publisher->send(msg);
                     }
                     // end of test
@@ -101,13 +101,13 @@ static bool run_pingpong_latency(
         uint64_t interval_us = 1000000/rate_mps;
         uint64_t now_us = 0,next_us = 0;
         for(uint32_t i = 0; i < count; i++) {
-            now_us = get_time()/1000;
+            now_us = get_walltime()/1000;
             while (next_us > (now_us + 10)) {
                 usleep(next_us - now_us - 10);
-                now_us = get_time()/1000;
+                now_us = get_walltime()/1000;
             }
             header->seqno = i;
-            header->sending_ts_us = get_time()/1000;
+            header->sending_ts_us = get_walltime()/1000;
             publisher->send(ping);
             next_us = header->sending_ts_us + interval_us;
         }
