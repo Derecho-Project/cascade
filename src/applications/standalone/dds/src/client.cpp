@@ -85,6 +85,10 @@ static bool run_pingpong_latency(
 
     // publish
     if (!is_passive) {
+#if DISABLE_DDS_COPY == 1
+        uint32_t payload_size = sizeof(pingpong_msg_header_t);
+#else
+#error "should not be here"
         // reserve payload space.
         uint32_t payload_size = derecho::getConfUInt32(CONF_SUBGROUP_DEFAULT_MAX_PAYLOAD_SIZE);
         if (payload_size < 256) {
@@ -92,6 +96,7 @@ static bool run_pingpong_latency(
         } else {
             payload_size -= 256;
         }
+#endif
         std::vector<uint8_t> payload;
         payload.reserve(payload_size);
         Blob ping(payload.data(),payload_size,true);
