@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <shared_mutex>
 #include <nlohmann/json.hpp>
+#include <cascade_dds/config.h>
 
 using namespace nlohmann;
 
