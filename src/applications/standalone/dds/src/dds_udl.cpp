@@ -73,12 +73,15 @@ class DDSOCDPO: public OffCriticalDataPathObserver {
             // data plane
             std::shared_lock<std::shared_mutex> rlck(subscriber_registry_mutex);
             if (subscriber_registry.find(key_without_prefix) != subscriber_registry.cend()) {
+                dbg_default_trace("Key:{} is found in subscriber_registry.", key_without_prefix);
                 auto* typed_ctxt = dynamic_cast<DefaultCascadeContextType*>(ctxt);
                 for (const auto& client_id: subscriber_registry.at(key_without_prefix)) {
                     dbg_default_trace("Forward a message of {} bytes from topic '{}' to external client {}.",
                             object->blob.size, key_without_prefix, client_id);
                     typed_ctxt->get_service_client_ref().notify(object->blob,key_string.substr(0,prefix_length-1),client_id);
                 }
+            } else {
+                dbg_default_trace("Key:{} is not found in subscriber_registry.", key_without_prefix);
             }
         }
     }
