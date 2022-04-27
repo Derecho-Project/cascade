@@ -88,7 +88,6 @@ static bool run_pingpong_latency(
 #if DISABLE_DDS_COPY == 1
         uint32_t payload_size = sizeof(pingpong_msg_header_t);
 #else
-#error "should not be here"
         // reserve payload space.
         uint32_t payload_size = derecho::getConfUInt32(CONF_SUBGROUP_DEFAULT_MAX_PAYLOAD_SIZE);
         if (payload_size < 256) {
