@@ -191,8 +191,6 @@ std::vector<node_id_t> ServiceClient<CascadeTypes...>::get_shard_members(uint32_
     }
 }
 
-<<<<<<< HEAD
-
 template <typename... CascadeTypes>
 template <typename SubgroupType>
 uint32_t ServiceClient<CascadeTypes...>::get_number_of_subgroups() const {
@@ -202,20 +200,7 @@ uint32_t ServiceClient<CascadeTypes...>::get_number_of_subgroups() const {
         return external_group_ptr->template get_number_of_subgroups<SubgroupType>();
     }
 }
-/**
- * disable the APIs exposing subgroup_id, which are originally designed for internal use.
-template <typename... CascadeTypes>
-uint32_t ServiceClient<CascadeTypes...>::get_number_of_shards(derecho::subgroup_id_t subgroup_id) {
-    if (group_ptr != nullptr) {
-        //TODO: There is no API exposed in Group for getting number of shards by subgroup_id
-    } else {
-        return external_group_ptr->get_number_of_shards(subgroup_id);
-    }
-}
- */
 
-=======
->>>>>>> v1.0rc
 template <typename... CascadeTypes>
 template <typename SubgroupType>
 uint32_t ServiceClient<CascadeTypes...>::get_number_of_shards(uint32_t subgroup_index) const {
