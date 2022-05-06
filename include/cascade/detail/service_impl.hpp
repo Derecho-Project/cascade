@@ -2,7 +2,7 @@
 
 #include <derecho/core/derecho.hpp>
 #include <derecho/core/detail/rpc_utils.hpp>
-
+#include <derecho/core/notification.hpp>
 #include <vector>
 #include <map>
 #include <typeindex>
@@ -129,11 +129,20 @@ void Service<CascadeTypes...>::wait() {
     }
 }
 
+template <typename CascadeType>
+std::unique_ptr<CascadeType> client_stub_factory() {
+    return std::make_unique<CascadeType>();
+}
+
 template <typename... CascadeTypes>
 ServiceClient<CascadeTypes...>::ServiceClient(derecho::Group<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>* _group_ptr):
+    external_group_ptr(nullptr),
     group_ptr(_group_ptr) {
     if (group_ptr == nullptr) {
-        this->external_group_ptr = std::make_unique<derecho::ExternalGroupClient<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>>();
+        this->external_group_ptr =
+            std::make_unique<derecho::ExternalGroupClient<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>>(
+                    client_stub_factory<CascadeMetadataService<CascadeTypes...>>,
+                    client_stub_factory<CascadeTypes>...);
     }
 }
 
@@ -145,8 +154,13 @@ ServiceClient<CascadeTypes...>::ServiceClient(derecho::NoArgFactory<CascadeTypes
 }
 
 template <typename... CascadeTypes>
+bool ServiceClient<CascadeTypes...>::is_external_client() const {
+    return (group_ptr == nullptr) && (external_group_ptr != nullptr);
+}
+
+template <typename... CascadeTypes>
 node_id_t ServiceClient<CascadeTypes...>::get_my_id() const {
-    if (group_ptr != nullptr) {
+    if (!is_external_client()) {
         return group_ptr->get_my_id();
     } else {
         return external_group_ptr->get_my_id();
@@ -155,30 +169,17 @@ node_id_t ServiceClient<CascadeTypes...>::get_my_id() const {
 
 template <typename... CascadeTypes>
 std::vector<node_id_t> ServiceClient<CascadeTypes...>::get_members() const {
-    if (group_ptr != nullptr) {
+    if (!is_external_client()) {
         return group_ptr->get_members();
     } else {
         return external_group_ptr->get_members();
     }
 }
 
-/**
- * disable the APIs exposing subgroup_id, which are originally designed for internal use.
-template <typename... CascadeTypes>
-std::vector<node_id_t> ServiceClient<CascadeTypes...>::get_shard_members(derecho::subgroup_id_t subgroup_id, uint32_t shard_index) {
-    if (group_ptr != nullptr) {
-        // TODO: There is no API exposed in Group for getting shard members by subgroup_id.
-        return group_ptr->get_shard_members(subgroup_id,shard_index);
-    } else {
-        return external_group_ptr->get_shard_members(subgroup_id,shard_index);
-    }
-}
-*/
-
 template <typename... CascadeTypes>
 template <typename SubgroupType>
 std::vector<node_id_t> ServiceClient<CascadeTypes...>::get_shard_members(uint32_t subgroup_index, uint32_t shard_index) const {
-    if (group_ptr != nullptr) {
+    if (!is_external_client()) {
         std::vector<std::vector<node_id_t>> subgroup_members = group_ptr->template get_subgroup_members<SubgroupType>(subgroup_index);
         if (subgroup_members.size() > shard_index) {
             return subgroup_members[shard_index];
@@ -190,6 +191,7 @@ std::vector<node_id_t> ServiceClient<CascadeTypes...>::get_shard_members(uint32_
     }
 }
 
+<<<<<<< HEAD
 
 template <typename... CascadeTypes>
 template <typename SubgroupType>
@@ -212,10 +214,12 @@ uint32_t ServiceClient<CascadeTypes...>::get_number_of_shards(derecho::subgroup_
 }
  */
 
+=======
+>>>>>>> v1.0rc
 template <typename... CascadeTypes>
 template <typename SubgroupType>
 uint32_t ServiceClient<CascadeTypes...>::get_number_of_shards(uint32_t subgroup_index) const {
-    if (group_ptr != nullptr) {
+    if (!is_external_client()) {
         return group_ptr->template get_subgroup_members<SubgroupType>(subgroup_index).size();
     } else {
         return external_group_ptr->template get_number_of_shards<SubgroupType>(subgroup_index);
@@ -375,25 +379,6 @@ std::tuple<uint32_t,uint32_t,uint32_t> ServiceClient<CascadeTypes...>::key_to_sh
         opm.key_to_shard_index(key,get_number_of_shards(opm.subgroup_type_index,opm.subgroup_index),check_object_location)};
 }
 
-/**
- * Deprecated: use key_to_shard() instead.
-template <typename... CascadeTypes>
-template <typename SubgroupType>
-std::pair<uint32_t,uint32_t> ServiceClient<CascadeTypes...>::key_to_subgroup_index_and_shard_index(
-	const typename SubgroupType::KeyType& key,
-    bool check_object_location) {
-    std::string object_pool_pathname = get_pathname<typename SubgroupType::KeyType>(key);
-    if (object_pool_pathname.empty()) {
-        std::string exp_msg("Key:");
-        throw derecho::derecho_exception(std::string("Key:") + key + " does not belong to any object pool.");
-    }
-
-    auto opm = find_object_pool(object_pool_pathname);
-    uint32_t shard_index = opm.key_to_shard_index(key,get_number_of_shards<SubgroupType>(opm.subgroup_index),check_object_location);
-    return std::pair<uint32_t,uint32_t>{opm.subgroup_index,shard_index};
-}
-**/
-
 template <typename... CascadeTypes>
 template <typename SubgroupType>
 node_id_t ServiceClient<CascadeTypes...>::pick_member_by_policy(uint32_t subgroup_index,
@@ -457,7 +442,7 @@ derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceCl
         const typename SubgroupType::ObjectType& value,
         uint32_t subgroup_index,
         uint32_t shard_index) {
-    if (group_ptr != nullptr) {
+    if (!is_external_client()) {
         std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
         if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
             // do ordered put as a member (Replicated).
@@ -527,7 +512,7 @@ void ServiceClient<CascadeTypes...>::put_and_forget(
         const typename SubgroupType::ObjectType& value,
         uint32_t subgroup_index,
         uint32_t shard_index) {
-    if (group_ptr != nullptr) {
+    if (!is_external_client()) {
         std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
         if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
             // do ordered put as a member (Replicated).
@@ -595,7 +580,7 @@ derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::trigger_put(
         const typename SubgroupType::ObjectType& value,
         uint32_t subgroup_index,
         uint32_t shard_index) {
-    if (group_ptr != nullptr) {
+    if (!is_external_client()) {
         std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
         if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index){
             auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
@@ -667,7 +652,7 @@ void ServiceClient<CascadeTypes...>::collective_trigger_put(
         const typename SubgroupType::ObjectType& value,
         uint32_t subgroup_index,
         std::unordered_map<node_id_t,std::unique_ptr<derecho::rpc::QueryResults<void>>>& nodes_and_futures) {
-    if (group_ptr != nullptr) {
+    if (!is_external_client()) {
         std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
         if (group_ptr->template get_my_shard<SubgroupType>(subgroup_index) != -1) {
             auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
@@ -698,7 +683,7 @@ derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceCl
         const typename SubgroupType::KeyType& key,
         uint32_t subgroup_index,
         uint32_t shard_index) {
-    if (group_ptr != nullptr) {
+    if (!is_external_client()) {
         std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
         if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
             // do ordered remove as a member (Replicated).
@@ -770,7 +755,7 @@ derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> ServiceClien
         bool stable,
         uint32_t subgroup_index,
         uint32_t shard_index) {
-    if (group_ptr != nullptr) {
+    if (!is_external_client()) {
         std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
         if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
             // do ordered put as a member (Replicated).
@@ -797,7 +782,7 @@ derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> ServiceClien
         const typename SubgroupType::KeyType& key,
         uint32_t subgroup_index,
         uint32_t shard_index) {
-    if (group_ptr != nullptr) {
+    if (!is_external_client()) {
         std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
         if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
             // do ordered put as a member (Replicated).
@@ -921,7 +906,7 @@ derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> ServiceClien
         const bool stable,
         uint32_t subgroup_index,
         uint32_t shard_index) {
-    if (group_ptr != nullptr) {
+    if (!is_external_client()) {
         std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
         if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
             // do ordered put as a member (Replicated).
@@ -998,7 +983,7 @@ derecho::rpc::QueryResults<uint64_t> ServiceClient<CascadeTypes...>::get_size(
         const bool stable,
         uint32_t subgroup_index,
         uint32_t shard_index) {
-    if (group_ptr != nullptr) {
+    if (!is_external_client()) {
         std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
         if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
             // do ordered put as a member (Replicated).
@@ -1075,7 +1060,7 @@ template <typename SubgroupType>
 derecho::rpc::QueryResults<uint64_t> ServiceClient<CascadeTypes...>::multi_get_size(
         const typename SubgroupType::KeyType& key,
         uint32_t subgroup_index, uint32_t shard_index) {
-    if (group_ptr != nullptr) {
+    if (!is_external_client()) {
         std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
         if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
             // do ordered put as a member (Replicated).
@@ -1145,7 +1130,7 @@ derecho::rpc::QueryResults<uint64_t> ServiceClient<CascadeTypes...>::get_size_by
         const bool stable,
         uint32_t subgroup_index,
         uint32_t shard_index) {
-    if (group_ptr != nullptr) {
+    if (!is_external_client()) {
         std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
         if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
             // do ordered put as a member (Replicated).
@@ -1221,7 +1206,7 @@ derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> ServiceC
         const bool stable,
         uint32_t subgroup_index,
         uint32_t shard_index) {
-    if (group_ptr != nullptr) {
+    if (!is_external_client()) {
         std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
         if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
             // do ordered put as a member (Replicated).
@@ -1284,7 +1269,7 @@ std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename Subg
     uint32_t shards = get_number_of_shards<SubgroupType>(subgroup_index);
     std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>> result;
     for (uint32_t shard_index = 0; shard_index < shards; shard_index ++){
-        if (group_ptr != nullptr) {
+        if (!is_external_client()) {
             if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
                 auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
                 auto shard_keys = subgroup_handle.template p2p_send<RPC_NAME(list_keys)>(group_ptr->get_my_id(),object_pool_pathname,version,stable);
@@ -1345,7 +1330,7 @@ template <typename SubgroupType>
 derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> ServiceClient<CascadeTypes...>::multi_list_keys(
         uint32_t subgroup_index,
         uint32_t shard_index) {
-    if (group_ptr != nullptr) {
+    if (!is_external_client()) {
         std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
         if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
             // do ordered put as a member (Replicated).
@@ -1401,7 +1386,7 @@ std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename Subg
     uint32_t shards = get_number_of_shards<SubgroupType>(subgroup_index);
     std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>> result;
     for (uint32_t shard_index = 0; shard_index < shards; shard_index ++){
-        if (group_ptr != nullptr) {
+        if (!is_external_client()) {
             if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
                 auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
                 auto shard_keys = subgroup_handle.template p2p_send<RPC_NAME(multi_list_keys)>(group_ptr->get_my_id(),object_pool_pathname);
@@ -1437,7 +1422,7 @@ derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> ServiceC
         const bool stable,
         uint32_t subgroup_index,
         uint32_t shard_index) {
-    if (group_ptr != nullptr) {
+    if (!is_external_client()) {
         std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
         if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
             // do ordered put as a member (Replicated).
@@ -1500,7 +1485,7 @@ std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename Subg
     uint32_t shards = get_number_of_shards<SubgroupType>(subgroup_index);
     std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>> result;
     for (uint32_t shard_index = 0; shard_index < shards; shard_index ++){
-        if (group_ptr != nullptr) {
+        if (!is_external_client()) {
             std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
             if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
                 // do ordered put as a member (Replicated).
@@ -1809,13 +1794,170 @@ std::vector<std::string> ServiceClient<CascadeTypes...>::list_object_pools(bool 
     return ret;
 }
 
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+bool ServiceClient<CascadeTypes...>::register_notification_handler(
+        const cascade_notification_handler_t& handler,
+        const uint32_t subgroup_index) {
+    return register_notification_handler<SubgroupType>(handler,std::string{},subgroup_index);
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+bool ServiceClient<CascadeTypes...>::register_notification_handler(
+        const cascade_notification_handler_t& handler,
+        const std::string& object_pool_pathname,
+        const uint32_t subgroup_index) {
+    if (!is_external_client()) {
+        throw derecho_exception(std::string(__PRETTY_FUNCTION__) +
+            "Cannot register notification handler because external_group_ptr is null.");
+    }
+
+    std::unique_lock<std::mutex> type_registry_lock(this->notification_handler_registry_mutex);
+    auto& per_type_registry = notification_handler_registry.template get<SubgroupType>();
+    // Register Cascade's root handler:
+    // if subgroup_index exists in the per_type_registry, Cascade's root handler is registered already.
+    if (per_type_registry.find(subgroup_index) == per_type_registry.cend()) {
+        per_type_registry.emplace(subgroup_index,SubgroupNotificationHandler<SubgroupType>{});
+        // register to subgroup_caller
+        auto& subgroup_caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
+        // to do ... register it.
+        per_type_registry.at(subgroup_index).initialize(subgroup_caller);
+    }
+    auto& subgroup_handlers = per_type_registry.at(subgroup_index);
+
+    // Register the handler
+    std::lock_guard<std::mutex> subgroup_handlers_lock(*subgroup_handlers.object_pool_notification_handlers_mutex);
+    bool ret = (subgroup_handlers.object_pool_notification_handlers.find(object_pool_pathname) !=
+                subgroup_handlers.object_pool_notification_handlers.cend());
+
+    if (handler) {
+        subgroup_handlers.object_pool_notification_handlers[object_pool_pathname] = handler;
+    } else {
+        subgroup_handlers.object_pool_notification_handlers[object_pool_pathname].reset();
+    }
+    return ret;
+}
+
+template <typename... CascadeTypes>
+template <typename FirstType,typename SecondType, typename...RestTypes>
+bool ServiceClient<CascadeTypes...>::type_recursive_register_notification_handler(
+        uint32_t type_index,
+        const cascade_notification_handler_t& handler,
+        const std::string& object_pool_pathname,
+        const uint32_t subgroup_index) {
+    if (type_index == 0) {
+        return this->template register_notification_handler<FirstType>(handler,object_pool_pathname,subgroup_index);
+    } else {
+        return this->template type_recursive_register_notification_handler<SecondType,RestTypes...>(
+            type_index-1,handler,object_pool_pathname,subgroup_index);
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename LastType>
+bool ServiceClient<CascadeTypes...>::type_recursive_register_notification_handler(
+        uint32_t type_index,
+        const cascade_notification_handler_t& handler,
+        const std::string& object_pool_pathname,
+        const uint32_t subgroup_index) {
+    if (type_index == 0) {
+        return this->template register_notification_handler<LastType>(handler,object_pool_pathname,subgroup_index);
+    } else {
+        throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) + ": type index is out of boundary.");
+    }
+}
+
+template <typename... CascadeTypes>
+bool ServiceClient<CascadeTypes...>::register_notification_handler(
+        const cascade_notification_handler_t& handler,
+        const std::string& object_pool_pathname) {
+    auto opm = find_object_pool(object_pool_pathname);
+
+    return this->template type_recursive_register_notification_handler<CascadeTypes...>(
+        opm.subgroup_type_index,handler,object_pool_pathname,opm.subgroup_index);
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+void ServiceClient<CascadeTypes...>::notify(
+        const Blob& msg,
+        const uint32_t subgroup_index,
+        const node_id_t client_id) const {
+    notify<SubgroupType>(msg,"",subgroup_index,client_id);
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+void ServiceClient<CascadeTypes...>::notify(
+        const Blob& msg,
+        const std::string& object_pool_pathname,
+        const uint32_t subgroup_index,
+        const node_id_t client_id) const {
+    if (is_external_client()) {
+        throw derecho_exception(std::string(__PRETTY_FUNCTION__) +
+                "Cannot notify an external client from an external client.");
+    }
+
+    auto& client_handle = group_ptr->template get_client_callback<SubgroupType>(subgroup_index);
+
+    //TODO: redesign to avoid memory copies.
+    CascadeNotificationMessage cascade_notification_message(object_pool_pathname,msg);
+    derecho::NotificationMessage derecho_notification_message(CASCADE_NOTIFICATION_MESSAGE_TYPE, mutils::bytes_size(cascade_notification_message));
+    mutils::to_bytes(cascade_notification_message,derecho_notification_message.body);
+
+    client_handle.template p2p_send<RPC_NAME(notify)>(client_id,derecho_notification_message);
+}
+
+template <typename... CascadeTypes>
+template <typename FirstType,typename SecondType, typename...RestTypes>
+void ServiceClient<CascadeTypes...>::type_recursive_notify(
+        uint32_t type_index,
+        const Blob& msg,
+        const std::string& object_pool_pathname,
+        const uint32_t subgroup_index,
+        const node_id_t client_id) const {
+    if (type_index == 0) {
+        this->template notify<FirstType>(msg,object_pool_pathname,subgroup_index,client_id);
+    } else {
+        this->template type_recursive_notify<SecondType,RestTypes...>(type_index-1,msg,object_pool_pathname,subgroup_index,client_id);
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename LastType>
+void ServiceClient<CascadeTypes...>::type_recursive_notify(
+        uint32_t type_index,
+        const Blob& msg,
+        const std::string& object_pool_pathname,
+        const uint32_t subgroup_index,
+        const node_id_t client_id) const {
+    if (type_index == 0) {
+        this->template notify<LastType>(msg,object_pool_pathname,subgroup_index,client_id);
+    } else {
+        throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) + ": type index is out of boundary.");
+    }
+}
+
+template <typename... CascadeTypes>
+void ServiceClient<CascadeTypes...>::notify(
+        const Blob& msg,
+        const std::string& object_pool_pathname,
+        const node_id_t client_id) {
+    auto opm = find_object_pool(object_pool_pathname);
+    if (!opm.is_valid() || opm.is_null() || opm.deleted) {
+        throw derecho::derecho_exception("Failed to find object_pool:" + object_pool_pathname);
+    }
+    this->template type_recursive_notify<CascadeTypes...>(opm.subgroup_type_index,msg,object_pool_pathname,opm.subgroup_index,client_id);
+}
+
 #ifdef ENABLE_EVALUATION
 
 template <typename... CascadeTypes>
 template <typename SubgroupType>
 derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::dump_timestamp(const std::string& filename, const uint32_t subgroup_index, const uint32_t shard_index) {
 
-    if (group_ptr != nullptr) {
+    if (!is_external_client()) {
         std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
         if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
             auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
@@ -1844,7 +1986,7 @@ std::vector<std::unique_ptr<derecho::rpc::QueryResults<void>>> ServiceClient<Cas
     uint32_t shards = get_number_of_shards<SubgroupType>(subgroup_index);
     std::vector<std::unique_ptr<derecho::rpc::QueryResults<void>>> result;
     for (uint32_t shard_index = 0; shard_index < shards; shard_index ++){
-        if (group_ptr != nullptr) {
+        if (!is_external_client()) {
             std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
             if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
                 auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
@@ -1870,7 +2012,7 @@ std::vector<std::unique_ptr<derecho::rpc::QueryResults<void>>> ServiceClient<Cas
 template <typename... CascadeTypes>
 template <typename SubgroupType>
 derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::dump_timestamp_workaround(const std::string& filename, const uint32_t subgroup_index, const uint32_t shard_index, const node_id_t node_id) {
-    if (group_ptr != nullptr) {
+    if (!is_external_client()) {
         std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
         if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
             auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
@@ -1889,7 +2031,7 @@ derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::dump_timestamp_
 template <typename... CascadeTypes>
 template <typename SubgroupType>
 derecho::rpc::QueryResults<double> ServiceClient<CascadeTypes...>::perf_put(const uint32_t message_size, const uint64_t duration_sec, const uint32_t subgroup_index, const uint32_t shard_index) {
-    if (group_ptr != nullptr) {
+    if (!is_external_client()) {
         // 'perf_put' must be issued from an external client.
         throw derecho::derecho_exception{"perf_put must be issued from an external client."};
     } else {
@@ -1943,6 +2085,7 @@ void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeMetadataSe
                 register_prefixes(
                         {vertex.second.pathname},
                         vertex.second.shard_dispatchers.at(edge.first),
+                        vertex.second.hooks.at(edge.first),
                         edge.first,
                         user_defined_logic_manager->get_observer(
                             edge.first, // UUID
@@ -2109,12 +2252,13 @@ template <typename... CascadeTypes>
 void CascadeContext<CascadeTypes...>::register_prefixes(
         const std::unordered_set<std::string>& prefixes,
         const DataFlowGraph::VertexShardDispatcher shard_dispatcher,
+        const DataFlowGraph::VertexHook hook,
         const std::string& user_defined_logic_id,
         const std::shared_ptr<OffCriticalDataPathObserver>& ocdpo_ptr,
         const std::unordered_map<std::string,bool>& outputs) {
     for (const auto& prefix:prefixes) {
         prefix_registry_ptr->atomically_modify(prefix,
-            [&prefix,&shard_dispatcher,&user_defined_logic_id,&ocdpo_ptr,&outputs](const std::shared_ptr<prefix_entry_t>& entry){
+            [&prefix,&shard_dispatcher,&hook,&user_defined_logic_id,&ocdpo_ptr,&outputs](const std::shared_ptr<prefix_entry_t>& entry){
                 std::shared_ptr<prefix_entry_t> new_entry;
                 if (entry) {
                     new_entry = std::make_shared<prefix_entry_t>(*entry);
@@ -2122,9 +2266,9 @@ void CascadeContext<CascadeTypes...>::register_prefixes(
                     new_entry = std::make_shared<prefix_entry_t>(prefix_entry_t{});
                 }
                 if (new_entry->find(user_defined_logic_id) == new_entry->end()) {
-                    new_entry->emplace(user_defined_logic_id,std::tuple{shard_dispatcher,ocdpo_ptr,outputs});
+                    new_entry->emplace(user_defined_logic_id,std::tuple{shard_dispatcher,hook,ocdpo_ptr,outputs});
                 } else {
-                    std::get<2>(new_entry->at(user_defined_logic_id)).insert(outputs.cbegin(),outputs.cend());
+                    std::get<3>(new_entry->at(user_defined_logic_id)).insert(outputs.cbegin(),outputs.cend());
                 }
                 return new_entry;
             },true);

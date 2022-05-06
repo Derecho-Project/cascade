@@ -7,6 +7,7 @@
 #include <tensorflow/c/eager/c_api.h>
 #include "demo_common.hpp"
 #include "time_probes.hpp"
+#include "config.h"
 
 namespace derecho{
 namespace cascade{
@@ -38,7 +39,8 @@ std::string get_description() {
 class DairyFarmFilterOCDPO: public OffCriticalDataPathObserver {
     std::mutex p2p_send_mutex;
 
-    virtual void operator () (const std::string& key_string,
+    virtual void operator () (const node_id_t,
+                              const std::string& key_string,
                               const uint32_t prefix_length,
                               persistent::version_t version,
                               const mutils::ByteRepresentable* const value_ptr,

@@ -2,6 +2,7 @@
 #include <iostream>
 #include <vector>
 #include "time_probes.hpp"
+#include "config.h"
 
 namespace derecho{
 namespace cascade{
@@ -19,7 +20,8 @@ std::string get_description() {
 
 class DairyFarmStorageOCDPO: public OffCriticalDataPathObserver {
 
-    virtual void operator () (const std::string&,
+    virtual void operator () (const node_id_t,
+                              const std::string&,
                               const uint32_t,
                               persistent::version_t,
                               const mutils::ByteRepresentable* const value_ptr,

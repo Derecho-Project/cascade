@@ -16,14 +16,15 @@ std::string get_description() {
 }
 
 class ConsolePrinterOCDPO: public OffCriticalDataPathObserver {
-    virtual void operator () (const std::string& key_string,
+    virtual void operator () (const node_id_t sender,
+                              const std::string& key_string,
                               const uint32_t prefix_length,
                               persistent::version_t version,
                               const mutils::ByteRepresentable* const value_ptr,
                               const std::unordered_map<std::string,bool>& outputs,
                               ICascadeContext* ctxt,
                               uint32_t worker_id) override {
-        std::cout << "[console printer ocdpo]: I(" << worker_id << ") received an object with key=" << key_string 
+        std::cout << "[console printer ocdpo]: I(" << worker_id << ") received an object from sender:" << sender << " with key=" << key_string 
                   << ", matching prefix=" << key_string.substr(0,prefix_length) << std::endl;
     }
 

@@ -21,22 +21,6 @@
 
 using namespace derecho::cascade;
 
-/**
- * This part has moved to service_client_api.hpp
- *
-namespace derecho::cascade {
-// specialize create_null_object_cb for Cascade Types...
-using opm_t = ObjectPoolMetadata<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey,SignatureCascadeStoreWithStringKey,TriggerCascadeNoStoreWithStringKey>;
-template<>
-opm_t create_null_object_cb<std::string,opm_t,&opm_t::IK,&opm_t::IV>(const std::string& key) {
-    opm_t opm;
-    opm.pathname = key;
-    opm.subgroup_type_index = opm_t::invalid_subgroup_type_index;
-    return opm;
-}
-}
-**/
-
 int main(int argc, char** argv) {
     // set proc name
     if( prctl(PR_SET_NAME, PROC_NAME, 0, 0, 0) != 0 ) {

@@ -9,6 +9,7 @@
 #include <derecho/core/notification.hpp>
 #include <derecho/persistent/PersistentInterface.hpp>
 #include <derecho/utils/time.h>
+#include <derecho/mutils-serialization/SerializationSupport.hpp>
 
 #include <condition_variable>
 #include <cstdint>
@@ -66,6 +67,7 @@ namespace cascade {
     public:
         /**
          * This function has to be re-entrant/thread-safe.
+         * @param sender        The sender id
          * @param key_string    The key string
          * @param prefix        The matching prefix length key_string.subtring(0,prefix) returns the prefix.
          *                      Please note that the trailing '/' is included.
@@ -74,7 +76,8 @@ namespace cascade {
          * @param ctxt          The CascadeContext
          * @param worker_id     The off critical data path worker id.
          */
-        virtual void operator() (const std::string& key_string,
+        virtual void operator() (const node_id_t sender,
+                                 const std::string& key_string,
                                  const uint32_t prefix_length,
                                  persistent::version_t version,
                                  const mutils::ByteRepresentable* const value_ptr,
@@ -111,6 +114,7 @@ namespace cascade {
 #define ACTION_BUFFER_ENTRY_SIZE    (256)
 #define ACTION_BUFFER_SIZE          (1024)
     struct Action {
+        node_id_t                       sender;
         std::string                     key_string;
         uint32_t                        prefix_length;
         persistent::version_t           version;
@@ -122,6 +126,7 @@ namespace cascade {
          * @param other     The input Action object
          */
         Action(Action&& other):
+            sender(other.sender),
             key_string(other.key_string),
             prefix_length(other.prefix_length),
             version(other.version),
@@ -135,12 +140,14 @@ namespace cascade {
          * @param   _ocdpo_ptr const reference rvalue
          * @param   _value_ptr
          */
-        Action(const std::string&           _key_string = "",
+        Action(const node_id_t              _sender = INVALID_NODE_ID,
+               const std::string&           _key_string = "",
                const uint32_t               _prefix_length = 0,
                const persistent::version_t& _version = CURRENT_VERSION,
                const std::shared_ptr<OffCriticalDataPathObserver>&  _ocdpo_ptr = nullptr,
                const std::shared_ptr<mutils::ByteRepresentable>&    _value_ptr = nullptr,
                const std::unordered_map<std::string,bool>           _outputs = {}):
+            sender(_sender),
             key_string(_key_string),
             prefix_length(_prefix_length),
             version(_version),
@@ -161,7 +168,7 @@ namespace cascade {
         inline void fire(ICascadeContext* ctxt,uint32_t worker_id) {
             if (value_ptr && ocdpo_ptr) {
                 dbg_default_trace("In {}: action is fired.", __PRETTY_FUNCTION__);
-                (*ocdpo_ptr)(key_string,prefix_length,version,value_ptr.get(),outputs,ctxt,worker_id);
+                (*ocdpo_ptr)(sender,key_string,prefix_length,version,value_ptr.get(),outputs,ctxt,worker_id);
             }
         }
         inline explicit operator bool() const {
@@ -171,6 +178,7 @@ namespace cascade {
 
     inline std::ostream& operator << (std::ostream& out, const Action& action) {
         out << "Action:\n"
+            << "\tsender = " << action.sender << "\n"
             << "\tkey = " << action.key_string << "\n"
             << "\tprefix_length = " << action.prefix_length << "\n"
             << "\tversion = " << std::hex << action.version << "\n"
@@ -313,6 +321,96 @@ namespace cascade {
     };
 
 
+    /** The notification handler type */
+    using cascade_notification_handler_t = std::function<void(const Blob&)>;
+
+    /** The CascadeNotificationMessage type */
+#define CASCADE_NOTIFICATION_MESSAGE_TYPE   (0x100000000ull)
+    struct CascadeNotificationMessage: public mutils::ByteRepresentable {
+        /** The object pool pathname, empty string for raw cascade notification message */
+        std::string object_pool_pathname;
+        /** data */
+        Blob blob;
+
+        /** TODO: the default serialization support macro might contain unnecessary copies. Check it!!! */
+        DEFAULT_SERIALIZATION_SUPPORT(CascadeNotificationMessage,object_pool_pathname,blob);
+
+        /** constructors */
+        CascadeNotificationMessage():
+            object_pool_pathname(),
+            blob() {}
+        CascadeNotificationMessage(CascadeNotificationMessage&& other):
+            object_pool_pathname(other.object_pool_pathname),
+            blob(std::move(other.blob)) {}
+        CascadeNotificationMessage(const CascadeNotificationMessage& other):
+            object_pool_pathname(other.object_pool_pathname),
+            blob(other.blob) {}
+        CascadeNotificationMessage(const std::string& _object_pool_pathname,
+                const Blob& _blob) :
+            object_pool_pathname(_object_pool_pathname),
+            blob(_blob) {}
+    };
+
+    /**
+     * This is the structure for the server side notification handlers
+     */
+    template <typename SubgroupType>
+    struct SubgroupNotificationHandler {
+        // key: object_pool_pathname
+        // value: an option for the handler
+        // The handler for "" key is the default handler, which will always be triggered.
+        std::unordered_map<std::string, std::optional<cascade_notification_handler_t>> object_pool_notification_handlers;
+        mutable std::unique_ptr<std::mutex> object_pool_notification_handlers_mutex;
+
+        SubgroupNotificationHandler():
+            object_pool_notification_handlers_mutex(std::make_unique<std::mutex>()) {}
+
+        template <typename T>
+        inline void initialize(derecho::ExternalClientCaller<SubgroupType,T>& subgroup_caller) {
+            dbg_default_trace("SubgroupNotificationHandler(this={:x}) is initialized for SubgroupType:{}",
+                    reinterpret_cast<uint64_t>(this),typeid(SubgroupType).name());
+            subgroup_caller.register_notification_handler(
+                    [this](const derecho::NotificationMessage& msg){
+                        dbg_default_trace("subgroup notification handler is triggered with this={:x}, msg type={}, size={} bytes",
+                                reinterpret_cast<uint64_t>(this), msg.message_type, msg.size);
+                        (*this)(msg);
+                    });
+        }
+
+        inline void operator ()(const derecho::NotificationMessage& msg) {
+            dbg_default_trace("SubgroupNotificationHandler(this={:x}) is triggered with message_type={:x}, size={} bytes",
+                    reinterpret_cast<uint64_t>(this),msg.message_type, msg.size);
+            if (msg.message_type != CASCADE_NOTIFICATION_MESSAGE_TYPE) {
+                return;
+            }
+            // mutils::deserialize_and_run<CascadeNotificationMessage>(nullptr, msg.body,
+            mutils::deserialize_and_run(nullptr, msg.body,
+                    [this](const CascadeNotificationMessage& cascade_message)->void {
+                        dbg_default_trace("Handling cascade_message: {}. size={} bytes",
+                                cascade_message.object_pool_pathname,cascade_message.blob.size);
+                        std::lock_guard<std::mutex> lck(*object_pool_notification_handlers_mutex);
+                        // call default handler
+                        if (object_pool_notification_handlers.find("") !=
+                            object_pool_notification_handlers.cend()) {
+                            if (object_pool_notification_handlers.at("").has_value()) {
+                                (*object_pool_notification_handlers.at(""))(cascade_message.blob);
+                            }
+                        }
+                        // call object pool handler
+                        if (object_pool_notification_handlers.find(cascade_message.object_pool_pathname) !=
+                            object_pool_notification_handlers.cend()) {
+                            if (object_pool_notification_handlers.at(cascade_message.object_pool_pathname).has_value()) {
+                                (*object_pool_notification_handlers.at(cascade_message.object_pool_pathname))(cascade_message.blob);
+                            }
+                        }
+                    });
+        }
+    };
+
+    template <typename SubgroupType>
+    using per_type_notification_handler_registry_t =
+        std::unordered_map<uint32_t,SubgroupNotificationHandler<SubgroupType>>;
+
     template <typename... CascadeTypes>
     class ServiceClient {
     private:
@@ -322,6 +420,9 @@ namespace cascade {
         // caller as a group member.
         derecho::Group<CascadeMetadataService<CascadeTypes...>, CascadeTypes...>* group_ptr;
         mutable std::mutex group_ptr_mutex;
+        // cascade server side notification handler registry.
+        mutable mutils::KindMap<per_type_notification_handler_registry_t,CascadeTypes...> notification_handler_registry;
+        mutable std::mutex notification_handler_registry_mutex;
         /**
          * 'member_selection_policies' is a map from derecho shard to its member selection policy.
          * We use a 3-tuple consisting of subgroup type index, subgroup index, and shard index to identify a shard. And
@@ -406,6 +507,16 @@ namespace cascade {
          * CascadeType.
          */
         ServiceClient(derecho::NoArgFactory<CascadeTypes>... client_factories);
+
+        /**
+         * ServiceClient can be an external client or a cascade server. is_external_client() test this condition.
+         * The external client implementation is based on ExternalGroupClient<> while the cascade node implementation is
+         * based on Group<>.
+         *
+         * @return true for external client; other wise false.
+         */
+        inline bool is_external_client() const;
+
         /**
          * Derecho group helpers: They derive the API in derecho::ExternalClient.
          * - get_my_id          return my local node id.
@@ -733,10 +844,10 @@ namespace cascade {
         template <typename SubgroupType>
         derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> get(
                 const typename SubgroupType::KeyType& key,
-                const persistent::version_t& version,
-                bool stable,
-                uint32_t subgroup_index,
-                uint32_t shard_index);
+                const persistent::version_t& version = CURRENT_VERSION,
+                bool stable = true,
+                uint32_t subgroup_index = 0,
+                uint32_t shard_index = 0);
         /**
          * "type_recursive_get" is a helper function for internal use only.
          * @param type_index        the index of the subgroup type in the CascadeTypes... list. and the FirstType,
@@ -775,8 +886,8 @@ namespace cascade {
         template <typename KeyType>
         auto get(
                 const KeyType& key,
-                const persistent::version_t& version,
-                bool stable);
+                const persistent::version_t& version = CURRENT_VERSION,
+                bool stable = true);
 
         /**
          * "multi_get" retrieve the object of a given key, this operation involves atomic broadcast
@@ -839,9 +950,9 @@ namespace cascade {
         derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> get_by_time(
                 const typename SubgroupType::KeyType& key,
                 const uint64_t& ts_us,
-                const bool stable,
-                uint32_t subgroup_index,
-                uint32_t shard_index);
+                const bool stable = true,
+                uint32_t subgroup_index = 0,
+                uint32_t shard_index = 0);
 
         /**
          * "type_recursive_get_by_time" is a helper function for internal use only.
@@ -882,7 +993,7 @@ namespace cascade {
         auto get_by_time(
                 const KeyType& key,
                 const uint64_t& ts_us,
-                const bool stable);
+                const bool stable = true);
 
         /**
          * "get_size" retrieve size of the object of a given key
@@ -901,8 +1012,9 @@ namespace cascade {
         derecho::rpc::QueryResults<uint64_t> get_size(
                 const typename SubgroupType::KeyType& key,
                 const persistent::version_t& version,
-                const bool stable,
-                uint32_t subgroup_index, uint32_t shard_index);
+                const bool stable = true,
+                uint32_t subgroup_index = 0,
+                uint32_t shard_index = 0);
 
         /**
          * "type_recursive_get_size" is a helper function for internal use only.
@@ -943,7 +1055,7 @@ namespace cascade {
         derecho::rpc::QueryResults<uint64_t> get_size(
                 const KeyType& key,
                 const persistent::version_t& version,
-                const bool stable);
+                const bool stable = true);
 
         /**
          * "multi_get_size" retrieve size of the object of a given key
@@ -1007,9 +1119,9 @@ namespace cascade {
         derecho::rpc::QueryResults<uint64_t> get_size_by_time(
                 const typename SubgroupType::KeyType& key,
                 const uint64_t& ts_us,
-                const bool stable,
-                uint32_t subgroup_index,
-                uint32_t shard_index);
+                const bool stable = true,
+                uint32_t subgroup_index = 0,
+                uint32_t shard_index = 0);
 
         /**
          * "type_recursive_get_size" is a helper function for internal use only.
@@ -1050,7 +1162,7 @@ namespace cascade {
         derecho::rpc::QueryResults<uint64_t> get_size_by_time(
                 const KeyType& key,
                 const uint64_t& ts_us,
-                const bool stable);
+                const bool stable = true);
 
         /**
          * "list_keys" retrieve the list of keys in a shard
@@ -1067,9 +1179,9 @@ namespace cascade {
         template <typename SubgroupType>
         derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> list_keys(
                 const persistent::version_t& version,
-                const bool stable,
-                uint32_t subgroup_index,
-                uint32_t shard_index);
+                const bool stable = true,
+                uint32_t subgroup_index = 0,
+                uint32_t shard_index = 0);
 
     protected:
         template <typename FirstType, typename SecondType, typename... RestTypes>
@@ -1144,9 +1256,9 @@ namespace cascade {
         template <typename SubgroupType>
         derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> list_keys_by_time(
                 const uint64_t& ts_us,
-                const bool stable,
-                uint32_t subgroup_index,
-                uint32_t shard_index);
+                const bool stable = true,
+                uint32_t subgroup_index = 0,
+                uint32_t shard_index = 0);
 
     protected:
         template <typename FirstType, typename SecondType, typename... RestTypes>
@@ -1335,6 +1447,99 @@ namespace cascade {
          */
         std::vector<std::string> list_object_pools(bool refresh = false);
 
+        /**
+         * Register an notification handler to a subgroup. If such a handler has been registered, it will be replaced
+         * by the new one.
+         *
+         * @tparam SubgroupType     The Subgroup Type
+         * @param handler           The handler to reigster
+         * @param subgroup_index    Index of the subgroup
+         *
+         * @return true if a previous notification handler is replaced.
+         */
+        template <typename SubgroupType>
+        bool register_notification_handler(
+                const cascade_notification_handler_t& handler,
+                const uint32_t subgroup_index = 0);
+
+    protected:
+        template <typename SubgroupType>
+        bool register_notification_handler(
+                const cascade_notification_handler_t& handler,
+                const std::string& object_pool_pathname,
+                const uint32_t subgroup_index);
+        template <typename FirstType,typename SecondType, typename...RestTypes>
+        bool type_recursive_register_notification_handler(
+                uint32_t type_index,
+                const cascade_notification_handler_t& handler,
+                const std::string& object_pool_pathname,
+                const uint32_t subgroup_index);
+        template <typename LastType>
+        bool type_recursive_register_notification_handler(
+                uint32_t type_index,
+                const cascade_notification_handler_t& handler,
+                const std::string& object_pool_pathname,
+                const uint32_t subgroup_index);
+
+    public:
+        /**
+         * Register notification handler(object pool version). If such a handler has been registered, it will be
+         * replaced by the new one.
+         *
+         * @tparam SubgroupType         The Subgroup Type
+         * @param handler               The handler to reigster
+         * @param object_pool_pathname  To with object pool is this handler registered.
+         *
+         * @return true if a previous notification handler is replaced.
+         */
+        bool register_notification_handler(
+                const cascade_notification_handler_t& handler,
+                const std::string& object_pool_pathname);
+
+        /**
+         * Send a notification message to an external client.
+         *
+         * @tparam SubgroupType     The Subgroup Type
+         * @param msg               The message to send
+         * @param subgroup_index    The subgroup index
+         * @param client_id         The node id of the external client to be notified
+         */
+        template <typename SubgroupType>
+        void notify(const Blob& msg,
+                const uint32_t subgroup_index,
+                const node_id_t client_id) const;
+    protected:
+        template <typename SubgroupType>
+        void notify(const Blob& msg,
+                const std::string& object_pool_pathname,
+                const uint32_t subgroup_index,
+                const node_id_t client_id) const;
+        template <typename FirstType, typename SecondType, typename... RestTypes>
+        void type_recursive_notify(
+                uint32_t type_index,
+                const Blob& msg,
+                const std::string& object_pool_pathname,
+                const uint32_t subgroup_index,
+                const node_id_t client_id) const;
+        template <typename LastType>
+        void type_recursive_notify(
+                uint32_t type_index,
+                const Blob& msg,
+                const std::string& object_pool_pathname,
+                const uint32_t subgroup_index,
+                const node_id_t client_id) const;
+    public:
+        /**
+         * Send a notification message to an external client.
+         *
+         * @param msg                   The messgae to send
+         * @param object_pool_pathname  In which object_pool the notification is in.
+         * @param client_id             The client id
+         */
+        void notify(const Blob& msg,
+                const std::string& object_pool_pathname,
+                const node_id_t client_id);
+
 #ifdef ENABLE_EVALUATION
         /**
          * Dump the timestamp log entries into a file on each of the nodes in a subgroup.
@@ -1443,6 +1648,7 @@ namespace cascade {
                     std::string, // udl_id
                     std::tuple<
                         DataFlowGraph::VertexShardDispatcher,         // shard dispatcher
+                        DataFlowGraph::VertexHook,                    // hook
                         std::shared_ptr<OffCriticalDataPathObserver>, // ocdpo
                         std::unordered_map<std::string,bool>          // output map{prefix->bool}
                     >
@@ -1563,6 +1769,8 @@ namespace cascade {
          * Register a set of prefixes
          *
          * @param prefixes              - the prefixes set
+         * @param user_defined_logic_hook
+         *                              - the hook for this ocdpo
          * @param shard_dispatcher      - the shard dispatcher
          * @param user_defined_logic_id - the UDL id, presumably an UUID string
          * @param ocdpo_ptr             - the data path observer
@@ -1571,6 +1779,7 @@ namespace cascade {
          */
         virtual void register_prefixes(const std::unordered_set<std::string>& prefixes,
                                        const DataFlowGraph::VertexShardDispatcher shard_dispatcher,
+                                       const DataFlowGraph::VertexHook hook,
                                        const std::string& user_defined_logic_id,
                                        const std::shared_ptr<OffCriticalDataPathObserver>& ocdpo_ptr,
                                        const std::unordered_map<std::string,bool>& outputs);

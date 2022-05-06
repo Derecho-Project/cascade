@@ -1,12 +1,49 @@
 cmake_minimum_required(VERSION 3.12.4)
 set(CMAKE_DISABLE_SOURCE_CHANGES ON)
 set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
-project(cascade CXX)
+project(cascade_dairy_farm CXX)
+
+# Version
+set(cascade_dairy_farm_VERSION 1.0rc0)
+set(cascade_build_VERSION 1.0rc0)
+
+# C++ STANDARD
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+if (${USE_VERBS_API})
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUSE_VERBS_API")
+endif()
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -Wall --ggdb -gdwarf-3 -ftemplate-backtrace-limit=0 -DEVALUATION")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Wall -DEVALUATION -fcompare-debug-second")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -Wall -ggdb -gdwarf-3")
+
+find_package(nlohmann_json 3.2.0 REQUIRED)
+find_package(OpenSSL REQUIRED)
+find_package(spdlog 1.3.1 REQUIRED)
+find_package(derecho CONFIG REQUIRED)
+find_package(cascade CONFIG REQUIRED)
 
 include(CheckIncludeFileCXX)
+find_package(CUDA QUIET)
+if (CUDA_FOUND)
+    set (ENABLE_GPU 1)
+endif()
+# set(CMAKE_REQUIRED_LIBRARIES mxnet)
+# CHECK_INCLUDE_FILE_CXX("mxnet-cpp/MxNetCpp.h" HAS_MXNET_CPP)
+# unset(CMAKE_REQUIRED_LIBRARIES)
+find_package(OpenCV QUIET)
 find_library(TENSORFLOW_LIB_FOUND tensorflow)
 find_library(ANN_LIB_FOUND ANN)
 find_package(Torch QUIET)
+
+set (ENABLE_EVALUATION 1)
+if (ENABLE_EVALUATION)
+    find_package(rpclib 2.3.0 REQUIRED)
+endif()
+
+# configure header
+# CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/config.h)
+CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/config.h)
 
 if (OPENCV_CORE_FOUND)
     # dairy farm client
@@ -18,7 +55,7 @@ if (OPENCV_CORE_FOUND)
         $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
         $<BUILD_INTERFACE:${OpenCV_INCLUDE_DIRS}>
     )
-    target_link_libraries(dairy_farm_client cascade ${OpenCV_LIBS})
+    target_link_libraries(dairy_farm_client derecho::cascade ${OpenCV_LIBS})
     # dairy farm perf test
     add_executable(dairy_farm_perf perf.cpp)
     target_include_directories(dairy_farm_perf PRIVATE
@@ -29,9 +66,17 @@ if (OPENCV_CORE_FOUND)
         $<BUILD_INTERFACE:${OpenCV_INCLUDE_DIRS}>
     )
     if (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9)
-        target_link_libraries(dairy_farm_perf cascade rpc ${OpenCV_LIBS})
+        if (ENABLE_EVALUATION)
+            target_link_libraries(dairy_farm_perf derecho::cascade rpc ${OpenCV_LIBS})
+        else()
+            target_link_libraries(dairy_farm_perf derecho::cascade ${OpenCV_LIBS})
+        endif()
     else ()
-        target_link_libraries(dairy_farm_perf cascade rpc stdc++fs ${OpenCV_LIBS})
+        if (ENABLE_EVALUATION)
+            target_link_libraries(dairy_farm_perf derecho::cascade rpc stdc++fs ${OpenCV_LIBS})
+        else()
+            target_link_libraries(dairy_farm_perf derecho::cascade stdc++fs ${OpenCV_LIBS})
+        endif()
     endif()
 endif()
 
@@ -57,7 +102,7 @@ if (TENSORFLOW_LIB_FOUND AND OPENCV_CORE_FOUND AND ANN_LIB_FOUND AND TORCH_FOUND
         $<BUILD_INTERFACE:${OpenCV_INCLUDE_DIRS}>
         $<BUILD_INTERFACE:${TENSORFLOW_LIB_INCLUDE_DIRS}>
     )
-    target_link_libraries(filter_udl demo_common cascade ${OpenCV_LIBS} ${TENSORFLOW_LIB_FOUND})
+    target_link_libraries(filter_udl demo_common derecho::cascade ${OpenCV_LIBS} ${TENSORFLOW_LIB_FOUND})
     if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/filter-model.tar.gz")
         add_custom_command(TARGET filter_udl POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/filter-model.tar.gz
@@ -79,7 +124,7 @@ if (TENSORFLOW_LIB_FOUND AND OPENCV_CORE_FOUND AND ANN_LIB_FOUND AND TORCH_FOUND
         $<BUILD_INTERFACE:${TENSORFLOW_LIB_INCLUDE_DIRS}>
         $<BUILD_INTERFACE:${OpenCV_INCLUDE_DIRS}>
     )
-    target_link_libraries(infer_udl demo_common cascade ${TENSORFLOW_LIB_FOUND} ${TORCH_LIBRARIES} ${OpenCV_LIBS} ANN)
+    target_link_libraries(infer_udl demo_common derecho::cascade ${TENSORFLOW_LIB_FOUND} ${TORCH_LIBRARIES} ${OpenCV_LIBS} ANN)
     if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/bcs-model.tar.gz" AND
         EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/cow-id-model.tar.gz")
         add_custom_command(TARGET infer_udl POST_BUILD
@@ -205,4 +250,4 @@ target_include_directories(storage_udl PRIVATE
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
     $<BUILD_INTERFACE:${OpenCV_INCLUDE_DIRS}>
 )
-target_link_libraries(storage_udl cascade)
+target_link_libraries(storage_udl derecho::cascade)
