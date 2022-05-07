@@ -32,7 +32,7 @@ Cascade is a C++17 cloud application framework powered by optimized RDMA data pa
 - [boolinq](https://github.com/k06a/boolinq) or newer (Optional for LINQ API)
 - Python 3.5 or newer and [pybind11](https://github.com/pybind/pybind11) (Optional for Python API)
 - OpenJDK 11.06 or newer. On Ubuntu, use `apt install openjdk-11-jdk` to install it. (Optional for Java API)
-- Derecho v2.2.2. Plesae follow this [document](http://github.com/Derecho-Project/derecho) to install Derecho. Note: this cascade version replies on Derecho commit 0ac2fb535f372cb964c823baf1391b1e2f2241dd on branch [`for_cascade_get_api`](https://github.com/Derecho-Project/derecho/tree/for_cascade_get_api).
+- Derecho v2.2.2. Plesae follow this [document](http://github.com/Derecho-Project/derecho) to install Derecho. Note: this cascade version replies on Derecho commit 3f24e06ed5ad572eb82206e8c1024935d03e903e on the master branch.
 
 ## Build Cascade
 1) Download Cascade Source Code
@@ -64,5 +64,4 @@ This will install the following cascade components:
 There are two ways to use Cascade in an application. You can use Cascade as a standalone service with pre-defined K/V types and configurable layout. Or, you can use the Cascade storage templates (defined in Cascade ) as building blocks to build the application using the Derecho group framework. Please refer to [Cascade service's README](https://github.com/Derecho-Project/cascade/tree/master/src/service) for using Cascade as a service and [cli_example README](https://github.com/Derecho-Project/cascade/tree/master/src/applications/tests/cascade_as_subgroup_classes) for using Cascade components to build your own binary with customized key type and value type.
 
 # New Features to Come
-1) Metadata service
-2) Resource management
+1) Resource management

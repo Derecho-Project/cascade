@@ -74,14 +74,23 @@ public class ClientTest {
             + "set_member_selection_policy <type> <subgroup_index> <shard_index> <policy> [user_specified_node_id]\n\tset member selection policy\n"
             + "get_member_selection_policy <type> [subgroup_index] [shard_index]\n\tget member selection policy\n"
             + "put <type> <key> <value> [subgroup_index] [shard_index]\n\tput an object\n"
+            + "put_and_forget <type> <key> <value> [subgroup_index] [shard_index]\n\tput an object\n"
             + "remove <type> <key> [subgroup_index] [shard_index]\n\tremove an object\n"
             + "get <type> <key> <stable> [version] [subgroup_index] [shard_index]\n\tget an object(by version)\n"
+            + "multi_get <type> <key> [subgroup_index] [shard_index]\n\tget an object using multi_get\n"
             + "get_by_time <type> <key> <ts_us> <stable> [subgroup_index] [shard_index]\n\tget an object by timestamp\n"
             + "quit|exit\n\texit the client.\n" + "help\n\tprint this message.\n" 
             + "\n" 
             + "type:=VolatileCascadeStoreWithStringKey|PersistentCascadeStoreWithStringKey|TriggerCascadeNoStoreWithStringKey\n"
             + "policy:=FirstMember|LastMember|Random|FixedRandom|RoundRobin|UserSpecified\n"
-            + "stable:=True:False\n";
+            + "stable:=True:False\n"
+            + "create_object_pool <path> <type> [subgroup_index]\n\tcreate an object pool\n"
+            + "put_obj <key> <value>\n\tput an object in the object pool\n"
+            + "put_and_forget_obj <key> <value>\n\tput_and_forget an object in the object pool\n"
+            + "get_obj <key>\n\tget an object from the object pool\n"
+            + "multi_get_obj <key>\n\tget an object from the object pool using multi_get\n"
+            + "remove_obj <key>\n\tremove an object from the object pool\n";
+
 
     /**
      * An interactive test on whether the client APIs work.
@@ -211,6 +220,29 @@ public class ClientTest {
                             System.out.println(qr.get());
                         }
                         break;
+                    case "put_and_forget":
+                        // Put a key value pair into cascade and forget the output.
+                        // Example: "put_and_forget VCSS KEY VALUE SUBGROUP_IDX SHARD_IDX", where
+                        // the latter two are optional.
+                        if (splited.length < 4) {
+                            System.out.println(ANSI_RED + "Invalid format: " + str + ANSI_RESET);
+                            continue;
+                        }
+                        type = stringToType(splited[1]);
+                        if (type == null) {
+                            System.out.println(ANSI_RED + "Invalid type: " + str + ANSI_RESET);
+                            continue;
+                        }
+                        if (splited.length >= 5)
+                            subgroupIndex = Integer.parseInt(splited[4]);
+                        if (splited.length >= 6)
+                            shardIndex = Integer.parseInt(splited[5]);
+                        // Use the String version of the method should offer a thorough code
+                        // coverage.
+                        client.put_and_forget(type, splited[2], splited[3], subgroupIndex,
+                                shardIndex);
+                        System.out.println("Put and forget finishes.");
+                        break;
                     case "remove":
                         // remove a key-value pair from cascade.
                         if (splited.length < 3) {
@@ -268,6 +300,38 @@ public class ClientTest {
                             }
                         }
                         break;
+                    case "multi_get":
+                        // Get a key-value pair from cascade using multi_get, where atomic broadcast
+                        // is involved.
+                        // Example "multi_get VCSS KEY SUBGROUP_IDX SHARD_IDX", where the latter two
+                        // are optional.
+                        if (splited.length < 3) {
+                            System.out.println(ANSI_RED + "Invalid format: " + str + ANSI_RESET);
+                            continue;
+                        }
+                        type = stringToType(splited[1]);
+                        if (type == null) {
+                            System.out.println(ANSI_RED + "Invalid type: " + str + ANSI_RESET);
+                            continue;
+                        }
+                        if (splited.length >= 4)
+                            subgroupIndex = Integer.parseInt(splited[3]);
+                        if (splited.length >= 5)
+                            shardIndex = Integer.parseInt(splited[4]);
+                        try (QueryResults<CascadeObject> qrb = client.multi_get(type, splited[2],
+                                    subgroupIndex, shardIndex))
+                        {
+                            Map<Integer, CascadeObject> data = qrb.get();
+                            for (CascadeObject obj : data.values()) {
+                                ByteBuffer bb = obj.object;
+                                byte b[] = new byte[bb.capacity()];
+                                for (int i = 0;i < bb.capacity(); i++){
+                                    b[i] = bb.get(i);
+                                }
+                                System.out.println("bytes: " + new String(b));
+                            }
+                        }
+                        break;
                     case "get_by_time":
                         // get a key-value pair from cascade by timestamp.
                         if (splited.length < 5) {
@@ -300,8 +364,109 @@ public class ClientTest {
                             }
                         }
                         break;
+                    case "create_object_pool":
+                        // Create an object pool using the default configuration.
+                        // Example: "create_object_pool PATH TYPE SUBGROUP_IDX"
+                        if (splited.length < 3) {
+                            System.out.println(ANSI_RED + "Invalid format: " + str + ANSI_RESET);
+                            continue;
+                        }
+                        type = stringToType(splited[2]);
+                        if (type == null) {
+                            System.out.println(ANSI_RED + "Invalid type: " + str + ANSI_RESET);
+                            continue;
+                        }
+                        if (splited.length >= 4)
+                            subgroupIndex = Integer.parseInt(splited[3]);
+                        try (QueryResults<Bundle> qr  =
+                                client.createObjectPool(splited[1], type, subgroupIndex)) {
+                            System.out.println(qr.get());
+                        }
+                        break;
+                    case "put_obj":
+                        // Put an object in the object pool.
+                        // Example: "put_obj KEY VAL", where the key should contain the object
+                        // pool information.
+                        if (splited.length != 3) {
+                            System.out.println(ANSI_RED + "Invalid format: " + str + ANSI_RESET);
+                            continue;
+                        }
+                        // Use the String version of the method for a thorough code coverage.
+                        try (QueryResults<Bundle> qr  =
+                                client.put(splited[1], splited[2])) {
+                            System.out.println(qr.get());
+                        }
+                        break;
+                    case "put_and_forget_obj":
+                        // Put an object in the object pool.
+                        // Example: "put_and_forget_obj KEY VAL", where the key should contain
+                        // the object pool information.
+                        if (splited.length != 3) {
+                            System.out.println(ANSI_RED + "Invalid format: " + str + ANSI_RESET);
+                            continue;
+                        }
+                        // Use the String version of the method for a thorough code coverage.
+                        client.put_and_forget(splited[1], splited[2]);
+                        System.out.println("Put and forget finishes.");
+                        break;
+                    case "get_obj":
+                        // Get an object in the object pool.
+                        // Example: "get_obj KEY", where the key should contain the object
+                        // pool information.
+                        if (splited.length != 2) {
+                            System.out.println(ANSI_RED + "Invalid format: " + str + ANSI_RESET);
+                            continue;
+                        }
+                        // Use the String version of the method for a thorough code coverage.
+                        try (QueryResults<CascadeObject> qrb = client.get(splited[1])) {
+                            Map<Integer, CascadeObject> data = qrb.get();
+                            for (CascadeObject obj : data.values()) {
+                                ByteBuffer bb = obj.object;
+                                byte b[] = new byte[bb.capacity()];
+                                for (int i = 0;i < bb.capacity(); i++){
+                                    b[i] = bb.get(i);
+                                }
+                                System.out.println("bytes: " + new String(b));
+                            }
+                        }
+                        break;
+                    case "multi_get_obj":
+                        // Get an object in the object pool using multi_get.
+                        // Example: "multi_get_obj KEY", where the key should contain the object
+                        // pool information.
+                        if (splited.length != 2) {
+                            System.out.println(ANSI_RED + "Invalid format: " + str + ANSI_RESET);
+                            continue;
+                        }
+                        // Use the String version of the method for a thorough code coverage.
+                        try (QueryResults<CascadeObject> qrb = client.multi_get(splited[1])) {
+                            Map<Integer, CascadeObject> data = qrb.get();
+                            for (CascadeObject obj : data.values()) {
+                                ByteBuffer bb = obj.object;
+                                byte b[] = new byte[bb.capacity()];
+                                for (int i = 0;i < bb.capacity(); i++){
+                                    b[i] = bb.get(i);
+                                }
+                                System.out.println("bytes: " + new String(b));
+                            }
+                        }
+                        break;
+                    case "remove_obj":
+                        // Remove a key-value pair from cascade object store.
+                        // Example: "remove_obj KEY" and the key should specify the object store.
+                        if (splited.length != 2) {
+                            System.out.println(ANSI_RED + "Invalid format: " + str + ANSI_RESET);
+                            continue;
+                        }
+                        try (QueryResults<Bundle> qr = client.remove(splited[1])) {
+                            System.out.println(qr.get());
+                        }
+                        break;
+
                     default:
-                        System.out.println(ANSI_RED + "Command: " + splited[0] + " is not implemented" + ANSI_RESET);
+                        System.out.println(ANSI_RED + "Command: " + splited[0] +
+                                " is not implemented" + ANSI_RESET);
+                        break;
                 }
             }
         } catch (IOException e) {

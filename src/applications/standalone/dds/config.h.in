@@ -1,1 +1,2 @@
 #define UDL_UUID    "@UDL_UUID@"
+#define DISABLE_DDS_COPY    @DISABLE_DDS_COPY@

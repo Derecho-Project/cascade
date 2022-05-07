@@ -1,13 +1,142 @@
 #include <cascade_dds/dds.hpp>
+#include <iomanip>
 #include <iostream>
+#include <tuple>
 #include <vector>
 #include <functional>
+#include <mutex>
 #include <string>
+#include <fstream>
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <sys/prctl.h>
+#include <unistd.h>
+#include <cascade/object.hpp>
+#include <derecho/conf/conf.hpp>
 
 using namespace derecho::cascade;
+
+struct pingpong_msg_header_t {
+    uint32_t seqno;
+    mutable uint64_t sending_ts_us;
+};
+
+/**
+ * Ping pong test. 
+ * There are two possible modes: active/passive. In active mode, the pingpong test will publish a series of new
+ * messages and wait for its response. In the passive mode, it only echo the messages.
+ *
+ * @param metadata_client   The DDSMetadata client
+ * @param client            The DDS client
+ * @param send_topic        The topic for publish messages
+ * @param recv_topic        The topic for receive a message
+ * @param is_passive        Passive mode
+ * @param rate_mps          Message rate at number of messages per second
+ * @param count             The total number of messages to publish
+ */
+static bool run_pingpong_latency(
+        DDSMetadataClient& metadata_client,
+        DDSClient& client,
+        const std::string& send_topic,
+        const std::string& recv_topic,
+        bool is_passive,
+        uint32_t rate_mps,
+        uint32_t count) {
+    // check if topic exists or not.
+    Topic st = metadata_client.get_topic(send_topic);
+    if (!st.is_valid()) {
+        std::cerr << "Cannot find: " << send_topic << ", please make sure the topic is created." << std::endl; 
+        return false;
+    }
+    Topic rt = metadata_client.get_topic(recv_topic);
+    if (!rt.is_valid()) {
+        std::cerr << "Cannot find: " << recv_topic << ", please make sure the topic is created." << std::endl; 
+        return false;
+    }
+
+    std::condition_variable finish_cv;
+    std::mutex finish_mtx;
+    std::vector<std::tuple<uint32_t,uint64_t,uint64_t>> ts_log;
+    ts_log.reserve(count);
+
+    // create a publisher
+    auto publisher = client.template create_publisher<Blob>(st.name);
+    
+    // subscribe to the recv_topic
+    auto subscriber = client.subscribe(rt.name,
+            std::unordered_map<std::string,message_handler_t<Blob>>{{
+                std::string("default"),
+                [count,&publisher,&ts_log,&finish_mtx,&finish_cv,is_passive](const Blob& msg)->void {
+                    const pingpong_msg_header_t* header = reinterpret_cast<const pingpong_msg_header_t*>(msg.bytes);
+                    // ts_log.emplace_back(std::tuple{msg.seqno,msg.sending_ts_us,get_walltime()/1000});
+                    ts_log.emplace_back(std::tuple{header->seqno,header->sending_ts_us,get_walltime()/1000});
+                    // echo
+                    if (is_passive) {
+                        header->sending_ts_us = get_walltime()/1000;
+                        publisher->send(msg);
+                    }
+                    // end of test
+                    if(ts_log.size() == count) {
+                        std::lock_guard lck(finish_mtx);
+                        finish_cv.notify_one();
+                    }
+                }
+            }});
+
+    // publish
+    if (!is_passive) {
+#if DISABLE_DDS_COPY == 1
+        uint32_t payload_size = sizeof(pingpong_msg_header_t);
+#else
+        // reserve payload space.
+        uint32_t payload_size = derecho::getConfUInt32(CONF_SUBGROUP_DEFAULT_MAX_PAYLOAD_SIZE);
+        if (payload_size < 256) {
+            payload_size = 0;
+        } else {
+            payload_size -= 256;
+        }
+#endif
+        std::vector<uint8_t> payload;
+        payload.reserve(payload_size);
+        Blob ping(payload.data(),payload_size,true);
+        pingpong_msg_header_t* header = reinterpret_cast<pingpong_msg_header_t*>(payload.data());
+
+        // send the messages at given rate
+        uint64_t interval_us = 1000000/rate_mps;
+        uint64_t now_us = 0,next_us = 0;
+        for(uint32_t i = 0; i < count; i++) {
+            now_us = get_walltime()/1000;
+            while (next_us > (now_us + 10)) {
+                usleep(next_us - now_us - 10);
+                now_us = get_walltime()/1000;
+            }
+            header->seqno = i;
+            header->sending_ts_us = get_walltime()/1000;
+            publisher->send(ping);
+            next_us = header->sending_ts_us + interval_us;
+        }
+    }
+
+    // waiting for the end of test
+    std::unique_lock<std::mutex> lck(finish_mtx);
+    finish_cv.wait(lck,[&ts_log,count](){return (ts_log.size() == count);});
+    lck.unlock();
+
+    // unsubscribe
+    client.unsubscribe(subscriber);
+
+    // flush to file
+    std::ofstream ofile(rt.name + ".log");
+    ofile << "# topic:" << rt.name << std::endl;
+    ofile << "# seqno send_ts_us recv_ts_us" << std::endl;
+    for(const auto tp: ts_log) {
+        ofile << std::get<0>(tp) << " " 
+              << std::get<1>(tp) << " "
+              << std::get<2>(tp) << std::endl;
+    }
+    ofile.close();
+    return true;
+}
 
 static std::vector<std::string> tokenize(std::string& line, const char* delimiter) {
     std::vector<std::string> tokens;
@@ -255,6 +384,31 @@ std::vector<command_entry_t> commands = {
             return true;
         }
     },
+    {
+        "Perf test Commands", "", "", command_handler_t()
+    },
+    {
+        "pingpong_latency",
+        "perform a pingpong latency test",
+        "pingpong_latency <send_topic> <recv_topic> <0|1 - is passive> [rate_mps] [count]\n"
+            "\trate_mps - target sending rate at message per second\n"
+            "\tcount    - the total number of messages to send",
+        [](DDSMetadataClient& metadata_client,DDSClient& client,const std::vector<std::string>& cmd_tokens) {
+            CHECK_FORMAT(cmd_tokens,4);
+            std::string send_topic = cmd_tokens[1];
+            std::string recv_topic = cmd_tokens[2];
+            bool is_passive = (std::stoul(cmd_tokens[3]) == 1);
+            uint32_t rate_mps = 100;
+            uint32_t count = 1000;
+            if (cmd_tokens.size() >= 5) {
+                rate_mps = std::stoul(cmd_tokens[4]);
+            }
+            if (cmd_tokens.size() >= 6) {
+                count = std::stoul(cmd_tokens[5]);
+            }
+            return run_pingpong_latency(metadata_client,client,send_topic,recv_topic,is_passive,rate_mps,count);
+        }
+    },
 };
 
 static void do_command(
@@ -279,23 +433,31 @@ static void do_command(
     }
 }
 
-int main(int, char**) {
+int main(int argc, char** argv) {
     std::cout << "Cascade DDS Client" << std::endl;
-    // TODO: load dds.json
     std::shared_ptr<ServiceClientAPI> capi = std::make_shared<ServiceClientAPI>();
     auto dds_config = DDSConfig::get();
     auto metadata_client = DDSMetadataClient::create(capi,dds_config);
     auto client = DDSClient::create(capi,dds_config);
 
-    while (shell_is_active) {
-        char* malloced_cmd = readline("cmd> ");
-        std::string cmdline(malloced_cmd);
-        free(malloced_cmd);
-        if (cmdline == "") continue;
-        add_history(cmdline.c_str());
-
-        std::string delimiter = " ";
-        do_command(*metadata_client,*client,tokenize(cmdline, delimiter.c_str()));
+    // shell mode
+    if (argc == 1) {
+        while (shell_is_active) {
+            char* malloced_cmd = readline("cmd> ");
+            std::string cmdline(malloced_cmd);
+            free(malloced_cmd);
+            if (cmdline == "") continue;
+            add_history(cmdline.c_str());
+    
+            std::string delimiter = " ";
+            do_command(*metadata_client,*client,tokenize(cmdline, delimiter.c_str()));
+        }
+    } else { // command line mode
+        std::vector<std::string> cmd_tokens;
+        for (int i=1;i<argc;i++) {
+            cmd_tokens.emplace_back(argv[i]);
+        }
+        do_command(*metadata_client,*client,cmd_tokens);
     }
     return 0;
 }

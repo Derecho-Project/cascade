@@ -2,6 +2,7 @@
 #include <iostream>
 #include <vector>
 #include "time_probes.hpp"
+#include "config.h"
 
 namespace derecho{
 namespace cascade{
