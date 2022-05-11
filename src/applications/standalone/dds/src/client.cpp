@@ -113,7 +113,11 @@ static bool run_pingpong_latency(
             header->seqno = i;
             header->sending_ts_us = get_walltime()/1000;
             publisher->send(ping);
-            next_us = header->sending_ts_us + interval_us;
+            if (next_us != 0) {
+                next_us += interval_us;
+            } else {
+                next_us = now_us + interval_us;
+            }
         }
     }
 
@@ -198,7 +202,11 @@ static bool run_throughput(
             header->seqno = i;
             header->sending_ts_us = get_walltime()/1000;
             publisher->send(message);
-            next_us = header->sending_ts_us + interval_us;
+            if (next_us != 0) {
+                next_us += interval_us;
+            } else {
+                next_us = now_us + interval_us;
+            }
         }
 
     } else {
