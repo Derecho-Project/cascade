@@ -1,0 +1,6 @@
+# Config files for common editors
+.vscode
+.idea
+
+# The build output folders created by build.sh
+/build-*

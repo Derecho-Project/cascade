@@ -1,144 +1,28 @@
-#include <cascade/cascade.hpp>
-#include <cascade/service.hpp>
-#include <cascade/service_types.hpp>
-// 
+#include "server.hpp"
+
+#include "cascade/cascade.hpp"
+#include "cascade/service.hpp"
+#include "cascade/service_types.hpp"
+//
 // We should add a cascade service library side-by-side to libcascade.so to include the client-side implementations for
 // cascade service client. Right now, we put some of the implementations (create_null_object_cb<>, e.g.) as inline
 // functions in service_client_api.hpp. It's not a good design, which should change later.
-#include <cascade/service_client_api.hpp>
-#include <cascade/object.hpp>
-#include <sys/prctl.h>
+#include "cascade/object.hpp"
+#include "cascade/service_client_api.hpp"
+
 #include <derecho/conf/conf.hpp>
 #include <derecho/utils/logger.hpp>
 #include <dlfcn.h>
+#include <sys/prctl.h>
 #include <type_traits>
 
 #define PROC_NAME "cascade_server"
 
 using namespace derecho::cascade;
 
-#ifndef NDEBUG
-inline void dump_layout(const json& layout) {
-    int tid = 0;
-    for (const auto& pertype:layout) {
-        int sidx = 0;
-        for (const auto& persubgroup:pertype ) {
-            dbg_default_trace("subgroup={}.{},layout={}.",tid,sidx,persubgroup.dump());
-            sidx ++;
-        }
-        tid ++;
-    }
-}
-#endif//NDEBUG
-
-/**
- * Define the CDPO
- * @tparam CascadeType  the subgroup type
- * @tparam IS_TRIGGER   If true, this is triggered only on p2p message critical data path, otherwise, on ordered send
- *                      message critical data path.
- */
-template <typename CascadeType>
-class CascadeServiceCDPO: public CriticalDataPathObserver<CascadeType> {
-    virtual void operator() (const uint32_t sgidx,
-                             const uint32_t shidx,
-                             const node_id_t sender_id,
-                             const typename CascadeType::KeyType& key,
-                             const typename CascadeType::ObjectType& value,
-                             ICascadeContext* cascade_ctxt,
-                             bool is_trigger = false) override {
-        if constexpr (std::is_convertible<typename CascadeType::KeyType,std::string>::value) {
-
-            auto* ctxt = dynamic_cast<
-                CascadeContext<
-                    VolatileCascadeStoreWithStringKey,
-                    PersistentCascadeStoreWithStringKey,
-                    TriggerCascadeNoStoreWithStringKey>*
-                >(cascade_ctxt);
-            size_t pos = key.rfind(PATH_SEPARATOR);
-            std::string prefix;
-            if (pos != std::string::npos) {
-                // important: we need to keep the trailing PATH_SEPARATOR
-                prefix = key.substr(0,pos+1);
-            }
-            auto handlers = ctxt->get_prefix_handlers(prefix);
-            if (handlers.empty()) {
-                return;
-            }
-            // filter for normal put (put/put_and_forget)
-            bool new_actions = false;
-            {
-                auto shard_members = ctxt->get_service_client_ref().template get_shard_members<CascadeType>(sgidx,shidx);
-                bool icare = (shard_members[std::hash<std::string>{}(key)%shard_members.size()] == ctxt->get_service_client_ref().get_my_id());
-                for(auto& per_prefix: handlers) {
-                    // per_prefix.first is the matching prefix
-                    // per_prefix.second is a set of handlers
-                    for (auto it=per_prefix.second.cbegin();it!=per_prefix.second.cend();) {
-                        // it->first is handler uuid
-                        // it->second is a 4-tuple of shard dispatcher,hook,ocdpo,and outputs;
-                        if ((std::get<1>(it->second) == DataFlowGraph::VertexHook::ORDERED_PUT && is_trigger) ||
-                            (std::get<1>(it->second) == DataFlowGraph::VertexHook::TRIGGER_PUT && !is_trigger)){
-                            // not my hook, skip it.
-                            per_prefix.second.erase(it++);
-                        } else if ((std::get<1>(it->second) != DataFlowGraph::VertexHook::ORDERED_PUT) && is_trigger) {
-                            new_actions = true;
-                            it++;
-                        } else {
-                            // HERE: 
-                            // 1) trigger must be false
-                            // 2) std::get<1>(it->second) is either ORDERED_PUT or BOTH
-                            // so, do we do the following test:
-                            switch(std::get<0>(it->second)) {
-                            case DataFlowGraph::VertexShardDispatcher::ONE:
-                                if (icare) {
-                                    new_actions = true;
-                                    it++;
-                                } else {
-                                    per_prefix.second.erase(it++);
-                                }
-                                break;
-                            case DataFlowGraph::VertexShardDispatcher::ALL:
-                                new_actions = true;
-                                it++;
-                                break;
-                            default:
-                                per_prefix.second.erase(it++);
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-            if (!new_actions) { 
-                return;
-            }
-            // copy data
-            auto value_ptr = std::make_shared<typename CascadeType::ObjectType>(value);
-            // create actions
-            for(auto& per_prefix : handlers) {
-                // per_prefix.first is the matching prefix
-                // per_prefix.second is a set of handlers
-                for (const auto& handler : per_prefix.second) {
-                    // handler.first is handler uuid
-                    // handler.second is a 3-tuple of shard dispatcher,ocdpo,and outputs;
-                    Action action(
-                            sender_id,
-                            key,
-                            per_prefix.first.size(),
-                            value.get_version(),
-                            std::get<2>(handler.second), // ocdpo
-                            value_ptr,
-                            std::get<3>(handler.second)  // outputs
-                    );
-                    ctxt->post(std::move(action),is_trigger);
-                }
-            }
-        }
-    }
-};
-
 int main(int argc, char** argv) {
     // set proc name
-    if( prctl(PR_SET_NAME, PROC_NAME, 0, 0, 0) != 0 ) {
+    if(prctl(PR_SET_NAME, PROC_NAME, 0, 0, 0) != 0) {
         dbg_default_warn("Cannot set proc name to {}.", PROC_NAME);
     }
 
@@ -149,25 +33,24 @@ int main(int argc, char** argv) {
     auto meta_factory = [](persistent::PersistentRegistry* pr, derecho::subgroup_id_t, ICascadeContext* context_ptr) {
         // critical data path for metadata service is currently disabled. But we can leverage it later for object pool
         // metadata handling.
-        return std::make_unique<CascadeMetadataService<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey,TriggerCascadeNoStoreWithStringKey>>(
-                pr,nullptr,context_ptr);
+        return std::make_unique<CascadeMetadataService<VolatileCascadeStoreWithStringKey, PersistentCascadeStoreWithStringKey, TriggerCascadeNoStoreWithStringKey>>(
+                pr, nullptr, context_ptr);
     };
     auto vcss_factory = [&cdpo_vcss](persistent::PersistentRegistry*, derecho::subgroup_id_t, ICascadeContext* context_ptr) {
-        return std::make_unique<VolatileCascadeStoreWithStringKey>(&cdpo_vcss,context_ptr);
+        return std::make_unique<VolatileCascadeStoreWithStringKey>(&cdpo_vcss, context_ptr);
     };
     auto pcss_factory = [&cdpo_pcss](persistent::PersistentRegistry* pr, derecho::subgroup_id_t, ICascadeContext* context_ptr) {
-        return std::make_unique<PersistentCascadeStoreWithStringKey>(pr,&cdpo_pcss,context_ptr);
+        return std::make_unique<PersistentCascadeStoreWithStringKey>(pr, &cdpo_pcss, context_ptr);
     };
     auto tcss_factory = [&cdpo_tcss](persistent::PersistentRegistry*, derecho::subgroup_id_t, ICascadeContext* context_ptr) {
-        return std::make_unique<TriggerCascadeNoStoreWithStringKey>(&cdpo_tcss,context_ptr);
+        return std::make_unique<TriggerCascadeNoStoreWithStringKey>(&cdpo_tcss, context_ptr);
     };
     dbg_default_trace("starting service...");
     Service<VolatileCascadeStoreWithStringKey,
             PersistentCascadeStoreWithStringKey,
-            TriggerCascadeNoStoreWithStringKey>::start(
-            {&cdpo_vcss,&cdpo_pcss,&cdpo_tcss},
-            meta_factory,
-            vcss_factory,pcss_factory,tcss_factory);
+            TriggerCascadeNoStoreWithStringKey>::start({&cdpo_vcss, &cdpo_pcss, &cdpo_tcss},
+                                                       meta_factory,
+                                                       vcss_factory, pcss_factory, tcss_factory);
     dbg_default_trace("started service, waiting till it ends.");
     std::cout << "Press Enter to Shutdown." << std::endl;
     std::cin.get();
