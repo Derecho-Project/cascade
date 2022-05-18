@@ -1460,7 +1460,8 @@ void PersistentCascadeStore<KT,VT,IK,IV,ST>::trigger_put(const VT& value) const 
             this->subgroup_index,
             group->template get_subgroup<PersistentCascadeStore<KT,VT,IK,IV,ST>>(this->subgroup_index).get_shard_num(),
             group->get_rpc_caller_id(),
-            value.get_key_ref(), value, cascade_context_ptr, true);
+            value.get_key_ref(), value,
+            cascade_context_ptr, true);
     }
 
     debug_leave_func();
@@ -1615,9 +1616,33 @@ std::tuple<persistent::version_t,uint64_t> SignatureCascadeStore<KT,VT,IK,IV,ST>
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-const VT SignatureCascadeStore<KT,VT,IK,IV,ST>::get(const KT& key, const persistent::version_t& ver, bool exact) const {
-    debug_enter_func_with_args("key={},ver=0x{:x}",key,ver);
-    if (ver != CURRENT_VERSION) {
+const VT SignatureCascadeStore<KT,VT,IK,IV,ST>::get(const KT& key, const persistent::version_t& ver, const bool stable, bool exact) const {
+    debug_enter_func_with_args("key={},ver=0x{:x},stable={},exact={}",key,ver,stable,exact);
+    persistent::version_t requested_version = ver;
+
+    // adjust version if stable is requested.
+    if (stable) {
+        // This feature might not be possible to provide: The requested version ver is a data-object
+        // version, and subgroup_handle.get_global_persistence_frontier() will return the latest
+        // stable *signature object* version
+        derecho::Replicated<SignatureCascadeStore>& subgroup_handle = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index);
+        if (requested_version == CURRENT_VERSION) {
+            requested_version = subgroup_handle.get_global_persistence_frontier();
+        } else {
+            //This will wait for the persistence frontier based on the wrong version (a signature version, not a data version)
+            if(!subgroup_handle.wait_for_global_persistence_frontier(requested_version) &&
+               requested_version > persistent_core.getLatestVersion()) {
+                // INVALID version
+                dbg_default_debug("{}: requested version:{:x} is beyond the latest atomic broadcast version.",__PRETTY_FUNCTION__,requested_version);
+                return *IV;
+            }
+        }
+    }
+
+    if(requested_version == CURRENT_VERSION) {
+        debug_leave_func_with_value("lockless_get({})",key);
+        return persistent_core->lockless_get(key);
+    } else {
         //Translate ver from a data-object version to its corresponding signature-object version
         persistent::version_t hash_version;
         {
@@ -1626,7 +1651,7 @@ const VT SignatureCascadeStore<KT,VT,IK,IV,ST>::get(const KT& key, const persist
             if(version_map_search != (*data_to_hash_version).begin()) {
                 version_map_search--;
                 //The search iterator now points to the largest version <= ver, which is what we want
-                if(version_map_search->first == ver || !exact) {
+                if(version_map_search->first == requested_version || !exact) {
                     hash_version = version_map_search->second;
                 } else {
                     debug_leave_func_with_value("invalid object; version 0x{:x} did not match with exact search", version_map_search->first);
@@ -1639,7 +1664,7 @@ const VT SignatureCascadeStore<KT,VT,IK,IV,ST>::get(const KT& key, const persist
             }
         }
         debug_leave_func_with_value("corresponding hash ver=0x{:x}", hash_version);
-        return persistent_core.template getDelta<VT>(hash_version, [&key,hash_version,exact,this](const VT& v){
+        return persistent_core.template getDelta<VT>(hash_version, exact, [&key,hash_version,exact,this](const VT& v){
                 if (key == v.get_key_ref()) {
                     return v;
                 } else {
@@ -1657,54 +1682,44 @@ const VT SignatureCascadeStore<KT,VT,IK,IV,ST>::get(const KT& key, const persist
                 }
             });
     }
+}
+
+
+template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+const VT SignatureCascadeStore<KT,VT,IK,IV,ST>::multi_get(const KT& key) const {
+    debug_enter_func_with_args("key={}",key);
     derecho::Replicated<SignatureCascadeStore>& subgroup_handle = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_get)>(key);
     auto& replies = results.get();
-    // TODO: verify consistency ?
-    // for (auto& reply_pair : replies) {
-    //     ret = reply_pair.second.get();
-    // }
+    for (auto& reply_pair : replies) {
+        reply_pair.second.wait();
+    }
     debug_leave_func();
     return replies.begin()->second.get();
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-const VT SignatureCascadeStore<KT,VT,IK,IV,ST>::get_by_time(const KT& key, const uint64_t& ts_us) const {
+const VT SignatureCascadeStore<KT,VT,IK,IV,ST>::get_by_time(const KT& key, const uint64_t& ts_us, const bool stable) const {
     debug_enter_func_with_args("key={},ts_us={}",key,ts_us);
     const HLC hlc(ts_us,0ull);
-    try {
-        debug_leave_func();
-        uint64_t idx = persistent_core.getIndexAtTime({ts_us,0});
-        if (idx == persistent::INVALID_INDEX) {
-            return *IV;
-        } else {
-            // Reconstructing the state is extremely slow!!!
-            // TODO: get the version at time ts_us, and go back from there.
-            auto versioned_state_ptr = persistent_core.get(hlc);
-            if (versioned_state_ptr->kv_map.find(key) != versioned_state_ptr->kv_map.end()) {
-                return versioned_state_ptr->kv_map.at(key);
-            }
-            return *IV;
-        }
-    } catch (const int64_t &ex) {
-        dbg_default_warn("temporal query throws exception:0x{:x}. key={}, ts={}", ex, key, ts_us);
-    } catch (...) {
-        dbg_default_warn("temporal query throws unknown exception. key={}, ts={}", key, ts_us);
+    derecho::Replicated<SignatureCascadeStore>& subgroup_handle = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index);
+    // get_global_stability_frontier return nano seconds.
+    if ( ts_us > subgroup_handle.compute_global_stability_frontier()/1000 ) {
+        dbg_default_warn("Cannot get data at a time in the future.");
+        return *IV;
     }
+    persistent::version_t ver = persistent_core.getVersionAtTime({ts_us,0});
+    if (ver == persistent::INVALID_VERSION) {
+        return *IV;
+    }
+
     debug_leave_func();
-    return *IV;
+    return get(key,ver,stable,false);
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-uint64_t SignatureCascadeStore<KT,VT,IK,IV,ST>::get_size(const KT& key, const persistent::version_t& ver, bool exact) const {
-    debug_enter_func_with_args("key={},ver=0x{:x}",key,ver);
-    if (ver != CURRENT_VERSION) {
-        if (exact) {
-            return persistent_core.template getDelta<VT>(ver,[](const VT& value){return mutils::bytes_size(value);});
-        } else {
-            return mutils::bytes_size(persistent_core.get(ver)->kv_map.at(key));
-        }
-    }
+uint64_t SignatureCascadeStore<KT,VT,IK,IV,ST>::multi_get_size(const KT& key) const {
+    debug_enter_func_with_args("key={}",key);
     derecho::Replicated<SignatureCascadeStore>& subgroup_handle = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_get_size)>(key);
     auto& replies = results.get();
@@ -1717,35 +1732,88 @@ uint64_t SignatureCascadeStore<KT,VT,IK,IV,ST>::get_size(const KT& key, const pe
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-uint64_t SignatureCascadeStore<KT,VT,IK,IV,ST>::get_size_by_time(const KT& key, const uint64_t& ts_us) const {
-    debug_enter_func_with_args("key={},ts_us={}",key,ts_us);
-    const HLC hlc(ts_us,0ull);
-    try {
-        debug_leave_func();
-        return mutils::bytes_size(persistent_core.get(hlc)->kv_map.at(key));
-    } catch (const int64_t &ex) {
-        dbg_default_warn("temporal query throws exception:0x{:x}. key={}, ts={}", ex, key, ts_us);
-    } catch (...) {
-        dbg_default_warn("temporal query throws unknown exception. key={}, ts={}", key, ts_us);
+uint64_t SignatureCascadeStore<KT,VT,IK,IV,ST>::get_size(const KT& key, const persistent::version_t& ver, const bool stable, bool exact) const {
+    debug_enter_func_with_args("key={},ver=0x{:x},stable={},exact={}",key,ver,stable,exact);
+    persistent::version_t requested_version = ver;
+    // adjust version if stable is requested.
+    if (stable) {
+        derecho::Replicated<SignatureCascadeStore>& subgroup_handle = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index);
+        requested_version = ver;
+        if (requested_version == CURRENT_VERSION) {
+            requested_version = subgroup_handle.get_global_persistence_frontier();
+        } else {
+            // The first condition test if requested_version is beyond the active latest atomic broadcast version.
+            // However, that could be true for a valid requested version for a new started setup, where the active
+            // latest atomic broadcast version is INVALID_VERSION(-1) since there is no atomic broadcast yet. In such a
+            // case, we need also check if requested_version is beyond the local latest version. If both are true, we
+            // determine the requested_version is invalid: it asks a version in the future.
+            if(!subgroup_handle.wait_for_global_persistence_frontier(requested_version) &&
+               requested_version > persistent_core.getLatestVersion()) {
+                // INVALID version
+                dbg_default_debug("{}: requested version:{:x} is beyond the latest atomic broadcast version.",__PRETTY_FUNCTION__,requested_version);
+                return 0ull;
+            }
+        }
+
     }
-    debug_leave_func();
-    return 0;
+    if (requested_version == CURRENT_VERSION) {
+        // return the unstable query
+        debug_leave_func_with_value("lockless_get_size({})",key);
+        return persistent_core->lockless_get_size(key);
+    } else {
+        return persistent_core.template getDelta<VT>(requested_version, exact, [this,key,requested_version,exact](const VT& v)->uint64_t{
+                if (key == v.get_key_ref()) {
+                    debug_leave_func_with_value("key:{} is found at version:0x{:x}", key, requested_version);
+                    return mutils::bytes_size(v);
+                } else {
+                    if (exact) {
+                        // return invalid object for EXACT search.
+                        debug_leave_func_with_value("No data found for key:{} at version:0x{:x}", key, requested_version);
+                        return 0ull;
+                    } else {
+                        // fall back to the slow path.
+                        auto versioned_state_ptr = persistent_core.get(requested_version);
+                        if (versioned_state_ptr->kv_map.find(key) != versioned_state_ptr->kv_map.end()) {
+                            debug_leave_func_with_value("Reconstructed version:0x{:x} for key:{}",requested_version,key);
+                            return mutils::bytes_size(versioned_state_ptr->kv_map.at(key));
+                        }
+                        debug_leave_func_with_value("No data found for key:{} before version:0x{:x}", key, requested_version);
+                        return 0ull;
+                    }
+                }
+            });
+    }
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-std::vector<KT> SignatureCascadeStore<KT,VT,IK,IV,ST>::list_keys(const persistent::version_t& ver) const {
-    debug_enter_func_with_args("ver=0x{:x}.",ver);
-    if (ver != CURRENT_VERSION) {
-        std::vector<KT> key_list;
-        auto kv_map = persistent_core.get(ver)->kv_map;
-        for (auto& kv:kv_map) {
-            key_list.push_back(kv.first);
-        }
-        debug_leave_func();
-        return key_list;
-    }
+uint64_t SignatureCascadeStore<KT,VT,IK,IV,ST>::get_size_by_time(const KT& key, const uint64_t& ts_us, const bool stable) const {
+    debug_enter_func_with_args("key={},ts_us={},stable={}",key,ts_us,stable);
+    const HLC hlc(ts_us,0ull);
+
     derecho::Replicated<SignatureCascadeStore>& subgroup_handle = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index);
-    auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_list_keys)>();
+
+    // get_global_stability_frontier return nano seconds.
+    if ( ts_us > subgroup_handle.compute_global_stability_frontier()/1000 ) {
+        dbg_default_warn("Cannot get data at a time in the future.");
+        return 0;
+    }
+
+    persistent::version_t ver = persistent_core.getVersionAtTime({ts_us,0});
+    if (ver == persistent::INVALID_VERSION) {
+        return 0;
+    }
+
+    debug_leave_func();
+
+    return get_size(key,ver,stable);
+}
+
+
+template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+std::vector<KT> SignatureCascadeStore<KT,VT,IK,IV,ST>::multi_list_keys(const std::string& prefix) const {
+    debug_enter_func_with_args("prefix={}.",prefix);
+    derecho::Replicated<SignatureCascadeStore>& subgroup_handle = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index);
+    auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_list_keys)>(prefix);
     auto& replies = results.get();
     // TODO: verify consistency ?
     debug_leave_func();
@@ -1753,77 +1821,65 @@ std::vector<KT> SignatureCascadeStore<KT,VT,IK,IV,ST>::list_keys(const persisten
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-std::vector<KT> SignatureCascadeStore<KT,VT,IK,IV,ST>::op_list_keys(const persistent::version_t& ver, const std::string& op_path) const {
-    debug_enter_func_with_args("ver=0x{:x}.",ver);
-    if (ver != CURRENT_VERSION) {
-        std::vector<KT> key_list;
-        auto kv_map = persistent_core.get(ver)->kv_map;
-        for (auto& kv:kv_map) {
-            key_list.push_back(kv.first);
-        }
-        debug_leave_func();
-        return key_list;
-    }
-    derecho::Replicated<SignatureCascadeStore>& subgroup_handle = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index);
-    auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_list_keys)>();
-    auto& replies = results.get();
-    std::vector<KT> ret;
-    // TODO: verify consistency ?
-    ret = replies.begin()->second.get();
-    ret.erase(
-        std::remove_if(
-            ret.begin(),
-            ret.end(),
-            [&](const KT key) { return op_path != get_pathname<KT>(key);}
-        ),
-        ret.end()
-    );
-    debug_leave_func();
-    return ret;
-}
-
-template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-std::vector<KT> SignatureCascadeStore<KT,VT,IK,IV,ST>::list_keys_by_time(const uint64_t& ts_us) const {
-    debug_enter_func_with_args("ts_us={}",ts_us);
-    const HLC hlc(ts_us,0ull);
-    try {
-        auto kv_map = persistent_core.get(hlc)->kv_map;
-        std::vector<KT> key_list;
-        for(auto& kv:kv_map) {
-            key_list.push_back(kv.first);
-        }
-        debug_leave_func();
-        return key_list;
-    } catch (const int64_t& ex) {
-        dbg_default_warn("temporal query throws exception:0x{:x]. ts={}", ex, ts_us);
-    } catch (...) {
-        dbg_default_warn("temporal query throws unknown exception. ts={}",  ts_us);
-    }
-    debug_leave_func();
-    return {};
-}
-
-template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-std::vector<KT> SignatureCascadeStore<KT,VT,IK,IV,ST>::op_list_keys_by_time(const uint64_t& ts_us, const std::string& op_path) const {
-    debug_enter_func_with_args("ts_us={}",ts_us);
-    const HLC hlc(ts_us,0ull);
-    try {
-        auto kv_map = persistent_core.get(hlc)->kv_map;
-        std::vector<KT> key_list;
-        for(auto& kv:kv_map) {
-            if (op_path == get_pathname<KT>(kv.first) ){
-                key_list.push_back(kv.first);
+std::vector<KT> SignatureCascadeStore<KT,VT,IK,IV,ST>::list_keys(const std::string& prefix, const persistent::version_t& ver, const bool stable) const {
+    debug_enter_func_with_args("prefix={}, ver=0x{:x}, stable={}",prefix,ver,stable);
+    persistent::version_t requested_version = ver;
+    if (stable) {
+        derecho::Replicated<SignatureCascadeStore>& subgroup_handle = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index);
+        requested_version = ver;
+        if (requested_version == CURRENT_VERSION) {
+            requested_version = subgroup_handle.get_global_persistence_frontier();
+        } else {
+            // The first condition test if requested_version is beyond the active latest atomic broadcast version.
+            // However, that could be true for a valid requested version for a new started setup, where the active
+            // latest atomic broadcast version is INVALID_VERSION(-1) since there is no atomic broadcast yet. In such a
+            // case, we need also check if requested_version is beyond the local latest version. If both are true, we
+            // determine the requested_version is invalid: it asks a version in the future.
+            if(!subgroup_handle.wait_for_global_persistence_frontier(requested_version) &&
+               requested_version > persistent_core.getLatestVersion()) {
+                // INVALID version
+                dbg_default_debug("{}: requested version:{:x} is beyond the latest atomic broadcast version.",__PRETTY_FUNCTION__,requested_version);
+                return {};
             }
         }
-        debug_leave_func();
-        return key_list;
-    } catch (const int64_t& ex) {
-        dbg_default_warn("temporal query throws exception:0x{:x]. ts={}", ex, ts_us);
-    } catch (...) {
-        dbg_default_warn("temporal query throws unknown exception. ts={}",  ts_us);
+
     }
-    debug_leave_func();
-    return {};
+
+    if (requested_version == CURRENT_VERSION) {
+        // return the unstable query
+        debug_leave_func_with_value("lockless_list_prefix({})",prefix);
+        return persistent_core->lockless_list_keys(prefix);
+    } else {
+        std::vector<KT> keys;
+        persistent_core.get(requested_version, [&keys,&prefix](const DeltaCascadeStoreCore<KT,VT,IK,IV>& pers_core){
+                for (const auto& kv:pers_core.kv_map) {
+                    if (get_pathname<KT>(kv.first).find(prefix) == 0) {
+                        keys.push_back(kv.first);
+                    }
+                }
+            });
+        return keys;
+    }
+}
+template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+std::vector<KT> SignatureCascadeStore<KT,VT,IK,IV,ST>::list_keys_by_time(const std::string& prefix, const uint64_t& ts_us, const bool stable) const {
+    debug_enter_func_with_args("ts_us={}",ts_us);
+    const HLC hlc(ts_us,0ull);
+
+    derecho::Replicated<SignatureCascadeStore>& subgroup_handle = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index);
+
+    // get_global_stability_frontier return nano seconds.
+    if ( ts_us > subgroup_handle.compute_global_stability_frontier()/1000 ) {
+        dbg_default_warn("Cannot get data at a time in the future.");
+        return {};
+    }
+
+    persistent::version_t ver = persistent_core.getVersionAtTime({ts_us,0});
+    if (ver == persistent::INVALID_VERSION) {
+        return {};
+    }
+
+    return list_keys(prefix,ver,stable);
 }
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
@@ -1905,7 +1961,9 @@ bool SignatureCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put(const VT& v
         (*cascade_watcher_ptr)(
                 this->subgroup_index,
                 group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index).get_shard_num(),
-                value.get_key_ref(), value, cascade_context_ptr);
+                group->get_rpc_caller_id(),
+                value.get_key_ref(), value,
+                cascade_context_ptr);
     }
     debug_leave_func_with_value("version=0x{:x},timestamp={}", std::get<0>(hash_object_version_and_timestamp), std::get<1>(hash_object_version_and_timestamp));
     return true;
@@ -1925,10 +1983,11 @@ std::tuple<persistent::version_t,uint64_t> SignatureCascadeStore<KT,VT,IK,IV,ST>
     if(this->persistent_core->ordered_remove(value,this->persistent_core.getLatestVersion())) {
         if (cascade_watcher_ptr) {
             (*cascade_watcher_ptr)(
-                // group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index).get_subgroup_id(), // this is subgroup id
                 this->subgroup_index,
                 group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index).get_shard_num(),
-                key, value, cascade_context_ptr);
+                group->get_rpc_caller_id(),
+                key, value,
+                cascade_context_ptr);
         }
     }
 
@@ -1963,7 +2022,9 @@ void SignatureCascadeStore<KT,VT,IK,IV,ST>::trigger_put(const VT& value) const {
         (*cascade_watcher_ptr)(
             this->subgroup_index,
             group->template get_subgroup<SignatureCascadeStore<KT,VT,IK,IV,ST>>(this->subgroup_index).get_shard_num(),
-            value.get_key_ref(), value, cascade_context_ptr, true);
+            group->get_rpc_caller_id(),
+            value.get_key_ref(), value,
+            cascade_context_ptr, true);
     }
 
     debug_leave_func();
@@ -1997,17 +2058,17 @@ void SignatureCascadeStore<KT,VT,IK,IV,ST>::dump_timestamp_log_workaround(const 
 #endif//ENABLE_EVALUATION
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-std::vector<KT> SignatureCascadeStore<KT,VT,IK,IV,ST>::ordered_list_keys() {
+std::vector<KT> SignatureCascadeStore<KT,VT,IK,IV,ST>::ordered_list_keys(const std::string& prefix) {
     debug_enter_func();
 
     debug_leave_func();
 
-    return this->persistent_core->ordered_list_keys();
+    return this->persistent_core->ordered_list_keys(prefix);
 }
 
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-std::unique_ptr<SignatureCascadeStore<KT,VT,IK,IV,ST>> SignatureCascadeStore<KT,VT,IK,IV,ST>::from_bytes(mutils::DeserializationManager* dsm, char const* buf) {
+std::unique_ptr<SignatureCascadeStore<KT,VT,IK,IV,ST>> SignatureCascadeStore<KT,VT,IK,IV,ST>::from_bytes(mutils::DeserializationManager* dsm, uint8_t const* buf) {
     auto persistent_core_ptr = mutils::from_bytes<persistent::Persistent<DeltaCascadeStoreCore<KT,VT,IK,IV>,ST>>(dsm,buf);
     std::size_t persistent_core_size = mutils::bytes_size(*persistent_core_ptr);
     auto version_map_ptr = mutils::from_bytes<persistent::Persistent<std::map<persistent::version_t, const persistent::version_t>>>(dsm, buf + persistent_core_size);
@@ -2039,6 +2100,18 @@ SignatureCascadeStore<KT, VT, IK, IV, ST>::SignatureCascadeStore(
           data_to_hash_version(std::move(deserialized_data_to_hash_version)),
           cascade_watcher_ptr(cw),
           cascade_context_ptr(cc) {}
+
+template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+SignatureCascadeStore<KT, VT, IK, IV, ST>::SignatureCascadeStore()
+        : persistent_core(
+                []() {
+                    return std::make_unique<DeltaCascadeStoreCore<KT, VT, IK, IV>>();
+                },
+                nullptr,
+                nullptr), //I'm guessing the dummy version doesn't need to enable signatures on persistent_core
+          data_to_hash_version(nullptr),
+          cascade_watcher_ptr(nullptr),
+          cascade_context_ptr(nullptr) {}
 
 template<typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 SignatureCascadeStore<KT,VT,IK,IV,ST>::~SignatureCascadeStore() {}

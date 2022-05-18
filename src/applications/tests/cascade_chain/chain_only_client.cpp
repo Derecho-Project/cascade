@@ -55,7 +55,7 @@ void op_put(ServiceClientAPI& capi, const std::string& key, const std::string& v
     obj.key = key;
     obj.previous_version = pver;
     obj.previous_version_by_key = pver_bk;
-    obj.blob = Blob(value.c_str(), value.length());
+    obj.blob = Blob(reinterpret_cast<const uint8_t*>(value.c_str()), value.length());
     derecho::rpc::QueryResults<std::tuple<persistent::version_t, uint64_t>> result = capi.put(obj);
     check_put_and_remove_result(result);
 }
@@ -65,7 +65,7 @@ void op_put_and_forget(ServiceClientAPI& capi, const std::string& key, const std
     obj.key = key;
     obj.previous_version = pver;
     obj.previous_version_by_key = pver_bk;
-    obj.blob = Blob(value.c_str(), value.length());
+    obj.blob = Blob(reinterpret_cast<const uint8_t*>(value.c_str()), value.length());
     capi.put_and_forget(obj);
     std::cout << "put done." << std::endl;
 }
@@ -81,7 +81,7 @@ void op_trigger_put(ServiceClientAPI& capi, const std::string& key, const std::s
     ObjectWithStringKey obj;
 
     obj.key = key;
-    obj.blob = Blob(value.c_str(), value.length());
+    obj.blob = Blob(reinterpret_cast<const uint8_t*>(value.c_str()), value.length());
     derecho::rpc::QueryResults<void> result = capi.trigger_put(obj);
     result.get();
 
@@ -216,7 +216,7 @@ bool verify_object_signature(const ObjectWithStringKey& hash, const std::vector<
     // ObjectWithStringKey object, not just the hash.
     std::cout << "Verifying signature on hash object " << hash << " with previous signature " << std::hex << previous_signature << std::dec << std::endl;
     std::size_t hash_object_size = mutils::bytes_size(hash);
-    char bytes_of_hash_object[hash_object_size];
+    uint8_t bytes_of_hash_object[hash_object_size];
     mutils::to_bytes(hash, bytes_of_hash_object);
     std::ios normal_stream_state(nullptr);
     normal_stream_state.copyfmt(std::cout);
@@ -252,7 +252,7 @@ bool put_with_signature(ServiceClientAPI& client, const std::vector<std::string>
     //Step 1: Put the object into the storage pool
     ObjectWithStringKey obj;
     obj.key = storage_pool_name + delimiter + key_suffix;
-    obj.blob = Blob(cmd_tokens[2].c_str(), cmd_tokens[2].length());
+    obj.blob = Blob(reinterpret_cast<const uint8_t*>(cmd_tokens[2].c_str()), cmd_tokens[2].length());
     derecho::rpc::QueryResults<std::tuple<persistent::version_t, uint64_t>> put_result = client.put(obj);
     //The reply map will only have 1 entry
     auto put_reply = put_result.get().begin()->second.get();
@@ -696,7 +696,7 @@ std::vector<command_entry_t> commands = {
              }
              persistent::version_t version = CURRENT_VERSION;
              if(cmd_tokens.size() >= 3) {
-                 version = static_cast<persistent::version_t>(std::stol(cmd_tokens[2]));
+                 version = static_cast<persistent::version_t>(std::stol(cmd_tokens[2], nullptr, 0));
              }
              auto res = capi.get(cmd_tokens[1], version);
              check_get_result(res);
@@ -714,7 +714,7 @@ std::vector<command_entry_t> commands = {
              }
              persistent::version_t version = CURRENT_VERSION;
              if(cmd_tokens.size() >= 3) {
-                 version = static_cast<persistent::version_t>(std::stol(cmd_tokens[2]));
+                 version = static_cast<persistent::version_t>(std::stol(cmd_tokens[2], nullptr, 0));
              }
              auto query_result = capi.get_signature(cmd_tokens[1], version);
              //std::tuple doesn't have an operator<<, so I have to customize check_get_result here
@@ -726,17 +726,18 @@ std::vector<command_entry_t> commands = {
          }},
         {"op_list_keys",
          "list the object keys in an object pool (by version).",
-         "op_list_keys <object pool pathname> [ version(default:current version) ]\n",
+         "op_list_keys <object pool pathname> <stable> [ version(default:current version) ]\n",
          [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
-             if(cmd_tokens.size() < 2) {
+             if(cmd_tokens.size() < 3) {
                  print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                  return false;
              }
+             bool stable = static_cast<bool>(std::stoi(cmd_tokens[2], nullptr, 0));
              persistent::version_t version = CURRENT_VERSION;
-             if(cmd_tokens.size() >= 3) {
-                 version = static_cast<persistent::version_t>(std::stol(cmd_tokens[2]));
+             if(cmd_tokens.size() >= 4) {
+                 version = static_cast<persistent::version_t>(std::stol(cmd_tokens[3], nullptr, 0));
              }
-             auto result = capi.list_keys(version, cmd_tokens[1]);
+             auto result = capi.list_keys(version, stable, cmd_tokens[1]);
              check_op_list_keys_result(capi.wait_list_keys(result));
              return true;
          }},

@@ -819,19 +819,22 @@ namespace cascade {
          * @param exact True if the data-object version must match exactly, false if the hash
          * of the closest-known version of the data object can be returned instead
          */
-        virtual const VT get(const KT& key, const persistent::version_t& ver, bool exact = false) const override;
-        virtual const VT get_by_time(const KT& key, const uint64_t& ts_us) const override;
-        virtual std::vector<KT> list_keys(const persistent::version_t& ver) const override;
-        virtual std::vector<KT> op_list_keys(const persistent::version_t& ver, const std::string& op_path) const override;
-        virtual std::vector<KT> list_keys_by_time(const uint64_t& ts_us) const override;
-        virtual std::vector<KT> op_list_keys_by_time(const uint64_t& ts_us, const std::string& op_path) const override;
-        virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, bool exact = false) const override;
-        virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us) const override;
+        virtual const VT get(const KT& key, const persistent::version_t& ver, const bool stable, bool exact=false) const override;
+        virtual const VT multi_get(const KT& key) const override;
+        virtual const VT get_by_time(const KT& key, const uint64_t& ts_us, const bool stable) const override;
+        virtual std::vector<KT> list_keys(const std::string& prefix, const persistent::version_t& ver, const bool stable) const override;
+        virtual std::vector<KT> multi_list_keys(const std::string& prefix) const override;
+        // virtual std::vector<KT> op_list_keys(const persistent::version_t& ver, const std::string& op_path) const override;
+        virtual std::vector<KT> list_keys_by_time(const std::string& prefix, const uint64_t& ts_us, const bool stable) const override;
+        // virtual std::vector<KT> op_list_keys_by_time(const uint64_t& ts_us, const std::string& op_path) const override;
+        virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, const bool stable, bool exact = false) const override;
+        virtual uint64_t multi_get_size(const KT& key) const override;
+        virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us, const bool stable) const override;
         virtual std::tuple<persistent::version_t, uint64_t> ordered_put(const VT& value) override;
         virtual void ordered_put_and_forget(const VT& value) override;
         virtual std::tuple<persistent::version_t, uint64_t> ordered_remove(const KT& key) override;
         virtual const VT ordered_get(const KT& key) override;
-        virtual std::vector<KT> ordered_list_keys() override;
+        virtual std::vector<KT> ordered_list_keys(const std::string& prefix) override;
         virtual uint64_t ordered_get_size(const KT& key) override;
     #ifdef ENABLE_EVALUATION
         virtual void ordered_dump_timestamp_log(const std::string& filename) override;
@@ -873,16 +876,17 @@ namespace cascade {
     #ifdef ENABLE_EVALUATION
                                     perf_put,
     #endif  //ENABLE_EVALUATION
-                                    remove,
-                                    get,
                                     get_signature,
                                     get_signature_by_version,
+                                    remove,
+                                    get,
+                                    multi_get,
                                     get_by_time,
                                     list_keys,
-                                    op_list_keys,
+                                    multi_list_keys,
                                     list_keys_by_time,
-                                    op_list_keys_by_time,
                                     get_size,
+                                    multi_get_size,
                                     get_size_by_time,
                                     trigger_put,
                                     notify,
@@ -913,7 +917,7 @@ namespace cascade {
 
         DEFAULT_DESERIALIZE_NOALLOC(SignatureCascadeStore);
 
-        static std::unique_ptr<SignatureCascadeStore> from_bytes(mutils::DeserializationManager* dsm, char const* buf);
+        static std::unique_ptr<SignatureCascadeStore> from_bytes(mutils::DeserializationManager* dsm, uint8_t const* buf);
 
         /* Constructors */
         //Initial constructor, creates Persistent objects
@@ -925,6 +929,8 @@ namespace cascade {
                               persistent::Persistent<std::map<persistent::version_t, const persistent::version_t>>&& deserialized_data_to_hash_version,
                               CriticalDataPathObserver<SignatureCascadeStore<KT, VT, IK, IV>>* watcher = nullptr,
                               ICascadeContext* context = nullptr);
+        //Dummy constructor needed by client_stub_factory
+        SignatureCascadeStore();
 
         virtual ~SignatureCascadeStore();
     };

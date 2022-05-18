@@ -30,7 +30,10 @@
  */
 
 using namespace derecho::cascade;
-using FuseClientContextType = FuseClientContext<VolatileCascadeStoreWithStringKey, PersistentCascadeStoreWithStringKey, TriggerCascadeNoStoreWithStringKey>;
+// The list of types in this template parameter must match the list of types for DefaultServiceType in service_types.hpp
+// I had to change it to include SignatureCascadeStore to get this to compile once SignatureCascadeStore was added to the Service
+// using FuseClientContextType = FuseClientContext<VolatileCascadeStoreWithStringKey, PersistentCascadeStoreWithStringKey, TriggerCascadeNoStoreWithStringKey>;
+using FuseClientContextType = FuseClientContext<VolatileCascadeStoreWithStringKey, PersistentCascadeStoreWithStringKey, SignatureCascadeStoreWithStringKey, TriggerCascadeNoStoreWithStringKey>;
 
 #define FCC(p) static_cast<FuseClientContextType*>(p)
 #define FCC_REQ(req) FCC(fuse_req_userdata(req))

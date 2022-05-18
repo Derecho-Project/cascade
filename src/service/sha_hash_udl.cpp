@@ -18,7 +18,8 @@ public:
             std::cerr << "ERROR: ShaHashObserver was constructed on a server where the context type does not match DefaultCascadeContextType!" << std::endl;
         }
     }
-    virtual void operator()(const std::string& key_string,
+    virtual void operator()(const node_id_t sender,
+                            const std::string& key_string,
                             const uint32_t prefix_length,
                             persistent::version_t version,
                             const mutils::ByteRepresentable* const value_ptr,
@@ -44,7 +45,7 @@ public:
         } else {
             //This will work for any object, but it's slower
             const std::size_t value_size = mutils::bytes_size(*value_ptr);
-            std::unique_ptr<char[]> value_bytes = std::make_unique<char[]>(value_size);
+            std::unique_ptr<uint8_t[]> value_bytes = std::make_unique<uint8_t[]>(value_size);
             mutils::to_bytes(*value_ptr, value_bytes.get());
             sha_hasher.add_bytes(&version, sizeof(version));
             sha_hasher.add_bytes(value_bytes.get(), value_size);
@@ -57,9 +58,8 @@ public:
             //If the current object's key is /object_pool/key_name, create the "parallel" key /signature_pool/key_name
             std::string destination_key = dest_trigger_pair.first + key_without_object_pool;
             //Create an ObjectWithStringKey for the hash
-            //Once Blob and serialization use unsigned char* like they should, remove the cast to char*
-            std::unique_ptr<ObjectWithStringKey> hash_object = std::make_unique<ObjectWithStringKey>(
-                    destination_key, (char*)hash_bytes, hash_size);
+            std::unique_ptr<ObjectWithStringKey> hash_object(new ObjectWithStringKey(
+                    destination_key, hash_bytes, hash_size));
             //Use the "version" field of the hash object to inform SignatureCascadeStore of the corresponding data object version
             hash_object->set_version(version);
             DefaultCascadeContextType* typed_context = dynamic_cast<DefaultCascadeContextType*>(context);

@@ -1162,6 +1162,7 @@ std::vector<command_entry_t> commands =
                 auto reply = reply_future.second.get();
                 std::cout << "node(" << reply_future.first << ") replied with value: (" << std::get<0>(reply) << "," << std::get<1>(reply) << ")" << std::endl;
             }
+            return true;
         }
     },
     {
@@ -1198,6 +1199,7 @@ std::vector<command_entry_t> commands =
                 auto reply = reply_future.second.get();
                 std::cout << "node(" << reply_future.first << ") replied with value: (" << std::get<0>(reply) << "," << std::get<1>(reply) << ")" << std::endl;
             }
+            return true;
         }
     },
     {
@@ -1400,11 +1402,11 @@ std::vector<command_entry_t> commands =
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             CHECK_FORMAT(cmd_tokens,3);
             uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[2],nullptr,0));
-            
+
             bool ret = false;
             on_subgroup_type(cmd_tokens[1], ret = register_notification, capi, subgroup_index);
 
-            std::cout << "Notification Registered to Subgroup " << cmd_tokens[1] << ":" << subgroup_index 
+            std::cout << "Notification Registered to Subgroup " << cmd_tokens[1] << ":" << subgroup_index
                       << ". Old handler replaced?" << ret << std::endl;
             return true;
         }
@@ -1417,11 +1419,11 @@ std::vector<command_entry_t> commands =
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             CHECK_FORMAT(cmd_tokens,3);
             uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[2],nullptr,0));
-            
+
             bool ret = false;
             on_subgroup_type(cmd_tokens[1], ret = unregister_notification, capi, subgroup_index);
 
-            std::cout << "Notification Registered to Subgroup " << cmd_tokens[1] << ":" << subgroup_index 
+            std::cout << "Notification Registered to Subgroup " << cmd_tokens[1] << ":" << subgroup_index
                       << ". Old handler replaced?" << ret << std::endl;
             return true;
         }
