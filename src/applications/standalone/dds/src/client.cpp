@@ -16,7 +16,7 @@
 
 using namespace derecho::cascade;
 
-struct pingpong_msg_header_t {
+struct message_header_t {
     uint32_t seqno;
     mutable uint64_t sending_ts_us;
 };
@@ -31,8 +31,8 @@ struct pingpong_msg_header_t {
  * @param send_topic        The topic for publish messages
  * @param recv_topic        The topic for receive a message
  * @param is_passive        Passive mode
- * @param rate_mps          Message rate at number of messages per second
  * @param count             The total number of messages to publish
+ * @param rate_mps          Message rate at number of messages per second
  */
 static bool run_pingpong_latency(
         DDSMetadataClient& metadata_client,
@@ -40,8 +40,8 @@ static bool run_pingpong_latency(
         const std::string& send_topic,
         const std::string& recv_topic,
         bool is_passive,
-        uint32_t rate_mps,
-        uint32_t count) {
+        uint32_t count,
+        uint32_t rate_mps) {
     // check if topic exists or not.
     Topic st = metadata_client.get_topic(send_topic);
     if (!st.is_valid()) {
@@ -67,7 +67,7 @@ static bool run_pingpong_latency(
             std::unordered_map<std::string,message_handler_t<Blob>>{{
                 std::string("default"),
                 [count,&publisher,&ts_log,&finish_mtx,&finish_cv,is_passive](const Blob& msg)->void {
-                    const pingpong_msg_header_t* header = reinterpret_cast<const pingpong_msg_header_t*>(msg.bytes);
+                    const message_header_t* header = reinterpret_cast<const message_header_t*>(msg.bytes);
                     // ts_log.emplace_back(std::tuple{msg.seqno,msg.sending_ts_us,get_walltime()/1000});
                     ts_log.emplace_back(std::tuple{header->seqno,header->sending_ts_us,get_walltime()/1000});
                     // echo
@@ -86,7 +86,7 @@ static bool run_pingpong_latency(
     // publish
     if (!is_passive) {
 #if DISABLE_DDS_COPY == 1
-        uint32_t payload_size = sizeof(pingpong_msg_header_t);
+        uint32_t payload_size = sizeof(message_header_t);
 #else
         // reserve payload space.
         uint32_t payload_size = derecho::getConfUInt32(CONF_SUBGROUP_DEFAULT_MAX_PAYLOAD_SIZE);
@@ -99,7 +99,7 @@ static bool run_pingpong_latency(
         std::vector<uint8_t> payload;
         payload.reserve(payload_size);
         Blob ping(payload.data(),payload_size,true);
-        pingpong_msg_header_t* header = reinterpret_cast<pingpong_msg_header_t*>(payload.data());
+        message_header_t* header = reinterpret_cast<message_header_t*>(payload.data());
 
         // send the messages at given rate
         uint64_t interval_us = 1000000/rate_mps;
@@ -113,7 +113,11 @@ static bool run_pingpong_latency(
             header->seqno = i;
             header->sending_ts_us = get_walltime()/1000;
             publisher->send(ping);
-            next_us = header->sending_ts_us + interval_us;
+            if (next_us != 0) {
+                next_us += interval_us;
+            } else {
+                next_us = now_us + interval_us;
+            }
         }
     }
 
@@ -135,6 +139,112 @@ static bool run_pingpong_latency(
               << std::get<2>(tp) << std::endl;
     }
     ofile.close();
+    return true;
+}
+
+/**
+ * throughput test. 
+ * There are two possible modes: pub/sub. In pub mode, the tester will publish a series of
+ * messages to the specified topic; In sub mode, the tester will wait on the give topic for specified number of
+ * messages. A log file <topic>.<pub|sub>.log will be generated.
+ *
+ * @param metadata_client   The DDSMetadata client
+ * @param client            The DDS client
+ * @param topic             The topic
+ * @param pub_mod           True for the publisher mode, false for the subscriber mode.
+ * @param count             The total number of messages to publish
+ * @param rate_mps          Message rate at number of messages per second, only relavent to the subscriber.
+ */
+static bool run_throughput(
+        DDSMetadataClient& metadata_client,
+        DDSClient& client,
+        const std::string& topic,
+        bool pub_mode,
+        uint32_t count,
+        uint32_t rate_mps) {
+
+
+    // check if topic exists or not.
+    Topic t = metadata_client.get_topic(topic);
+    if (!t.is_valid()) {
+        std::cerr << "Cannot find: " << topic << ", please make sure the topic is created." << std::endl; 
+        return false;
+    }
+
+    // do the experiment
+    if (pub_mode) {
+        // create a publisher
+        auto publisher = client.template create_publisher<Blob>(t.name);
+
+        // publisher
+        uint32_t payload_size = derecho::getConfUInt32(CONF_SUBGROUP_DEFAULT_MAX_PAYLOAD_SIZE);
+        if (payload_size < 256) {
+            payload_size = 0;
+        } else {
+            payload_size -= 256;
+        }
+    
+        std::vector<uint8_t> payload;
+        payload.reserve(payload_size);
+        Blob message(payload.data(), payload_size, true);
+        message_header_t* header = reinterpret_cast<message_header_t*>(payload.data());
+    
+        // send the message at given rate
+        // send the messages at given rate
+        uint64_t interval_us = 1000000/rate_mps;
+        uint64_t now_us = 0,next_us = 0;
+        for(uint32_t i = 0; i < count; i++) {
+            now_us = get_walltime()/1000;
+            while (next_us > (now_us + 10)) {
+                usleep(next_us - now_us - 10);
+                now_us = get_walltime()/1000;
+            }
+            header->seqno = i;
+            header->sending_ts_us = get_walltime()/1000;
+            publisher->send(message);
+            if (next_us != 0) {
+                next_us += interval_us;
+            } else {
+                next_us = now_us + interval_us;
+            }
+        }
+
+    } else {
+        // seqno --> timestamp_us
+        std::vector<std::tuple<uint32_t,uint64_t,uint64_t>> ts_log;
+        // create the subscriber
+        std::condition_variable finish_cv;
+        std::mutex finish_mtx;
+        auto subscriber = client.subscribe(t.name,
+                std::unordered_map<std::string,message_handler_t<Blob>>{{
+                    std::string("default"),
+                    [count,&ts_log,&finish_mtx,&finish_cv](const Blob& msg)->void {
+                        const message_header_t* header = reinterpret_cast<const message_header_t*>(msg.bytes);
+                        // ts_log.emplace_back(std::tuple{msg.seqno,msg.sending_ts_us,get_walltime()/1000});
+                        ts_log.emplace_back(std::tuple{header->seqno,header->sending_ts_us,get_walltime()/1000});
+                        // end of test
+                        if(ts_log.size() == count) {
+                            std::lock_guard lck(finish_mtx);
+                            finish_cv.notify_one();
+                        }
+                    }
+                }});
+
+        std::unique_lock<std::mutex> lck(finish_mtx);
+        finish_cv.wait(lck,[&ts_log,&count]{return (ts_log.size()==count);});
+
+        // flush to file
+        std::ofstream ofile(topic+".log");
+        ofile << "# topic:" << t.name << std::endl;
+        ofile << "# seqno send_ts_us recv_ts_us" << std::endl;
+        for(const auto tp: ts_log) {
+            ofile << std::get<0>(tp) << " " 
+                  << std::get<1>(tp) << " "
+                  << std::get<2>(tp) << std::endl;
+        }
+        ofile.close();
+    }
+
     return true;
 }
 
@@ -390,23 +500,44 @@ std::vector<command_entry_t> commands = {
     {
         "pingpong_latency",
         "perform a pingpong latency test",
-        "pingpong_latency <send_topic> <recv_topic> <0|1 - is passive> [rate_mps] [count]\n"
-            "\trate_mps - target sending rate at message per second\n"
-            "\tcount    - the total number of messages to send",
+        "pingpong_latency <send_topic> <recv_topic> <0|1 - is passive> [count] [rate_mps]\n"
+            "\trate_mps - target sending rate at message per second, default to 100 mps\n"
+            "\tcount    - the total number of messages to send, default to 1000 mps",
         [](DDSMetadataClient& metadata_client,DDSClient& client,const std::vector<std::string>& cmd_tokens) {
             CHECK_FORMAT(cmd_tokens,4);
             std::string send_topic = cmd_tokens[1];
             std::string recv_topic = cmd_tokens[2];
             bool is_passive = (std::stoul(cmd_tokens[3]) == 1);
-            uint32_t rate_mps = 100;
             uint32_t count = 1000;
+            uint32_t rate_mps = 100;
+            if (cmd_tokens.size() >= 5) {
+                count = std::stoul(cmd_tokens[4]);
+            }
+            if (cmd_tokens.size() >= 6) {
+                rate_mps = std::stoul(cmd_tokens[5]);
+            }
+            return run_pingpong_latency(metadata_client,client,send_topic,recv_topic,is_passive,count,rate_mps);
+        }
+    },
+    {
+        "throughput",
+        "Perform throughput performance test",
+        "throughput <pub|sub> <topic> [count] [rate_mps]\n"
+            "\trate_mps - target sending rate at message per second, default to 100 mps\n"
+            "\tcount    - the total number of messages to send, default to 1000 mps",
+        [](DDSMetadataClient& metadata_client,DDSClient& client,const std::vector<std::string>& cmd_tokens) {
+            CHECK_FORMAT(cmd_tokens,3);
+            bool pub_mode = (cmd_tokens[1] == "pub");
+            std::string topic = cmd_tokens[2];
+            uint32_t count = 1000;
+            uint32_t rate_mps = 100;
+            if (cmd_tokens.size() >= 4) {
+                count = std::stoul(cmd_tokens[3]);
+            }
             if (cmd_tokens.size() >= 5) {
                 rate_mps = std::stoul(cmd_tokens[4]);
             }
-            if (cmd_tokens.size() >= 6) {
-                count = std::stoul(cmd_tokens[5]);
-            }
-            return run_pingpong_latency(metadata_client,client,send_topic,recv_topic,is_passive,rate_mps,count);
+            return run_throughput(metadata_client,client,topic,pub_mode,count,rate_mps);
         }
     },
 };

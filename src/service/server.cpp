@@ -7,15 +7,15 @@
 // We should add a cascade service library side-by-side to libcascade.so to include the client-side implementations for
 // cascade service client. Right now, we put some of the implementations (create_null_object_cb<>, e.g.) as inline
 // functions in service_client_api.hpp. It's not a good design, which should change later.
-#include "cascade/service_client_api.hpp"
 #include "cascade/object.hpp"
+#include "cascade/service_client_api.hpp"
 
 #include <derecho/conf/conf.hpp>
 #include <derecho/utils/logger.hpp>
 
-#include <sys/prctl.h>
 #include <dlfcn.h>
-
+#include <sys/prctl.h>
+#include <type_traits>
 
 #define PROC_NAME "cascade_server"
 
@@ -23,7 +23,7 @@ using namespace derecho::cascade;
 
 int main(int argc, char** argv) {
     // set proc name
-    if( prctl(PR_SET_NAME, PROC_NAME, 0, 0, 0) != 0 ) {
+    if(prctl(PR_SET_NAME, PROC_NAME, 0, 0, 0) != 0) {
         dbg_default_warn("Cannot set proc name to {}.", PROC_NAME);
     }
 
@@ -35,27 +35,27 @@ int main(int argc, char** argv) {
     auto meta_factory = [](persistent::PersistentRegistry* pr, derecho::subgroup_id_t, ICascadeContext* context_ptr) {
         // critical data path for metadata service is currently disabled. But we can leverage it later for object pool
         // metadata handling.
-        return std::make_unique<CascadeMetadataService<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey,SignatureCascadeStoreWithStringKey,TriggerCascadeNoStoreWithStringKey>>(
-                pr,nullptr,context_ptr);
+        return std::make_unique<CascadeMetadataService<VolatileCascadeStoreWithStringKey, PersistentCascadeStoreWithStringKey, SignatureCascadeStoreWithStringKey, TriggerCascadeNoStoreWithStringKey>>(
+                pr, nullptr, context_ptr);
     };
     auto vcss_factory = [&cdpo_vcss](persistent::PersistentRegistry*, derecho::subgroup_id_t, ICascadeContext* context_ptr) {
-        return std::make_unique<VolatileCascadeStoreWithStringKey>(&cdpo_vcss,context_ptr);
+        return std::make_unique<VolatileCascadeStoreWithStringKey>(&cdpo_vcss, context_ptr);
     };
     auto pcss_factory = [&cdpo_pcss](persistent::PersistentRegistry* pr, derecho::subgroup_id_t, ICascadeContext* context_ptr) {
-        return std::make_unique<PersistentCascadeStoreWithStringKey>(pr,&cdpo_pcss,context_ptr);
+        return std::make_unique<PersistentCascadeStoreWithStringKey>(pr, &cdpo_pcss, context_ptr);
     };
     auto scss_factory = [&cdpo_scss](persistent::PersistentRegistry* pr, derecho::subgroup_id_t,
                                      ICascadeContext* context_ptr) {
         return std::make_unique<SignatureCascadeStoreWithStringKey>(pr, &cdpo_scss, context_ptr);
     };
     auto tcss_factory = [&cdpo_tcss](persistent::PersistentRegistry*, derecho::subgroup_id_t, ICascadeContext* context_ptr) {
-        return std::make_unique<TriggerCascadeNoStoreWithStringKey>(&cdpo_tcss,context_ptr);
+        return std::make_unique<TriggerCascadeNoStoreWithStringKey>(&cdpo_tcss, context_ptr);
     };
     dbg_default_trace("starting service...");
     DefaultServiceType::start(
-            {&cdpo_vcss,&cdpo_pcss,&cdpo_tcss},
+            {&cdpo_vcss, &cdpo_pcss, &cdpo_tcss},
             meta_factory,
-            vcss_factory,pcss_factory,scss_factory,tcss_factory);
+            vcss_factory, pcss_factory, scss_factory, tcss_factory);
     dbg_default_trace("started service, waiting till it ends.");
     std::cout << "Press Enter to Shutdown." << std::endl;
     std::cin.get();
