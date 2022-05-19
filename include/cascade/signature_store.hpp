@@ -72,6 +72,8 @@ public:
      *
      * @param key The key identifying the (hash) object to retrieve a signature for
      * @param ver The version of the data object that is associated with the desired hash object
+     * @param stable True if the server should wait for the hash object to be globally
+     * stable (persisted) before returning its signature, false if the function can return right away
      * @param exact True if the version requested must be an exact match, false if the
      * method should return the signature on the nearest version (before ver) that
      * contains an update to the specified key.
@@ -80,14 +82,17 @@ public:
      */
     std::tuple<std::vector<uint8_t>, persistent::version_t> get_signature(const KT& key,
                                                                           const persistent::version_t& ver,
+                                                                          bool stable,
                                                                           bool exact = false) const;
 
     /**
      * Retrieves the signature and the previous signed version that is in the log at
      * version ver, where ver is the version of the *hash object* stored in this
-     * subgroup. This is used to get a "previous signed version" (to validate a signature),
-     * since the previous signed version will always be the previous version in the
-     * SignatureCascadeStore log, not the previous version of the corresponding data object.
+     * subgroup. No key argument is required since the version uniquely identifies a
+     * single log entry. This is used to get a "previous signed version" (to validate a
+     * signature), since the "previous signed version" will always be the previous
+     * version in the SignatureCascadeStore log, not the previous version of the
+     * corresponding data object.
      *
      * @param ver The version (of some hash object in the SignatureCascadeStore) to get a signature for
      * @return A pair of values: the signature, and the previous persistent version
@@ -130,17 +135,31 @@ public:
      *
      * @param key The key of the hash object to retrieve from this SignatureCascadeStore
      * @param ver The version of the data object that is associated with the desired hash object
+     * @param stable True if the server should wait for the hash object to be globally
+     * stable (persisted) before returning it, false if the function can return right away
      * @param exact True if the data-object version must match exactly, false if the hash
      * of the closest-known version of the data object can be returned instead
      */
     virtual const VT get(const KT& key, const persistent::version_t& ver, const bool stable, bool exact = false) const override;
+    /**
+     * Gets the current version of the hash object with the specified key. This function
+     * should not be used because there is no guarantee that the current version of the hash
+     * object corresponds to the current version of the data object in the PersistentCascadeStore.
+     * Clients should use get() to request the hash object with the correct version corresponding
+     * to the data object.
+     */
     virtual const VT multi_get(const KT& key) const override;
     virtual const VT get_by_time(const KT& key, const uint64_t& ts_us, const bool stable) const override;
     virtual std::vector<KT> list_keys(const std::string& prefix, const persistent::version_t& ver, const bool stable) const override;
     virtual std::vector<KT> multi_list_keys(const std::string& prefix) const override;
-    // virtual std::vector<KT> op_list_keys(const persistent::version_t& ver, const std::string& op_path) const override;
     virtual std::vector<KT> list_keys_by_time(const std::string& prefix, const uint64_t& ts_us, const bool stable) const override;
-    // virtual std::vector<KT> op_list_keys_by_time(const uint64_t& ts_us, const std::string& op_path) const override;
+    /**
+     * Gets the size of a hash object at a specific version of that hash object. Unlike
+     * get(), this function does not assume the version is for a corresponding data object
+     * and translate it to the hash object version. Clients will rarely need to call this
+     * function anyway, since all objects in the SignatureCascadeStore are the same size
+     * regardless of their corresponding data object (they store SHA256 hashes).
+     */
     virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, const bool stable, bool exact = false) const override;
     virtual uint64_t multi_get_size(const KT& key) const override;
     virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us, const bool stable) const override;

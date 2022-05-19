@@ -76,77 +76,67 @@ std::tuple<persistent::version_t, uint64_t> SignatureCascadeStore<KT, VT, IK, IV
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 const VT SignatureCascadeStore<KT, VT, IK, IV, ST>::get(const KT& key, const persistent::version_t& ver, const bool stable, bool exact) const {
     debug_enter_func_with_args("key={},ver=0x{:x},stable={},exact={}", key, ver, stable, exact);
-    persistent::version_t requested_version = ver;
 
-    // adjust version if stable is requested.
-    if(stable) {
-        // Fix: Do not support get(CURRENT_VERSION) on SignatureStore at all. This doesn't make sense anyway.
-
-        // This feature might not be possible to provide: The requested version ver is a data-object
-        // version, and subgroup_handle.get_global_persistence_frontier() will return the latest
-        // stable *signature object* version
-        derecho::Replicated<SignatureCascadeStore>& subgroup_handle = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index);
-        if(requested_version == CURRENT_VERSION) {
-            requested_version = subgroup_handle.get_global_persistence_frontier();
+    if(ver == CURRENT_VERSION) {
+        dbg_default_error("SignatureCascadeStore only supports get() with specific version, not CURRENT_VERSION");
+        debug_leave_func();
+        return *IV;
+    }
+    // Translate ver from a data-object version to its corresponding signature-object version
+    persistent::version_t hash_version;
+    {
+        std::lock_guard<std::mutex> map_lock(version_map_mutex);
+        auto version_map_search = (*data_to_hash_version).upper_bound(ver);
+        if(version_map_search != (*data_to_hash_version).begin()) {
+            version_map_search--;
+            // The search iterator now points to the largest version <= ver, which is what we want
+            if(version_map_search->first == ver || !exact) {
+                hash_version = version_map_search->second;
+            } else {
+                debug_leave_func_with_value("invalid object; version 0x{:x} did not match with exact search", version_map_search->first);
+                return *IV;
+            }
         } else {
-            // This will wait for the persistence frontier based on the wrong version (a signature version, not a data version)
-            // Fix: Translate it first
-            if(!subgroup_handle.wait_for_global_persistence_frontier(requested_version) && requested_version > persistent_core.getLatestVersion()) {
-                // INVALID version
-                dbg_default_debug("{}: requested version:{:x} is beyond the latest atomic broadcast version.", __PRETTY_FUNCTION__, requested_version);
-                return *IV;
-            }
+            // The map is empty, so no objects have yet been stored here
+            debug_leave_func();
+            return *IV;
         }
     }
 
-    if(requested_version == CURRENT_VERSION) {
-        debug_leave_func_with_value("lockless_get({})", key);
-        return persistent_core->lockless_get(key);
-    } else {
-        // Translate ver from a data-object version to its corresponding signature-object version
-        persistent::version_t hash_version;
-        {
-            std::lock_guard<std::mutex> map_lock(version_map_mutex);
-            auto version_map_search = (*data_to_hash_version).upper_bound(ver);
-            if(version_map_search != (*data_to_hash_version).begin()) {
-                version_map_search--;
-                // The search iterator now points to the largest version <= ver, which is what we want
-                if(version_map_search->first == requested_version || !exact) {
-                    hash_version = version_map_search->second;
-                } else {
-                    debug_leave_func_with_value("invalid object; version 0x{:x} did not match with exact search", version_map_search->first);
-                    return *IV;
-                }
+    if(stable) {
+        derecho::Replicated<SignatureCascadeStore>& subgroup_handle = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index);
+        // Wait for the requested signature object to be globally persisted
+        if(!subgroup_handle.wait_for_global_persistence_frontier(hash_version)
+           && hash_version > persistent_core.getLatestVersion()) {
+            // INVALID version
+            dbg_default_debug("{}: requested version:{:x} is beyond the latest atomic broadcast version.", __PRETTY_FUNCTION__, hash_version);
+            return *IV;
+        }
+    }
+    debug_leave_func_with_value("corresponding hash ver=0x{:x}", hash_version);
+    return persistent_core.template getDelta<VT>(hash_version, exact, [&key, hash_version, exact, this](const VT& v) {
+        if(key == v.get_key_ref()) {
+            return v;
+        } else {
+            if(exact) {
+                // return invalid object for EXACT search.
+                return *IV;
             } else {
-                // The map is empty, so no objects have yet been stored here
-                debug_leave_func();
+                // fall back to the slow path.
+                auto versioned_state_ptr = persistent_core.get(hash_version);
+                if(versioned_state_ptr->kv_map.find(key) != versioned_state_ptr->kv_map.end()) {
+                    return versioned_state_ptr->kv_map.at(key);
+                }
                 return *IV;
             }
         }
-        debug_leave_func_with_value("corresponding hash ver=0x{:x}", hash_version);
-        return persistent_core.template getDelta<VT>(hash_version, exact, [&key, hash_version, exact, this](const VT& v) {
-            if(key == v.get_key_ref()) {
-                return v;
-            } else {
-                if(exact) {
-                    // return invalid object for EXACT search.
-                    return *IV;
-                } else {
-                    // fall back to the slow path.
-                    auto versioned_state_ptr = persistent_core.get(hash_version);
-                    if(versioned_state_ptr->kv_map.find(key) != versioned_state_ptr->kv_map.end()) {
-                        return versioned_state_ptr->kv_map.at(key);
-                    }
-                    return *IV;
-                }
-            }
-        });
-    }
+    });
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 const VT SignatureCascadeStore<KT, VT, IK, IV, ST>::multi_get(const KT& key) const {
     debug_enter_func_with_args("key={}", key);
+    dbg_default_warn("WARNING: multi_get({}) called on SignatureCascadeStore. This will return the current version of the signed hash object, which may not correspond to the current version of the data object in PersistentCascadeStore", key);
     derecho::Replicated<SignatureCascadeStore>& subgroup_handle = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_get)>(key);
     auto& replies = results.get();
@@ -575,64 +565,76 @@ template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 std::tuple<std::vector<uint8_t>, persistent::version_t> SignatureCascadeStore<KT, VT, IK, IV, ST>::get_signature(
         const KT& key,
         const persistent::version_t& ver,
+        bool stable,
         bool exact) const {
     debug_enter_func_with_args("key={},ver=0x{:x}", key, ver);
-    if(ver != CURRENT_VERSION) {
-        // Translate ver from a data-object version to its corresponding signature-object version
-        persistent::version_t hash_version;
-        {
-            std::lock_guard<std::mutex> map_lock(version_map_mutex);
-            auto version_map_search = (*data_to_hash_version).upper_bound(ver);
-            if(version_map_search != (*data_to_hash_version).begin()) {
-                version_map_search--;
-                // The search iterator now points to the largest version <= ver, which is what we want
-                if(version_map_search->first == ver || !exact) {
-                    hash_version = version_map_search->second;
-                } else {
-                    debug_leave_func_with_value("invalid signature; version 0x{:x} did not match with exact search", version_map_search->first);
-                    return {std::vector<uint8_t>{}, persistent::INVALID_VERSION};
-                }
+
+    if(ver == CURRENT_VERSION) {
+        dbg_default_error("SignatureCascadeStore only supports get_signature() with specific version, not CURRENT_VERSION");
+        debug_leave_func();
+        return {std::vector<uint8_t>{}, persistent::INVALID_VERSION};
+    }
+
+    // Translate ver from a data-object version to its corresponding signature-object version
+    persistent::version_t hash_version;
+    {
+        std::lock_guard<std::mutex> map_lock(version_map_mutex);
+        auto version_map_search = (*data_to_hash_version).upper_bound(ver);
+        if(version_map_search != (*data_to_hash_version).begin()) {
+            version_map_search--;
+            // The search iterator now points to the largest version <= ver, which is what we want
+            if(version_map_search->first == ver || !exact) {
+                hash_version = version_map_search->second;
             } else {
-                // The map is empty, so no objects have yet been stored here
-                debug_leave_func();
+                debug_leave_func_with_value("invalid signature; version 0x{:x} did not match with exact search", version_map_search->first);
                 return {std::vector<uint8_t>{}, persistent::INVALID_VERSION};
             }
-        }
-        std::vector<uint8_t> signature(persistent_core.getSignatureSize());
-        persistent::version_t previous_signed_version;
-        // Hopefully, the user kept track of which log version corresponded to the "put" for this key,
-        // and the entry at the requested version is an object with the correct key
-        bool signature_found = persistent_core.template getDeltaSignature<VT>(
-                hash_version, [&key](const VT& deltaEntry) {
-                    return deltaEntry.get_key_ref() == key;
-                },
-                signature.data(), previous_signed_version);
-        // If an inexact match is requested, we need to search backward until we find the newest entry
-        // prior to hash_version that contains the requested key. This is slow, but I can't think of a better way.
-        if(!signature_found && !exact) {
-            dbg_default_debug("get_signature: Inexact match requested, searching for {} at version 0x{:x}", key, hash_version);
-            persistent::version_t search_ver = hash_version - 1;
-            while(search_ver > 0 && !signature_found) {
-                signature_found = persistent_core.template getDeltaSignature<VT>(
-                        search_ver, [&key](const VT& deltaEntry) {
-                            return deltaEntry.get_key_ref() == key;
-                        },
-                        signature.data(), previous_signed_version);
-                search_ver--;
-            }
-        }
-        debug_leave_func();
-        if(signature_found) {
-            return {signature, previous_signed_version};
         } else {
+            // The map is empty, so no objects have yet been stored here
+            debug_leave_func();
             return {std::vector<uint8_t>{}, persistent::INVALID_VERSION};
         }
     }
-    derecho::Replicated<SignatureCascadeStore>& subgroup_handle = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index);
-    auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_get_signature)>(key);
-    auto& replies = results.get();
+    if(stable) {
+        derecho::Replicated<SignatureCascadeStore>& subgroup_handle = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index);
+        // Wait for the requested signature object to be globally persisted
+        if(!subgroup_handle.wait_for_global_persistence_frontier(hash_version)
+           && hash_version > persistent_core.getLatestVersion()) {
+            // INVALID version
+            dbg_default_debug("{}: requested version:{:x} is beyond the latest atomic broadcast version.", __PRETTY_FUNCTION__, hash_version);
+            return {std::vector<uint8_t>{}, persistent::INVALID_VERSION};
+        }
+    }
+
+    std::vector<uint8_t> signature(persistent_core.getSignatureSize());
+    persistent::version_t previous_signed_version;
+    // Hopefully, the user kept track of which log version corresponded to the "put" for this key,
+    // and the entry at the requested version is an object with the correct key
+    bool signature_found = persistent_core.template getDeltaSignature<VT>(
+            hash_version, [&key](const VT& deltaEntry) {
+                return deltaEntry.get_key_ref() == key;
+            },
+            signature.data(), previous_signed_version);
+    // If an inexact match is requested, we need to search backward until we find the newest entry
+    // prior to hash_version that contains the requested key. This is slow, but I can't think of a better way.
+    if(!signature_found && !exact) {
+        dbg_default_debug("get_signature: Inexact match requested, searching for {} at version 0x{:x}", key, hash_version);
+        persistent::version_t search_ver = hash_version - 1;
+        while(search_ver > 0 && !signature_found) {
+            signature_found = persistent_core.template getDeltaSignature<VT>(
+                    search_ver, [&key](const VT& deltaEntry) {
+                        return deltaEntry.get_key_ref() == key;
+                    },
+                    signature.data(), previous_signed_version);
+            search_ver--;
+        }
+    }
     debug_leave_func();
-    return replies.begin()->second.get();
+    if(signature_found) {
+        return {signature, previous_signed_version};
+    } else {
+        return {std::vector<uint8_t>{}, persistent::INVALID_VERSION};
+    }
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
@@ -640,7 +642,8 @@ std::tuple<std::vector<uint8_t>, persistent::version_t> SignatureCascadeStore<KT
         const persistent::version_t& ver) const {
     debug_enter_func_with_args("ver=0x{:x}", ver);
     if(ver == CURRENT_VERSION) {
-        debug_leave_func_with_value("get_signature_by_version does not yet support CURRENT_VERSION ({})", CURRENT_VERSION);
+        dbg_default_error("get_signature_by_version must be called with a specific version, not CURRENT_VERSION");
+        debug_leave_func_with_value("get_signature_by_version does not support CURRENT_VERSION ({})", CURRENT_VERSION);
         return {std::vector<uint8_t>{}, persistent::INVALID_VERSION};
     }
     std::vector<uint8_t> signature(persistent_core.getSignatureSize());

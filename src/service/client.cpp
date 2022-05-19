@@ -1143,20 +1143,22 @@ std::vector<command_entry_t> commands =
     {
         "get_signature",
         "Get an object's signature (by version).",
-        "get_signature <key> <subgroup_index> <shard_index> [ version(default:current version) ]\n"
-            "Note that this can only target the SCSS (signatures) subgroup type",
+        "get_signature <key> <subgroup_index> <shard_index> <version> [ stable(default: false) ] \n"
+            "Note that this can only target the SCSS (signatures) subgroup type \n"
+            "stable := 0|1  using stable data or not.",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
-            if (cmd_tokens.size() < 4) {
+            if (cmd_tokens.size() < 5) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
             }
             uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[2]));
             uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
-            persistent::version_t version = CURRENT_VERSION;
-            if (cmd_tokens.size() >= 5) {
-                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[4]));
+            persistent::version_t version = static_cast<persistent::version_t>(std::stol(cmd_tokens[4]));
+            bool stable = false;
+            if (cmd_tokens.size() >= 6) {
+                stable = static_cast<bool>(std::stoi(cmd_tokens[5],nullptr,0));
             }
-            auto query_result = capi.get_signature<SignatureCascadeStoreWithStringKey>(cmd_tokens[1], version, subgroup_index, shard_index);
+            auto query_result = capi.get_signature<SignatureCascadeStoreWithStringKey>(cmd_tokens[1], version, stable, subgroup_index, shard_index);
             //std::tuple doesn't have an operator<<, so I have to customize check_get_result here
              for (auto& reply_future : query_result.get()) {
                 auto reply = reply_future.second.get();
@@ -1181,19 +1183,21 @@ std::vector<command_entry_t> commands =
     {
         "op_get_signature",
         "Get an object's signature from the object pool (by version).",
-        "op_get_signature <key> [ version(default:current version) ]\n"
+        "op_get_signature <key> <version> [ stable(default: false) ]\n"
             "Note that Cascade will automatically decide the subgroup to contact based on the key's prefix, "
-            "but only object pools hosted on a SignatureCascadeStore subgroup will have signatures.",
+            "but only object pools hosted on a SignatureCascadeStore subgroup will have signatures.\n"
+            "stable := 0|1  using stable data or not.",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
-            if (cmd_tokens.size() < 2) {
+            if (cmd_tokens.size() < 3) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
             }
-            persistent::version_t version = CURRENT_VERSION;
-            if (cmd_tokens.size() >= 3) {
-                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[2]));
+            persistent::version_t version = static_cast<persistent::version_t>(std::stol(cmd_tokens[2]));
+            bool stable = false;
+            if (cmd_tokens.size() >= 4) {
+                stable = static_cast<bool>(std::stoi(cmd_tokens[3],nullptr,0));
             }
-            auto query_result = capi.get_signature(cmd_tokens[1], version);
+            auto query_result = capi.get_signature(cmd_tokens[1], version, stable);
             //std::tuple doesn't have an operator<<, so I have to customize check_get_result here
              for (auto& reply_future : query_result.get()) {
                 auto reply = reply_future.second.get();

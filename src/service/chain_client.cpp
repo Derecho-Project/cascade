@@ -269,14 +269,14 @@ void op_remove(ChainServiceClient& capi, const std::string& key) {
     }
 
 template <typename SubgroupType>
-void get(ChainServiceClient& capi, const std::string& key, persistent::version_t ver, uint32_t subgroup_index,uint32_t shard_index) {
+void get(ChainServiceClient& capi, const std::string& key, persistent::version_t ver, bool stable, uint32_t subgroup_index,uint32_t shard_index) {
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
         derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get<SubgroupType>(
-                static_cast<uint64_t>(std::stol(key)),ver,subgroup_index,shard_index);
+                static_cast<uint64_t>(std::stol(key)),ver,stable,subgroup_index,shard_index);
         check_get_result(result);
     } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
         derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get<SubgroupType>(
-                key,ver,subgroup_index,shard_index);
+                key,ver,stable,subgroup_index,shard_index);
         check_get_result(result);
     }
 }
@@ -937,38 +937,42 @@ std::vector<command_entry_t> commands =
     {
         "get",
         "Get an object (by version).",
-        "get <type> <key> <subgroup_index> <shard_index> [ version(default:current version) ]\n"
-            "type := " SUBGROUP_TYPE_LIST,
+        "get <type> <key> <stable> <subgroup_index> <shard_index> [ version(default:current version) ]\n"
+            "type := " SUBGROUP_TYPE_LIST "\n"
+            "stable := 0|1  using stable data or not.",
         [](ChainServiceClient& capi, const std::vector<std::string>& cmd_tokens) {
-            if (cmd_tokens.size() < 5) {
+            if (cmd_tokens.size() < 6) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
             }
-            uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
-            uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
+            bool stable = static_cast<bool>(std::stoi(cmd_tokens[3],nullptr,0));
+            uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4],nullptr,0));
+            uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[5],nullptr,0));
             persistent::version_t version = CURRENT_VERSION;
-            if (cmd_tokens.size() >= 6) {
-                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[5]));
+            if (cmd_tokens.size() >= 7) {
+                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[6],nullptr,0));
             }
-            on_subgroup_type(cmd_tokens[1],get,capi,cmd_tokens[2],version,subgroup_index,shard_index);
+            on_subgroup_type(cmd_tokens[1],get,capi,cmd_tokens[2],version,stable,subgroup_index,shard_index);
             return true;
         }
     },
     {
         "op_get",
         "Get an object from an object pool (by version).",
-        "op_get <key> [ version(default:current version) ]\n"
+        "op_get <key> <stable> [ version(default:current version) ]\n"
+            "stable := 0|1  using stable data or not.\n"
             "Please note that cascade automatically decides the object pool path using the key's prefix.",
         [](ChainServiceClient& capi, const std::vector<std::string>& cmd_tokens) {
-            if (cmd_tokens.size() < 2) {
+            if (cmd_tokens.size() < 3) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
             }
+            bool stable = static_cast<bool>(std::stoi(cmd_tokens[2],nullptr,0));
             persistent::version_t version = CURRENT_VERSION;
-            if (cmd_tokens.size() >= 3) {
+            if (cmd_tokens.size() >= 4) {
                 version = static_cast<persistent::version_t>(std::stol(cmd_tokens[2]));
             }
-            auto res = capi.get(cmd_tokens[1],version);
+            auto res = capi.get(cmd_tokens[1],version,stable);
             check_get_result(res);
             return true;
         }
@@ -976,32 +980,36 @@ std::vector<command_entry_t> commands =
     {
         "get_by_time",
         "Get an object (by timestamp in microseconds).",
-        "get_by_time <type> <key> <subgroup_index> <shard_index> <timestamp in us>\n"
-            "type := " SUBGROUP_TYPE_LIST,
+        "get_by_time <type> <key> <subgroup_index> <shard_index> <timestamp in us> <stable>\n"
+            "type := " SUBGROUP_TYPE_LIST "\n"
+            "stable := 0|1 using stable data or not",
         [](ChainServiceClient& capi, const std::vector<std::string>& cmd_tokens) {
-            if (cmd_tokens.size() < 6) {
+            if (cmd_tokens.size() < 7) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
             }
-            uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
-            uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
-            uint64_t ts_us = static_cast<uint64_t>(std::stol(cmd_tokens[3]));
-            on_subgroup_type(cmd_tokens[1],get_by_time,capi,cmd_tokens[2],ts_us,subgroup_index,shard_index);
+            uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3],nullptr,0));
+            uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4],nullptr,0));
+            uint64_t ts_us = static_cast<uint64_t>(std::stol(cmd_tokens[5],nullptr,0));
+            bool stable = static_cast<bool>(std::stoi(cmd_tokens[6],nullptr,0));
+            on_subgroup_type(cmd_tokens[1],get_by_time,capi,cmd_tokens[2],ts_us,stable,subgroup_index,shard_index);
             return true;
         }
     },
     {
         "op_get_by_time",
         "Get an object from an object pool (by timestamp in microseconds).",
-        "op_get_by_time <key> <timestamp in us>\n"
+        "op_get_by_time <key> <timestamp in us> <stable>\n"
+            "stable := 0|1 using stable data or not\n"
             "Please note that cascade automatically decides the object pool path using the key's prefix.",
         [](ChainServiceClient& capi, const std::vector<std::string>& cmd_tokens) {
-            if (cmd_tokens.size() < 3) {
+            if (cmd_tokens.size() < 4) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
             }
-            uint64_t ts_us = static_cast<uint64_t>(std::stol(cmd_tokens[2]));
-            auto res = capi.get_by_time(cmd_tokens[1],ts_us);
+            uint64_t ts_us = static_cast<uint64_t>(std::stol(cmd_tokens[2],nullptr,0));
+            bool stable = static_cast<bool>(std::stoi(cmd_tokens[3],nullptr,0));
+            auto res = capi.get_by_time(cmd_tokens[1],ts_us,stable);
             check_get_result(res);
             return true;
         }
@@ -1009,20 +1017,22 @@ std::vector<command_entry_t> commands =
     {
         "get_size",
         "Get the size of an object (by version).",
-        "get_size <type> <key> <subgroup_index> <shard_index> [ version(default:current version) ]\n"
-            "type := " SUBGROUP_TYPE_LIST,
+        "get_size <type> <key> <stable> <subgroup_index> <shard_index> [ version(default:current version) ]\n"
+            "type := " SUBGROUP_TYPE_LIST "\n"
+            "stable := 0|1 using stable data or not",
         [](ChainServiceClient& capi, const std::vector<std::string>& cmd_tokens) {
-            if (cmd_tokens.size() < 5) {
+            if (cmd_tokens.size() < 7) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
             }
-            uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
-            uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
+            bool stable = static_cast<bool>(std::stoi(cmd_tokens[3],nullptr,0));
+            uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4],nullptr,0));
+            uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[5],nullptr,0));
             persistent::version_t version = CURRENT_VERSION;
-            if (cmd_tokens.size() >= 6) {
-                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[5]));
+            if (cmd_tokens.size() >= 7) {
+                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[6],nullptr,0));
             }
-            on_subgroup_type(cmd_tokens[1],get_size,capi,cmd_tokens[2],version,subgroup_index,shard_index);
+            on_subgroup_type(cmd_tokens[1],get_size,capi,cmd_tokens[2],version,stable,subgroup_index,shard_index);
             return true;
         }
     },
@@ -1048,32 +1058,35 @@ std::vector<command_entry_t> commands =
     {
         "get_size_by_time",
         "Get the size of an object (by timestamp in microseconds).",
-        "get_size_by_time <type> <key> <subgroup_index> <shard_index> <timestamp in us>\n"
-            "type := " SUBGROUP_TYPE_LIST,
+        "get_size_by_time <type> <key> <subgroup_index> <shard_index> <timestamp in us> <stable>\n"
+            "type := " SUBGROUP_TYPE_LIST "\n"
+            "stable := 0|1 using stable data or not",
         [](ChainServiceClient& capi, const std::vector<std::string>& cmd_tokens) {
-            if (cmd_tokens.size() < 6) {
+            if (cmd_tokens.size() < 7) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
             }
-            uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
-            uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4]));
-            uint64_t ts_us = static_cast<uint64_t>(std::stol(cmd_tokens[3]));
-            on_subgroup_type(cmd_tokens[1],get_size_by_time,capi,cmd_tokens[2],ts_us,subgroup_index,shard_index);
+            uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3],nullptr,0));
+            uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4],nullptr,0));
+            uint64_t ts_us = static_cast<uint64_t>(std::stol(cmd_tokens[5],nullptr,0));
+            bool stable = static_cast<bool>(std::stoi(cmd_tokens[6],nullptr,0));
+            on_subgroup_type(cmd_tokens[1],get_size_by_time,capi,cmd_tokens[2],ts_us,stable,subgroup_index,shard_index);
             return true;
         }
     },
     {
         "op_get_size_by_time",
         "Get the size of an object from an object pool (by timestamp in microseconds).",
-        "op_get_size_by_time <key> <timestamp in us>\n"
+        "op_get_size_by_time <key> <timestamp in us> <stable>\n"
             "Please note that cascade automatically decides the object pool path using the key's prefix.",
         [](ChainServiceClient& capi, const std::vector<std::string>& cmd_tokens) {
-            if (cmd_tokens.size() < 3) {
+            if (cmd_tokens.size() < 4) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
             }
-            uint64_t ts_us = static_cast<uint64_t>(std::stol(cmd_tokens[2]));
-            auto res = capi.get_size_by_time(cmd_tokens[1],ts_us);
+            uint64_t ts_us = static_cast<uint64_t>(std::stol(cmd_tokens[2],nullptr,0));
+            bool stable = static_cast<bool>(std::stoi(cmd_tokens[3],nullptr,0));
+            auto res = capi.get_size_by_time(cmd_tokens[1],ts_us,stable);
             check_get_result(res);
             return true;
         }
@@ -1081,20 +1094,22 @@ std::vector<command_entry_t> commands =
     {
         "get_signature",
         "Get an object's signature (by version).",
-        "get_signature <key> <subgroup_index> <shard_index> [ version(default:current version) ]\n"
-            "Note that this can only target the SCSS (signatures) subgroup type",
+        "get_signature <key> <subgroup_index> <shard_index> <version> [ stable(default: false) ]\n"
+            "Note that this can only target the SCSS (signatures) subgroup type\n"
+            "stable := 0|1 using stable data or not",
         [](ChainServiceClient& capi, const std::vector<std::string>& cmd_tokens) {
-            if (cmd_tokens.size() < 4) {
+            if (cmd_tokens.size() < 5) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
             }
-            uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[2]));
-            uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
-            persistent::version_t version = CURRENT_VERSION;
-            if (cmd_tokens.size() >= 5) {
-                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[4]));
+            uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[2], nullptr, 0));
+            uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3], nullptr, 0));
+            persistent::version_t version = static_cast<persistent::version_t>(std::stol(cmd_tokens[4]));
+            bool stable = false;
+            if (cmd_tokens.size() >= 6) {
+                stable = static_cast<bool>(std::stoi(cmd_tokens[5],nullptr,0));
             }
-            auto query_result = capi.get_signature<SignatureCascadeStoreWithStringKey>(cmd_tokens[1], version, subgroup_index, shard_index);
+            auto query_result = capi.get_signature<SignatureCascadeStoreWithStringKey>(cmd_tokens[1], version, stable, subgroup_index, shard_index);
             //std::tuple doesn't have an operator<<, so I have to customize check_get_result here
              for (auto& reply_future : query_result.get()) {
                 auto reply = reply_future.second.get();
@@ -1144,31 +1159,35 @@ std::vector<command_entry_t> commands =
     {
         "list_keys_by_time",
         "list the object keys in a shard (by timestamp in mircoseconds).",
-        "list_keys_by_time <type> <subgroup_index> <shard_index> <timestamp in us>\n"
-            "type := " SUBGROUP_TYPE_LIST,
+        "list_keys_by_time <type> <subgroup_index> <shard_index> <timestamp in us> <stable>\n"
+            "type := " SUBGROUP_TYPE_LIST "\n"
+            "stable := 0|1 using stable data or not",
         [](ChainServiceClient& capi, const std::vector<std::string>& cmd_tokens) {
-            if (cmd_tokens.size() < 5) {
+            if (cmd_tokens.size() < 6) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
             }
-            uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[2]));
-            uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3]));
-            uint64_t ts_us = static_cast<uint64_t>(std::stoull(cmd_tokens[4]));
-            on_subgroup_type(cmd_tokens[1],list_keys_by_time,capi,ts_us,subgroup_index,shard_index);
+            uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[2],nullptr,0));
+            uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3],nullptr,0));
+            uint64_t ts_us = static_cast<uint64_t>(std::stoull(cmd_tokens[4],nullptr,0));
+            bool stable = static_cast<bool>(std::stoi(cmd_tokens[5],nullptr,0));
+            on_subgroup_type(cmd_tokens[1],list_keys_by_time,capi,ts_us,stable,subgroup_index,shard_index);
             return true;
         }
     },
     {
         "op_list_keys_by_time",
         "list the object keys in an object pool (by timestamp in microseconds).",
-        "op_list_keys_by_time <object pool pathname> <timestamp in us>\n",
+        "op_list_keys_by_time <object pool pathname> <timestamp in us> <stable>\n",
+            "stable := 0|1 using stable data or not",
         [](ChainServiceClient& capi, const std::vector<std::string>& cmd_tokens) {
-            if (cmd_tokens.size() < 3) {
+            if (cmd_tokens.size() < 4) {
                 print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                 return false;
             }
-            uint64_t ts_us = static_cast<uint64_t>(std::stoull(cmd_tokens[2]));
-            auto result = capi.list_keys_by_time(ts_us,cmd_tokens[1]);
+            uint64_t ts_us = static_cast<uint64_t>(std::stoull(cmd_tokens[2],nullptr,0));
+            bool stable = static_cast<bool>(std::stoi(cmd_tokens[3],nullptr,0));
+            auto result = capi.list_keys_by_time(ts_us,stable,cmd_tokens[1]);
             check_op_list_keys_result(capi.wait_list_keys(result));
             return true;
         }

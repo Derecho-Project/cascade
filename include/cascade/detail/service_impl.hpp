@@ -1502,30 +1502,31 @@ auto ServiceClient<CascadeTypes...>::list_keys_by_time(const uint64_t& ts_us, co
     std::tie(subgroup_type_index,subgroup_index,shard_index) = this->template key_to_shard(object_pool_pathname+"/_");
     return this->template type_recursive_list_keys_by_time<CascadeTypes...>(subgroup_type_index,ts_us,stable,object_pool_pathname);
 }
+
 template <typename... CascadeTypes>
-template<typename SubgroupType>
+template <typename SubgroupType>
 std::enable_if_t<is_signature_store<SubgroupType>::value, derecho::rpc::QueryResults<std::tuple<std::vector<uint8_t>, persistent::version_t>>>
 ServiceClient<CascadeTypes...>::get_signature(const typename SubgroupType::KeyType& key, const persistent::version_t& version,
-                                              uint32_t subgroup_index, uint32_t shard_index) {
+                                              bool stable, uint32_t subgroup_index, uint32_t shard_index) {
     static_assert(is_signature_store<SubgroupType>::value, "get_signature can only be called on subgroups of type SignatureCascadeStore<KT,VT,IK,IV>");
     if(group_ptr != nullptr) {
         std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
-        if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
+        if(static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
             // do a p2p get_signature as a member (Replicated).
             auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
-            return subgroup_handle.template p2p_send<RPC_NAME(get_signature)>(group_ptr->get_my_id(),key,version,false);
+            return subgroup_handle.template p2p_send<RPC_NAME(get_signature)>(group_ptr->get_my_id(), key, version, stable, false);
         } else {
             // do normal get_signature as a non member (PeerCaller).
             auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
-            node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
-            return subgroup_handle.template p2p_send<RPC_NAME(get_signature)>(node_id,key,version,false);
+            node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index, shard_index);
+            return subgroup_handle.template p2p_send<RPC_NAME(get_signature)>(node_id, key, version, stable, false);
         }
     } else {
         std::lock_guard<std::mutex> lck(this->external_group_ptr_mutex);
         // call as an external client (ExternalClientCaller).
         auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
-        node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
-        return caller.template p2p_send<RPC_NAME(get_signature)>(node_id,key,version,false);
+        node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index, shard_index);
+        return caller.template p2p_send<RPC_NAME(get_signature)>(node_id, key, version, stable, false);
     }
 }
 
@@ -1562,17 +1563,18 @@ derecho::rpc::QueryResults<std::tuple<std::vector<uint8_t>, persistent::version_
         uint32_t type_index,
         const KeyType& key,
         const persistent::version_t& version,
+        bool stable,
         uint32_t subgroup_index,
         uint32_t shard_index) {
     if (type_index == 0) {
         //This must be a runtime check, not a static_assert, because type_index is a runtime value
         if constexpr(is_signature_store<FirstType>::value) {
-            return this->template get_signature<FirstType>(key,version,subgroup_index,shard_index);
+            return this->template get_signature<FirstType>(key,version,stable,subgroup_index,shard_index);
         } else {
             throw derecho::derecho_exception("get_signature can only be called on objects stored in SignatureCascadeStore subgroups");
         }
     } else {
-        return this->template type_recursive_get_signature<KeyType,SecondType,RestTypes...>(type_index-1,key,version,subgroup_index,shard_index);
+        return this->template type_recursive_get_signature<KeyType,SecondType,RestTypes...>(type_index-1,key,version,stable,subgroup_index,shard_index);
     }
 }
 
@@ -1582,11 +1584,12 @@ derecho::rpc::QueryResults<std::tuple<std::vector<uint8_t>, persistent::version_
         uint32_t type_index,
         const KeyType& key,
         const persistent::version_t& version,
+        bool stable,
         uint32_t subgroup_index,
         uint32_t shard_index) {
     if (type_index == 0) {
         if constexpr(is_signature_store<LastType>::value) {
-            return this->template get_signature<LastType>(key,version,subgroup_index,shard_index);
+            return this->template get_signature<LastType>(key,version,stable,subgroup_index,shard_index);
         } else {
             throw derecho::derecho_exception("get_signature can only be called on objects stored in SignatureCascadeStore subgroups");
         }
@@ -1599,12 +1602,13 @@ template <typename... CascadeTypes>
 template <typename KeyType>
 derecho::rpc::QueryResults<std::tuple<std::vector<uint8_t>, persistent::version_t>> ServiceClient<CascadeTypes...>::get_signature(
         const KeyType& key,
-        const persistent::version_t& version) {
+        const persistent::version_t& version,
+        bool stable) {
     static_assert(std::is_convertible_v<KeyType, std::string>, "get_signature(key, version) only supports string keys");
 
     const auto [subgroup_type_index,subgroup_index,shard_index] = this->template key_to_shard(key);
 
-    return this->template type_recursive_get_signature<KeyType,CascadeTypes...>(subgroup_type_index,key,version,subgroup_index,shard_index);
+    return this->template type_recursive_get_signature<KeyType,CascadeTypes...>(subgroup_type_index,key,version,stable,subgroup_index,shard_index);
 }
 
 
