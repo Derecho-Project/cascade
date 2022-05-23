@@ -43,7 +43,6 @@ static void fs_init(void* userdata, struct fuse_conn_info *conn) {
     } else if (derecho::hasCustomizedConfKey(CONF_LAYOUT_JSON_LAYOUT_FILE)){
         nlohmann::json layout_array;
         std::ifstream json_file(derecho::getAbsoluteFilePath(derecho::getConfString(CONF_LAYOUT_JSON_LAYOUT_FILE)));
-	std::cout << "---LAYOUT CONF: " << derecho::getAbsoluteFilePath(derecho::getConfString(CONF_LAYOUT_JSON_LAYOUT_FILE)) << std::endl;
         if (!json_file) {
 	    dbg_default_error("Cannot load json configuration from file: {}", derecho::getAbsoluteFilePath(derecho::getConfString(CONF_LAYOUT_JSON_LAYOUT_FILE)));
             throw derecho::derecho_exception("Cannot load json configuration from file.");
@@ -229,7 +228,6 @@ void log_current_dir(bool foreground) {
 struct fuse_session *se;
 
 void signalHandler( int signum ) {
-      cout << "Interrupt signal (" << signum << ") received.\n";
       fuse_session_unmount(se);
       free(se);
       exit(signum);  
@@ -284,7 +282,7 @@ int main(int argc, char** argv) {
             throw 3;
         }
 
-	log_current_dir(opts.foreground);
+	//log_current_dir(opts.foreground);
 
 	/* Block until ctrl+c or fuserount -u */
         if (opts.singlethread) {
@@ -292,7 +290,7 @@ int main(int argc, char** argv) {
         } else {
             ret = fuse_session_loop_mt(se, opts.clone_fd);
         }
-	std::cout << "------- ENDED ------- "<< std::endl;
+	
         fuse_session_unmount(se);
     }
     catch (int& ex) {
