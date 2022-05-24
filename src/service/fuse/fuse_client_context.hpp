@@ -66,7 +66,6 @@ public:
     fuse_ino_t parent;
     time_t update_interval;
     time_t last_update_sec;
-    std::shared_mutex mutex;
 
     /**
      * get directory entries. This is the default implementation.
@@ -95,11 +94,8 @@ public:
     // Helper function for get_dir_entries() and read_file()
     void check_update(){
   	struct timespec now;
-        std::shared_lock rlck(mutex);
         clock_gettime(CLOCK_REALTIME, &now);
         if (now.tv_sec > (last_update_sec + update_interval)){
-            rlck.unlock();
-            std::unique_lock wlck(mutex);
             clock_gettime(CLOCK_REALTIME, &now);
             if (now.tv_sec > (last_update_sec + update_interval)){
 	        last_update_sec = now.tv_sec;
@@ -109,7 +105,7 @@ public:
     }
 
 private:
-  // Helper functions for check_update
+  // Helper functions for check_update()
     virtual void update_contents() {
         return;
     }
@@ -380,24 +376,10 @@ public:
     }
 
     virtual uint64_t read_file(FileBytes* file_bytes) override {
-        struct timespec now;
-        std::shared_lock rlck(mutex);
-        clock_gettime(CLOCK_REALTIME, &now);
-        if (now.tv_sec > (last_update_sec + update_interval)){
-            rlck.unlock();
-            std::unique_lock wlck(mutex);
-            clock_gettime(CLOCK_REALTIME, &now);
-            if (now.tv_sec > (last_update_sec + update_interval)){
-	        last_update_sec = now.tv_sec;
-                update_contents();
-            }
-            file_bytes->size = contents.size();
-            file_bytes->bytes = reinterpret_cast<uint8_t*>(strdup(contents.c_str()));
-        } else {
-            file_bytes->size = contents.size();
-            file_bytes->bytes = reinterpret_cast<uint8_t*>(strdup(contents.c_str()));
-        }
-        return 0;
+      check_update();
+      file_bytes->size = contents.size();
+      file_bytes->bytes = reinterpret_cast<uint8_t*>(strdup(contents.c_str()));
+      return 0;
     }
 };
 
@@ -439,18 +421,7 @@ public:
 
     virtual uint64_t read_file(FileBytes* _file_bytes) override {
         dbg_default_trace("[{}]entering {}.", gettid(), __func__);
-	struct timespec now;
-        std::shared_lock rlck(mutex);
-        clock_gettime(CLOCK_REALTIME, &now);
-        if (now.tv_sec > (last_update_sec + update_interval)){
-            rlck.unlock();
-            std::unique_lock wlck(mutex);
-            clock_gettime(CLOCK_REALTIME, &now);
-            if (now.tv_sec > (last_update_sec + update_interval)){
-	        last_update_sec = now.tv_sec;
-                update_contents();
-            }
-        }
+        check_update();
 	_file_bytes->size = this->file_bytes.get()->size;
 	_file_bytes->bytes = static_cast<uint8_t*>(malloc(this->file_bytes.get()->size));
 	memcpy(_file_bytes->bytes,this->file_bytes.get()->bytes, this->file_bytes.get()->size);
@@ -473,6 +444,7 @@ public:
 
     virtual ~KeyINode() {
         dbg_default_info("[{}] entering {}.", gettid(), __func__);
+	file_bytes.reset(nullptr);
         dbg_default_info("[{}] leaving {}.", gettid(), __func__);
     }
 private:
@@ -805,23 +777,7 @@ public:
    *  for all the object pools stored in metadata service
    */
     virtual std::map<std::string,fuse_ino_t> get_dir_entries() override {
-        dbg_default_trace("[{}]entering {}.",gettid(),__func__);
-        // for (std::string pathname : capi.list_object_pools(true)) {
-	//     this->construct_nextlevel_objectpool_path(pathname);
-        // }
-       // struct timespec now;
-       // std::shared_lock rlck(mutex);
-       // clock_gettime(CLOCK_REALTIME, &now);
-       // if (now.tv_sec > (last_update_sec + update_interval)){
-       // 	  rlck.unlock();
-       //    std::unique_lock wlck(mutex);
-       //    clock_gettime(CLOCK_REALTIME, &now);
-       // 	  if (now.tv_sec > (last_update_sec + update_interval)){
-       // 	        last_update_sec = now.tv_sec;
-       // 		update_objpINodes();
-       // 		update_keyINodes();
-       // 	  }
-       // }
+       dbg_default_trace("[{}]entering {}.",gettid(),__func__);
        check_update();
        dbg_default_trace("[{}]leaving {}.",gettid(),__func__);
        return FuseClientINode::get_dir_entries();
@@ -876,6 +832,7 @@ public:
 
     virtual ~ObjectPoolKeyINode() {
         dbg_default_info("[{}] entering {}.", gettid(), __func__);
+	file_bytes.reset(nullptr);
         dbg_default_info("[{}] leaving {}.", gettid(), __func__);
     }
 private:
