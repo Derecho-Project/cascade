@@ -205,7 +205,7 @@ def main(argv):
         sys.exit(2)
     for opt, arg in opts:
         if opt == '-h':
-            print ('fusetest.py  -i <threadNumber> -o <processNumber>')
+            print ('fusetest.py  -t <threadNumber> -p <processNumber>')
             sys.exit()
         elif opt in ("-t", "--ifile"):
             thread_num = int(arg)
