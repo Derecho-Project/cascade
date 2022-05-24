@@ -42,5 +42,8 @@ cat [file]		read file
 cat .cascade		read directory metadata information
 ```
 
-New features to come:
-File write and editing commands, managing directories commands
+Limitation:
+- Support only single-threaded fuse client
+- Current read_file keeps a buffer of file_bytes in memory, needs further optimization to read large file
+- New features to come: WRITE commands to have fuse client interact with cascade
+  File write and editing commands, managing directories commands
