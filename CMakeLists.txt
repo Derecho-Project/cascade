@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.12.4)
+cmake_minimum_required(VERSION 3.16)
 set(CMAKE_DISABLE_SOURCE_CHANGES ON)
 set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 project(cascade CXX)
@@ -61,6 +61,7 @@ find_package(derecho CONFIG REQUIRED)
 # target_link_libraries), they will each automatically include the
 # Derecho headers from the location specified by that target
 if(derecho_FOUND)
+    message(STATUS "Found derecho in ${derecho_INCLUDE_DIRS}")
     include_directories(${derecho_INCLUDE_DIRS})
 endif()
 

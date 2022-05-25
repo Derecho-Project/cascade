@@ -51,14 +51,45 @@ private:
      * thread-safe list, since version mappings are append-only.
      */
     mutable std::mutex version_map_mutex;
+    /**
+     * Map from keys to the IDs of external clients who have subscribed to signature notifications
+     * for those keys. This is not part of the replicated state of SignatureCascadeStore; an external
+     * client subscribes to notifications from only one replica, and will need to re-subscribe if that
+     * replica goes down.
+     *
+     * The entry for the invalid key *IK contains the list of clients who have subscribed to
+     * notifications for all keys.
+     */
+    mutable std::map<KT, std::list<node_id_t>> subscribed_clients;
+
     /** Watcher */
     CriticalDataPathObserver<SignatureCascadeStore<KT, VT, IK, IV>>* cascade_watcher_ptr;
     /** Cascade context (off-critical-path manager) */
     ICascadeContext* cascade_context_ptr;
+
     bool internal_ordered_put(const VT& value);
+    /**
+     * Sends an external client a notification indicating that the specified
+     * hash object version has reached global persistence and been signed. This
+     * function is used as the callback action for PersistenceObserver.
+     *
+     * @param client_id The external client to notify
+     * @param hash_object_version The version of a hash object stored in this
+     * SignatureCascadeStore that should have reached global persistence when
+     * this function is called
+     * @param data_object_version The version of the corresponding data object
+     * in PersistentCascadeStore that generated the hash object
+     */
+    void send_client_notification(node_id_t client_id, persistent::version_t hash_object_version,
+                                  persistent::version_t data_object_version) const;
 
 public:
     /* Specific to SignatureStore, not part of the Cascade interface */
+
+    /** Notification-type constants for the external client notification messages */
+    enum NotificationType : uint64_t {
+        SIGNATURE_FINISHED = 1
+    };
 
     /**
      * Retrieves the signature and the previous signed version that is logged

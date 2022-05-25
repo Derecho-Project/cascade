@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cascade/config.h"
+#include "persistence_observer.hpp"
 
 #include <derecho/core/derecho.hpp>
 #include <derecho/mutils-serialization/SerializationSupport.hpp>
@@ -17,7 +18,10 @@ namespace cascade {
 /**
  * The off-critical data path handler API
  */
-class ICascadeContext : public derecho::DeserializationContext {};
+class ICascadeContext : public derecho::DeserializationContext {
+public:
+    virtual PersistenceObserver& get_persistence_observer() const = 0;
+};
 
 #define CURRENT_VERSION (persistent::INVALID_VERSION)
 /**

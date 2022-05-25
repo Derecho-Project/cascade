@@ -401,6 +401,23 @@ bool SignatureCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put(const VT& v
         debug_leave_func_with_value("version=0x{:x},timestamp={}", persistent::INVALID_VERSION, 0);
         return false;
     }
+    subgroup_id_t my_subgroup_id = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index).get_subgroup_id();
+    // Register a signature notification action for all subscribed clients
+    for(const node_id_t client_id : subscribed_clients[value.get_key_ref()]) {
+        cascade_context_ptr->get_persistence_observer().register_persistence_action(
+                my_subgroup_id, std::get<0>(hash_object_version_and_timestamp), true,
+                [=]() {
+                    send_client_notification(client_id, std::get<0>(hash_object_version_and_timestamp), data_object_version);
+                });
+    }
+    for(const node_id_t client_id : subscribed_clients[*IK]) {
+        cascade_context_ptr->get_persistence_observer().register_persistence_action(
+                my_subgroup_id, std::get<0>(hash_object_version_and_timestamp), true,
+                [=]() {
+                    send_client_notification(client_id, std::get<0>(hash_object_version_and_timestamp), data_object_version);
+                });
+    }
+
     if(cascade_watcher_ptr) {
         (*cascade_watcher_ptr)(
                 this->subgroup_index,
@@ -690,15 +707,62 @@ std::tuple<std::vector<uint8_t>, persistent::version_t> SignatureCascadeStore<KT
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+void SignatureCascadeStore<KT, VT, IK, IV, ST>::send_client_notification(
+        node_id_t external_client_id, persistent::version_t hash_object_version, persistent::version_t data_object_version) const {
+    // Retrieve the signature, which must exist by now since persistence is finished
+    persistent::version_t previous_signed_version = persistent::INVALID_VERSION;
+    std::vector<uint8_t> signature(persistent_core.getSignatureSize());
+    persistent_core.getSignature(hash_object_version, signature.data(), previous_signed_version);
+
+    derecho::ExternalClientCallback<SignatureCascadeStore>& client_caller
+            = group->template get_client_callback<SignatureCascadeStore>(this->subgroup_index);
+    std::size_t message_size = mutils::bytes_size(data_object_version) + mutils::bytes_size(hash_object_version)
+                               + mutils::bytes_size(signature) + mutils::bytes_size(previous_signed_version);
+    derecho::NotificationMessage message(SignatureCascadeStore::NotificationType::SIGNATURE_FINISHED, message_size);
+    // Message format: data version, hash version, signature data, previous signed version
+    std::size_t body_offset = 0;
+    body_offset += mutils::to_bytes(data_object_version, message.body + body_offset);
+    body_offset += mutils::to_bytes(hash_object_version, message.body + body_offset);
+    body_offset += mutils::to_bytes(signature, message.body + body_offset);
+    body_offset += mutils::to_bytes(previous_signed_version, message.body + body_offset);
+    client_caller.template p2p_send<derecho::rpc::hash_cstr("notify")>(external_client_id, message);
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void SignatureCascadeStore<KT, VT, IK, IV, ST>::request_notification(node_id_t external_client_id, persistent::version_t ver) const {
+    // Translate ver from a data-object version to its corresponding signature-object version
+    // This function will only be called after the data object has been put in the PersistentStore
+    // (which will forward it to the SignatureStore), so the mapping should exist by now
+    persistent::version_t hash_version;
+    {
+        std::lock_guard<std::mutex> map_lock(version_map_mutex);
+        auto version_map_search = (*data_to_hash_version).upper_bound(ver);
+        if(version_map_search != (*data_to_hash_version).begin()) {
+            version_map_search--;
+            // The search iterator now points to the largest version <= ver, which is what we want
+            hash_version = version_map_search->second;
+        } else {
+            // The map is empty, so no objects have yet been stored here
+            debug_leave_func();
+            return;
+        }
+    }
+
+    derecho::Replicated<SignatureCascadeStore>& subgroup_handle = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index);
+    subgroup_id_t my_subgroup_id = subgroup_handle.get_subgroup_id();
+    cascade_context_ptr->get_persistence_observer().register_persistence_action(
+            my_subgroup_id, hash_version, true,
+            [=]() { send_client_notification(external_client_id, hash_version, ver); });
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void SignatureCascadeStore<KT, VT, IK, IV, ST>::subscribe_to_notifications(node_id_t external_client_id, const KT& key) const {
+    subscribed_clients[key].emplace_back(external_client_id);
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void SignatureCascadeStore<KT, VT, IK, IV, ST>::subscribe_to_all_notifications(node_id_t external_client_id) const {
+    subscribed_clients[*IK].emplace_back(external_client_id);
 }
 
 }  // namespace cascade

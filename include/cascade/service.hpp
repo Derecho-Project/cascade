@@ -2,6 +2,7 @@
 #include "cascade.hpp"
 #include "data_flow_graph.hpp"
 #include "detail/prefix_registry.hpp"
+#include "persistence_observer.hpp"
 #include "object_pool_metadata.hpp"
 #include "user_defined_logic_manager.hpp"
 
@@ -1370,8 +1371,6 @@ namespace cascade {
         /**
          * object pool version of get_signature
          *
-         * @tparam SubgroupType The specific type of subgroup to communicate with; should be one of the
-         * CascadeTypes and be a specialization of SignatureCascadeStore<KT,VT,IK,IV>
          * @param key The key identifying an object to get the signature for. The key's object pool prefix
          *            will be used to determine which subgroup and shard to contact
          * @param version The version of the key to get the signature for
@@ -1401,6 +1400,69 @@ namespace cascade {
                 const KeyType& key,
                 const persistent::version_t& version);
 
+        /**
+         * Requests a notification from a member of a SignatureCascadeStore subgroup, to be sent when
+         * a particular data object version has been globally persisted and signed in the SignatureCascadeStore
+         * log. Similar to SignatureCascadeStore's get() operation, the version is assumed to be the version
+         * of a corresponding data object in the PersistentCascadeStore, and will be internally translated
+         * to a version of the hash object stored in SignatureCascadeStore. Note that the object's key is not
+         * required, since the version uniquely identifies a log entry on a single shard.
+         *
+         * @tparam SubgroupType The specific type of subgroup to communicate with; should be one of the
+         * CascadeTypes and be a specialization of SignatureCascadeStore<KT,VT,IK,IV>
+         *
+         * @param version           The data-object version to request a signature notification for
+         * @param subgroup_index    the subgroup index of SubgroupType to communicate with
+         * @param shard_index       the shard index to communicate with
+         * @return A QueryResults<void> representing the result of the P2P RPC call to request_notification
+         */
+        template <typename SubgroupType>
+        std::enable_if_t<is_signature_store<SubgroupType>::value, derecho::rpc::QueryResults<void>>
+        request_signature_notification(const persistent::version_t& version, uint32_t subgroup_index, uint32_t shard_index);
+
+        /**
+         * Subscribes to notifications from a member of a SignatureCascadeStore subgroup, which will be
+         * sent every time an object with the requested key has a new version finish being signed and
+         * persisted.
+         *
+         * @tparam SubgroupType The specific type of subgroup to communicate with; should be one of the
+         * CascadeTypes and be a specialization of SignatureCascadeStore<KT,VT,IK,IV>
+         *
+         * @param key               The object key
+         * @param subgroup_index    the subgroup index of SubgroupType to communicate with
+         * @param shard_index       the shard index to communicate with
+         * @return A QueryResults<void>> representing the result of the P2P RPC call to subscribe_to_notifications
+         */
+        template <typename SubgroupType>
+        std::enable_if_t<is_signature_store<SubgroupType>::value, derecho::rpc::QueryResults<void>>
+        subscribe_signature_notifications(const typename SubgroupType::KeyType& key, uint32_t subgroup_index, uint32_t shard_index);
+
+        /**
+         * Object pool version of subscribe_signature_notifications. Uses the key's object pool prefix
+         * to decide which subgroup and shard to contact
+         *
+         * @param key               The object key
+         * @return A QueryResults<void>> representing the result of the P2P RPC call to subscribe_to_notifications
+         */
+        template <typename KeyType>
+        derecho::rpc::QueryResults<void> subscribe_signature_notifications(const KeyType& key);
+
+    protected:
+        /* Internal helper functions for subscribe_signature_notifications */
+        template <typename KeyType, typename FirstType, typename SecondType, typename... RestTypes>
+        derecho::rpc::QueryResults<void> type_recursive_subscribe_signature_notifications(
+            uint32_t type_index,
+            const KeyType& key,
+            uint32_t subgroup_index,
+            uint32_t shard_index);
+
+        template <typename KeyType, typename LastType>
+        derecho::rpc::QueryResults<void> type_recursive_subscribe_signature_notifications(
+            uint32_t type_index,
+            const KeyType& key,
+            uint32_t subgroup_index,
+            uint32_t shard_index);
+    public:
         /**
          * Object Pool Management API: refresh object pool cache
          */
@@ -1689,6 +1751,8 @@ namespace cascade {
         std::vector<std::thread> workhorses_for_p2p;
         /** the service client: off critical data path logic use it to send data to a next tier. */
         std::unique_ptr<ServiceClient<CascadeTypes...>> service_client;
+        /** The persistence observer: lets CascadeStore objects register actions to fire when their data finishes persisting */
+        std::unique_ptr<PersistenceObserver> persistence_observer;
         /**
          * destroy the context, to be called in destructor
          */
@@ -1726,6 +1790,8 @@ namespace cascade {
          * @return a reference to service client.
          */
         ServiceClient<CascadeTypes...>& get_service_client_ref() const;
+
+        virtual PersistenceObserver& get_persistence_observer() const override;
         /**
          * We give up the following on-demand loading mechanism:
          * ==============================================================================================================

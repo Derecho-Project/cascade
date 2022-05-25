@@ -41,23 +41,24 @@ Service<CascadeTypes...>::Service(const std::vector<DeserializationContext*>& ds
     std::vector<DeserializationContext*> new_dsms(dsms);
     new_dsms.emplace_back(context.get());
     // STEP 3 - create derecho group
-    group = std::make_unique<derecho::Group<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>>(
-                UserMessageCallbacks{
-#ifdef ENABLE_EVALUATION
+    group = std::make_unique<derecho::Group<CascadeMetadataService<CascadeTypes...>, CascadeTypes...>>(
+            UserMessageCallbacks{
                     nullptr,
-                    nullptr,
-                    // persistent
-                    [this](subgroup_id_t sgid, persistent::version_t ver){
-                        global_timestamp_logger.log(TLT_PERSISTED,group->get_my_id(),0,get_walltime(),ver);
+                    [this](subgroup_id_t subgroup_id, persistent::version_t version) {
+                        context->get_persistence_observer().derecho_local_persistence_callback(subgroup_id, version);
                     },
-                    nullptr
+                    [this](subgroup_id_t subgroup_id, persistent::version_t version) {
+#ifdef ENABLE_EVALUATION
+                        global_timestamp_logger.log(TLT_PERSISTED, group->get_my_id(), 0, get_walltime(), version);
 #endif
-                },
-                si,
-                new_dsms,
-                std::vector<derecho::view_upcall_t>{},
-                factory_wrapper(context.get(),metadata_service_factory),
-                factory_wrapper(context.get(),factories)...);
+                        context->get_persistence_observer().derecho_global_persistence_callback(subgroup_id, version);
+                    },
+                    nullptr},
+            si,
+            new_dsms,
+            std::vector<derecho::view_upcall_t>{},
+            factory_wrapper(context.get(), metadata_service_factory),
+            factory_wrapper(context.get(), factories)...);
     dbg_default_trace("joined group.");
     // STEP 4 - construct context
     context->construct(group.get());
@@ -1661,6 +1662,101 @@ derecho::rpc::QueryResults<std::tuple<std::vector<uint8_t>, persistent::version_
 
 }
 
+template<typename...CascadeTypes>
+template<typename SubgroupType>
+std::enable_if_t<is_signature_store<SubgroupType>::value, derecho::rpc::QueryResults<void>>
+ServiceClient<CascadeTypes...>::request_signature_notification(const persistent::version_t& version, uint32_t subgroup_index, uint32_t shard_index) {
+    if(group_ptr != nullptr) {
+        std::lock_guard<std::mutex> lock(this->group_ptr_mutex);
+        if(static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
+            // Requesting a signature notification from yourself doesn't make sense, but we'll write the code for it anyway
+            auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
+            return subgroup_handle.template p2p_send<RPC_NAME(request_notification)>(group_ptr->get_my_id(), group_ptr->get_my_id(), version);
+        } else {
+            auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
+            node_id_t target_node_id = pick_member_by_policy<SubgroupType>(subgroup_index, shard_index);
+            return subgroup_handle.template p2p_send<RPC_NAME(request_notification)>(target_node_id, group_ptr->get_my_id(), version);
+        }
+    } else {
+        // Normal use case: an external client requests a notification for when a version it submitted has been signed
+        std::lock_guard<std::mutex> lock(this->external_group_ptr_mutex);
+        auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
+        node_id_t target_node_id = pick_member_by_policy<SubgroupType>(subgroup_index, shard_index);
+        return caller.template p2p_send<RPC_NAME(request_notification)>(target_node_id, external_group_ptr->get_my_id(), version);
+    }
+}
+template<typename...CascadeTypes>
+template<typename SubgroupType>
+std::enable_if_t<is_signature_store<SubgroupType>::value, derecho::rpc::QueryResults<void>>
+ServiceClient<CascadeTypes...>::subscribe_signature_notifications(const typename SubgroupType::KeyType& key, uint32_t subgroup_index, uint32_t shard_index) {
+    if(group_ptr != nullptr) {
+        std::lock_guard<std::mutex> lock(this->group_ptr_mutex);
+        if(static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
+            // Requesting a signature notification from yourself doesn't make sense, but we'll write the code for it anyway
+            auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
+            return subgroup_handle.template p2p_send<RPC_NAME(subscribe_to_notifications)>(group_ptr->get_my_id(), group_ptr->get_my_id(), key);
+        } else {
+            auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
+            node_id_t target_node_id = pick_member_by_policy<SubgroupType>(subgroup_index, shard_index);
+            return subgroup_handle.template p2p_send<RPC_NAME(subscribe_to_notifications)>(target_node_id, group_ptr->get_my_id(), key);
+        }
+    } else {
+        // Normal use case: an external client requests a notification for when a version it submitted has been signed
+        std::lock_guard<std::mutex> lock(this->external_group_ptr_mutex);
+        auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
+        node_id_t target_node_id = pick_member_by_policy<SubgroupType>(subgroup_index, shard_index);
+        return caller.template p2p_send<RPC_NAME(subscribe_to_notifications)>(target_node_id, external_group_ptr->get_my_id(), key);
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename KeyType, typename FirstType, typename SecondType, typename... RestTypes>
+derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::type_recursive_subscribe_signature_notifications(
+        uint32_t type_index,
+        const KeyType& key,
+        uint32_t subgroup_index,
+        uint32_t shard_index) {
+    if(type_index == 0) {
+        // This must be a runtime check, not a static_assert, because type_index is a runtime value
+        if constexpr(is_signature_store<FirstType>::value) {
+            return this->template subscribe_signature_notifications<FirstType>(key, subgroup_index, shard_index);
+        } else {
+            throw derecho::derecho_exception("subscribe_signature_notifications can only be called for objects stored in SignatureCascadeStore subgroups");
+        }
+    } else {
+        return this->template type_recursive_subscribe_signature_notifications<KeyType, SecondType, RestTypes...>(
+                type_index - 1, key, subgroup_index, shard_index);
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename KeyType, typename LastType>
+derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::type_recursive_subscribe_signature_notifications(
+        uint32_t type_index,
+        const KeyType& key,
+        uint32_t subgroup_index,
+        uint32_t shard_index) {
+    if(type_index == 0) {
+        if constexpr(is_signature_store<LastType>::value) {
+            return this->template subscribe_signature_notifications<LastType>(key, subgroup_index, shard_index);
+        } else {
+            throw derecho::derecho_exception("subscribe_signature_notifications can only be called for objects stored in SignatureCascadeStore subgroups");
+        }
+    } else {
+        throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) + ": type index is out of boundary.");
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename KeyType>
+derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::subscribe_signature_notifications(const KeyType& key) {
+    static_assert(std::is_convertible_v<KeyType, std::string>, "subscribe_signature_notifications(key) only supports string keys");
+
+    const auto [subgroup_type_index, subgroup_index, shard_index] = this->template key_to_shard(key);
+
+    return this->template type_recursive_subscribe_signature_notifications<CascadeTypes...>(subgroup_type_index, key, subgroup_index, shard_index);
+}
+
 template <typename... CascadeTypes>
 void ServiceClient<CascadeTypes...>::refresh_object_pool_metadata_cache() {
     std::unordered_map<std::string,ObjectPoolMetadata<CascadeTypes...>> refreshed_metadata;
@@ -2052,10 +2148,11 @@ uint32_t ServiceClient<CascadeTypes...>::get_subgroup_type_index() {
 }
 
 template <typename... CascadeTypes>
-CascadeContext<CascadeTypes...>::CascadeContext() {
+CascadeContext<CascadeTypes...>::CascadeContext()
+        : persistence_observer(std::make_unique<PersistenceObserver>()) {
     action_queue_for_multicast.initialize();
     action_queue_for_p2p.initialize();
-    prefix_registry_ptr = std::make_shared<PrefixRegistry<prefix_entry_t,PATH_SEPARATOR>>();
+    prefix_registry_ptr = std::make_shared<PrefixRegistry<prefix_entry_t, PATH_SEPARATOR>>();
 }
 
 template <typename... CascadeTypes>
@@ -2235,6 +2332,12 @@ void CascadeContext<CascadeTypes...>::destroy() {
 template <typename... CascadeTypes>
 ServiceClient<CascadeTypes...>& CascadeContext<CascadeTypes...>::get_service_client_ref() const {
     return *service_client.get();
+}
+
+
+template <typename... CascadeTypes>
+PersistenceObserver& CascadeContext<CascadeTypes...>::get_persistence_observer() const {
+    return *persistence_observer;
 }
 
 template <typename... CascadeTypes>
