@@ -25,17 +25,33 @@ using namespace std::chrono_literals;
 namespace derecho{
 namespace cascade{
 
+enum object_memory_mode_t {
+    DEFAULT,
+    EMPLACED,
+    BLOB_GENERATOR,
+};
+
+using blob_generator_func_t = std::function<std::size_t(const uint8_t*,const std::size_t)>;
+
 class Blob : public mutils::ByteRepresentable {
 public:
     const uint8_t* bytes;
     std::size_t size;
     std::size_t capacity;
-    bool        is_emplaced;
+
+    // for BLOB_GENERATOR mode only
+    blob_generator_func_t blob_generator;
+
+    object_memory_mode_t   memory_mode;
+
 
     // constructor - copy to own the data
     Blob(const uint8_t* const b, const decltype(size) s);
 
-    Blob(const uint8_t* b, const decltype(size) s, bool temporary);
+    Blob(const uint8_t* b, const decltype(size) s, bool emplaced);
+
+    // generator constructor - data to be generated on serialization
+    Blob(const blob_generator_func_t& generator, const decltype(size) s);
 
     // copy constructor - copy to own the data
     Blob(const Blob& other);
