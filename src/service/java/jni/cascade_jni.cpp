@@ -744,7 +744,7 @@ JNIEXPORT jobject JNICALL Java_io_cascade_QueryResults_getReplyMap(JNIEnv *env, 
 #ifndef NDEBUG
         std::cout << "processing at s f!" << size << " " << std::endl;
 
-        std::cout << "blob memory_mode:" << obj.blob.memeory_mode << std::endl;
+        std::cout << "blob memory_mode:" << obj.blob.memory_mode << std::endl;
 #endif
 
         jobject new_byte_buf = allocate_byte_buffer(env, (char *)data, size);

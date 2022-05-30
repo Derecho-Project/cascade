@@ -160,6 +160,23 @@ public:
     // constructor 4 : default invalid constructor
     ObjectWithUInt64Key();
 
+    // constructor 5 : using delayed instantiator with message generator
+    ObjectWithUInt64Key(const uint64_t _key,
+                        const blob_generator_func_t& _message_generator,
+                        const std::size_t _size);
+    // constructor 5.5 : using delayed instratiator with message generator
+    ObjectWithUInt64Key(
+#ifdef ENABLE_EVALUATION
+                        const uint64_t _message_id,
+#endif
+                        const persistent::version_t _version,
+                        const uint64_t _timestamp_us,
+                        const persistent::version_t _previous_version,
+                        const persistent::version_t _previous_version_by_key,
+                        const uint64_t _key,
+                        const blob_generator_func_t& _message_generator,
+                        const std::size_t _s);
+
     virtual const uint64_t& get_key_ref() const override;
     virtual bool is_null() const override;
     virtual bool is_valid() const override;
@@ -285,6 +302,23 @@ public:
 
     // constructor 4 : default invalid constructor
     ObjectWithStringKey();
+
+    // constructor 5 : using delayed instantiator with message generator
+    ObjectWithStringKey(const std::string& _key,
+                        const blob_generator_func_t& _message_generator,
+                        const std::size_t _size);
+    // constructor 5.5 : using delayed instatiator withe message generator
+    ObjectWithStringKey(
+#ifdef ENABLE_EVALUATION
+                        const uint64_t message_id,
+#endif
+                        const persistent::version_t _version,
+                        const uint64_t _timestamp_us,
+                        const persistent::version_t _previous_version,
+                        const persistent::version_t _previous_version_by_key,
+                        const std::string& _key,
+                        const blob_generator_func_t& _message_generator,
+                        const std::size_t _s);
 
     virtual const std::string& get_key_ref() const override;
     virtual bool is_null() const override;
