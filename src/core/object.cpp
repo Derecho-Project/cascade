@@ -1,4 +1,5 @@
 #include <cascade/object.hpp>
+#include <derecho/persistent/detail/PersistLog.hpp>
 #include <unistd.h>
 #include <stdlib.h>
 
@@ -337,6 +338,42 @@ ObjectWithUInt64Key::ObjectWithUInt64Key() :
     previous_version_by_key(INVALID_VERSION),
     key(INVALID_UINT64_OBJECT_KEY) {}
 
+// constructor 5 : using delayed instantiator with message gnerator
+ObjectWithUInt64Key::ObjectWithUInt64Key(const uint64_t _key,
+                                         const blob_generator_func_t& _message_generator,
+                                         const std::size_t _size) :
+#ifdef ENABLE_EVALUATION
+    message_id(0),
+#endif
+    version(persistent::INVALID_VERSION),
+    timestamp_us(0),
+    previous_version(INVALID_VERSION),
+    previous_version_by_key(INVALID_VERSION),
+    key(_key),
+    blob(_message_generator,_size) {}
+
+// constructor 5.5 : using delayed instatiator with message generator
+ObjectWithUInt64Key::ObjectWithUInt64Key(
+#ifdef ENABLE_EVALUATION
+                                         const uint64_t _message_id,
+#endif
+                                         const persistent::version_t _version,
+                                         const uint64_t _timestamp_us,
+                                         const persistent::version_t _previous_version,
+                                         const persistent::version_t _previous_version_by_key,
+                                         const uint64_t _key,
+                                         const blob_generator_func_t& _message_generator,
+                                         const std::size_t _s) :
+#ifdef ENABLE_EVALUATION
+    message_id(_message_id),
+#endif
+    version(_version),
+    timestamp_us(_timestamp_us),
+    previous_version(_previous_version),
+    previous_version_by_key(_previous_version_by_key),
+    key(_key),
+    blob(_message_generator, _s) {}
+
 const uint64_t& ObjectWithUInt64Key::get_key_ref() const {
     return this->key;
 }
@@ -653,6 +690,42 @@ ObjectWithStringKey::ObjectWithStringKey() :
     previous_version(INVALID_VERSION),
     previous_version_by_key(INVALID_VERSION),
     key() {}
+
+// constructor 5 : using delayed instatiator with message generator
+ObjectWithStringKey::ObjectWithStringKey(const std::string& _key,
+                                         const blob_generator_func_t& _message_generator,
+                                         const std::size_t _size):
+#ifdef ENABLE_EVALUATION
+    message_id(0),
+#endif
+    version(persistent::INVALID_VERSION),
+    timestamp_us(0),
+    previous_version(INVALID_VERSION),
+    previous_version_by_key(INVALID_VERSION),
+    key(_key),
+    blob(_message_generator,_size) {}
+
+// constructor 5.5 : using delayed instatiator with message generator
+ObjectWithStringKey::ObjectWithStringKey(
+#ifdef ENABLE_EVALUATION
+                                         const uint64_t _message_id,
+#endif
+                                         const persistent::version_t _version,
+                                         const uint64_t _timestamp_us,
+                                         const persistent::version_t _previous_version,
+                                         const persistent::version_t _previous_version_by_key,
+                                         const std::string& _key,
+                                         const blob_generator_func_t& _message_generator,
+                                         const std::size_t _s) :
+#ifdef ENABLE_EVALUATION
+    message_id(_message_id),
+#endif
+    version(_version),
+    timestamp_us(_timestamp_us),
+    previous_version(_previous_version),
+    previous_version_by_key(_previous_version_by_key),
+    key(_key),
+    blob(_message_generator, _s) {}
 
 const std::string& ObjectWithStringKey::get_key_ref() const {
     return this->key;
