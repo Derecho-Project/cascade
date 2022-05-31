@@ -150,7 +150,7 @@ Blob& Blob::operator=(const Blob& other) {
     this->size = other.size;
     if(this->size > 0) {
         if (other.memory_mode == object_memory_mode_t::BLOB_GENERATOR) {
-            auto number_bytes_generated = other.blob_generator(this->bytes,other.size);
+            auto number_bytes_generated = other.blob_generator(const_cast<uint8_t*>(this->bytes),other.size);
             if (number_bytes_generated != other.size) {
                 dbg_default_error("Expecting {} bytes, but blob generator writes {} bytes.", other.size, number_bytes_generated);
                 std::string exception_message("Expecting");
