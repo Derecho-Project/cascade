@@ -17,8 +17,6 @@
 
 #include <cascade/cascade.hpp>
 
-using std::cout;
-using std::endl;
 using namespace persistent;
 using namespace std::chrono_literals;
 
