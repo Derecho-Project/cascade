@@ -59,8 +59,6 @@ class DDSPublisherImpl: public DDSPublisher<MessageType> {
     std::shared_ptr<ServiceClientAPI> capi;
     const std::string topic;
     const std::string cascade_key;
-    static thread_local std::vector<uint8_t> static_buffer;
-    static thread_local bool static_buffer_is_uninitialized;
 
 public:
     /** Constructor
@@ -84,19 +82,20 @@ public:
 
     virtual void send(const MessageType& message) override {
         std::size_t requested_size = mutils::bytes_size(message) + DDS_MESSAGE_HEADER_SIZE;
-        DDSMessageHeader* msg_ptr = reinterpret_cast<DDSMessageHeader*>(static_buffer.data());
-
-        if (static_buffer_is_uninitialized || (static_buffer.capacity() < requested_size)) {
-            static_buffer.reserve(requested_size);
-            // update pointer.
-            msg_ptr = reinterpret_cast<DDSMessageHeader*>(static_buffer.data());
+        const blob_generator_func_t blob_generator = [requested_size,&message,this] (uint8_t* buffer, const std::size_t buffer_size) {
+            if ( buffer_size > requested_size ) {
+                throw std::runtime_error("message is too large to fit in the buffer.");
+            }
+            DDSMessageHeader* msg_ptr = reinterpret_cast<DDSMessageHeader*>(buffer);
             std::memcpy(msg_ptr->topic_name,topic.c_str(),topic.size());
             msg_ptr->topic_name_length = topic.size();
-            static_buffer_is_uninitialized = false;
-        }
+            mutils::to_bytes(message,&msg_ptr->message_bytes);
+
+            return requested_size;
+        };
+
         
-        // prepare the buffer 
-        Blob blob(static_buffer.data(),requested_size,true);//emplace for zero-copy
+        // prepare the object
         ObjectWithStringKey object(
 #ifdef ENABLE_EVALUATION
                     0,
@@ -106,12 +105,9 @@ public:
                     CURRENT_VERSION,
                     CURRENT_VERSION,
                     cascade_key,
-                    blob,
-                    true//emplace for zero-copy
+                    blob_generator,
+                    requested_size
                 );
-
-        // fill the buffer
-        mutils::to_bytes(message,&msg_ptr->message_bytes);
 
         // send message
         dbg_default_trace("in {}: put object with key:{}", __PRETTY_FUNCTION__, cascade_key);
@@ -123,12 +119,6 @@ public:
         // nothing to release manually.
     }
 };
-
-template<typename MessageType>
-thread_local std::vector<uint8_t> DDSPublisherImpl<MessageType>::static_buffer{};
-
-template<typename MessageType>
-thread_local bool DDSPublisherImpl<MessageType>::static_buffer_is_uninitialized = false;
 
 class PerTopicRegistry;
 class DDSSubscriberRegistry;
