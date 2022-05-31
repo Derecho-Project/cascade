@@ -183,12 +183,57 @@ void op_put(ServiceClientAPI& capi, const std::string& key, const std::string& v
     check_put_and_remove_result(result);
 }
 
+void op_put_file(ServiceClientAPI& capi, const std::string& key, const std::string& filename, persistent::version_t pver, persistent::version_t pver_bk) {
+    // get file size
+    std::ifstream value_file(filename,std::ios::binary);
+    if(!value_file.good()) {
+        dbg_default_error("Cannot open file:{} for read.", filename);
+        throw std::runtime_error("Cannot open file:" + filename + "for read");
+    }
+    value_file.seekg(0, std::ios::end);
+    std::size_t file_size = value_file.tellg();
+    value_file.seekg(0);
+    // message generator
+    blob_generator_func_t message_generator = [&value_file] (uint8_t* buffer, const std::size_t size) {
+        value_file.read(reinterpret_cast<char*>(buffer),size);
+        return size;
+    };
+    ObjectWithStringKey obj(key,message_generator,file_size);
+    obj.previous_version = pver;
+    obj.previous_version_by_key = pver_bk;
+    derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> result = capi.put(obj);
+    value_file.close();
+    check_put_and_remove_result(result);
+}
+
 void op_put_and_forget(ServiceClientAPI& capi, const std::string& key, const std::string& value, persistent::version_t pver, persistent::version_t pver_bk) {
     ObjectWithStringKey obj;
     obj.key = key;
     obj.previous_version = pver;
     obj.previous_version_by_key = pver_bk;
     obj.blob = Blob(reinterpret_cast<const uint8_t*>(value.c_str()),value.length());
+    capi.put_and_forget(obj);
+    std::cout << "put done." << std::endl;
+}
+
+void op_put_file_and_forget(ServiceClientAPI& capi, const std::string& key, const std::string& filename, persistent::version_t pver, persistent::version_t pver_bk) {
+    // get file size
+    std::ifstream value_file(filename,std::ios::binary);
+    if(!value_file.good()) {
+        dbg_default_error("Cannot open file:{} for read.", filename);
+        throw std::runtime_error("Cannot open file:" + filename + "for read");
+    }
+    value_file.seekg(0, std::ios::end);
+    std::size_t file_size = value_file.tellg();
+    value_file.seekg(0);
+    // message generator
+    blob_generator_func_t message_generator = [&value_file] (uint8_t* buffer, const std::size_t size) {
+        value_file.read(reinterpret_cast<char*>(buffer),size);
+        return size;
+    };
+    ObjectWithStringKey obj(key,message_generator,file_size);
+    obj.previous_version = pver;
+    obj.previous_version_by_key = pver_bk;
     capi.put_and_forget(obj);
     std::cout << "put done." << std::endl;
 }
@@ -874,6 +919,23 @@ std::vector<command_entry_t> commands =
         }
     },
     {
+        "op_put_file",
+        "Put an object into an object pool, where object's value is from a file,",
+        "op_put_file <key> <filename> [previous_version(default:-1)] [previous_version_by_key(default:-1)]\n"
+            "Please note that cascade automatically decides the object pool path using the key's prefix.",
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+            persistent::version_t pver = persistent::INVALID_VERSION;
+            persistent::version_t pver_bk = persistent::INVALID_VERSION;
+            CHECK_FORMAT(cmd_tokens,3);
+            if (cmd_tokens.size() >= 4)
+                pver = static_cast<persistent::version_t>(std::stol(cmd_tokens[3],nullptr,0));
+            if (cmd_tokens.size() >= 5)
+                pver_bk = static_cast<persistent::version_t>(std::stol(cmd_tokens[4],nullptr,0));
+            op_put_file(capi,cmd_tokens[1]/*key*/,cmd_tokens[2]/*filename*/,pver,pver_bk);
+            return true;
+        }
+    },
+    {
         "op_put_and_forget",
         "Put an object into an object pool, without a return value",
         "op_put_and_forget <key> <value> [previous_version(default:-1)] [previous_version_by_key(default:-1)]\n"
@@ -888,6 +950,23 @@ std::vector<command_entry_t> commands =
             if (cmd_tokens.size() >= 5)
                 pver_bk = static_cast<persistent::version_t>(std::stol(cmd_tokens[4],nullptr,0));
             op_put_and_forget(capi,cmd_tokens[1]/*key*/,cmd_tokens[2]/*value*/,pver,pver_bk);
+            return true;
+        }
+    },
+    {
+        "op_put_file_and_forget",
+        "Put an object into an object pool, where object's value is from a file,",
+        "op_put_file_and_forget <key> <filename> [previous_version(default:-1)] [previous_version_by_key(default:-1)]\n"
+            "Please note that cascade automatically decides the object pool path using the key's prefix.",
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+            persistent::version_t pver = persistent::INVALID_VERSION;
+            persistent::version_t pver_bk = persistent::INVALID_VERSION;
+            CHECK_FORMAT(cmd_tokens,3);
+            if (cmd_tokens.size() >= 4)
+                pver = static_cast<persistent::version_t>(std::stol(cmd_tokens[3],nullptr,0));
+            if (cmd_tokens.size() >= 5)
+                pver_bk = static_cast<persistent::version_t>(std::stol(cmd_tokens[4],nullptr,0));
+            op_put_file_and_forget(capi,cmd_tokens[1]/*key*/,cmd_tokens[2]/*filename*/,pver,pver_bk);
             return true;
         }
     },

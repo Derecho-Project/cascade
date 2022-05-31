@@ -31,7 +31,7 @@ enum object_memory_mode_t {
     BLOB_GENERATOR,
 };
 
-using blob_generator_func_t = std::function<std::size_t(const uint8_t*,const std::size_t)>;
+using blob_generator_func_t = std::function<std::size_t(uint8_t*,const std::size_t)>;
 
 class Blob : public mutils::ByteRepresentable {
 public:
