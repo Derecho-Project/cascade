@@ -19,7 +19,7 @@ find_package(Java 1.11 QUIET)
 
 set(UDL_UUID 94f8509c-a6e6-11ec-a9f5-0242ac110002)
 
-set(DISABLE_DDS_COPY 1)
+set(DISABLE_DDS_COPY 0)
 
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/cascade_dds/config.h)
 
