@@ -1,5 +1,13 @@
 #include "cascade/persistence_observer.hpp"
 
+#include <derecho/core/derecho.hpp>
+
+#include <condition_variable>
+#include <functional>
+#include <list>
+#include <mutex>
+#include <thread>
+
 namespace derecho {
 namespace cascade {
 

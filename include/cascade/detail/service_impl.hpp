@@ -268,70 +268,6 @@ std::tuple<ShardMemberSelectionPolicy,node_id_t> ServiceClient<CascadeTypes...>:
 
 template <typename... CascadeTypes>
 template <typename SubgroupType>
-std::enable_if_t<std::is_base_of_v<derecho::NotificationSupport, SubgroupType>>
-ServiceClient<CascadeTypes...>::register_notification(std::function<void(const derecho::NotificationMessage&)> func,
-                                                           uint32_t subgroup_index, uint32_t shard_index) {
-    if(group_ptr != nullptr) {
-        //Does it even make sense to do this for a ServiceClient that's a group member?
-        dbg_default_error("Unable to register a notification handler because this ServiceClient is running on a Cascade node. Notifications are only supported on External Clients.");
-    } else {
-        std::lock_guard<std::mutex> lck(this->external_group_ptr_mutex);
-        auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
-        node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index, shard_index);
-        caller.register_notification(func, node_id);
-    }
-}
-
-template <typename... CascadeTypes>
-template <typename LastType>
-void ServiceClient<CascadeTypes...>::type_recursive_register_notification(
-        uint32_t type_index,
-        const std::function<void(const derecho::NotificationMessage&)>& func,
-        uint32_t subgroup_index,
-        uint32_t shard_index) {
-    if(type_index == 0) {
-        if constexpr(std::is_base_of_v<derecho::NotificationSupport, LastType>) {
-            this->template register_notification<LastType>(func, subgroup_index, shard_index);
-        } else {
-            throw derecho::derecho_exception("register_notification cannot be called on a subgroup type without NotificationSupport");
-        }
-    } else {
-        throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) + ": type index is out of boundary.");
-    }
-}
-
-template <typename... CascadeTypes>
-template <typename FirstType, typename SecondType, typename... RestTypes>
-void ServiceClient<CascadeTypes...>::type_recursive_register_notification(
-        uint32_t type_index,
-        const std::function<void(const derecho::NotificationMessage&)>& func,
-        uint32_t subgroup_index,
-        uint32_t shard_index) {
-    if(type_index == 0) {
-        if constexpr(std::is_base_of_v<derecho::NotificationSupport, FirstType>) {
-            this->template register_notification<FirstType>(func, subgroup_index, shard_index);
-        } else {
-            throw derecho::derecho_exception("register_notification cannot be called on a subgroup type without NotificationSupport");
-        }
-    } else {
-        this->template type_recursive_register_notification<SecondType, RestTypes...>(type_index - 1, func, subgroup_index, shard_index);
-    }
-}
-
-template <typename...CascadeTypes>
-template <typename KeyType>
-void ServiceClient<CascadeTypes...>::register_notification(std::function<void(const derecho::NotificationMessage&)> handler_func,
-                                   const KeyType& key) {
-    static_assert(std::is_convertible_v<KeyType, std::string>, "register_notification(func, key) only supports string keys");
-
-    uint32_t subgroup_type_index,subgroup_index,shard_index;
-    std::tie(subgroup_type_index,subgroup_index,shard_index) = this->template key_to_shard(key);
-
-    type_recursive_register_notification<CascadeTypes...>(subgroup_type_index, handler_func, subgroup_index, shard_index);
-}
-
-template <typename... CascadeTypes>
-template <typename SubgroupType>
 void ServiceClient<CascadeTypes...>::refresh_member_cache_entry(uint32_t subgroup_index,
                                                           uint32_t shard_index) {
     auto key = std::make_tuple(std::type_index(typeid(SubgroupType)),subgroup_index,shard_index);
@@ -1595,7 +1531,7 @@ derecho::rpc::QueryResults<std::tuple<std::vector<uint8_t>, persistent::version_
             throw derecho::derecho_exception("get_signature can only be called on objects stored in SignatureCascadeStore subgroups");
         }
     } else {
-        throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) + ": type index is out of boundary.");
+        throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) + ": type index is out of bounds.");
     }
 }
 
@@ -1646,7 +1582,7 @@ derecho::rpc::QueryResults<std::tuple<std::vector<uint8_t>, persistent::version_
             throw derecho::derecho_exception("get_signature_by_version can only be called on objects stored in SignatureCascadeStore subgroups");
         }
     } else {
-        throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) + ": type index is out of boundary.");
+        throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) + ": type index is out of bounds.");
     }
 }
 
@@ -1743,7 +1679,7 @@ derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::type_recursive_
             throw derecho::derecho_exception("subscribe_signature_notifications can only be called for objects stored in SignatureCascadeStore subgroups");
         }
     } else {
-        throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) + ": type index is out of boundary.");
+        throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) + ": type index is out of bounds.");
     }
 }
 
@@ -1755,6 +1691,56 @@ derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::subscribe_signa
     const auto [subgroup_type_index, subgroup_index, shard_index] = this->template key_to_shard(key);
 
     return this->template type_recursive_subscribe_signature_notifications<CascadeTypes...>(subgroup_type_index, key, subgroup_index, shard_index);
+}
+
+template <typename... CascadeTypes>
+template <typename KeyType, typename FirstType, typename SecondType, typename... RestTypes>
+derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::type_recursive_request_signature_notification(
+        uint32_t type_index,
+        const KeyType& key,
+        const persistent::version_t& version,
+        uint32_t subgroup_index,
+        uint32_t shard_index) {
+    if(type_index == 0) {
+        // This must be a runtime check, not a static_assert, because type_index is a runtime value
+        if constexpr(is_signature_store<FirstType>::value) {
+            return this->template request_signature_notification<FirstType>(version, subgroup_index, shard_index);
+        } else {
+            throw derecho::derecho_exception("request_signature_notification can only be called for objects stored in SignatureCascadeStore subgroups");
+        }
+    } else {
+        return this->template type_recursive_request_signature_notification<KeyType, SecondType, RestTypes...>(
+                type_index - 1, key, version, subgroup_index, shard_index);
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename KeyType, typename LastType>
+derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::type_recursive_request_signature_notification(
+        uint32_t type_index,
+        const KeyType& key,
+        const persistent::version_t& version,
+        uint32_t subgroup_index,
+        uint32_t shard_index) {
+    if(type_index == 0) {
+        if constexpr(is_signature_store<LastType>::value) {
+            return this->template request_signature_notification<LastType>(version, subgroup_index, shard_index);
+        } else {
+            throw derecho::derecho_exception("request_signature_notification can only be called for objects stored in SignatureCascadeStore subgroups");
+        }
+    } else {
+        throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) + ": type index is out of bounds.");
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename KeyType>
+derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::request_signature_notification(const KeyType& key, const persistent::version_t& version) {
+    static_assert(std::is_convertible_v<KeyType, std::string>, "request_signature_notification(key, version) only supports string keys");
+
+    const auto [subgroup_type_index, subgroup_index, shard_index] = this->template key_to_shard(key);
+
+    return this->template type_recursive_request_signature_notification<CascadeTypes...>(subgroup_type_index, key, version, subgroup_index, shard_index);
 }
 
 template <typename... CascadeTypes>
@@ -1892,7 +1878,8 @@ template <typename SubgroupType>
 bool ServiceClient<CascadeTypes...>::register_notification_handler(
         const cascade_notification_handler_t& handler,
         const std::string& object_pool_pathname,
-        const uint32_t subgroup_index) {
+        const uint32_t subgroup_index,
+        bool is_signature_handler) {
     if (!is_external_client()) {
         throw derecho_exception(std::string(__PRETTY_FUNCTION__) +
             "Cannot register notification handler because external_group_ptr is null.");
@@ -1909,17 +1896,30 @@ bool ServiceClient<CascadeTypes...>::register_notification_handler(
         // to do ... register it.
         per_type_registry.at(subgroup_index).initialize(subgroup_caller);
     }
-    auto& subgroup_handlers = per_type_registry.at(subgroup_index);
+    SubgroupNotificationHandler<SubgroupType>& subgroup_handlers = per_type_registry.at(subgroup_index);
 
+    bool ret;
     // Register the handler
-    std::lock_guard<std::mutex> subgroup_handlers_lock(*subgroup_handlers.object_pool_notification_handlers_mutex);
-    bool ret = (subgroup_handlers.object_pool_notification_handlers.find(object_pool_pathname) !=
-                subgroup_handlers.object_pool_notification_handlers.cend());
+    if(is_signature_handler) {
+        std::lock_guard<std::mutex> signature_handlers_lock(*subgroup_handlers.signature_notification_handlers_mutex);
+        ret = (subgroup_handlers.signature_notification_handlers.find(object_pool_pathname)
+               != subgroup_handlers.signature_notification_handlers.cend());
 
-    if (handler) {
-        subgroup_handlers.object_pool_notification_handlers[object_pool_pathname] = handler;
+        if(handler) {
+            subgroup_handlers.signature_notification_handlers[object_pool_pathname] = handler;
+        } else {
+            subgroup_handlers.signature_notification_handlers[object_pool_pathname].reset();
+        }
     } else {
-        subgroup_handlers.object_pool_notification_handlers[object_pool_pathname].reset();
+        std::lock_guard<std::mutex> subgroup_handlers_lock(*subgroup_handlers.object_pool_notification_handlers_mutex);
+        ret = (subgroup_handlers.object_pool_notification_handlers.find(object_pool_pathname)
+               != subgroup_handlers.object_pool_notification_handlers.cend());
+
+        if(handler) {
+            subgroup_handlers.object_pool_notification_handlers[object_pool_pathname] = handler;
+        } else {
+            subgroup_handlers.object_pool_notification_handlers[object_pool_pathname].reset();
+        }
     }
     return ret;
 }
@@ -1930,12 +1930,13 @@ bool ServiceClient<CascadeTypes...>::type_recursive_register_notification_handle
         uint32_t type_index,
         const cascade_notification_handler_t& handler,
         const std::string& object_pool_pathname,
-        const uint32_t subgroup_index) {
+        const uint32_t subgroup_index,
+        bool is_signature_handler) {
     if (type_index == 0) {
-        return this->template register_notification_handler<FirstType>(handler,object_pool_pathname,subgroup_index);
+        return this->template register_notification_handler<FirstType>(handler,object_pool_pathname,subgroup_index,is_signature_handler);
     } else {
         return this->template type_recursive_register_notification_handler<SecondType,RestTypes...>(
-            type_index-1,handler,object_pool_pathname,subgroup_index);
+            type_index-1,handler,object_pool_pathname,subgroup_index,is_signature_handler);
     }
 }
 
@@ -1945,9 +1946,10 @@ bool ServiceClient<CascadeTypes...>::type_recursive_register_notification_handle
         uint32_t type_index,
         const cascade_notification_handler_t& handler,
         const std::string& object_pool_pathname,
-        const uint32_t subgroup_index) {
+        const uint32_t subgroup_index,
+        bool is_signature_handler) {
     if (type_index == 0) {
-        return this->template register_notification_handler<LastType>(handler,object_pool_pathname,subgroup_index);
+        return this->template register_notification_handler<LastType>(handler,object_pool_pathname,subgroup_index,is_signature_handler);
     } else {
         throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) + ": type index is out of boundary.");
     }
@@ -1961,6 +1963,16 @@ bool ServiceClient<CascadeTypes...>::register_notification_handler(
 
     return this->template type_recursive_register_notification_handler<CascadeTypes...>(
         opm.subgroup_type_index,handler,object_pool_pathname,opm.subgroup_index);
+}
+
+template <typename... CascadeTypes>
+bool ServiceClient<CascadeTypes...>::register_signature_notification_handler(
+        const cascade_notification_handler_t& handler,
+        const std::string& object_pool_pathname) {
+    auto opm = find_object_pool(object_pool_pathname);
+
+    return this->template type_recursive_register_notification_handler<CascadeTypes...>(
+        opm.subgroup_type_index,handler,object_pool_pathname,opm.subgroup_index,true);
 }
 
 template <typename... CascadeTypes>
@@ -1988,8 +2000,9 @@ void ServiceClient<CascadeTypes...>::notify(
 
     //TODO: redesign to avoid memory copies.
     CascadeNotificationMessage cascade_notification_message(object_pool_pathname,msg);
-    derecho::NotificationMessage derecho_notification_message(CASCADE_NOTIFICATION_MESSAGE_TYPE, mutils::bytes_size(cascade_notification_message));
-    mutils::to_bytes(cascade_notification_message,derecho_notification_message.body);
+    derecho::NotificationMessage derecho_notification_message(CascadeNotificationMessageType::StandardNotification,
+                                                              mutils::bytes_size(cascade_notification_message));
+    mutils::to_bytes(cascade_notification_message, derecho_notification_message.body);
 
     client_handle.template p2p_send<RPC_NAME(notify)>(client_id,derecho_notification_message);
 }

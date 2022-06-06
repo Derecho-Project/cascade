@@ -108,7 +108,7 @@ void make_workload(uint32_t payload_size, const KT& key_prefix, std::vector<VT>&
 #endif  // ENABLE_EVALUATION
 
 template <typename KeyType>
-std::string get_pathname(const std::enable_if_t<std::is_convertible<KeyType, std::string>::value, std::string>& key) {
+std::string get_pathname(const std::enable_if_t<std::is_convertible<KeyType, std::string>::value, KeyType>& key) {
     const std::string* pstr = dynamic_cast<const std::string*>(&key);
     size_t pos = pstr->rfind(PATH_SEPARATOR);
     if(pos != std::string::npos) {

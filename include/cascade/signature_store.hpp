@@ -74,22 +74,18 @@ private:
      * function is used as the callback action for PersistenceObserver.
      *
      * @param client_id The external client to notify
+     * @param key The key identifying the hash object
      * @param hash_object_version The version of a hash object stored in this
      * SignatureCascadeStore that should have reached global persistence when
      * this function is called
      * @param data_object_version The version of the corresponding data object
      * in PersistentCascadeStore that generated the hash object
      */
-    void send_client_notification(node_id_t client_id, persistent::version_t hash_object_version,
+    void send_client_notification(node_id_t client_id, const KT& key, persistent::version_t hash_object_version,
                                   persistent::version_t data_object_version) const;
 
 public:
     /* Specific to SignatureStore, not part of the Cascade interface */
-
-    /** Notification-type constants for the external client notification messages */
-    enum NotificationType : uint64_t {
-        SIGNATURE_FINISHED = 1
-    };
 
     /**
      * Retrieves the signature and the previous signed version that is logged
@@ -204,9 +200,6 @@ public:
     virtual void ordered_dump_timestamp_log(const std::string& filename) override;
 #endif  // ENABLE_EVALUATION
 
-    /* Notification support */
-    void notify(const derecho::NotificationMessage& msg) const { derecho::NotificationSupport::notify(msg); }
-
     /**
      * Asks this node to send a notification to an external client whenever any
      * object has finished being signed.
@@ -233,48 +226,47 @@ public:
 
     static const uint64_t SIGNATURE_FINISHED_MESSAGE = 1000;
 
-    REGISTER_RPC_FUNCTIONS(SignatureCascadeStore,
-                           P2P_TARGETS(
-                                   put,
-                                   put_and_forget,
+    REGISTER_RPC_FUNCTIONS_WITH_NOTIFICATION(SignatureCascadeStore,
+                                             P2P_TARGETS(
+                                                     put,
+                                                     put_and_forget,
 #ifdef ENABLE_EVALUATION
-                                   perf_put,
+                                                     perf_put,
 #endif  // ENABLE_EVALUATION
-                                   get_signature,
-                                   get_signature_by_version,
-                                   remove,
-                                   get,
-                                   multi_get,
-                                   get_by_time,
-                                   list_keys,
-                                   multi_list_keys,
-                                   list_keys_by_time,
-                                   get_size,
-                                   multi_get_size,
-                                   get_size_by_time,
-                                   trigger_put,
-                                   notify,
-                                   subscribe_to_notifications,
-                                   subscribe_to_all_notifications,
-                                   request_notification
+                                                     get_signature,
+                                                     get_signature_by_version,
+                                                     remove,
+                                                     get,
+                                                     multi_get,
+                                                     get_by_time,
+                                                     list_keys,
+                                                     multi_list_keys,
+                                                     list_keys_by_time,
+                                                     get_size,
+                                                     multi_get_size,
+                                                     get_size_by_time,
+                                                     trigger_put,
+                                                     subscribe_to_notifications,
+                                                     subscribe_to_all_notifications,
+                                                     request_notification
 #ifdef ENABLE_EVALUATION
-                                   ,
-                                   dump_timestamp_log
+                                                     ,
+                                                     dump_timestamp_log
 #endif  // ENABLE_EVALUATION
-                                   ),
-                           ORDERED_TARGETS(
-                                   ordered_put,
-                                   ordered_put_and_forget,
-                                   ordered_remove,
-                                   ordered_get,
-                                   ordered_get_signature,
-                                   ordered_list_keys,
-                                   ordered_get_size
+                                                     ),
+                                             ORDERED_TARGETS(
+                                                     ordered_put,
+                                                     ordered_put_and_forget,
+                                                     ordered_remove,
+                                                     ordered_get,
+                                                     ordered_get_signature,
+                                                     ordered_list_keys,
+                                                     ordered_get_size
 #ifdef ENABLE_EVALUATION
-                                   ,
-                                   ordered_dump_timestamp_log
+                                                     ,
+                                                     ordered_dump_timestamp_log
 #endif  // ENABLE_EVALUATION
-                                   ));
+                                                     ));
 
     /* Serialization support, with a custom deserializer to get the context pointers from the registry */
     DEFAULT_SERIALIZE(persistent_core, data_to_hash_version);

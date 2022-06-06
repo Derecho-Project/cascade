@@ -1,12 +1,14 @@
 #pragma once
 
 #include "../signature_store.hpp"
+#include "cascade/cascade_notification_message.hpp"
 #include "cascade/config.h"
 #include "cascade/utils.hpp"
 #include "debug_util.hpp"
 #include "delta_store_core.hpp"
 
 #include <derecho/core/derecho.hpp>
+#include <derecho/mutils-serialization/SerializationSupport.hpp>
 
 #include <map>
 #include <memory>
@@ -403,18 +405,20 @@ bool SignatureCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put(const VT& v
     }
     subgroup_id_t my_subgroup_id = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index).get_subgroup_id();
     // Register a signature notification action for all subscribed clients
+    // The key must be copied into the lambdas, since value.get_key_ref() won't work once this method ends
+    KT copy_of_key = value.get_key_ref();
     for(const node_id_t client_id : subscribed_clients[value.get_key_ref()]) {
         cascade_context_ptr->get_persistence_observer().register_persistence_action(
                 my_subgroup_id, std::get<0>(hash_object_version_and_timestamp), true,
                 [=]() {
-                    send_client_notification(client_id, std::get<0>(hash_object_version_and_timestamp), data_object_version);
+                    send_client_notification(client_id, copy_of_key, std::get<0>(hash_object_version_and_timestamp), data_object_version);
                 });
     }
     for(const node_id_t client_id : subscribed_clients[*IK]) {
         cascade_context_ptr->get_persistence_observer().register_persistence_action(
                 my_subgroup_id, std::get<0>(hash_object_version_and_timestamp), true,
                 [=]() {
-                    send_client_notification(client_id, std::get<0>(hash_object_version_and_timestamp), data_object_version);
+                    send_client_notification(client_id, copy_of_key, std::get<0>(hash_object_version_and_timestamp), data_object_version);
                 });
     }
 
@@ -708,7 +712,8 @@ std::tuple<std::vector<uint8_t>, persistent::version_t> SignatureCascadeStore<KT
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void SignatureCascadeStore<KT, VT, IK, IV, ST>::send_client_notification(
-        node_id_t external_client_id, persistent::version_t hash_object_version, persistent::version_t data_object_version) const {
+        node_id_t external_client_id, const KT& key, persistent::version_t hash_object_version,
+        persistent::version_t data_object_version) const {
     // Retrieve the signature, which must exist by now since persistence is finished
     persistent::version_t previous_signed_version = persistent::INVALID_VERSION;
     std::vector<uint8_t> signature(persistent_core.getSignatureSize());
@@ -718,14 +723,23 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::send_client_notification(
             = group->template get_client_callback<SignatureCascadeStore>(this->subgroup_index);
     std::size_t message_size = mutils::bytes_size(data_object_version) + mutils::bytes_size(hash_object_version)
                                + mutils::bytes_size(signature) + mutils::bytes_size(previous_signed_version);
-    derecho::NotificationMessage message(SignatureCascadeStore::NotificationType::SIGNATURE_FINISHED, message_size);
     // Message format: data version, hash version, signature data, previous signed version
+    // Problem: Blob's data buffer can't be modified, so I have to copy the bytes into a temporary buffer, then copy them again into Blob
+    uint8_t* temp_buffer_for_blob = new uint8_t[message_size];
     std::size_t body_offset = 0;
-    body_offset += mutils::to_bytes(data_object_version, message.body + body_offset);
-    body_offset += mutils::to_bytes(hash_object_version, message.body + body_offset);
-    body_offset += mutils::to_bytes(signature, message.body + body_offset);
-    body_offset += mutils::to_bytes(previous_signed_version, message.body + body_offset);
-    client_caller.template p2p_send<derecho::rpc::hash_cstr("notify")>(external_client_id, message);
+    body_offset += mutils::to_bytes(data_object_version, temp_buffer_for_blob + body_offset);
+    body_offset += mutils::to_bytes(hash_object_version, temp_buffer_for_blob + body_offset);
+    body_offset += mutils::to_bytes(signature, temp_buffer_for_blob + body_offset);
+    body_offset += mutils::to_bytes(previous_signed_version, temp_buffer_for_blob + body_offset);
+    Blob message_body(temp_buffer_for_blob, message_size);
+    delete[] temp_buffer_for_blob;
+    // Construct and send a CascadeNotificationMessage in the same way as ServiceClient::notify
+    CascadeNotificationMessage cascade_message(get_pathname<KT>(key), message_body);
+    // TODO: redesign to avoid memory copies.
+    NotificationMessage derecho_message(CascadeNotificationMessageType::SignatureNotification,
+                                        mutils::bytes_size(cascade_message));
+    mutils::to_bytes(cascade_message, derecho_message.body);
+    client_caller.template p2p_send<derecho::rpc::hash_cstr("notify")>(external_client_id, derecho_message);
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
@@ -748,11 +762,16 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::request_notification(node_id_t e
         }
     }
 
+    // Figure out which key is stored at this version, so it can be used to construct a notification message
+    KT key = persistent_core.template getDelta<VT>(hash_version, false, [](const VT& value) {
+        return value.get_key_ref();
+    });
+
     derecho::Replicated<SignatureCascadeStore>& subgroup_handle = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index);
     subgroup_id_t my_subgroup_id = subgroup_handle.get_subgroup_id();
     cascade_context_ptr->get_persistence_observer().register_persistence_action(
             my_subgroup_id, hash_version, true,
-            [=]() { send_client_notification(external_client_id, hash_version, ver); });
+            [=]() { send_client_notification(external_client_id, key, hash_version, ver); });
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>

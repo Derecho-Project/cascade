@@ -1168,19 +1168,6 @@ std::vector<command_entry_t> commands =
         }
     },
     {
-        "multi_list_keys",
-        "list the object keys in a shard using atomic broadcast for the latest version.",
-        "multi_list_keys <type> <subgroup_index> <shard_index> \n"
-            "type := " SUBGROUP_TYPE_LIST,
-        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
-            CHECK_FORMAT(cmd_tokens,4);
-            uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[2],nullptr,0));
-            uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3],nullptr,0));
-            on_subgroup_type(cmd_tokens[1],multi_list_keys,capi,subgroup_index,shard_index);
-            return true;
-        }
-    },
-    {
         "op_get_signature",
         "Get an object's signature from the object pool (by version).",
         "op_get_signature <key> <version> [ stable(default: false) ]\n"
@@ -1203,6 +1190,37 @@ std::vector<command_entry_t> commands =
                 auto reply = reply_future.second.get();
                 std::cout << "node(" << reply_future.first << ") replied with value: (" << std::get<0>(reply) << "," << std::get<1>(reply) << ")" << std::endl;
             }
+            return true;
+        }
+    },
+    {
+        "subscribe_signature_notifications",
+        "Subscribe to signature-completed notifications for an object",
+        "subscribe_signature_notifications <key> <subgroup_index> <shard_index>\n"
+            "Note that this can only target the SCSS (signatures) subgroup type",
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+            if(cmd_tokens.size() < 4) {
+                print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
+                return false;
+            }
+            uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[2], nullptr, 0));
+            uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3], nullptr, 0));
+            auto query_result = capi.subscribe_signature_notifications<SignatureCascadeStoreWithStringKey>(cmd_tokens[1], subgroup_index, shard_index);
+            //QueryResult<void> can't do much except wait to confirm the message was sent
+            query_result.get();
+            return true;
+        }
+    },
+    {
+        "multi_list_keys",
+        "list the object keys in a shard using atomic broadcast for the latest version.",
+        "multi_list_keys <type> <subgroup_index> <shard_index> \n"
+            "type := " SUBGROUP_TYPE_LIST,
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+            CHECK_FORMAT(cmd_tokens,4);
+            uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[2],nullptr,0));
+            uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3],nullptr,0));
+            on_subgroup_type(cmd_tokens[1],multi_list_keys,capi,subgroup_index,shard_index);
             return true;
         }
     },

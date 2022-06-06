@@ -119,6 +119,38 @@ struct ObjectSignature {
     std::vector<uint8_t> signature;
 };
 
+// A function that receives the body of a signature notification message as its arguments
+// Message format: data version, hash version, signature data, previous signed version
+using signature_callback_t = std::function<void(persistent::version_t, persistent::version_t, const std::vector<uint8_t>&, persistent::version_t)>;
+/**
+ * A functor that will be registered as the signature notification handler
+ * for the "signatures/" object pool, and helps notify the put_with_signature()
+ * command when a particular version has been signed
+ */
+class SignatureNotificationHandler {
+private:
+    std::map<persistent::version_t, signature_callback_t> callbacks_by_version;
+public:
+    void operator()(const Blob& message_body) {
+        // Peek at the data version, which is the first element in the message
+        persistent::version_t data_object_version;
+        std::memcpy(&data_object_version, message_body.bytes, sizeof(data_object_version));
+        // If there is a callback registered for this version, call it, then delete it
+        auto find_callback = callbacks_by_version.find(data_object_version);
+        if(find_callback != callbacks_by_version.end()) {
+            mutils::deserialize_and_run(nullptr, message_body.bytes, find_callback->second);
+            callbacks_by_version.erase(find_callback);
+        }
+    }
+    void register_callback(persistent::version_t desired_data_version, const signature_callback_t& callback) {
+        callbacks_by_version.emplace(desired_data_version, callback);
+    }
+    SignatureNotificationHandler() = default;
+    //Copying this object would mean the main thread loses the ability to register callbacks
+    //There needs to be only one copy of it shared between the main thread and the Cascade notification handler
+    SignatureNotificationHandler(const SignatureNotificationHandler&) = delete;
+};
+
 const std::string delimiter = "/";
 //State variables shared among all the commands. Maybe it would be better to use an object here.
 std::string storage_pool_name;
@@ -127,8 +159,10 @@ std::string signature_pool_name;
 std::map<std::string, std::map<persistent::version_t, std::shared_ptr<ObjectSignature>>> cached_signatures_by_key;
 // A map containing the same signature records, indexed by signature version instead of object
 std::map<persistent::version_t, std::shared_ptr<ObjectSignature>> cached_signatures_by_version;
-//Verifier for the service's public key. Initialized after startup by a command.
+// Verifier for the service's public key. Initialized after startup by a command.
 std::unique_ptr<openssl::Verifier> service_verifier;
+// The notification handler object that will be registered with the ServiceClient
+SignatureNotificationHandler signature_notification_handler;
 
 /**
  * Command that configures both the client and the servers with the two object pools
@@ -160,6 +194,9 @@ bool setup_object_pools(ServiceClientAPI& client, const std::vector<std::string>
     if(!signatures_opm.is_valid()) {
         create_object_pool<SignatureCascadeStoreWithStringKey>(client, signature_pool_name, 0);
     }
+    // Once the object pool exists, register the signature notification handler for it
+    // The functor must be wrapped in a lambda that uses it by reference, otherwise std::function makes a copy of it
+    client.register_signature_notification_handler([&](const Blob& message){ signature_notification_handler(message); }, signature_pool_name);
     return true;
 }
 
@@ -272,32 +309,30 @@ bool put_with_signature(ServiceClientAPI& client, const std::vector<std::string>
     obj.version = signature_record->object_version;
     obj.previous_version_by_key = signature_record->object_previous_version;
     obj.timestamp_us = std::get<1>(put_reply);
-    //Step 2: Wait a little bit for the signature to be finished, then retreive it from the signature group
-    //TODO: replace this with a notification sent from SignatureCascadeStore to the client
-    std::this_thread::sleep_for(std::chrono::seconds(2));
+    //Step 2: Wait for a signature notification from the signatures object pool that matches this data object's version
+    //Register a notification handler callback
+    std::mutex callback_waiting_mutex;
+    bool callback_fired = false;
+    std::condition_variable notification_received;
+    signature_notification_handler.register_callback(
+            signature_record->object_version,
+            [&](persistent::version_t data_object_version, persistent::version_t hash_object_version, const std::vector<uint8_t>& signature, persistent::version_t prev_signed_version) {
+                assert(data_object_version == signature_record->object_version);
+                signature_record->signature_version = hash_object_version;
+                signature_record->signature = signature;
+                signature_record->signature_previous_version = prev_signed_version;
+                callback_fired = true;
+                notification_received.notify_all();
+            });
+    //Request a notification for this particular version. Todo: Subscribe to notifications for a key once it's put for the first time
     std::string signature_key = signature_pool_name + delimiter + key_suffix;
-    //I'd like to do something like this, but actually, that lambda will be called on every notification,
-    //so it needs to be a more generic function that figures out which version we were notified in response to
-    //and then calls back the main thread if it's the one this put() is interested in.
-/*
-    std::unique_ptr<std::vector<uint8_t>> signature_response;
-    persistent::version_t prev_signed_ver_response;
-    client.register_notification([&](const derecho::NotificationMessage& message){
-        if(message.message_type == SignatureCascadeStoreWithStringKey::SIGNATURE_FINISHED_MESSAGE) {
-            //Message format: Serialized vector<uint8_t>, then serialized version_t
-            signature_response = mutils::from_bytes<std::vector<uint8_t>>(nullptr, reinterpret_cast<const char*>(message.body));
-            std::size_t offset = mutils::bytes_size(*signature_response);
-            memcpy(&prev_signed_ver_response, message.body + offset, sizeof(prev_signed_ver_response));
-        }
-    }, signature_key);
-*/
-    //Specify the desired version of the data object; SignatureCascadeStore will look up the corresponding hash object
-    auto signature_result = client.get_signature(signature_key, signature_record->object_version);
-    std::tuple<std::vector<uint8_t>, persistent::version_t> signature_reply = signature_result.get().begin()->second.get();
-    std::cout << "Node " << signature_result.get().begin()->first << " replied with signature=" << std::hex << std::get<0>(signature_reply)
-              << " and previous_signed_version=" << std::get<1>(signature_reply) << std::dec << std::endl;
-    signature_record->signature = std::get<0>(signature_reply);
-    signature_record->signature_previous_version = std::get<1>(signature_reply);
+    client.request_signature_notification(signature_key, signature_record->object_version);
+    // Block the main thread until the notification arrives, since there is more work to do once we get the signature
+    // It would be nice to do this asynchronously, and have a continuation that executes when the notification arrives
+    {
+        std::unique_lock<std::mutex> lock(callback_waiting_mutex);
+        notification_received.wait(lock, [&]() { return callback_fired; });
+    }
 
     //Step 3: Get the hash object that corresponds to the data object, to find out what timestamp and previous_version_by_key it got
     //This is necessary because the signature includes the entire ObjectWithStringKey, not just the hash blob
@@ -307,7 +342,7 @@ bool put_with_signature(ServiceClientAPI& client, const std::vector<std::string>
     persistent::version_t signature_version = hash_object.get_version();
     std::cout << "Got the hash object for data version " << std::hex << signature_record->object_version << std::dec << " from node "
               << hash_get_result.get().begin()->first << " and its version is " << std::hex << signature_version << std::dec << std::endl;
-    signature_record->signature_version = signature_version;
+    assert(signature_record->signature_version == signature_version);
     //Step 4: Retrieve the same object we just put, to find out what its previous_version is
     //This is wasteful, but it's the only way to fill in all the headers of the object so we can hash it locally
     auto get_result = client.get(obj.key, obj.version);
