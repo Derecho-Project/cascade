@@ -26,6 +26,7 @@
 #include <typeinfo>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 
 /**
  * The cascade service templates
@@ -48,7 +49,7 @@ namespace cascade {
     /* Cascade Metadata Service type*/
 	template<typename...CascadeTypes>
 	using CascadeMetadataService = PersistentCascadeStore<
-    	std::remove_cv_t<std::remove_reference_t<decltype(((ObjectPoolMetadata<CascadeTypes...>*)nullptr)->get_key_ref())>>,
+    	std::remove_cv_t<std::remove_reference_t<decltype(std::declval<ObjectPoolMetadata<CascadeTypes...>>().get_key_ref())>>,
         ObjectPoolMetadata<CascadeTypes...>,
         &ObjectPoolMetadata<CascadeTypes...>::IK,
         &ObjectPoolMetadata<CascadeTypes...>::IV,
@@ -573,7 +574,6 @@ namespace cascade {
         std::tuple<ShardMemberSelectionPolicy,node_id_t> get_member_selection_policy(
                 uint32_t subgroup_index, uint32_t shard_index) const;
 
-    public:
         /**
          * "put" writes an object to a given subgroup/shard.
          *
