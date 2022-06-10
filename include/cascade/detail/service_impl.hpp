@@ -1690,7 +1690,7 @@ derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::subscribe_signa
 
     const auto [subgroup_type_index, subgroup_index, shard_index] = this->template key_to_shard(key);
 
-    return this->template type_recursive_subscribe_signature_notifications<CascadeTypes...>(subgroup_type_index, key, subgroup_index, shard_index);
+    return this->template type_recursive_subscribe_signature_notifications<KeyType, CascadeTypes...>(subgroup_type_index, key, subgroup_index, shard_index);
 }
 
 template <typename... CascadeTypes>
@@ -1740,7 +1740,7 @@ derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::request_signatu
 
     const auto [subgroup_type_index, subgroup_index, shard_index] = this->template key_to_shard(key);
 
-    return this->template type_recursive_request_signature_notification<CascadeTypes...>(subgroup_type_index, key, version, subgroup_index, shard_index);
+    return this->template type_recursive_request_signature_notification<KeyType, CascadeTypes...>(subgroup_type_index, key, version, subgroup_index, shard_index);
 }
 
 template <typename... CascadeTypes>
