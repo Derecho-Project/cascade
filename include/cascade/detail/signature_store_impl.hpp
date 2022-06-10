@@ -396,6 +396,7 @@ bool SignatureCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put(const VT& v
     // Store the mapping
     {
         std::lock_guard<std::mutex> map_lock(version_map_mutex);
+        dbg_default_debug("internal_ordered_put: Storing mapping from data ver=0x{:x} -> hash ver=0x{:x}", data_object_version, std::get<0>(hash_object_version_and_timestamp));
         data_to_hash_version->emplace(data_object_version, std::get<0>(hash_object_version_and_timestamp));
     }
     if(this->persistent_core->ordered_put(value, this->persistent_core.getLatestVersion()) == false) {
@@ -408,6 +409,7 @@ bool SignatureCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put(const VT& v
     // The key must be copied into the lambdas, since value.get_key_ref() won't work once this method ends
     KT copy_of_key = value.get_key_ref();
     for(const node_id_t client_id : subscribed_clients[value.get_key_ref()]) {
+        dbg_default_debug("internal_ordered_put: Registering notify action for client {}, version 0x{:x}", client_id, std::get<0>(hash_object_version_and_timestamp));
         cascade_context_ptr->get_persistence_observer().register_persistence_action(
                 my_subgroup_id, std::get<0>(hash_object_version_and_timestamp), true,
                 [=]() {
@@ -415,6 +417,7 @@ bool SignatureCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put(const VT& v
                 });
     }
     for(const node_id_t client_id : subscribed_clients[*IK]) {
+        dbg_default_debug("internal_ordered_put: Registering notify action for client {}, version 0x{:x}", client_id, std::get<0>(hash_object_version_and_timestamp));
         cascade_context_ptr->get_persistence_observer().register_persistence_action(
                 my_subgroup_id, std::get<0>(hash_object_version_and_timestamp), true,
                 [=]() {
@@ -650,10 +653,11 @@ std::tuple<std::vector<uint8_t>, persistent::version_t> SignatureCascadeStore<KT
             search_ver--;
         }
     }
-    debug_leave_func();
     if(signature_found) {
+        debug_leave_func_with_value("signature found with hash ver=0x{:x} and previous_signed_version=0x{:x}", hash_version, previous_signed_version);
         return {signature, previous_signed_version};
     } else {
+        debug_leave_func_with_value("signature not found for hash ver=0x{:x}", hash_version);
         return {std::vector<uint8_t>{}, persistent::INVALID_VERSION};
     }
 }
@@ -714,6 +718,7 @@ template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void SignatureCascadeStore<KT, VT, IK, IV, ST>::send_client_notification(
         node_id_t external_client_id, const KT& key, persistent::version_t hash_object_version,
         persistent::version_t data_object_version) const {
+    debug_enter_func_with_args("key={}, hash_object_version={}, data_object_version={}", key, hash_object_version, data_object_version);
     // Retrieve the signature, which must exist by now since persistence is finished
     persistent::version_t previous_signed_version = persistent::INVALID_VERSION;
     std::vector<uint8_t> signature(persistent_core.getSignatureSize());
@@ -740,10 +745,12 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::send_client_notification(
                                         mutils::bytes_size(cascade_message));
     mutils::to_bytes(cascade_message, derecho_message.body);
     client_caller.template p2p_send<derecho::rpc::hash_cstr("notify")>(external_client_id, derecho_message);
+    debug_leave_func();
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void SignatureCascadeStore<KT, VT, IK, IV, ST>::request_notification(node_id_t external_client_id, persistent::version_t ver) const {
+    debug_enter_func_with_args("external_client_id={}, ver={}", external_client_id, ver);
     // Translate ver from a data-object version to its corresponding signature-object version
     // This function will only be called after the data object has been put in the PersistentStore
     // (which will forward it to the SignatureStore), so the mapping should exist by now
@@ -766,22 +773,27 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::request_notification(node_id_t e
     KT key = persistent_core.template getDelta<VT>(hash_version, false, [](const VT& value) {
         return value.get_key_ref();
     });
-
+    dbg_default_debug("request_notification: Registering notify action for key {}, version {}", key, hash_version);
     derecho::Replicated<SignatureCascadeStore>& subgroup_handle = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index);
     subgroup_id_t my_subgroup_id = subgroup_handle.get_subgroup_id();
     cascade_context_ptr->get_persistence_observer().register_persistence_action(
             my_subgroup_id, hash_version, true,
             [=]() { send_client_notification(external_client_id, key, hash_version, ver); });
+    debug_leave_func();
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void SignatureCascadeStore<KT, VT, IK, IV, ST>::subscribe_to_notifications(node_id_t external_client_id, const KT& key) const {
+    debug_enter_func_with_args("external_client_id={}, key={}", external_client_id, key);
     subscribed_clients[key].emplace_back(external_client_id);
+    debug_leave_func();
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void SignatureCascadeStore<KT, VT, IK, IV, ST>::subscribe_to_all_notifications(node_id_t external_client_id) const {
+    debug_enter_func_with_args("external_client_id={}", external_client_id);
     subscribed_clients[*IK].emplace_back(external_client_id);
+    debug_leave_func();
 }
 
 }  // namespace cascade
