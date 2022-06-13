@@ -11,8 +11,16 @@
 namespace derecho {
 namespace cascade {
 
-PersistenceObserver::PersistenceObserver() {
+PersistenceObserver::PersistenceObserver()
+        : thread_shutdown(false) {
     callback_worker = std::thread(&PersistenceObserver::process_callback_actions, this);
+}
+
+PersistenceObserver::~PersistenceObserver() {
+    thread_shutdown = true;
+    if(callback_worker.joinable()) {
+        callback_worker.join();
+    }
 }
 
 void PersistenceObserver::derecho_local_persistence_callback(subgroup_id_t subgroup_id, persistent::version_t version) {
@@ -28,6 +36,7 @@ void PersistenceObserver::derecho_global_persistence_callback(subgroup_id_t subg
 }
 
 void PersistenceObserver::process_callback_actions() {
+    pthread_setname_np(pthread_self(), "pers_observer");
     PersistenceEvent current_event;
     while(!thread_shutdown) {
         bool has_current_event = false;
@@ -49,6 +58,7 @@ void PersistenceObserver::process_callback_actions() {
             past_due_actions.clear();
         }
         if(has_current_event) {
+            dbg_default_debug("PersistenceObserver: Handling a persistence event for version {}", current_event.version);
             // Take the list of actions out of the map so we can call them without holding the map lock
             std::list<std::function<void()>> action_list;
             {
@@ -60,11 +70,13 @@ void PersistenceObserver::process_callback_actions() {
                 }
                 // else action_list remains an empty list
             }
+            dbg_default_debug("PersistenceObserver: Firing {} actions for the persistence event", action_list.size());
             for(const auto& action_function : action_list) {
                 action_function();
             }
         }
         if(!past_due_actions_copy.empty()) {
+            dbg_default_debug("PersistenceObserver: Firing {} past-due actions", past_due_actions_copy.size());
             for(const auto& action_function : past_due_actions_copy) {
                 action_function();
             }
@@ -84,8 +96,10 @@ void PersistenceObserver::register_persistence_action(subgroup_id_t subgroup_id,
     {
         std::unique_lock<std::mutex> lock(registered_actions_mutex);
         if(already_happened) {
+            dbg_default_debug("PersistenceObserver: Registered an action for subgroup {}, version {} but it has already finished persisting", subgroup_id, version);
             past_due_actions.emplace_back(action);
         } else {
+            dbg_default_debug("PersistenceObserver: Registered an action for subgroup {}, version {}, is_global={}", subgroup_id, version, is_global);
             // operator[] is intentional: Create a new empty list if this key is not in the map
             registered_actions[PersistenceEvent{subgroup_id, version, is_global}].emplace_back(action);
         }

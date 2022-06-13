@@ -68,6 +68,7 @@ private:
 
 public:
     PersistenceObserver();
+    ~PersistenceObserver();
     /**
      * A callback function to register as Derecho's local persistence callback
      * in the Derecho Group constructor.

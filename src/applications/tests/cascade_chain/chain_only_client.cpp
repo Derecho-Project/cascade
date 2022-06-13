@@ -300,6 +300,7 @@ bool put_with_signature(ServiceClientAPI& client, const std::vector<std::string>
     // This must be done before beginning the put to avoid a race condition.
     if(subscribed_notification_keys.find(signature_key) == subscribed_notification_keys.end()) {
         client.subscribe_signature_notifications(signature_key);
+        subscribed_notification_keys.emplace(signature_key);
     }
     // Step 2: Put the object into the storage pool
     derecho::rpc::QueryResults<std::tuple<persistent::version_t, uint64_t>> put_result = client.put(obj);
