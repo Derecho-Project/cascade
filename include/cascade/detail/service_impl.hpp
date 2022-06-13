@@ -1960,7 +1960,9 @@ bool ServiceClient<CascadeTypes...>::register_notification_handler(
         const cascade_notification_handler_t& handler,
         const std::string& object_pool_pathname) {
     auto opm = find_object_pool(object_pool_pathname);
-
+    if (!opm.is_valid() || opm.is_null() || opm.deleted) {
+        throw derecho::derecho_exception("Failed to find object_pool:" + object_pool_pathname);
+    }
     return this->template type_recursive_register_notification_handler<CascadeTypes...>(
         opm.subgroup_type_index,handler,object_pool_pathname,opm.subgroup_index);
 }
@@ -1970,7 +1972,9 @@ bool ServiceClient<CascadeTypes...>::register_signature_notification_handler(
         const cascade_notification_handler_t& handler,
         const std::string& object_pool_pathname) {
     auto opm = find_object_pool(object_pool_pathname);
-
+    if (!opm.is_valid() || opm.is_null() || opm.deleted) {
+        throw derecho::derecho_exception("Failed to find object_pool:" + object_pool_pathname);
+    }
     return this->template type_recursive_register_notification_handler<CascadeTypes...>(
         opm.subgroup_type_index,handler,object_pool_pathname,opm.subgroup_index,true);
 }
