@@ -109,6 +109,9 @@ void op_remove(ServiceClientAPI& capi, const std::string& key) {
 
 /* -------- CascadeChain-specific commands -------- */
 
+/** The delimiter character used between sections of an object-pool path */
+const std::string op_delimiter = "/";
+
 // Data the client needs to store for each signature on an object it submitted
 struct ObjectSignature {
     std::string key_suffix;
@@ -120,7 +123,6 @@ struct ObjectSignature {
     ObjectWithStringKey hash_object;
     std::vector<uint8_t> signature;
 };
-
 // A function that receives the body of a signature notification message as its arguments
 // Message format: data version, hash version, signature data, previous signed version
 using signature_callback_t = std::function<void(persistent::version_t, persistent::version_t, const std::vector<uint8_t>&, persistent::version_t)>;
@@ -154,32 +156,142 @@ public:
     SignatureNotificationHandler(const SignatureNotificationHandler&) = delete;
 };
 
-const std::string delimiter = "/";
-// State variables shared among all the commands. Maybe it would be better to use an object here.
-std::string storage_pool_name;
-std::string signature_pool_name;
-// For each key (suffix), contains a map from object version -> signature for that version
-std::map<std::string, std::map<persistent::version_t, std::shared_ptr<ObjectSignature>>> cached_signatures_by_key;
-// A map containing the same signature records, indexed by signature version instead of object
-std::map<persistent::version_t, std::shared_ptr<ObjectSignature>> cached_signatures_by_version;
-// Verifier for the service's public key. Initialized after startup by a command.
-std::unique_ptr<openssl::Verifier> service_verifier;
-// Keys for which the client has subscribed to signature-finished notifications
-std::set<std::string> subscribed_notification_keys;
-// The notification handler object that will be registered with the ServiceClient
-SignatureNotificationHandler signature_notification_handler;
-
 /**
- * Command that configures both the client and the servers with the two object pools
- * needed to run the CascadeChain service. It must be run before running any other client
- * commands, to set the values of storage_pool_name and signature_pool_name. It also queries
- * the servers to see if the object pools exist and, if not, it creates them. Right now it
- * assumes there will only be a single PCSS subgroup and a single SCSS subgroup, so it
- * creates both object pools on subgroup index 0.
+ * This object contains all the state a CascadeChain client needs to preserve
+ * between commands, such as the cache of signatures it has received from servers.
+ * It also stores the ServiceClient object that will be used to send those commands,
+ * similar to the CascadeContext on the server side.
  *
- * Expected arguments: [storage-pool-name] [signature-pool-name]
+ * @tparam CascadeTypes The Cascade Type template parameters for the ServiceClient object
  */
-bool setup_object_pools(ServiceClientAPI& client, const std::vector<std::string>& cmd_tokens) {
+template <typename... CascadeTypes>
+class ChainClientContext {
+private:
+    /** The name of the object pool that has been configured to store CascadeChain objects */
+    std::string storage_pool_name;
+    /** The name of the object pool that has been configured to store signed hashes of the objects stored in the storage pool */
+    std::string signature_pool_name;
+    /** For each key (suffix), contains a map from object version -> signature for that version */
+    std::map<std::string, std::map<persistent::version_t, std::shared_ptr<ObjectSignature>>> cached_signatures_by_key;
+    /** A map containing the same signature records, indexed by signature version instead of object */
+    std::map<persistent::version_t, std::shared_ptr<ObjectSignature>> cached_signatures_by_version;
+    /** Verifier for the service's public key. Initialized after startup by a command. */
+    std::unique_ptr<openssl::Verifier> service_verifier;
+    /** Keys for which the client has subscribed to signature-finished notifications */
+    std::set<std::string> subscribed_notification_keys;
+    /** The notification handler object that will be registered with the ServiceClient */
+    SignatureNotificationHandler signature_notification_handler;
+    /** The ServiceClient object this CascadeChain client will use to issue commands to the service */
+    std::unique_ptr<ServiceClient<CascadeTypes...>> service_client;
+    /**
+     * Helper function that verifies a chained signature on a hash of an object.
+     * The hash must itself be stored in an ObjectWithStringKey, whose headers are
+     * populated by the SignatureCascadeStore, in order to match signatures generated
+     * by the SignatureCascadeStore.
+     */
+    bool verify_object_signature(const ObjectWithStringKey& hash, const std::vector<uint8_t>& signature, const std::vector<uint8_t>& previous_signature);
+
+public:
+    /**
+     * Constructs a ChainClientContext that wraps a ServiceClient object. This will
+     * take ownership of the unique_ptr to the ServiceClient.
+     *
+     * @param client The ServiceClient instance that this ChainClientContext should own.
+     */
+    ChainClientContext(std::unique_ptr<ServiceClient<CascadeTypes...>> client);
+    /**
+     * Command that configures both the client and the servers with the two object pools
+     * needed to run the CascadeChain service. It must be run before running any other client
+     * commands, to set the values of storage_pool_name and signature_pool_name. It also queries
+     * the servers to see if the object pools exist and, if not, it creates them. Right now it
+     * assumes there will only be a single PCSS subgroup and a single SCSS subgroup, so it
+     * creates both object pools on subgroup index 0.
+     *
+     * Expected arguments: [storage-pool-name] [signature-pool-name]
+     */
+    bool setup_object_pools(const std::vector<std::string>& cmd_tokens);
+    /**
+     * Command that loads the public key for the CascadeChain service from a file into
+     * the client's memory.
+     *
+     * Expected arguments: <filename>
+     *  filename: A path (relative or absolute) to a PEM file containing the service's public key
+     */
+    bool load_service_key(const std::vector<std::string>& cmd_tokens);
+    /**
+     * Command that puts a string object into CascadeChain and retrieves its corresponding signature.
+     *
+     * Expected arguments: <key-suffix> <value-string>
+     *  key-suffix: The key identifying the object, without any object-pool prefix.
+     *              The object-pool prefix will be added automatically based on the configured
+     *              storage and signatures pools.
+     *  value-string: A string that will be used as the "value" for the object (converted to bytes).
+     */
+    bool put_with_signature(const std::vector<std::string>& cmd_tokens);
+    /**
+     * Command to manually add a signature (and hash) to the client's cache, for
+     * recovering when the put_with_signature command fails or restarting a client
+     * with no in-memory state.
+     *
+     * Expected arguments: <key-suffix> <object-version>
+     */
+    bool cache_signature(const std::vector<std::string>& cmd_tokens);
+    /**
+     * Command that verifies the signature received from the primary site on a particular key,
+     * assuming the client's cache contains a signature for both the requested version and the
+     * previous version of that key.
+     *
+     * Expected arguments: <key-suffix> [version]
+     *  key-suffix: The key identifying the object, without any object-pool prefix.
+     *  version: Optionally, the version to verify. Defaults to the latest cached version.
+     */
+    bool verify_cached_signature(const std::vector<std::string>& cmd_tokens);
+    /**
+     * Command that retrieves the signature for a key at a particular version and verifies
+     * it using the service's public key and the signature for the previous version.
+     *
+     * Expected arguments: <key-suffix> [object-version]
+     *  key-suffix: The key identifying an object, without any object-pool prefix
+     *  signature-version: The version of the object to get a signature for.
+     *                     Defaults to the current version if omitted.
+     */
+    bool get_and_verify_signature(const std::vector<std::string>& cmd_tokens);
+    /**
+     * Command that gets an object from the storage pool and its corresponding signature
+     * from the signature pool, then verifies the signature on the hash of the object.
+     *
+     * Expected arguments: <key-suffix> [object-version]
+     *  key-suffix: The key identifying an object, without any object-pool prefix
+     *  signature-version: The version of the object to get a signature for.
+     *                     Defaults to the current version if omitted.
+     */
+    bool get_and_verify_object(const std::vector<std::string>& cmd_tokens);
+
+    /**
+     * Gets a reference to the ServiceClient object contained within this
+     * ClientContext. This allows the caller to call client commands directly
+     * instead of using the stateful CascadeChain-related commands provided
+     * by ChainClientContext.
+     *
+     * @return A reference to a ServiceClient<CascadeTypes...>
+     */
+    ServiceClient<CascadeTypes...>& get_service_client();
+};
+using DefaultChainClientContext = ChainClientContext<VolatileCascadeStoreWithStringKey,
+                                                     PersistentCascadeStoreWithStringKey,
+                                                     SignatureCascadeStoreWithStringKey,
+                                                     TriggerCascadeNoStoreWithStringKey>;
+template <typename... CascadeTypes>
+ChainClientContext<CascadeTypes...>::ChainClientContext(std::unique_ptr<ServiceClient<CascadeTypes...>> client)
+        : service_client(std::move(client)) {}
+
+template <typename... CascadeTypes>
+ServiceClient<CascadeTypes...>& ChainClientContext<CascadeTypes...>::get_service_client() {
+    return *service_client;
+}
+
+template <typename... CascadeTypes>
+bool ChainClientContext<CascadeTypes...>::setup_object_pools(const std::vector<std::string>& cmd_tokens) {
     if(cmd_tokens.size() >= 2) {
         storage_pool_name = cmd_tokens[1];
     } else {
@@ -190,29 +302,24 @@ bool setup_object_pools(ServiceClientAPI& client, const std::vector<std::string>
     } else {
         signature_pool_name = "/signatures";
     }
-    auto storage_opm = client.find_object_pool(storage_pool_name);
+    auto storage_opm = service_client->find_object_pool(storage_pool_name);
     // find_object_pool returns ObjectPoolMetadata::IV if the object pool cannot be found
     if(!storage_opm.is_valid()) {
-        create_object_pool<PersistentCascadeStoreWithStringKey>(client, storage_pool_name, 0);
+        create_object_pool<PersistentCascadeStoreWithStringKey>(*service_client, storage_pool_name, 0);
     }
-    auto signatures_opm = client.find_object_pool(signature_pool_name);
+    auto signatures_opm = service_client->find_object_pool(signature_pool_name);
     if(!signatures_opm.is_valid()) {
-        create_object_pool<SignatureCascadeStoreWithStringKey>(client, signature_pool_name, 0);
+        create_object_pool<SignatureCascadeStoreWithStringKey>(*service_client, signature_pool_name, 0);
     }
     // Once the object pool exists, register the signature notification handler for it
     // The functor must be wrapped in a lambda that uses it by reference, otherwise std::function makes a copy of it
-    client.register_signature_notification_handler([&](const Blob& message) { signature_notification_handler(message); }, signature_pool_name);
+    service_client->register_signature_notification_handler([&](const Blob& message) { signature_notification_handler(message); },
+                                                            signature_pool_name);
     return true;
 }
 
-/**
- * Command that loads the public key for the CascadeChain service from a file into
- * the client's memory.
- *
- * Expected arguments: <filename>
- *  filename: A path (relative or absolute) to a PEM file containing the service's public key
- */
-bool load_service_key(ServiceClientAPI& client, const std::vector<std::string>& cmd_tokens) {
+template <typename... CascadeTypes>
+bool ChainClientContext<CascadeTypes...>::load_service_key(const std::vector<std::string>& cmd_tokens) {
     if(cmd_tokens.size() < 2) {
         print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
         return false;
@@ -241,13 +348,10 @@ std::vector<uint8_t> compute_hash(const ObjectWithStringKey& data_obj) {
     return hash;
 }
 
-/**
- * Helper function that verifies a chained signature on a hash of an object.
- * The hash must itself be stored in an ObjectWithStringKey, whose headers are
- * populated by the SignatureCascadeStore, in order to match signatures generated
- * by the SignatureCascadeStore.
- */
-bool verify_object_signature(const ObjectWithStringKey& hash, const std::vector<uint8_t>& signature, const std::vector<uint8_t>& previous_signature) {
+template <typename... CascadeTypes>
+bool ChainClientContext<CascadeTypes...>::verify_object_signature(const ObjectWithStringKey& hash,
+                                                                  const std::vector<uint8_t>& signature,
+                                                                  const std::vector<uint8_t>& previous_signature) {
     if(!service_verifier) {
         print_red("Service's public key has not been loaded. Cannot verify.");
         return false;
@@ -276,16 +380,8 @@ bool verify_object_signature(const ObjectWithStringKey& hash, const std::vector<
     return service_verifier->finalize(signature);
 }
 
-/**
- * Command that puts a string object into CascadeChain and retrieves its corresponding signature.
- *
- * Expected arguments: <key-suffix> <value-string>
- *  key-suffix: The key identifying the object, without any object-pool prefix.
- *              The object-pool prefix will be added automatically based on the configured
- *              storage and signatures pools.
- *  value-string: A string that will be used as the "value" for the object (converted to bytes).
- */
-bool put_with_signature(ServiceClientAPI& client, const std::vector<std::string>& cmd_tokens) {
+template <typename... CascadeTypes>
+bool ChainClientContext<CascadeTypes...>::put_with_signature(const std::vector<std::string>& cmd_tokens) {
     if(cmd_tokens.size() < 3) {
         print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
         return false;
@@ -293,17 +389,17 @@ bool put_with_signature(ServiceClientAPI& client, const std::vector<std::string>
     std::string key_suffix = cmd_tokens[1];
     // Create the object
     ObjectWithStringKey obj;
-    obj.key = storage_pool_name + delimiter + key_suffix;
+    obj.key = storage_pool_name + op_delimiter + key_suffix;
     obj.blob = Blob(reinterpret_cast<const uint8_t*>(cmd_tokens[2].c_str()), cmd_tokens[2].length());
-    std::string signature_key = signature_pool_name + delimiter + key_suffix;
+    std::string signature_key = signature_pool_name + op_delimiter + key_suffix;
     // Step 1: Subscribe to signature notifications for the object's key, if not subscribed already
     // This must be done before beginning the put to avoid a race condition.
     if(subscribed_notification_keys.find(signature_key) == subscribed_notification_keys.end()) {
-        client.subscribe_signature_notifications(signature_key);
+        service_client->subscribe_signature_notifications(signature_key);
         subscribed_notification_keys.emplace(signature_key);
     }
     // Step 2: Put the object into the storage pool
-    derecho::rpc::QueryResults<std::tuple<persistent::version_t, uint64_t>> put_result = client.put(obj);
+    derecho::rpc::QueryResults<std::tuple<persistent::version_t, uint64_t>> put_result = service_client->put(obj);
     auto put_reply = put_result.get().begin()->second.get();
     std::cout << "Node " << put_result.get().begin()->first << " finished putting the object, replied with version:"
               << std::hex << std::get<0>(put_reply) << std::dec << ", ts_us:" << std::get<1>(put_reply) << std::endl;
@@ -349,7 +445,7 @@ bool put_with_signature(ServiceClientAPI& client, const std::vector<std::string>
     // Step 4: Get the hash object that corresponds to the data object, to find out what timestamp and previous_version_by_key it got
     // This is necessary because the signature includes the entire ObjectWithStringKey, not just the hash blob
     // If it was possible to fill in all the headers (including timestamp, etc), we could construct this object locally
-    auto hash_get_result = client.get(signature_key, signature_record->object_version);
+    auto hash_get_result = service_client->get(signature_key, signature_record->object_version);
     ObjectWithStringKey hash_object = hash_get_result.get().begin()->second.get();
     persistent::version_t signature_version = hash_object.get_version();
     std::cout << "Got the hash object for data version " << std::hex << signature_record->object_version << std::dec << " from node "
@@ -357,7 +453,7 @@ bool put_with_signature(ServiceClientAPI& client, const std::vector<std::string>
     assert(signature_record->signature_version == signature_version);
     // Step 4: Retrieve the same object we just put, to find out what its previous_version is
     // This is wasteful, but it's the only way to fill in all the headers of the object so we can hash it locally
-    auto get_result = client.get(obj.key, obj.version);
+    auto get_result = service_client->get(obj.key, obj.version);
     ObjectWithStringKey stored_object = get_result.get().begin()->second.get();
     obj.previous_version = stored_object.previous_version;
     std::cout << "Got the object back from node " << get_result.get().begin()->first << " and its previous_version is "
@@ -383,7 +479,7 @@ bool put_with_signature(ServiceClientAPI& client, const std::vector<std::string>
         if(signature_find_result == cached_signatures_by_version.end()) {
             // This is why the service needs to send a message back to the client containing the signature for the previous log entry once a put is complete
             std::cout << "Previous signature on version " << std::hex << signature_record->signature_previous_version << std::dec << " is not in the cache, retrieving it" << std::endl;
-            auto prev_signature_result = client.get_signature_by_version(signature_key, signature_record->signature_previous_version);
+            auto prev_signature_result = service_client->get_signature_by_version(signature_key, signature_record->signature_previous_version);
             prev_signature = std::get<0>(prev_signature_result.get().begin()->second.get());
             // It would be nice if we could put this signature in the cache, but that would require constructing a whole ObjectSignature record
         } else {
@@ -404,14 +500,8 @@ bool put_with_signature(ServiceClientAPI& client, const std::vector<std::string>
     return true;
 }
 
-/**
- * Command to manually add a signature (and hash) to the client's cache, for
- * recovering when the put_with_signature command fails or restarting a client
- * with no in-memory state.
- *
- * Expected arguments: <key-suffix> <object-version>
- */
-bool cache_signature(ServiceClientAPI& client, const std::vector<std::string>& cmd_tokens) {
+template <typename... CascadeTypes>
+bool ChainClientContext<CascadeTypes...>::cache_signature(const std::vector<std::string>& cmd_tokens) {
     if(cmd_tokens.size() < 3) {
         print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
         return false;
@@ -425,13 +515,13 @@ bool cache_signature(ServiceClientAPI& client, const std::vector<std::string>& c
         // But how do we initialize object_previous_version?
     }
     // Get the hash - we can't compute the hash locally without knowing the object data
-    auto hash_get_result = client.get(signature_pool_name + delimiter + key_suffix, object_version);
+    auto hash_get_result = service_client->get(signature_pool_name + op_delimiter + key_suffix, object_version);
     ObjectWithStringKey hash_object = hash_get_result.get().begin()->second.get();
     std::cout << "Got a hash object for data version " << std::hex << object_version << "; its version is " << hash_object.get_version() << std::dec << std::endl;
     cached_signatures_by_key[key_suffix][object_version]->signature_version = hash_object.get_version();
     cached_signatures_by_key[key_suffix][object_version]->hash_object = std::move(hash_object);
     // Get the signature
-    auto signature_get_result = client.get_signature(signature_pool_name + delimiter + key_suffix, object_version);
+    auto signature_get_result = service_client->get_signature(signature_pool_name + op_delimiter + key_suffix, object_version);
     std::tuple<std::vector<uint8_t>, persistent::version_t> signature_reply = signature_get_result.get().begin()->second.get();
     std::cout << "Node " << signature_get_result.get().begin()->first << " replied with signature=" << std::hex << std::get<0>(signature_reply)
               << " and previous_signed_version=" << std::get<1>(signature_reply) << std::dec << std::endl;
@@ -442,16 +532,8 @@ bool cache_signature(ServiceClientAPI& client, const std::vector<std::string>& c
     return true;
 }
 
-/**
- * Command that verifies the signature received from the primary site on a particular key,
- * assuming the client's cache contains a signature for both the requested version and the
- * previous version of that key.
- *
- * Expected arguments: <key-suffix> [version]
- *  key-suffix: The key identifying the object, without any object-pool prefix.
- *  version: Optionally, the version to verify. Defaults to the latest cached version.
- */
-bool verify_cached_signature(ServiceClientAPI& client, const std::vector<std::string>& cmd_tokens) {
+template <typename... CascadeTypes>
+bool ChainClientContext<CascadeTypes...>::verify_cached_signature(const std::vector<std::string>& cmd_tokens) {
     if(cmd_tokens.size() < 2) {
         print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
         return false;
@@ -485,7 +567,7 @@ bool verify_cached_signature(ServiceClientAPI& client, const std::vector<std::st
     auto signature_find_iter = cached_signatures_by_version.find(previous_signature_version);
     if(signature_find_iter == cached_signatures_by_version.end()) {
         std::cout << "Previous signature on version " << previous_signature_version << " is not in the cache, retrieving it" << std::endl;
-        auto prev_signature_result = client.get_signature_by_version(signature_pool_name + delimiter + key_suffix, previous_signature_version);
+        auto prev_signature_result = service_client->get_signature_by_version(signature_pool_name + op_delimiter + key_suffix, previous_signature_version);
         previous_signature = std::get<0>(prev_signature_result.get().begin()->second.get());
     } else {
         previous_signature = signature_find_iter->second->signature;
@@ -502,16 +584,8 @@ bool verify_cached_signature(ServiceClientAPI& client, const std::vector<std::st
     return verified;
 }
 
-/**
- * Command that retrieves the signature for a key at a particular version and verifies
- * it using the service's public key and the signature for the previous version.
- *
- * Expected arguments: <key-suffix> [object-version]
- *  key-suffix: The key identifying an object, without any object-pool prefix
- *  signature-version: The version of the object to get a signature for.
- *                     Defaults to the current version if omitted.
- */
-bool get_and_verify_signature(ServiceClientAPI& client, const std::vector<std::string>& cmd_tokens) {
+template <typename... CascadeTypes>
+bool ChainClientContext<CascadeTypes...>::get_and_verify_signature(const std::vector<std::string>& cmd_tokens) {
     if(cmd_tokens.size() < 2) {
         print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
         return false;
@@ -523,15 +597,15 @@ bool get_and_verify_signature(ServiceClientAPI& client, const std::vector<std::s
     } else {
         object_version = CURRENT_VERSION;
     }
-    const std::string signature_key = signature_pool_name + delimiter + key_suffix;
-    auto hash_query_result = client.get(signature_key, object_version);
+    const std::string signature_key = signature_pool_name + op_delimiter + key_suffix;
+    auto hash_query_result = service_client->get(signature_key, object_version);
     ObjectWithStringKey hash_object = hash_query_result.get().begin()->second.get();
-    auto sig_query_result = client.get_signature(signature_key, object_version);
+    auto sig_query_result = service_client->get_signature(signature_key, object_version);
     const auto [signature, previous_signature_version] = sig_query_result.get().begin()->second.get();
     std::cout << "Node " << sig_query_result.get().begin()->first << " replied with signature=" << std::hex << signature
               << " and previous_signed_version=" << previous_signature_version << std::dec << std::endl;
     // Get the previous signature, which may or may not relate to this key (but will be in the same object pool)
-    auto prev_sig_query_result = client.get_signature_by_version(signature_key, previous_signature_version);
+    auto prev_sig_query_result = service_client->get_signature_by_version(signature_key, previous_signature_version);
     const auto prev_signature_tuple = prev_sig_query_result.get().begin()->second.get();
     bool verified = verify_object_signature(hash_object, signature, std::get<0>(prev_signature_tuple));
     if(verified) {
@@ -543,16 +617,8 @@ bool get_and_verify_signature(ServiceClientAPI& client, const std::vector<std::s
     return verified;
 }
 
-/**
- * Command that gets an object from the storage pool and its corresponding signature
- * from the signature pool, then verifies the signature on the hash of the object.
- *
- * Expected arguments: <key-suffix> [object-version]
- *  key-suffix: The key identifying an object, without any object-pool prefix
- *  signature-version: The version of the object to get a signature for.
- *                     Defaults to the current version if omitted.
- */
-bool get_and_verify_object(ServiceClientAPI& client, const std::vector<std::string>& cmd_tokens) {
+template <typename... CascadeTypes>
+bool ChainClientContext<CascadeTypes...>::get_and_verify_object(const std::vector<std::string>& cmd_tokens) {
     if(cmd_tokens.size() < 2) {
         print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
         return false;
@@ -564,13 +630,21 @@ bool get_and_verify_object(ServiceClientAPI& client, const std::vector<std::stri
     } else {
         object_version = CURRENT_VERSION;
     }
-    const std::string storage_key = storage_pool_name + delimiter + key_suffix;
-    const std::string signature_key = signature_pool_name + delimiter + key_suffix;
+    const std::string storage_key = storage_pool_name + op_delimiter + key_suffix;
+    const std::string signature_key = signature_pool_name + op_delimiter + key_suffix;
     // Get the object
     std::cout << "Requesting version " << std::hex << object_version << std::dec << " of key " << storage_key << std::endl;
-    auto get_result = client.get(storage_key, object_version);
+    auto get_result = service_client->get(storage_key, object_version);
     ObjectWithStringKey stored_object = get_result.get().begin()->second.get();
     std::cout << "node(" << get_result.get().begin()->first << ") replied with value:" << stored_object << std::endl;
+    if(!stored_object.is_valid()) {
+        print_red("Invalid object returned; service could not find key or version");
+        return false;
+    }
+    // The signature cache and SignatureCascadeStore require a specific version, not CURRENT_VERSION
+    if(object_version == CURRENT_VERSION) {
+        object_version = stored_object.get_version();
+    }
     // Compute the hash of the object locally, since we don't trust the service
     std::vector<uint8_t> hash;
     auto cache_search_iter = cached_signatures_by_key[key_suffix].find(object_version);
@@ -581,19 +655,23 @@ bool get_and_verify_object(ServiceClientAPI& client, const std::vector<std::stri
     }
     // Get the hash from the service, because we need to know its header fields to compute the signature
     std::cout << "Requesting version " << std::hex << object_version << std::dec << " of key " << signature_key << std::endl;
-    auto hash_query_result = client.get(signature_key, object_version);
+    auto hash_query_result = service_client->get(signature_key, object_version);
     ObjectWithStringKey hash_object = hash_query_result.get().begin()->second.get();
     std::cout << "node(" << get_result.get().begin()->first << ") replied with value:" << hash_object << std::endl;
+    if(!hash_object.is_valid()) {
+        print_red("Invalid hash object returned; SignatureStore could not find key or version");
+        return false;
+    }
     if(memcmp(hash_object.blob.bytes, hash.data(), hash.size() != 0)) {
         print_red("Object hash stored in Cascade does not match object hash computed locally!");
         return false;
     }
     std::cout << "Requesting signature on version " << std::hex << object_version << std::dec << " of key " << signature_key << std::endl;
-    auto sig_query_result = client.get_signature(signature_key, object_version);
+    auto sig_query_result = service_client->get_signature(signature_key, object_version);
     const auto [signature, previous_signature_version] = sig_query_result.get().begin()->second.get();
     // Get the previous signature, which may or may not relate to this key (but will be in the same object pool)
     std::cout << "Requesting signature on version " << std::hex << previous_signature_version << std::dec << " of key " << signature_key << std::endl;
-    auto prev_sig_query_result = client.get_signature_by_version(signature_key, previous_signature_version);
+    auto prev_sig_query_result = service_client->get_signature_by_version(signature_key, previous_signature_version);
     const auto [prev_signature, prev_prev_version] = prev_sig_query_result.get().begin()->second.get();
     bool verified = verify_object_signature(hash_object, signature, prev_signature);
     if(verified) {
@@ -607,7 +685,7 @@ bool get_and_verify_object(ServiceClientAPI& client, const std::vector<std::stri
 
 /* -------- Command-line interface functions copied from client.cpp ------- */
 
-using command_handler_t = std::function<bool(ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens)>;
+using command_handler_t = std::function<bool(DefaultChainClientContext& client_context, const std::vector<std::string>& cmd_tokens)>;
 struct command_entry_t {
     const std::string cmd;            // command name
     const std::string desc;           // help info
@@ -647,7 +725,7 @@ std::vector<command_entry_t> commands = {
         {"help",
          "Print help info",
          "help [command name]",
-         [](ServiceClientAPI&, const std::vector<std::string>& cmd_tokens) {
+         [](DefaultChainClientContext&, const std::vector<std::string>& cmd_tokens) {
              if(cmd_tokens.size() >= 2) {
                  ssize_t command_index = find_command(commands, cmd_tokens[1]);
                  if(command_index < 0) {
@@ -664,21 +742,23 @@ std::vector<command_entry_t> commands = {
         {"quit",
          "Exit",
          "quit",
-         [](ServiceClientAPI&, const std::vector<std::string>& cmd_tokens) {
+         [](DefaultChainClientContext&, const std::vector<std::string>& cmd_tokens) {
              shell_is_active = false;
              return true;
          }},
         {"load_service_key",
          "Load the CascadeChain service's public key from a PEM file",
          "load_service_key <filename>",
-         &load_service_key},
+         [](DefaultChainClientContext& context, const std::vector<std::string>& cmd_tokens) {
+             return context.load_service_key(cmd_tokens);
+         }},
         {"Object Pool Manipulation Commands", "", "", command_handler_t()},
         {"list_object_pools",
          "List existing object pools",
          "list_object_pools",
-         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+         [](DefaultChainClientContext& context, const std::vector<std::string>& cmd_tokens) {
              std::cout << "refreshed object pools:" << std::endl;
-             for(std::string& opath : capi.list_object_pools(true)) {
+             for(std::string& opath : context.get_service_client().list_object_pools(true)) {
                  std::cout << "\t" << opath << std::endl;
              }
              return true;
@@ -686,16 +766,18 @@ std::vector<command_entry_t> commands = {
         {"setup_object_pools",
          "Create the object pools needed for CascadeChain",
          "setup_object_pools [storage-pool-name] [signature-pool-name]",
-         &setup_object_pools},
+         [](DefaultChainClientContext& context, const std::vector<std::string>& cmd_tokens) {
+             return context.setup_object_pools(cmd_tokens);
+         }},
         {"get_object_pool",
          "Get details of an object pool",
          "get_object_pool <path>",
-         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+         [](DefaultChainClientContext& context, const std::vector<std::string>& cmd_tokens) {
              if(cmd_tokens.size() < 2) {
                  print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                  return false;
              }
-             auto opm = capi.find_object_pool(cmd_tokens[1]);
+             auto opm = context.get_service_client().find_object_pool(cmd_tokens[1]);
              std::cout << "get_object_pool returns:"
                        << opm << std::endl;
              return true;
@@ -705,38 +787,46 @@ std::vector<command_entry_t> commands = {
          "Put an object into CascadeChain, then verify and cache its signature",
          "put_with_signature <key-suffix> <value-string>\n"
          "Note: key-suffix should not include an object pool path; the object pool will be chosen automatically",
-         &put_with_signature},
+         [](DefaultChainClientContext& context, const std::vector<std::string>& cmd_tokens) {
+             return context.put_with_signature(cmd_tokens);
+         }},
         {"get_and_verify",
          "Get an object and its signature from CascadeChain, then verify the signature",
          "get_and_verify <key-suffix> [version(default:current version)]",
-         &get_and_verify_object},
+         [](DefaultChainClientContext& context, const std::vector<std::string>& cmd_tokens) {
+             return context.get_and_verify_object(cmd_tokens);
+         }},
         {"cache_signature",
          "Retrieve and cache a signature for a particular version of an object",
          "cache_signature <key-suffix> [version(default:current version)]\n"
          "Note: key-suffix should not include an object pool path; the object pool will be chosen automatically",
-         &cache_signature},
+         [](DefaultChainClientContext& context, const std::vector<std::string>& cmd_tokens) {
+             return context.cache_signature(cmd_tokens);
+         }},
         {"get_and_verify_signature",
          "Retrieve and verify a signature for a particular version of an object",
          "get_and_verify_signature <key-suffix> [version(default:current version)]\n"
          "Note: key-suffix should not include an object pool path; the object pool will be chosen automatically",
-         &get_and_verify_signature},
+         [](DefaultChainClientContext& context, const std::vector<std::string>& cmd_tokens) {
+             return context.get_and_verify_signature(cmd_tokens);
+         }},
         {"op_remove",
          "Remove an object from an object pool.",
          "op_remove <key>\n"
          "Please note that cascade automatically decides the object pool path using the key's prefix.",
-         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+         [](DefaultChainClientContext& context, const std::vector<std::string>& cmd_tokens) {
              if(cmd_tokens.size() < 2) {
                  print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                  return false;
              }
-             op_remove(capi, cmd_tokens[1]);
+             op_remove(context.get_service_client(), cmd_tokens[1]);
              return true;
          }},
         {"op_get",
          "Get an object from an object pool (by version).",
          "op_get <key> [ version(default:current version) ]\n"
          "Please note that cascade automatically decides the object pool path using the key's prefix.",
-         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+         [](DefaultChainClientContext& context, const std::vector<std::string>& cmd_tokens) {
              if(cmd_tokens.size() < 2) {
                  print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                  return false;
@@ -745,7 +835,7 @@ std::vector<command_entry_t> commands = {
              if(cmd_tokens.size() >= 3) {
                  version = static_cast<persistent::version_t>(std::stol(cmd_tokens[2], nullptr, 0));
              }
-             auto res = capi.get(cmd_tokens[1], version);
+             auto res = context.get_service_client().get(cmd_tokens[1], version);
              check_get_result(res);
              return true;
          }},
@@ -754,7 +844,7 @@ std::vector<command_entry_t> commands = {
          "op_get_signature <key> [ version(default:current version) ]\n"
          "Note that Cascade will automatically decide the subgroup to contact based on the key's prefix, "
          "but only object pools hosted on a SignatureCascadeStore subgroup will have signatures.",
-         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+         [](DefaultChainClientContext& context, const std::vector<std::string>& cmd_tokens) {
              if(cmd_tokens.size() < 2) {
                  print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                  return false;
@@ -763,7 +853,7 @@ std::vector<command_entry_t> commands = {
              if(cmd_tokens.size() >= 3) {
                  version = static_cast<persistent::version_t>(std::stol(cmd_tokens[2], nullptr, 0));
              }
-             auto query_result = capi.get_signature(cmd_tokens[1], version);
+             auto query_result = context.get_service_client().get_signature(cmd_tokens[1], version);
              // std::tuple doesn't have an operator<<, so I have to customize check_get_result here
              for(auto& reply_future : query_result.get()) {
                  auto reply = reply_future.second.get();
@@ -774,7 +864,7 @@ std::vector<command_entry_t> commands = {
         {"op_list_keys",
          "list the object keys in an object pool (by version).",
          "op_list_keys <object pool pathname> <stable> [ version(default:current version) ]\n",
-         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+         [](DefaultChainClientContext& context, const std::vector<std::string>& cmd_tokens) {
              if(cmd_tokens.size() < 3) {
                  print_red("Invalid command format. Please try help " + cmd_tokens[0] + ".");
                  return false;
@@ -784,20 +874,22 @@ std::vector<command_entry_t> commands = {
              if(cmd_tokens.size() >= 4) {
                  version = static_cast<persistent::version_t>(std::stol(cmd_tokens[3], nullptr, 0));
              }
-             auto result = capi.list_keys(version, stable, cmd_tokens[1]);
-             check_op_list_keys_result(capi.wait_list_keys(result));
+             auto result = context.get_service_client().list_keys(version, stable, cmd_tokens[1]);
+             check_op_list_keys_result(context.get_service_client().wait_list_keys(result));
              return true;
          }},
         {"verify_cached_signature",
          "Verify the cached signature on a specific version of an object",
          "verify_cached_signature <key-suffix> [version(default:current version)]",
-         &verify_cached_signature}};
+         [](DefaultChainClientContext& context, const std::vector<std::string>& cmd_tokens) {
+             return context.verify_cached_signature(cmd_tokens);
+         }}};
 
-inline void do_command(ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+inline void do_command(DefaultChainClientContext& client_context, const std::vector<std::string>& cmd_tokens) {
     try {
         ssize_t command_index = find_command(commands, cmd_tokens[0]);
         if(command_index >= 0) {
-            if(commands.at(command_index).handler(capi, cmd_tokens)) {
+            if(commands.at(command_index).handler(client_context, cmd_tokens)) {
                 std::cout << "-> Succeeded." << std::endl;
             } else {
                 std::cout << "-> Failed." << std::endl;
@@ -814,7 +906,7 @@ inline void do_command(ServiceClientAPI& capi, const std::vector<std::string>& c
     }
 }
 
-void interactive_test(ServiceClientAPI& capi) {
+void interactive_test(DefaultChainClientContext& client_context) {
     // loop
     while(shell_is_active) {
         char* malloced_cmd = readline("cmd> ");
@@ -824,17 +916,17 @@ void interactive_test(ServiceClientAPI& capi) {
         add_history(cmdline.c_str());
 
         std::string delimiter = " ";
-        do_command(capi, tokenize(cmdline, delimiter.c_str()));
+        do_command(client_context, tokenize(cmdline, delimiter.c_str()));
     }
     std::cout << "Client exits." << std::endl;
 }
 
-void detached_test(ServiceClientAPI& capi, int argc, char** argv) {
+void detached_test(DefaultChainClientContext& client_context, int argc, char** argv) {
     std::vector<std::string> cmd_tokens;
     for(int i = 1; i < argc; i++) {
         cmd_tokens.emplace_back(argv[i]);
     }
-    do_command(capi, cmd_tokens);
+    do_command(client_context, cmd_tokens);
 }
 
 int main(int argc, char** argv) {
@@ -845,12 +937,13 @@ int main(int argc, char** argv) {
     auto pcss_factory = []() { return std::make_unique<PersistentCascadeStoreWithStringKey>(nullptr); };
     auto scss_factory = []() { return std::make_unique<SignatureCascadeStoreWithStringKey>(nullptr); };
     auto tcns_factory = []() { return std::make_unique<TriggerCascadeNoStoreWithStringKey>(); };
-    ServiceClientAPI capi(vcss_factory, pcss_factory, scss_factory, tcns_factory);
+    std::unique_ptr<ServiceClientAPI> capi = std::make_unique<ServiceClientAPI>(vcss_factory, pcss_factory, scss_factory, tcns_factory);
+    DefaultChainClientContext client_context(std::move(capi));
     if(argc == 1) {
         // by default, we use the interactive shell.
-        interactive_test(capi);
+        interactive_test(client_context);
     } else {
-        detached_test(capi, argc, argv);
+        detached_test(client_context, argc, argv);
     }
     return 0;
 }
