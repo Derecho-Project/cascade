@@ -14,6 +14,18 @@
 namespace derecho {
 namespace cascade {
 
+/**
+ * get_pathname(): retrieve the pathname, a.k.a prefix from a key.
+ * A pathname identifies the object pool this object belongs to.
+ *
+ * @tparam KeyType - Type of the Key
+ * @param  key     - key
+ *
+ * @return pathname. An empty string returns for invalid key types and invalid keys.
+ */
+template <typename KeyType>
+inline std::string get_pathname(const KeyType& key);
+
 #ifdef ENABLE_EVALUATION
 #define NUMBER_OF_DISTINCT_OBJECTS (4096)
 
