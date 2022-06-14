@@ -14,6 +14,7 @@
 #endif//ENABLE_EVALUATION
 
 using namespace derecho::cascade;
+using persistent::INVALID_VERSION;
 
 #define PROC_NAME   "cascade_client"
 

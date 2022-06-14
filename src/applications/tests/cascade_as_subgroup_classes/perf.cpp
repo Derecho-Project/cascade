@@ -20,7 +20,7 @@ using namespace derecho::cascade;
 using derecho::ExternalClientCaller;
 
 using VCS = VolatileCascadeStore<uint64_t, ObjectWithUInt64Key, &ObjectWithUInt64Key::IK, &ObjectWithUInt64Key::IV>;
-using PCS = PersistentCascadeStore<uint64_t, ObjectWithUInt64Key, &ObjectWithUInt64Key::IK, &ObjectWithUInt64Key::IV, ST_FILE>;
+using PCS = PersistentCascadeStore<uint64_t, ObjectWithUInt64Key, &ObjectWithUInt64Key::IK, &ObjectWithUInt64Key::IV, persistent::ST_FILE>;
 
 #define SHUTDOWN_SERVER_PORT (2300)
 

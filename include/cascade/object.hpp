@@ -18,11 +18,6 @@
 #include <optional>
 #include <tuple>
 
-
-
-using namespace persistent;
-using namespace std::chrono_literals;
-
 namespace derecho{
 namespace cascade{
 

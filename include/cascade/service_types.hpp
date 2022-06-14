@@ -28,7 +28,7 @@ using PersistentCascadeStoreWithStringKey = PersistentCascadeStore<
                                                 std::remove_cv_t<std::remove_reference_t<decltype(std::declval<ObjectWithStringKey>().get_key_ref())>>,
                                                 ObjectWithStringKey,
                                                 &ObjectWithStringKey::IK,
-                                                &ObjectWithStringKey::IV,ST_FILE>;
+                                                &ObjectWithStringKey::IV,persistent::ST_FILE>;
 // using TCSU = TriggerCascadeNoStore<uint64_t,ObjectWithUInt64Key,&ObjectWithUInt64Key::IK,&ObjectWithUInt64Key::IV>;
 using TriggerCascadeNoStoreWithStringKey = TriggerCascadeNoStore<
                                                 std::remove_cv_t<std::remove_reference_t<decltype(std::declval<ObjectWithStringKey>().get_key_ref())>>,
@@ -40,7 +40,7 @@ using SignatureCascadeStoreWithStringKey = SignatureCascadeStore<
                                                 std::remove_cv_t<std::remove_reference_t<decltype(std::declval<ObjectWithStringKey>().get_key_ref())>>,
                                                 ObjectWithStringKey,
                                                 &ObjectWithStringKey::IK,
-                                                &ObjectWithStringKey::IV,ST_FILE>;
+                                                &ObjectWithStringKey::IV,persistent::ST_FILE>;
 
 using DefaultServiceType = Service<VolatileCascadeStoreWithStringKey,
                                    PersistentCascadeStoreWithStringKey,

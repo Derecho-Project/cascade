@@ -241,8 +241,8 @@ ObjectWithUInt64Key::ObjectWithUInt64Key(const uint64_t _key,
                                          const Blob& _blob) :
     version(persistent::INVALID_VERSION),
     timestamp_us(0),
-    previous_version(INVALID_VERSION),
-    previous_version_by_key(INVALID_VERSION),
+    previous_version(persistent::INVALID_VERSION),
+    previous_version_by_key(persistent::INVALID_VERSION),
     key(_key),
     blob(_blob) {}
 
@@ -277,8 +277,8 @@ ObjectWithUInt64Key::ObjectWithUInt64Key(const uint64_t _key,
 #endif
     version(persistent::INVALID_VERSION),
     timestamp_us(0),
-    previous_version(INVALID_VERSION),
-    previous_version_by_key(INVALID_VERSION),
+    previous_version(persistent::INVALID_VERSION),
+    previous_version_by_key(persistent::INVALID_VERSION),
     key(_key),
     blob(_b, _s) {}
 
@@ -335,8 +335,8 @@ ObjectWithUInt64Key::ObjectWithUInt64Key() :
 #endif
     version(persistent::INVALID_VERSION),
     timestamp_us(0),
-    previous_version(INVALID_VERSION),
-    previous_version_by_key(INVALID_VERSION),
+    previous_version(persistent::INVALID_VERSION),
+    previous_version_by_key(persistent::INVALID_VERSION),
     key(INVALID_UINT64_OBJECT_KEY) {}
 
 // constructor 5 : using delayed instantiator with message gnerator
@@ -348,8 +348,8 @@ ObjectWithUInt64Key::ObjectWithUInt64Key(const uint64_t _key,
 #endif
     version(persistent::INVALID_VERSION),
     timestamp_us(0),
-    previous_version(INVALID_VERSION),
-    previous_version_by_key(INVALID_VERSION),
+    previous_version(persistent::INVALID_VERSION),
+    previous_version_by_key(persistent::INVALID_VERSION),
     key(_key),
     blob(_message_generator,_size) {}
 
@@ -596,8 +596,8 @@ ObjectWithStringKey::ObjectWithStringKey(const std::string& _key,
 #endif
     version(persistent::INVALID_VERSION),
     timestamp_us(0),
-    previous_version(INVALID_VERSION),
-    previous_version_by_key(INVALID_VERSION),
+    previous_version(persistent::INVALID_VERSION),
+    previous_version_by_key(persistent::INVALID_VERSION),
     key(_key),
     blob(_blob) {}
 // constructor 0.5 : copy/in-place constructor
@@ -631,8 +631,8 @@ ObjectWithStringKey::ObjectWithStringKey(const std::string& _key,
 #endif
     version(persistent::INVALID_VERSION),
     timestamp_us(0),
-    previous_version(INVALID_VERSION),
-    previous_version_by_key(INVALID_VERSION),
+    previous_version(persistent::INVALID_VERSION),
+    previous_version_by_key(persistent::INVALID_VERSION),
     key(_key),
     blob(_b, _s) {}
 // constructor 1.5 : copy constructor
@@ -702,8 +702,8 @@ ObjectWithStringKey::ObjectWithStringKey() :
 #endif
     version(persistent::INVALID_VERSION),
     timestamp_us(0),
-    previous_version(INVALID_VERSION),
-    previous_version_by_key(INVALID_VERSION),
+    previous_version(persistent::INVALID_VERSION),
+    previous_version_by_key(persistent::INVALID_VERSION),
     key() {}
 
 // constructor 5 : using delayed instatiator with message generator
@@ -715,8 +715,8 @@ ObjectWithStringKey::ObjectWithStringKey(const std::string& _key,
 #endif
     version(persistent::INVALID_VERSION),
     timestamp_us(0),
-    previous_version(INVALID_VERSION),
-    previous_version_by_key(INVALID_VERSION),
+    previous_version(persistent::INVALID_VERSION),
+    previous_version_by_key(persistent::INVALID_VERSION),
     key(_key),
     blob(_message_generator,_size) {}
 

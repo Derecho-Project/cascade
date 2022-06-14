@@ -14,6 +14,7 @@
 #include <string>
 #include <sys/prctl.h>
 #include <typeindex>
+#include <tuple>
 
 using namespace derecho::cascade;
 

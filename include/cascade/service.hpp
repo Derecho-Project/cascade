@@ -53,7 +53,7 @@ namespace cascade {
         ObjectPoolMetadata<CascadeTypes...>,
         &ObjectPoolMetadata<CascadeTypes...>::IK,
         &ObjectPoolMetadata<CascadeTypes...>::IV,
-        ST_FILE>;
+        persistent::ST_FILE>;
 #define METADATA_SERVICE_SUBGROUP_INDEX (0)
 
 

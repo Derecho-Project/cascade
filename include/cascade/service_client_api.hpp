@@ -180,7 +180,7 @@ CascadeVersionLinq<CascadeType,ServiceClientType> from_versions(
 
  return CascadeVersionLinq<CascadeType,ServiceClientType>(capi,subgroup_index,shard_index,key,version,
      [&capi,&key,subgroup_index,shard_index](persistent::version_t& ver) {
-   if (ver == INVALID_VERSION) {
+   if (ver == persistent::INVALID_VERSION) {
        throw boolinq::LinqEndException();
    }
 
@@ -192,7 +192,7 @@ CascadeVersionLinq<CascadeType,ServiceClientType> from_versions(
                     if (!object.is_null())
                         return object;
                 }
-            } while (ver != INVALID_VERSION);
+            } while (ver != persistent::INVALID_VERSION);
 
             throw boolinq::LinqEndException();
      });
