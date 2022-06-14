@@ -124,8 +124,10 @@ struct ObjectSignature {
     std::vector<uint8_t> signature;
 };
 // A function that receives the body of a signature notification message as its arguments
-// Message format: data version, hash version, signature data, previous signed version
-using signature_callback_t = std::function<void(persistent::version_t, persistent::version_t, const std::vector<uint8_t>&, persistent::version_t)>;
+// Message format: data version, hash version, signature data, previous signed version, previous signature
+using signature_callback_t = std::function<void(persistent::version_t, persistent::version_t,
+                                                const std::vector<uint8_t>&, persistent::version_t,
+                                                const std::vector<uint8_t>&)>;
 /**
  * A functor that will be registered as the signature notification handler
  * for the "signatures/" object pool, and helps notify the put_with_signature()
@@ -422,15 +424,18 @@ bool ChainClientContext<CascadeTypes...>::put_with_signature(const std::vector<s
     std::mutex callback_waiting_mutex;
     bool callback_fired = false;
     std::condition_variable notification_received;
+    std::vector<uint8_t> previous_signature;
     signature_notification_handler.register_callback(
             signature_record->object_version,
-            [&](persistent::version_t data_object_version, persistent::version_t hash_object_version, const std::vector<uint8_t>& signature, persistent::version_t prev_signed_version) {
+            [&](persistent::version_t data_object_version, persistent::version_t hash_object_version,
+                const std::vector<uint8_t>& signature, persistent::version_t prev_signed_version, const std::vector<uint8_t>& prev_signature) {
                 assert(data_object_version == signature_record->object_version);
-                std::cout << "Got a signature notification for data version " << std::hex << data_object_version
-                          << " with hash-object version " << hash_object_version << ". Previous signed version is " << prev_signed_version << std::dec << std::endl;
+                std::cout << "Got a signature notification for data version " << std::hex << data_object_version << " with hash-object version "
+                          << hash_object_version << ". Previous signed version is " << prev_signed_version << std::dec << std::endl;
                 signature_record->signature_version = hash_object_version;
                 signature_record->signature = signature;
                 signature_record->signature_previous_version = prev_signed_version;
+                previous_signature = prev_signature;
                 callback_fired = true;
                 notification_received.notify_all();
             });
@@ -472,21 +477,7 @@ bool ChainClientContext<CascadeTypes...>::put_with_signature(const std::vector<s
     }
     signature_record->local_hash = std::move(hash);
     // Step 7: Validate the service's signature on this version of the object
-    std::vector<uint8_t> prev_signature(signature_record->signature.size());
-    if(signature_record->signature_previous_version != INVALID_VERSION) {
-        // The service's signature includes the previous signature in the *log*, not the previous signature on *this object*
-        auto signature_find_result = cached_signatures_by_version.find(signature_record->signature_previous_version);
-        if(signature_find_result == cached_signatures_by_version.end()) {
-            // This is why the service needs to send a message back to the client containing the signature for the previous log entry once a put is complete
-            std::cout << "Previous signature on version " << std::hex << signature_record->signature_previous_version << std::dec << " is not in the cache, retrieving it" << std::endl;
-            auto prev_signature_result = service_client->get_signature_by_version(signature_key, signature_record->signature_previous_version);
-            prev_signature = std::get<0>(prev_signature_result.get().begin()->second.get());
-            // It would be nice if we could put this signature in the cache, but that would require constructing a whole ObjectSignature record
-        } else {
-            prev_signature = signature_find_result->second->signature;
-        }
-    }
-    bool validated = verify_object_signature(hash_object, signature_record->signature, prev_signature);
+    bool validated = verify_object_signature(hash_object, signature_record->signature, previous_signature);
     if(validated) {
         std::cout << "Signature is valid" << std::endl;
     } else {

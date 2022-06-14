@@ -719,16 +719,29 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::send_client_notification(
         node_id_t external_client_id, const KT& key, persistent::version_t hash_object_version,
         persistent::version_t data_object_version) const {
     debug_enter_func_with_args("key={}, hash_object_version={}, data_object_version={}", key, hash_object_version, data_object_version);
-    // Retrieve the signature, which must exist by now since persistence is finished
+    // Retrieve the signature, which must exist by now since persistence is finished, as well as the previous signature it encapsulates
     persistent::version_t previous_signed_version = persistent::INVALID_VERSION;
+    persistent::version_t dummy;
     std::vector<uint8_t> signature(persistent_core.getSignatureSize());
-    persistent_core.getSignature(hash_object_version, signature.data(), previous_signed_version);
+    std::vector<uint8_t> previous_signature(persistent_core.getSignatureSize());
+    bool signature_found = persistent_core.getSignature(hash_object_version, signature.data(), previous_signed_version);
+    if(!signature_found) {
+        dbg_default_error("Signature not found for version {}, even though persistence has finished", hash_object_version);
+    }
+    // For the very first version, previous_signed_version is -1 and there is no previous signature to retrieve
+    if(previous_signed_version != persistent::INVALID_VERSION) {
+        signature_found = persistent_core.getSignature(previous_signed_version, previous_signature.data(), dummy);
+        if(!signature_found) {
+            dbg_default_error("Signature not found for version {}, even though persistence has finished", hash_object_version);
+        }
+    }
 
     derecho::ExternalClientCallback<SignatureCascadeStore>& client_caller
             = group->template get_client_callback<SignatureCascadeStore>(this->subgroup_index);
     std::size_t message_size = mutils::bytes_size(data_object_version) + mutils::bytes_size(hash_object_version)
-                               + mutils::bytes_size(signature) + mutils::bytes_size(previous_signed_version);
-    // Message format: data version, hash version, signature data, previous signed version
+                               + mutils::bytes_size(signature) + mutils::bytes_size(previous_signed_version)
+                               + mutils::bytes_size(previous_signature);
+    // Message format: data version, hash version, signature data, previous signed version, previous signature
     // Problem: Blob's data buffer can't be modified, so I have to copy the bytes into a temporary buffer, then copy them again into Blob
     uint8_t* temp_buffer_for_blob = new uint8_t[message_size];
     std::size_t body_offset = 0;
@@ -736,6 +749,7 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::send_client_notification(
     body_offset += mutils::to_bytes(hash_object_version, temp_buffer_for_blob + body_offset);
     body_offset += mutils::to_bytes(signature, temp_buffer_for_blob + body_offset);
     body_offset += mutils::to_bytes(previous_signed_version, temp_buffer_for_blob + body_offset);
+    body_offset += mutils::to_bytes(previous_signature, temp_buffer_for_blob + body_offset);
     Blob message_body(temp_buffer_for_blob, message_size);
     delete[] temp_buffer_for_blob;
     // Construct and send a CascadeNotificationMessage in the same way as ServiceClient::notify
