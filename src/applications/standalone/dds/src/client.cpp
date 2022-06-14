@@ -177,12 +177,17 @@ static bool run_throughput(
         auto publisher = client.template create_publisher<Blob>(t.name);
 
         // publisher
+#if DISABLE_DDS_COPY == 1
+        uint32_t payload_size = sizeof(message_header_t);
+#else
+        // reserve payload space.
         uint32_t payload_size = derecho::getConfUInt32(CONF_SUBGROUP_DEFAULT_MAX_PAYLOAD_SIZE);
         if (payload_size < 256) {
             payload_size = 0;
         } else {
             payload_size -= 256;
         }
+#endif
     
         std::vector<uint8_t> payload;
         payload.reserve(payload_size);

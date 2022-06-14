@@ -20,25 +20,39 @@
 
 
 
-using std::cout;
-using std::endl;
 using namespace persistent;
 using namespace std::chrono_literals;
 
 namespace derecho{
 namespace cascade{
 
+enum object_memory_mode_t {
+    DEFAULT,
+    EMPLACED,
+    BLOB_GENERATOR,
+};
+
+using blob_generator_func_t = std::function<std::size_t(uint8_t*,const std::size_t)>;
+
 class Blob : public mutils::ByteRepresentable {
 public:
     const uint8_t* bytes;
     std::size_t size;
     std::size_t capacity;
-    bool        is_emplaced;
+
+    // for BLOB_GENERATOR mode only
+    blob_generator_func_t blob_generator;
+
+    object_memory_mode_t   memory_mode;
+
 
     // constructor - copy to own the data
     Blob(const uint8_t* const b, const decltype(size) s);
 
-    Blob(const uint8_t* b, const decltype(size) s, bool temporary);
+    Blob(const uint8_t* b, const decltype(size) s, bool emplaced);
+
+    // generator constructor - data to be generated on serialization
+    Blob(const blob_generator_func_t& generator, const decltype(size) s);
 
     // copy constructor - copy to own the data
     Blob(const Blob& other);
@@ -146,6 +160,23 @@ public:
 
     // constructor 4 : default invalid constructor
     ObjectWithUInt64Key();
+
+    // constructor 5 : using delayed instantiator with message generator
+    ObjectWithUInt64Key(const uint64_t _key,
+                        const blob_generator_func_t& _message_generator,
+                        const std::size_t _size);
+    // constructor 5.5 : using delayed instratiator with message generator
+    ObjectWithUInt64Key(
+#ifdef ENABLE_EVALUATION
+                        const uint64_t _message_id,
+#endif
+                        const persistent::version_t _version,
+                        const uint64_t _timestamp_us,
+                        const persistent::version_t _previous_version,
+                        const persistent::version_t _previous_version_by_key,
+                        const uint64_t _key,
+                        const blob_generator_func_t& _message_generator,
+                        const std::size_t _s);
 
     virtual const uint64_t& get_key_ref() const override;
     virtual bool is_null() const override;
@@ -311,6 +342,9 @@ public:
      */
     ObjectWithStringKey(ObjectWithStringKey&& other);
 
+    /** Move assignment operator; matches move constructor. */
+    ObjectWithStringKey& operator=(ObjectWithStringKey&& other);
+
     // constructor 3 : copy constructor
     /**
      * Copy constructor; copies every field of the other ObjectWithStringKey
@@ -323,8 +357,22 @@ public:
      */
     ObjectWithStringKey();
 
-    /** Move assignment operator; matches move constructor. */
-    ObjectWithStringKey& operator=(ObjectWithStringKey&& other);
+    // constructor 5 : using delayed instantiator with message generator
+    ObjectWithStringKey(const std::string& _key,
+                        const blob_generator_func_t& _message_generator,
+                        const std::size_t _size);
+    // constructor 5.5 : using delayed instatiator withe message generator
+    ObjectWithStringKey(
+#ifdef ENABLE_EVALUATION
+                        const uint64_t message_id,
+#endif
+                        const persistent::version_t _version,
+                        const uint64_t _timestamp_us,
+                        const persistent::version_t _previous_version,
+                        const persistent::version_t _previous_version_by_key,
+                        const std::string& _key,
+                        const blob_generator_func_t& _message_generator,
+                        const std::size_t _s);
 
     virtual const std::string& get_key_ref() const override;
     virtual bool is_null() const override;

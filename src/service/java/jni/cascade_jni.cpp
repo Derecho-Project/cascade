@@ -1,3 +1,4 @@
+#include <cascade/object.hpp>
 #include <cascade/service_client_api.hpp>
 #include <memory>
 #include <unordered_map>
@@ -318,8 +319,7 @@ std::unique_ptr<derecho::cascade::ObjectWithStringKey> translate_str_obj(JNIEnv 
     // translate the object.
     derecho::cascade::ObjectWithStringKey *cas_obj = new derecho::cascade::ObjectWithStringKey();
     cas_obj->key = translate_str_key(env, key);
-    cas_obj->blob = derecho::cascade::Blob(reinterpret_cast<const uint8_t*>(buf), len);
-    cas_obj->blob.is_emplaced = 1;
+    cas_obj->blob = derecho::cascade::Blob(reinterpret_cast<const uint8_t*>(buf), len, true);
 
     return std::unique_ptr<derecho::cascade::ObjectWithStringKey>{cas_obj};
 }
@@ -737,14 +737,14 @@ JNIEXPORT jobject JNICALL Java_io_cascade_QueryResults_getReplyMap(JNIEnv *env, 
         const char *data = reinterpret_cast<const char*>(obj.blob.bytes);
         std::size_t size = obj.blob.size;
 
-        // Set temporary to be 1 so that obj will not be destructed at the end of this function.
+        // Set emplace flag to be 1 so that obj will not be destructed at the end of this function.
         // This is used to avoid copying when allocating buffers.
-        obj.blob.is_emplaced = 1;
+        obj.blob.memory_mode = derecho::cascade::object_memory_mode_t::EMPLACED;
 
 #ifndef NDEBUG
         std::cout << "processing at s f!" << size << " " << std::endl;
 
-        std::cout << "is temporary" << obj.blob.is_emplaced << std::endl;
+        std::cout << "blob memory_mode:" << obj.blob.memory_mode << std::endl;
 #endif
 
         jobject new_byte_buf = allocate_byte_buffer(env, (char *)data, size);

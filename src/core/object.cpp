@@ -1,5 +1,6 @@
 #include "cascade/object.hpp"
 
+#include <derecho/persistent/detail/PersistLog.hpp>
 #include <unistd.h>
 #include <stdlib.h>
 
@@ -37,7 +38,7 @@ ObjectWithStringKey ObjectWithStringKey::IV;
 // #define PAGE_ALIGNED_NEW(x) (new uint8_t[((x)+page_size-1)/page_size*page_size])
 
 Blob::Blob(const uint8_t* const b, const decltype(size) s) :
-    bytes(nullptr), size(0), capacity(0), is_emplaced(false) {
+    bytes(nullptr), size(0), capacity(0), memory_mode(object_memory_mode_t::DEFAULT) {
     if(s > 0) {
         // uint8_t* t_bytes = PAGE_ALIGNED_NEW(s);
         uint8_t* t_bytes = static_cast<uint8_t*>(malloc(s));
@@ -53,8 +54,8 @@ Blob::Blob(const uint8_t* const b, const decltype(size) s) :
 }
 
 Blob::Blob(const uint8_t* b, const decltype(size) s, bool emplaced) :
-    bytes(b), size(s), capacity(s), is_emplaced(emplaced) {
-    if ( (size>0) && (is_emplaced==false)) {
+    bytes(b), size(s), capacity(s), memory_mode((emplaced)?object_memory_mode_t::EMPLACED:object_memory_mode_t::DEFAULT) {
+    if ( (size>0) && (emplaced==false)) {
         // uint8_t* t_bytes = PAGE_ALIGNED_NEW(s);
         uint8_t* t_bytes = static_cast<uint8_t*>(malloc(s));
         if (b != nullptr) {
@@ -70,12 +71,29 @@ Blob::Blob(const uint8_t* b, const decltype(size) s, bool emplaced) :
     }
 }
 
+Blob::Blob(const blob_generator_func_t& generator, const decltype(size) s):
+    bytes(nullptr), size(s), capacity(0), blob_generator(generator), memory_mode(object_memory_mode_t::BLOB_GENERATOR) {
+    // no data is generated here.
+}
+
 Blob::Blob(const Blob& other) :
-    bytes(nullptr), size(0), capacity(0), is_emplaced(false) {
+    bytes(nullptr), size(0), capacity(0), memory_mode(object_memory_mode_t::DEFAULT) {
     if(other.size > 0) {
-        // uint8_t* t_bytes = PAGE_ALIGNED_NEW(other.size);
         uint8_t* t_bytes = static_cast<uint8_t*>(malloc(other.size));
-        memcpy(t_bytes, other.bytes, other.size);
+        if (memory_mode == object_memory_mode_t::BLOB_GENERATOR) {
+            // instantiate data.
+            auto number_bytes_generated = other.blob_generator(t_bytes,other.size);
+            if (number_bytes_generated != other.size) {
+                dbg_default_error("Expecting {} bytes, but blob generator writes {} bytes.", other.size, number_bytes_generated);
+                std::string exception_message("Expecting");
+                throw std::runtime_error(std::string("Expecting ") + std::to_string(other.size)
+                        + " bytes, but blob generator writes "
+                        + std::to_string(number_bytes_generated) + " bytes.");
+            }
+        } else {
+            // uint8_t* t_bytes = PAGE_ALIGNED_NEW(other.size);
+            memcpy(t_bytes, other.bytes, other.size);
+        }
         bytes = t_bytes;
         size = other.size;
         capacity = other.size;
@@ -83,39 +101,44 @@ Blob::Blob(const Blob& other) :
 }
 
 Blob::Blob(Blob&& other) :
-    bytes(other.bytes), size(other.size), capacity(other.size), is_emplaced(other.is_emplaced) {
+    bytes(other.bytes), size(other.size), capacity(other.size),
+    blob_generator(other.blob_generator), memory_mode(other.memory_mode) {
     other.bytes = nullptr;
     other.size = 0;
     other.capacity = 0;
 }
 
-Blob::Blob() : bytes(nullptr), size(0), capacity(0), is_emplaced(false) {}
+Blob::Blob() : bytes(nullptr), size(0), capacity(0), memory_mode(object_memory_mode_t::DEFAULT) {}
 
 Blob::~Blob() {
-    if(bytes && ! is_emplaced) {
+    if(bytes && (memory_mode == object_memory_mode_t::DEFAULT)) {
         free(const_cast<void*>(reinterpret_cast<const void*>(bytes)));
     }
 }
 
 Blob& Blob::operator=(Blob&& other) {
-    const uint8_t* swp_bytes = other.bytes;
-    std::size_t swp_size = other.size;
-    std::size_t swp_cap  = other.capacity;
-    bool swap_is_emplaced = other.is_emplaced;
+    auto swp_bytes = other.bytes;
+    auto swp_size = other.size;
+    auto swp_cap  = other.capacity;
+    auto swp_blob_generator = other.blob_generator;
+    auto swp_memory_mode = other.memory_mode;
     other.bytes = bytes;
     other.size = size;
     other.capacity = capacity;
-    is_emplaced = swap_is_emplaced;
+    other.blob_generator = blob_generator;
+    other.memory_mode = memory_mode;
     bytes = swp_bytes;
     size = swp_size;
     capacity = swp_cap;
+    blob_generator = swp_blob_generator;
+    memory_mode = swp_memory_mode;
     return *this;
 }
 
 Blob& Blob::operator=(const Blob& other) {
     // 1) this->is_emplaced has to be false;
-    if (is_emplaced) {
-        throw std::runtime_error("Copy to a Blob that does not own the data (is_emplaced = false) is prohibited.");
+    if (memory_mode != object_memory_mode_t::DEFAULT) {
+        throw std::runtime_error("Copy to a Blob that does not own the data (object_memory_mode_T::DEFAULT) is prohibited.");
     }
 
     // 2) verify that this->capacity has enough memory;
@@ -127,7 +150,18 @@ Blob& Blob::operator=(const Blob& other) {
     // 3) update this->size; copy data, if there is any.
     this->size = other.size;
     if(this->size > 0) {
-        memcpy(const_cast<void*>(static_cast<const void*>(this->bytes)), other.bytes, size);
+        if (other.memory_mode == object_memory_mode_t::BLOB_GENERATOR) {
+            auto number_bytes_generated = other.blob_generator(const_cast<uint8_t*>(this->bytes),other.size);
+            if (number_bytes_generated != other.size) {
+                dbg_default_error("Expecting {} bytes, but blob generator writes {} bytes.", other.size, number_bytes_generated);
+                std::string exception_message("Expecting");
+                throw std::runtime_error(std::string("Expecting ") + std::to_string(other.size)
+                        + " bytes, but blob generator writes "
+                        + std::to_string(number_bytes_generated) + " bytes.");
+            }
+        } else {
+            memcpy(const_cast<void*>(static_cast<const void*>(this->bytes)), other.bytes, size);
+        }
     }
 
     return *this;
@@ -136,7 +170,18 @@ Blob& Blob::operator=(const Blob& other) {
 std::size_t Blob::to_bytes(uint8_t* v) const {
     ((std::size_t*)(v))[0] = size;
     if(size > 0) {
-        memcpy(v + sizeof(size), bytes, size);
+        if (memory_mode == object_memory_mode_t::BLOB_GENERATOR) {
+            auto number_bytes_generated = blob_generator(v+sizeof(size), size);
+            if (number_bytes_generated != size) {
+                dbg_default_error("Expecting {} bytes, but blob generator writes {} bytes.", size, number_bytes_generated);
+                std::string exception_message("Expecting");
+                throw std::runtime_error(std::string("Expecting ") + std::to_string(size)
+                        + " bytes, but blob generator writes "
+                        + std::to_string(number_bytes_generated) + " bytes.");
+            }
+        } else {
+            memcpy(v + sizeof(size), bytes, size);
+        }
     }
     return size + sizeof(size);
 }
@@ -146,8 +191,25 @@ std::size_t Blob::bytes_size() const {
 }
 
 void Blob::post_object(const std::function<void(uint8_t const* const, std::size_t)>& f) const {
-    f((uint8_t*)&size, sizeof(size));
-    f(bytes, size);
+    if (size > 0 && (memory_mode == object_memory_mode_t::BLOB_GENERATOR)) {
+        // we have to instatiate the data. CAUTIOUS: this is inefficient. Please use BLOB_GENERATOR mode carefully.
+        uint8_t* local_bytes = static_cast<uint8_t*>(malloc(size));
+        auto number_bytes_generated = blob_generator(local_bytes,size);
+        if (number_bytes_generated != size) {
+            free(local_bytes);
+            dbg_default_error("Expecting {} bytes, but blob generator writes {} bytes.", size, number_bytes_generated);
+            std::string exception_message("Expecting");
+            throw std::runtime_error(std::string("Expecting ") + std::to_string(size)
+                    + " bytes, but blob generator writes "
+                    + std::to_string(number_bytes_generated) + " bytes.");
+        }
+        f((uint8_t*)&size, sizeof(size));
+        f(local_bytes, size);
+        free(local_bytes);
+    } else {
+        f((uint8_t*)&size, sizeof(size));
+        f(bytes, size);
+    }
 }
 
 mutils::context_ptr<Blob> Blob::from_bytes_noalloc(mutils::DeserializationManager* ctx, const uint8_t* const v) {
@@ -276,6 +338,42 @@ ObjectWithUInt64Key::ObjectWithUInt64Key() :
     previous_version(INVALID_VERSION),
     previous_version_by_key(INVALID_VERSION),
     key(INVALID_UINT64_OBJECT_KEY) {}
+
+// constructor 5 : using delayed instantiator with message gnerator
+ObjectWithUInt64Key::ObjectWithUInt64Key(const uint64_t _key,
+                                         const blob_generator_func_t& _message_generator,
+                                         const std::size_t _size) :
+#ifdef ENABLE_EVALUATION
+    message_id(0),
+#endif
+    version(persistent::INVALID_VERSION),
+    timestamp_us(0),
+    previous_version(INVALID_VERSION),
+    previous_version_by_key(INVALID_VERSION),
+    key(_key),
+    blob(_message_generator,_size) {}
+
+// constructor 5.5 : using delayed instatiator with message generator
+ObjectWithUInt64Key::ObjectWithUInt64Key(
+#ifdef ENABLE_EVALUATION
+                                         const uint64_t _message_id,
+#endif
+                                         const persistent::version_t _version,
+                                         const uint64_t _timestamp_us,
+                                         const persistent::version_t _previous_version,
+                                         const persistent::version_t _previous_version_by_key,
+                                         const uint64_t _key,
+                                         const blob_generator_func_t& _message_generator,
+                                         const std::size_t _s) :
+#ifdef ENABLE_EVALUATION
+    message_id(_message_id),
+#endif
+    version(_version),
+    timestamp_us(_timestamp_us),
+    previous_version(_previous_version),
+    previous_version_by_key(_previous_version_by_key),
+    key(_key),
+    blob(_message_generator, _s) {}
 
 const uint64_t& ObjectWithUInt64Key::get_key_ref() const {
     return this->key;
@@ -571,6 +669,20 @@ ObjectWithStringKey::ObjectWithStringKey(ObjectWithStringKey&& other) :
     key(other.key),
     blob(std::move(other.blob)) {}
 
+
+ObjectWithStringKey& ObjectWithStringKey::operator=(ObjectWithStringKey&& other) {
+#ifdef ENABLE_EVALUATION
+    message_id = other.message_id;
+#endif
+    version = other.version;
+    timestamp_us = other.timestamp_us;
+    previous_version = other.previous_version;
+    previous_version_by_key = other.previous_version_by_key;
+    key = std::move(other.key);
+    blob = std::move(other.blob);
+    return *this;
+}
+
 // constructor 3 : copy constructor
 ObjectWithStringKey::ObjectWithStringKey(const ObjectWithStringKey& other) :
 #ifdef ENABLE_EVALUATION
@@ -594,18 +706,41 @@ ObjectWithStringKey::ObjectWithStringKey() :
     previous_version_by_key(INVALID_VERSION),
     key() {}
 
-ObjectWithStringKey& ObjectWithStringKey::operator=(ObjectWithStringKey&& other) {
+// constructor 5 : using delayed instatiator with message generator
+ObjectWithStringKey::ObjectWithStringKey(const std::string& _key,
+                                         const blob_generator_func_t& _message_generator,
+                                         const std::size_t _size):
 #ifdef ENABLE_EVALUATION
-    message_id = other.message_id;
+    message_id(0),
 #endif
-    version = other.version;
-    timestamp_us = other.timestamp_us;
-    previous_version = other.previous_version;
-    previous_version_by_key = other.previous_version_by_key;
-    key = std::move(other.key);
-    blob = std::move(other.blob);
-    return *this;
-}
+    version(persistent::INVALID_VERSION),
+    timestamp_us(0),
+    previous_version(INVALID_VERSION),
+    previous_version_by_key(INVALID_VERSION),
+    key(_key),
+    blob(_message_generator,_size) {}
+
+// constructor 5.5 : using delayed instatiator with message generator
+ObjectWithStringKey::ObjectWithStringKey(
+#ifdef ENABLE_EVALUATION
+                                         const uint64_t _message_id,
+#endif
+                                         const persistent::version_t _version,
+                                         const uint64_t _timestamp_us,
+                                         const persistent::version_t _previous_version,
+                                         const persistent::version_t _previous_version_by_key,
+                                         const std::string& _key,
+                                         const blob_generator_func_t& _message_generator,
+                                         const std::size_t _s) :
+#ifdef ENABLE_EVALUATION
+    message_id(_message_id),
+#endif
+    version(_version),
+    timestamp_us(_timestamp_us),
+    previous_version(_previous_version),
+    previous_version_by_key(_previous_version_by_key),
+    key(_key),
+    blob(_message_generator, _s) {}
 
 const std::string& ObjectWithStringKey::get_key_ref() const {
     return this->key;
