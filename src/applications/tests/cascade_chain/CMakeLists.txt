@@ -1,7 +1,3 @@
-cmake_minimum_required(VERSION 3.16)
-set(CMAKE_DISABLE_SOURCE_CHANGES ON)
-set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
-
 add_executable(chain_only_client chain_only_client.cpp)
 target_include_directories(chain_only_client PRIVATE
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>

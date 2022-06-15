@@ -1,9 +1,3 @@
-cmake_minimum_required(VERSION 3.16)
-set(CMAKE_DISABLE_SOURCE_CHANGES ON)
-set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
-project(cascade CXX)
-
-
 add_executable(dfg dfg.cpp)
 target_include_directories(dfg PRIVATE
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>

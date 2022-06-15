@@ -1,7 +1,3 @@
-cmake_minimum_required(VERSION 3.16)
-set(CMAKE_DISABLE_SOURCE_CHANGES ON)
-set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
-
 add_library(service OBJECT service.cpp data_flow_graph.cpp)
 target_include_directories(service PRIVATE
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
