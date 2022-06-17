@@ -1504,17 +1504,20 @@ std::enable_if_t<is_signature_store<SubgroupType>::value, derecho::rpc::QueryRes
 ServiceClient<CascadeTypes...>::get_signature(const typename SubgroupType::KeyType& key, const persistent::version_t& version,
                                               bool stable, uint32_t subgroup_index, uint32_t shard_index) {
     static_assert(is_signature_store<SubgroupType>::value, "get_signature can only be called on subgroups of type SignatureCascadeStore<KT,VT,IK,IV>");
-    if(group_ptr != nullptr) {
+    if(!is_external_client()) {
         std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
-        if(static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
+        node_id_t target_node_id = pick_member_by_policy<SubgroupType>(subgroup_index, shard_index);
+        try {
             // do a p2p get_signature as a member (Replicated).
             auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
-            return subgroup_handle.template p2p_send<RPC_NAME(get_signature)>(group_ptr->get_my_id(), key, version, stable, false);
-        } else {
+            if(static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
+                target_node_id = group_ptr->get_my_id();
+            }
+            return subgroup_handle.template p2p_send<RPC_NAME(get_signature)>(target_node_id, key, version, stable, false);
+        } catch(derecho::invalid_subgroup_exception& ex) {
             // do normal get_signature as a non member (PeerCaller).
             auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
-            node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index, shard_index);
-            return subgroup_handle.template p2p_send<RPC_NAME(get_signature)>(node_id, key, version, stable, false);
+            return subgroup_handle.template p2p_send<RPC_NAME(get_signature)>(target_node_id, key, version, stable, false);
         }
     } else {
         std::lock_guard<std::mutex> lck(this->external_group_ptr_mutex);
@@ -1526,29 +1529,33 @@ ServiceClient<CascadeTypes...>::get_signature(const typename SubgroupType::KeyTy
 }
 
 template <typename... CascadeTypes>
-template<typename SubgroupType>
+template <typename SubgroupType>
 std::enable_if_t<is_signature_store<SubgroupType>::value, derecho::rpc::QueryResults<std::tuple<std::vector<uint8_t>, persistent::version_t>>>
 ServiceClient<CascadeTypes...>::get_signature_by_version(const persistent::version_t& version,
-                                              uint32_t subgroup_index, uint32_t shard_index) {
+                                                         uint32_t subgroup_index, uint32_t shard_index) {
     static_assert(is_signature_store<SubgroupType>::value, "get_signature can only be called on subgroups of type SignatureCascadeStore<KT,VT,IK,IV>");
-    if(group_ptr != nullptr) {
+    if(!is_external_client()) {
         std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
-        if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
+        node_id_t target_node_id = pick_member_by_policy<SubgroupType>(subgroup_index, shard_index);
+        try {
             // do a p2p get_signature_by_version as a member (Replicated).
             auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
-            return subgroup_handle.template p2p_send<RPC_NAME(get_signature_by_version)>(group_ptr->get_my_id(),version);
-        } else {
+            if(static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
+                target_node_id = group_ptr->get_my_id();
+            }
+            return subgroup_handle.template p2p_send<RPC_NAME(get_signature_by_version)>(target_node_id, version);
+
+        } catch(derecho::invalid_subgroup_exception& ex) {
             // do normal get_signature_by_version as a non member (PeerCaller).
             auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
-            node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
-            return subgroup_handle.template p2p_send<RPC_NAME(get_signature_by_version)>(node_id,version);
+            return subgroup_handle.template p2p_send<RPC_NAME(get_signature_by_version)>(target_node_id, version);
         }
     } else {
         std::lock_guard<std::mutex> lck(this->external_group_ptr_mutex);
         // call as an external client (ExternalClientCaller).
         auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
-        node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
-        return caller.template p2p_send<RPC_NAME(get_signature_by_version)>(node_id,version);
+        node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index, shard_index);
+        return caller.template p2p_send<RPC_NAME(get_signature_by_version)>(node_id, version);
     }
 }
 
@@ -1656,19 +1663,22 @@ derecho::rpc::QueryResults<std::tuple<std::vector<uint8_t>, persistent::version_
 
 }
 
-template<typename...CascadeTypes>
-template<typename SubgroupType>
+template <typename... CascadeTypes>
+template <typename SubgroupType>
 std::enable_if_t<is_signature_store<SubgroupType>::value, derecho::rpc::QueryResults<void>>
 ServiceClient<CascadeTypes...>::request_signature_notification(const persistent::version_t& version, uint32_t subgroup_index, uint32_t shard_index) {
-    if(group_ptr != nullptr) {
-        std::lock_guard<std::mutex> lock(this->group_ptr_mutex);
-        if(static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
-            // Requesting a signature notification from yourself doesn't make sense, but we'll write the code for it anyway
+    if(!is_external_client()) {
+        std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
+        node_id_t target_node_id = pick_member_by_policy<SubgroupType>(subgroup_index, shard_index);
+        try {
             auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
-            return subgroup_handle.template p2p_send<RPC_NAME(request_notification)>(group_ptr->get_my_id(), group_ptr->get_my_id(), version);
-        } else {
+            if(static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
+                // Requesting a signature notification from yourself doesn't make sense, but we'll write the code for it anyway
+                target_node_id = group_ptr->get_my_id();
+            }
+            return subgroup_handle.template p2p_send<RPC_NAME(request_notification)>(target_node_id, group_ptr->get_my_id(), version);
+        } catch(derecho::invalid_subgroup_exception& ex) {
             auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
-            node_id_t target_node_id = pick_member_by_policy<SubgroupType>(subgroup_index, shard_index);
             return subgroup_handle.template p2p_send<RPC_NAME(request_notification)>(target_node_id, group_ptr->get_my_id(), version);
         }
     } else {
@@ -1679,19 +1689,22 @@ ServiceClient<CascadeTypes...>::request_signature_notification(const persistent:
         return caller.template p2p_send<RPC_NAME(request_notification)>(target_node_id, external_group_ptr->get_my_id(), version);
     }
 }
-template<typename...CascadeTypes>
-template<typename SubgroupType>
+template <typename... CascadeTypes>
+template <typename SubgroupType>
 std::enable_if_t<is_signature_store<SubgroupType>::value, derecho::rpc::QueryResults<void>>
 ServiceClient<CascadeTypes...>::subscribe_signature_notifications(const typename SubgroupType::KeyType& key, uint32_t subgroup_index, uint32_t shard_index) {
-    if(group_ptr != nullptr) {
-        std::lock_guard<std::mutex> lock(this->group_ptr_mutex);
-        if(static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
-            // Requesting a signature notification from yourself doesn't make sense, but we'll write the code for it anyway
+    if(!is_external_client()) {
+        std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
+        node_id_t target_node_id = pick_member_by_policy<SubgroupType>(subgroup_index, shard_index);
+        try {
             auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
-            return subgroup_handle.template p2p_send<RPC_NAME(subscribe_to_notifications)>(group_ptr->get_my_id(), group_ptr->get_my_id(), key);
-        } else {
+            if(static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
+                // Requesting a signature notification from yourself doesn't make sense, but we'll write the code for it anyway
+                target_node_id = group_ptr->get_my_id();
+            }
+            return subgroup_handle.template p2p_send<RPC_NAME(subscribe_to_notifications)>(target_node_id, group_ptr->get_my_id(), key);
+        } catch(derecho::invalid_subgroup_exception& ex) {
             auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
-            node_id_t target_node_id = pick_member_by_policy<SubgroupType>(subgroup_index, shard_index);
             return subgroup_handle.template p2p_send<RPC_NAME(subscribe_to_notifications)>(target_node_id, group_ptr->get_my_id(), key);
         }
     } else {
