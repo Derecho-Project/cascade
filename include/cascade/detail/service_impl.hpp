@@ -342,7 +342,7 @@ node_id_t ServiceClient<CascadeTypes...>::pick_member_by_policy(uint32_t subgrou
 
 template <typename... CascadeTypes>
 template <typename SubgroupType>
-derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::put(
+derecho::rpc::QueryResults<std::tuple<persistent::version_t,persistent::version_t,persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::put(
         const typename SubgroupType::ObjectType& value,
         uint32_t subgroup_index,
         uint32_t shard_index) {
@@ -376,7 +376,7 @@ derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceCl
 
 template <typename... CascadeTypes>
 template <typename ObjectType, typename FirstType, typename SecondType, typename... RestTypes>
-derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::type_recursive_put(
+derecho::rpc::QueryResults<std::tuple<persistent::version_t,persistent::version_t,persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::type_recursive_put(
         uint32_t type_index,
         const ObjectType& value,
         uint32_t subgroup_index,
@@ -390,7 +390,7 @@ derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceCl
 
 template <typename... CascadeTypes>
 template <typename ObjectType, typename LastType>
-derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::type_recursive_put(
+derecho::rpc::QueryResults<std::tuple<persistent::version_t,persistent::version_t,persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::type_recursive_put(
         uint32_t type_index,
         const ObjectType& value,
         uint32_t subgroup_index,
@@ -404,7 +404,7 @@ derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceCl
 
 template <typename... CascadeTypes>
 template <typename ObjectType>
-derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::put(
+derecho::rpc::QueryResults<std::tuple<persistent::version_t,persistent::version_t,persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::put(
         const ObjectType& value) {
     // STEP 1 - get key
     if constexpr (!std::is_base_of_v<ICascadeObject<std::string,ObjectType>,ObjectType>) {
@@ -604,7 +604,7 @@ void ServiceClient<CascadeTypes...>::collective_trigger_put(
 
 template <typename... CascadeTypes>
 template <typename SubgroupType>
-derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::remove(
+derecho::rpc::QueryResults<std::tuple<persistent::version_t,persistent::version_t,persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::remove(
         const typename SubgroupType::KeyType& key,
         uint32_t subgroup_index,
         uint32_t shard_index) {
@@ -638,7 +638,7 @@ derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceCl
 
 template <typename... CascadeTypes>
 template <typename KeyType, typename FirstType, typename SecondType, typename... RestTypes>
-derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::type_recursive_remove(
+derecho::rpc::QueryResults<std::tuple<persistent::version_t,persistent::version_t,persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::type_recursive_remove(
         uint32_t type_index,
         const KeyType& key,
         uint32_t subgroup_index,
@@ -652,7 +652,7 @@ derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceCl
 
 template <typename... CascadeTypes>
 template <typename KeyType, typename LastType>
-derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::type_recursive_remove(
+derecho::rpc::QueryResults<std::tuple<persistent::version_t,persistent::version_t,persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::type_recursive_remove(
         uint32_t type_index,
         const KeyType& key,
         uint32_t subgroup_index,
@@ -666,7 +666,7 @@ derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceCl
 
 template <typename... CascadeTypes>
 template <typename KeyType>
-derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::remove(
+derecho::rpc::QueryResults<std::tuple<persistent::version_t,persistent::version_t,persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::remove(
         const KeyType& key) {
     // STEP 1 - get key
     if constexpr (!std::is_convertible_v<KeyType,std::string>) {
@@ -1526,7 +1526,7 @@ void ServiceClient<CascadeTypes...>::refresh_object_pool_metadata_cache() {
 
 template <typename... CascadeTypes>
 template <typename SubgroupType>
-derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::create_object_pool(
+derecho::rpc::QueryResults<std::tuple<persistent::version_t,persistent::version_t,persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::create_object_pool(
         const std::string& pathname, const uint32_t subgroup_index,
         const sharding_policy_t sharding_policy, const std::unordered_map<std::string,uint32_t>& object_locations) {
     uint32_t subgroup_type_index = ObjectPoolMetadata<CascadeTypes...>::template get_subgroup_type_index<SubgroupType>();
@@ -1551,7 +1551,7 @@ derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceCl
 }
 
 template <typename... CascadeTypes>
-derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::remove_object_pool(const std::string& pathname) {
+derecho::rpc::QueryResults<std::tuple<persistent::version_t,persistent::version_t,persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::remove_object_pool(const std::string& pathname) {
     // determine the shard index by hashing
     uint32_t metadata_service_shard_index = std::hash<std::string>{}(pathname) % this->template get_number_of_shards<CascadeMetadataService<CascadeTypes...>>(METADATA_SERVICE_SUBGROUP_INDEX);
 

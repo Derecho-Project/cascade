@@ -38,10 +38,12 @@ static const char* policy_names[] = {
 /**
     Lambda function for handling the unwrapping of tuple of version and timestamp
 */
-auto bundle_f = [](std::tuple<persistent::version_t, uint64_t>& obj) {
+auto bundle_f = [](std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>& obj) {
     std::vector<long> a;
     a.push_back(static_cast<long>(std::get<0>(obj)));
     a.push_back(static_cast<long>(std::get<1>(obj)));
+    a.push_back(static_cast<long>(std::get<2>(obj)));
+    a.push_back(static_cast<long>(std::get<3>(obj)));
     return a;
 };
 
@@ -152,9 +154,9 @@ static void print_red(std::string msg) {
 */
 template <typename SubgroupType>
 auto put(ServiceClientAPI& capi, const typename SubgroupType::ObjectType& obj, uint32_t subgroup_index = UINT32_MAX, uint32_t shard_index = 0) {
-    derecho::rpc::QueryResults<std::tuple<persistent::version_t, uint64_t>> result = (subgroup_index == UINT32_MAX) ? capi.put(obj) : capi.template put<SubgroupType>(obj, subgroup_index, shard_index);
+    derecho::rpc::QueryResults<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>> result = (subgroup_index == UINT32_MAX) ? capi.put(obj) : capi.template put<SubgroupType>(obj, subgroup_index, shard_index);
 
-    QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>* s = new QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>(std::move(result), bundle_f);
+    QueryResultsStore<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>, std::vector<long>>* s = new QueryResultsStore<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>, std::vector<long>>(std::move(result), bundle_f);
     return py::cast(s);
 }
 
@@ -209,13 +211,13 @@ void trigger_put(ServiceClientAPI& capi, const typename SubgroupType::ObjectType
 template <typename SubgroupType>
 auto remove(ServiceClientAPI& capi, std::string& key, uint32_t subgroup_index = UINT32_MAX, uint32_t shard_index = 0) {
     if constexpr(std::is_integral<typename SubgroupType::KeyType>::value) {
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t, uint64_t>> result = std::move(capi.template remove<SubgroupType>(static_cast<uint64_t>(std::stol(key)), subgroup_index, shard_index));
-        QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>* s = new QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>(std::move(result), bundle_f);
+        derecho::rpc::QueryResults<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>> result = std::move(capi.template remove<SubgroupType>(static_cast<uint64_t>(std::stol(key)), subgroup_index, shard_index));
+        QueryResultsStore<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>, std::vector<long>>* s = new QueryResultsStore<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>, std::vector<long>>(std::move(result), bundle_f);
         return py::cast(s);
 
     } else if constexpr(std::is_convertible<typename SubgroupType::KeyType, std::string>::value) {
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t, uint64_t>> result = (subgroup_index == UINT32_MAX) ? capi.remove(key) : capi.template remove<SubgroupType>(key, subgroup_index, shard_index);
-        QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>* s = new QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>(std::move(result), bundle_f);
+        derecho::rpc::QueryResults<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>> result = (subgroup_index == UINT32_MAX) ? capi.remove(key) : capi.template remove<SubgroupType>(key, subgroup_index, shard_index);
+        QueryResultsStore<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>, std::vector<long>>* s = new QueryResultsStore<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>, std::vector<long>>(std::move(result), bundle_f);
         return py::cast(s);
 
     } else {
@@ -350,8 +352,8 @@ auto multi_list_keys(ServiceClientAPI& capi, uint32_t subgroup_index = 0, uint32
 */
 template <typename SubgroupType>
 auto create_object_pool(ServiceClientAPI& capi, const std::string& object_pool_pathname, uint32_t subgroup_index) {
-    derecho::rpc::QueryResults<std::tuple<persistent::version_t, uint64_t>> result = capi.template create_object_pool<SubgroupType>(object_pool_pathname, subgroup_index);
-    QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>* s = new QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>(std::move(result), bundle_f);
+    derecho::rpc::QueryResults<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>> result = capi.template create_object_pool<SubgroupType>(object_pool_pathname, subgroup_index);
+    QueryResultsStore<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>, std::vector<long>>* s = new QueryResultsStore<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>, std::vector<long>>(std::move(result), bundle_f);
     return py::cast(s);
 }
 
@@ -558,7 +560,7 @@ PYBIND11_MODULE(client, m) {
                                 capi.trigger_put(obj);
                             } else if (blocking) {
                                 auto result = capi.put(obj);
-                                auto s = new QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>(std::move(result), bundle_f);
+                                auto s = new QueryResultsStore<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>, std::vector<long>>(std::move(result), bundle_f);
                                 return py::cast(s);
                             } else {
                                 capi.put_and_forget(obj);
@@ -612,7 +614,7 @@ PYBIND11_MODULE(client, m) {
 
                         if (subgroup_type.empty()) {
                             auto result = capi.remove(key);
-                            auto s = new QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>(std::move(result), bundle_f);
+                            auto s = new QueryResultsStore<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>, std::vector<long>>(std::move(result), bundle_f);
                             return py::cast(s);
                         } else {
                             on_all_subgroup_type(subgroup_type, return remove, capi, key, subgroup_index, shard_index);

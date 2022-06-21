@@ -3,6 +3,7 @@
 
 #include "cascade/config.h"
 #include "cascade/utils.hpp"
+#include "cascade/cascade_exception.hpp"
 #include "debug_util.hpp"
 
 #include <derecho/conf/conf.hpp>
@@ -17,21 +18,22 @@ namespace derecho {
 namespace cascade {
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-std::tuple<persistent::version_t, uint64_t> VolatileCascadeStore<KT, VT, IK, IV>::put(const VT& value) const {
+std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t> VolatileCascadeStore<KT, VT, IK, IV>::put(const VT& value) const {
     debug_enter_func_with_args("value.get_key_ref={}", value.get_key_ref());
     LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_PUT_START, group, value);
 
     derecho::Replicated<VolatileCascadeStore>& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put)>(value);
     auto& replies = results.get();
-    std::tuple<persistent::version_t, uint64_t> ret(CURRENT_VERSION, 0);
+    std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t> ret(CURRENT_VERSION, CURRENT_VERSION, CURRENT_VERSION, 0);
     // TODO: verfiy consistency ?
     for(auto& reply_pair : replies) {
         ret = reply_pair.second.get();
     }
 
     LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_PUT_END, group, value);
-    debug_leave_func_with_value("version=0x{:x},timestamp={}", std::get<0>(ret), std::get<1>(ret));
+    debug_leave_func_with_value("version=0x{:x},previous_version=0x{:x},previous_version_by_key=0x{:x},timestamp={}",
+            std::get<0>(ret), std::get<1>(ret), std::get<2>(ret), std::get<3>(ret));
     return ret;
 }
 
@@ -73,7 +75,7 @@ double internal_perf_put(derecho::Replicated<CascadeType>& subgroup_handle, cons
     // send a normal put
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put)>(objects.at(now_ns % NUMBER_OF_DISTINCT_OBJECTS));
     auto& replies = results.get();
-    std::tuple<persistent::version_t, uint64_t> ret(CURRENT_VERSION, 0);
+    std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t> ret{};
     // TODO: verfiy consistency ?
     for(auto& reply_pair : replies) {
         ret = reply_pair.second.get();
@@ -96,17 +98,18 @@ double VolatileCascadeStore<KT, VT, IK, IV>::perf_put(const uint32_t max_payload
 #endif
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-std::tuple<persistent::version_t, uint64_t> VolatileCascadeStore<KT, VT, IK, IV>::remove(const KT& key) const {
+std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t> VolatileCascadeStore<KT, VT, IK, IV>::remove(const KT& key) const {
     debug_enter_func_with_args("key={}", key);
     derecho::Replicated<VolatileCascadeStore>& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_remove)>(key);
     auto& replies = results.get();
-    std::tuple<persistent::version_t, uint64_t> ret(CURRENT_VERSION, 0);
+    std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t> ret(CURRENT_VERSION, CURRENT_VERSION, CURRENT_VERSION, 0);
     // TODO: verify consistency ?
     for(auto& reply_pair : replies) {
         ret = reply_pair.second.get();
     }
-    debug_leave_func_with_value("version=0x{:x},timestamp={}", std::get<0>(ret), std::get<1>(ret));
+    debug_leave_func_with_value("version=0x{:x},previous_version=0x{:x},previous_version_by_key=0x{:x},timestamp={}",
+            std::get<0>(ret), std::get<1>(ret), std::get<2>(ret), std::get<3>(ret));
     return ret;
 }
 
@@ -285,18 +288,18 @@ std::vector<KT> VolatileCascadeStore<KT, VT, IK, IV>::ordered_list_keys(const st
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-std::tuple<persistent::version_t, uint64_t> VolatileCascadeStore<KT, VT, IK, IV>::ordered_put(const VT& value) {
+std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t> VolatileCascadeStore<KT, VT, IK, IV>::ordered_put(const VT& value) {
     debug_enter_func_with_args("key={}", value.get_key_ref());
 
-    std::tuple<persistent::version_t, uint64_t> version_and_timestamp = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
-
-    if(this->internal_ordered_put(value) == false) {
-        version_and_timestamp = {persistent::INVALID_VERSION, 0};
+    try {
+        auto ret = internal_ordered_put(value);
+        debug_leave_func_with_value("version=0x{:x},previous_version=0x{:x},pervious_version_by_key=0x{:x},timestamp={}",
+                std::get<0>(ret),std::get<1>(ret),std::get<2>(ret),std::get<3>(ret));
+        return ret;
+    } catch (cascade_exception& ex) {
+        debug_leave_func_with_value("Failed with exception:{}", ex.what());
+        return {persistent::INVALID_VERSION, persistent::INVALID_VERSION, persistent::INVALID_VERSION, 0};
     }
-
-    debug_leave_func_with_value("version=0x{:x},timestamp={}", std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp));
-
-    return version_and_timestamp;
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
@@ -309,7 +312,8 @@ void VolatileCascadeStore<KT, VT, IK, IV>::ordered_put_and_forget(const VT& valu
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-bool VolatileCascadeStore<KT, VT, IK, IV>::internal_ordered_put(const VT& value) {
+std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>
+VolatileCascadeStore<KT, VT, IK, IV>::internal_ordered_put(const VT& value) {
     std::tuple<persistent::version_t, uint64_t> version_and_timestamp = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
 
     if constexpr(std::is_base_of<IKeepVersion, VT>::value) {
@@ -322,29 +326,26 @@ bool VolatileCascadeStore<KT, VT, IK, IV>::internal_ordered_put(const VT& value)
     // validator
     if constexpr(std::is_base_of<IValidator<KT, VT>, VT>::value) {
         if(!value.validate(this->kv_map)) {
-            return false;
+            throw invalid_value_exception(std::string("Invalid value with key=") + value.get_key_ref());
         }
+    }
+
+    persistent::version_t previous_version = this->update_version;
+    persistent::version_t previous_version_by_key = persistent::INVALID_VERSION;
+    if(this->kv_map.find(value.get_key_ref()) != this->kv_map.end()) {
+        previous_version_by_key = this->kv_map.at(value.get_key_ref()).get_version();
     }
 
     // Verify previous version MUST happen before update previous versions.
     if constexpr(std::is_base_of<IVerifyPreviousVersion, VT>::value) {
-        bool verify_result;
-        if(this->kv_map.find(value.get_key_ref()) != this->kv_map.end()) {
-            verify_result = value.verify_previous_version(this->update_version, this->kv_map.at(value.get_key_ref()).get_version());
-        } else {
-            verify_result = value.verify_previous_version(this->update_version, persistent::INVALID_VERSION);
-        }
-        if(!verify_result) {
+        if(!value.verify_previous_version(previous_version,previous_version_by_key)) {
             // reject the update by returning an invalid version and timestamp
-            return false;
+            throw invalid_version_exception(previous_version,previous_version_by_key);
         }
     }
+
     if constexpr(std::is_base_of<IKeepPreviousVersion, VT>::value) {
-        if(this->kv_map.find(value.get_key_ref()) != this->kv_map.end()) {
-            value.set_previous_version(this->update_version, this->kv_map.at(value.get_key_ref()).get_version());
-        } else {
-            value.set_previous_version(this->update_version, persistent::INVALID_VERSION);
-        }
+        value.set_previous_version(previous_version,previous_version_by_key);
     }
 
     // for lockless check
@@ -380,18 +381,22 @@ bool VolatileCascadeStore<KT, VT, IK, IV>::internal_ordered_put(const VT& value)
                 value.get_key_ref(), value, cascade_context_ptr);
     }
 
-    return true;
+    return {this->update_version,previous_version,previous_version_by_key,std::get<1>(version_and_timestamp)};
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-std::tuple<persistent::version_t, uint64_t> VolatileCascadeStore<KT, VT, IK, IV>::ordered_remove(const KT& key) {
+std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t> VolatileCascadeStore<KT, VT, IK, IV>::ordered_remove(const KT& key) {
     debug_enter_func_with_args("key={}", key);
 
     std::tuple<persistent::version_t, uint64_t> version_and_timestamp = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
-
-    if(this->kv_map.find(key) == this->kv_map.end()) {
-        debug_leave_func_with_value("version=0x{:x},timestamp={}", std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp));
-        return version_and_timestamp;
+    persistent::version_t previous_version = this->update_version;
+    persistent::version_t previous_version_by_key = persistent::INVALID_VERSION;
+    if(this->kv_map.find(key) != this->kv_map.end()) {
+        previous_version_by_key = this->kv_map.at(key).get_version();
+    } else {
+        debug_leave_func_with_value("version=0x{:x},previous_version=0x{:x},previous_version_by_key=0x{:x},timestamp={}",
+                std::get<0>(version_and_timestamp),previous_version,previous_version_by_key,std::get<1>(version_and_timestamp));
+        return {std::get<0>(version_and_timestamp),previous_version,previous_version_by_key,std::get<1>(version_and_timestamp)};
     }
 
     auto value = create_null_object_cb<KT, VT, IK, IV>(key);
@@ -443,9 +448,9 @@ std::tuple<persistent::version_t, uint64_t> VolatileCascadeStore<KT, VT, IK, IV>
                 key, value, cascade_context_ptr);
     }
 
-    debug_leave_func_with_value("version=0x{:x},timestamp={}", std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp));
-
-    return version_and_timestamp;
+    debug_leave_func_with_value("version=0x{:x},previous_version=0x{:x},previous_version_by_key=0x{:x},timestamp={}",
+            std::get<0>(version_and_timestamp),previous_version,previous_version_by_key,std::get<1>(version_and_timestamp));
+    return {std::get<0>(version_and_timestamp),previous_version,previous_version_by_key,std::get<1>(version_and_timestamp)};
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>

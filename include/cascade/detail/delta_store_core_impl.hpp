@@ -1,8 +1,9 @@
 #pragma once
 #include "delta_store_core.hpp"
 
-#include "cascade/config.h"
-#include "cascade/utils.hpp"
+#include <cascade/cascade_exception.hpp>
+#include <cascade/config.h>
+#include <cascade/utils.hpp>
 #include "debug_util.hpp"
 
 #include <derecho/core/derecho.hpp>
@@ -138,33 +139,28 @@ std::unique_ptr<DeltaCascadeStoreCore<KT, VT, IK, IV>> DeltaCascadeStoreCore<KT,
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-bool DeltaCascadeStoreCore<KT, VT, IK, IV>::ordered_put(const VT& value, persistent::version_t prev_ver) {
+persistent::version_t DeltaCascadeStoreCore<KT, VT, IK, IV>::ordered_put(const VT& value, persistent::version_t previous_version) {
     // call validator
     if constexpr(std::is_base_of<IValidator<KT, VT>, VT>::value) {
         if(!value.validate(this->kv_map)) {
-            return false;
+            throw invalid_value_exception("Validation failed with value of key:" + value.get_key_ref() + ".");
         }
+    }
+
+    persistent::version_t previous_version_by_key = persistent::INVALID_VERSION;
+    if(kv_map.find(value.get_key_ref()) != this->kv_map.end()) {
+        previous_version_by_key = this->kv_map.at(value.get_key_ref()).get_version();
     }
 
     // verify version MUST happen before updating it's previous versions (prev_ver,prev_ver_by_key).
     if constexpr(std::is_base_of<IVerifyPreviousVersion, VT>::value) {
-        bool verify_result;
-        if(kv_map.find(value.get_key_ref()) != this->kv_map.end()) {
-            verify_result = value.verify_previous_version(prev_ver, this->kv_map.at(value.get_key_ref()).get_version());
-        } else {
-            verify_result = value.verify_previous_version(prev_ver, persistent::INVALID_VERSION);
-        }
-        if(!verify_result) {
+        if(!value.verify_previous_version(previous_version, previous_version_by_key)) {
             // reject the package if verify failed.
-            return false;
+            throw invalid_version_exception(previous_version,previous_version_by_key);
         }
     }
     if constexpr(std::is_base_of<IKeepPreviousVersion, VT>::value) {
-        persistent::version_t prev_ver_by_key = persistent::INVALID_VERSION;
-        if(kv_map.find(value.get_key_ref()) != kv_map.end()) {
-            prev_ver_by_key = kv_map.at(value.get_key_ref()).get_version();
-        }
-        value.set_previous_version(prev_ver, prev_ver_by_key);
+        value.set_previous_version(previous_version, previous_version_by_key);
     }
     // create delta.
     assert(this->delta.is_empty());
@@ -173,23 +169,33 @@ bool DeltaCascadeStoreCore<KT, VT, IK, IV>::ordered_put(const VT& value, persist
     this->delta.set_data_len(mutils::bytes_size(value));
     // apply_ordered_put
     apply_ordered_put(value);
-    return true;
+    return previous_version_by_key;
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-bool DeltaCascadeStoreCore<KT, VT, IK, IV>::ordered_remove(const VT& value, persistent::version_t prev_ver) {
+persistent::version_t DeltaCascadeStoreCore<KT, VT, IK, IV>::ordered_remove(const VT& value, persistent::version_t previous_version) {
     auto& key = value.get_key_ref();
     // test if key exists
     if(kv_map.find(key) == kv_map.end()) {
         // skip it when no such key.
-        return false;
+        if constexpr(std::is_convertible_v<KT,std::string>) {
+            throw invalid_value_exception(std::string("Cannot found key:") + value.get_key_ref());
+        } else {
+            throw invalid_value_exception(std::string("Cannot found key:") + std::to_string(value.get_key_ref()));
+        }
     } else if(kv_map.at(key).is_null()) {
         // and skip the keys has been deleted already.
-        return false;
+        if constexpr(std::is_convertible_v<KT,std::string>) {
+            throw invalid_value_exception(std::string("Key :") + value.get_key_ref() + " has been removed already.");
+        } else {
+            throw invalid_value_exception(std::string("Key :") + std::to_string(value.get_key_ref()) + " has been removed already.");
+        }
     }
 
+    persistent::version_t previous_version_by_key = kv_map.at(key).get_version();
+
     if constexpr(std::is_base_of<IKeepPreviousVersion, VT>::value) {
-        value.set_previous_version(prev_ver, kv_map.at(key).get_version());
+        value.set_previous_version(previous_version, previous_version_by_key);
     }
     // create delta.
     assert(this->delta.is_empty());
@@ -198,7 +204,7 @@ bool DeltaCascadeStoreCore<KT, VT, IK, IV>::ordered_remove(const VT& value, pers
     this->delta.set_data_len(mutils::bytes_size(value));
     // apply_ordered_put
     apply_ordered_put(value);
-    return true;
+    return previous_version_by_key;
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>

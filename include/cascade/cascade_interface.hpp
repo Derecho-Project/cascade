@@ -85,9 +85,13 @@ public:
      *
      * @param value
      *
-     * @return a tuple including version number (version_t) and a timestamp in microseconds.
+     * @return a tuple including 
+     * 1) version number (version_t) of this update,
+     * 2) previous version number (version_t),
+     * 3) previous version number of the same key (version_t),
+     * 4) and a timestamp in microseconds (uint64_t).
      */
-    virtual std::tuple<persistent::version_t, uint64_t> put(const VT& value) const = 0;
+    virtual std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t> put(const VT& value) const = 0;
     /**
      * put_and_forget(const VT&)
      *
@@ -115,9 +119,13 @@ public:
      *
      * @param key
      *
-     * @return a tuple including version number (version_t) and a timestamp in microseconds.
+     * @return a tuple including 
+     * 1) version number (version_t) of this update,
+     * 2) previous version number (version_t),
+     * 3) previous version number of the same key (version_t),
+     * 4) and a timestamp in microseconds (uint64_t).
      */
-    virtual std::tuple<persistent::version_t, uint64_t> remove(const KT& key) const = 0;
+    virtual std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t> remove(const KT& key) const = 0;
 
     /**
      * get(const KT&,const persistent::version_t&)
@@ -315,9 +323,13 @@ protected:
     /**
      * ordered_put
      * @param value
-     * @return a tuple including version number (version_t) and a timestamp in microseconds.
+     * @return a tuple including 
+     * 1) version number (version_t) of this update,
+     * 2) previous version number (version_t),
+     * 3) previous version number of the same key (version_t),
+     * 4) and a timestamp in microseconds (uint64_t).
      */
-    virtual std::tuple<persistent::version_t, uint64_t> ordered_put(const VT& value) = 0;
+    virtual std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t> ordered_put(const VT& value) = 0;
     /**
      * ordered_put_and_forget
      * @param value
@@ -326,9 +338,13 @@ protected:
     /**
      * ordered_remove
      * @param key
-     * @return a tuple including version number (version_t) and a timestamp in microseconds.
+     * @return a tuple including 
+     * 1) version number (version_t) of this update,
+     * 2) previous version number (version_t),
+     * 3) previous version number of the same key (version_t),
+     * 4) and a timestamp in microseconds (uint64_t).
      */
-    virtual std::tuple<persistent::version_t, uint64_t> ordered_remove(const KT& key) = 0;
+    virtual std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t> ordered_remove(const KT& key) = 0;
     /**
      * ordered_get
      * @param key
