@@ -38,7 +38,7 @@ std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, 
     }
 
     LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_PUT_END, group, value);
-    debug_leave_func_with_value("version=0x{:x},previous_version=0x{:},previous_version_by_key=0x{:x},timestamp={}",
+    debug_leave_func_with_value("version=0x{:x},previous_version=0x{:x},previous_version_by_key=0x{:x},timestamp={}",
             std::get<0>(ret),std::get<1>(ret),std::get<2>(ret),std::get<3>(ret));
     return ret;
 }
@@ -338,8 +338,10 @@ std::vector<KT> PersistentCascadeStore<KT, VT, IK, IV, ST>::list_keys_by_time(co
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t> PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put(const VT& value) {
     debug_enter_func_with_args("key={}", value.get_key_ref());
-
+#ifdef ENABLE_EVALUATION
     std::tuple<persistent::version_t, uint64_t> version_and_timestamp = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
+#endif
+
 #if __cplusplus > 201703L
     LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_PUT_START, group, value, std::get<0>(version_and_timestamp));
 #else
@@ -352,8 +354,15 @@ std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, 
 #else
     LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_PUT_END, group, value, std::get<0>(version_and_timestamp));
 #endif
-    debug_leave_func_with_value("version=0x{:x},timestamp={}", std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp));
+    debug_leave_func_with_value("version=0x{:x},previous_version=0x{:x},previous_version_by_key=0x{:x},timestamp={}",
+            std::get<0>(ret), std::get<1>(ret), std::get<2>(ret), std::get<3>(ret));
 
+#ifdef ENABLE_EVALUATION
+    // avoid unused variable warning.
+    if constexpr(!std::is_base_of<IHasMessageID, VT>::value) {
+        version_and_timestamp = version_and_timestamp;
+    }
+#endif
     return ret;
 }
 
