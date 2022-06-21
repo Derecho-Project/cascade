@@ -28,8 +28,8 @@ public class Bundle {
     @Override
     public String toString() {
         return "version: " + version + 
-               "previous_version: " + previous_version +
-               "previous_version_by_key: " + previous_version_by_key +
+               "; previous_version: " + previous_version +
+               "; previous_version_by_key: " + previous_version_by_key +
                "; timestamp: " + timestamp;
     }
 }
