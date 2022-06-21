@@ -986,9 +986,9 @@ PYBIND11_MODULE(client, m) {
                     "\t@arg0    object pool pathname \n"
                     "\t@return  object pool details.");
 
-    py::class_<QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>>(m, "QueryResultsStoreVerTmeStmp")
+    py::class_<QueryResultsStore<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>, std::vector<long>>>(m, "QueryResultsStoreVerTmeStmp")
             .def(
-                    "get_result", [](QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>& qrs) {
+                    "get_result", [](QueryResultsStore<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>, std::vector<long>>& qrs) {
                         return qrs.get_result();
                     },
                     "Get result from QueryResultsStore for version and timestamp");
