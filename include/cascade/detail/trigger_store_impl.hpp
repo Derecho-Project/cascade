@@ -18,9 +18,9 @@ namespace derecho {
 namespace cascade {
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-std::tuple<persistent::version_t, uint64_t> TriggerCascadeNoStore<KT, VT, IK, IV>::put(const VT& value) const {
+std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t> TriggerCascadeNoStore<KT, VT, IK, IV>::put(const VT& value) const {
     dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
-    return {persistent::INVALID_VERSION, 0};
+    return {};
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
@@ -37,9 +37,9 @@ double TriggerCascadeNoStore<KT, VT, IK, IV>::perf_put(const uint32_t max_payloa
 #endif  // ENABLE_EVALUATION
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-std::tuple<persistent::version_t, uint64_t> TriggerCascadeNoStore<KT, VT, IK, IV>::remove(const KT& key) const {
+std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t> TriggerCascadeNoStore<KT, VT, IK, IV>::remove(const KT& key) const {
     dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
-    return {persistent::INVALID_VERSION, 0};
+    return {};
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
@@ -103,7 +103,7 @@ std::vector<KT> TriggerCascadeNoStore<KT, VT, IK, IV>::ordered_list_keys(const s
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-std::tuple<persistent::version_t, uint64_t> TriggerCascadeNoStore<KT, VT, IK, IV>::ordered_put(const VT& value) {
+std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t> TriggerCascadeNoStore<KT, VT, IK, IV>::ordered_put(const VT& value) {
     dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
     return {};
 }
@@ -114,7 +114,7 @@ void TriggerCascadeNoStore<KT, VT, IK, IV>::ordered_put_and_forget(const VT& val
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-std::tuple<persistent::version_t, uint64_t> TriggerCascadeNoStore<KT, VT, IK, IV>::ordered_remove(const KT& key) {
+std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t> TriggerCascadeNoStore<KT, VT, IK, IV>::ordered_remove(const KT& key) {
     dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
     return {};
 }

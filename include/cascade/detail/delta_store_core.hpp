@@ -77,12 +77,22 @@ public:
     void apply_ordered_put(const VT& value);
     /**
      * Ordered put, and generate a delta.
+     * @param value
+     * @param previous_version
+     * 
+     * @return previous version by key
+     * @throws cascade_exception on error
      */
-    virtual bool ordered_put(const VT& value, persistent::version_t prever);
+    virtual persistent::version_t ordered_put(const VT& value, persistent::version_t previous_version);
     /**
      * Ordered remove, and generate a delta.
+     * @param value
+     * @param previous_version
+     * 
+     * @return previous version by key
+     * @throws cascade_exception on error
      */
-    virtual bool ordered_remove(const VT& value, persistent::version_t prev_ver);
+    virtual persistent::version_t ordered_remove(const VT& value, persistent::version_t previous_version);
     /**
      * ordered get, no need to generate a delta.
      */

@@ -52,7 +52,7 @@ bool PerfTestServer::eval_put(uint64_t max_operation_per_second,
         uint32_t                window_slots = window_size*2;
         std::mutex              window_slots_mutex;
         std::condition_variable window_slots_cv;
-        std::queue<std::pair<uint64_t,derecho::QueryResults<std::tuple<persistent::version_t,uint64_t>>>> futures;
+        std::queue<std::pair<uint64_t,derecho::QueryResults<std::tuple<persistent::version_t,persistent::version_t,persistent::version_t,uint64_t>>>> futures;
         std::mutex                                                                                        futures_mutex;
         std::condition_variable                                                                           futures_cv;
         std::condition_variable                                                                           window_cv;
@@ -114,8 +114,8 @@ bool PerfTestServer::eval_put(uint64_t max_operation_per_second,
                 window_slots --;
             }
             next_ns += interval_ns;
-            std::function<void(QueryResults<std::tuple<persistent::version_t,uint64_t>>&&)> future_appender =
-                [&futures,&futures_mutex,&futures_cv](QueryResults<std::tuple<persistent::version_t,uint64_t>>&& query_results){
+            std::function<void(QueryResults<std::tuple<persistent::version_t,persistent::version_t,persistent::version_t,uint64_t>>&&)> future_appender =
+                [&futures,&futures_mutex,&futures_cv](QueryResults<std::tuple<persistent::version_t,persistent::version_t,persistent::version_t,uint64_t>>&& query_results){
                     std::unique_lock<std::mutex> lock{futures_mutex};
                     uint64_t timestamp_ns = get_walltime();
                     futures.emplace(timestamp_ns,std::move(query_results));

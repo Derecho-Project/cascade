@@ -354,19 +354,21 @@ jlong put(std::function<std::unique_ptr<typename T::ObjectType>(JNIEnv *, jobjec
     std::cout << "putting! " << subgroup_index << " " << shard_index << std::endl;
 #endif
     // execute the put
-    derecho::rpc::QueryResults<std::tuple<persistent::version_t, uint64_t>> res = capi->put<T>(*obj, subgroup_index, shard_index);
+    derecho::rpc::QueryResults<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>> res = capi->put<T>(*obj, subgroup_index, shard_index);
     //store the result in a handler and return it!
 #ifndef NDEBUG
     std::cout << "finished put!" << std::endl;
 #endif
-    QueryResultHolder<std::tuple<persistent::version_t, uint64_t>> *qrh = new QueryResultHolder<std::tuple<persistent::version_t, uint64_t>>(res);
+    QueryResultHolder<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>> *qrh = 
+        new QueryResultHolder<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>>(res);
     return reinterpret_cast<jlong>(qrh);
 }
 
 template <typename ServiceType>
 jlong create_object_pool(derecho::cascade::ServiceClientAPI* capi, const std::string& pathname, uint32_t subgroup_index, derecho::cascade::sharding_policy_t sharding_policy, const std::unordered_map<std::string,uint32_t>& object_locations) {
     auto res = capi->create_object_pool<ServiceType>(pathname,subgroup_index,sharding_policy,object_locations);
-    QueryResultHolder<std::tuple<persistent::version_t, uint64_t>> *qrh = new QueryResultHolder<std::tuple<persistent::version_t, uint64_t>>(res);
+    QueryResultHolder<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>> *qrh = 
+        new QueryResultHolder<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>>(res);
     return reinterpret_cast<jlong>(qrh);
 }
 
@@ -492,9 +494,11 @@ jlong remove(JNIEnv *env, derecho::cascade::ServiceClientAPI *capi, jlong subgro
     // translate the key
     typename T::KeyType obj = f(env, key);
     // execute remove
-    derecho::rpc::QueryResults<std::tuple<persistent::version_t, uint64_t>> res = capi->remove<T>(obj, subgroup_index, shard_index);
+    derecho::rpc::QueryResults<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>> res = 
+        capi->remove<T>(obj, subgroup_index, shard_index);
     // store the results in a handle
-    QueryResultHolder<std::tuple<persistent::version_t, uint64_t>> *qrh = new QueryResultHolder<std::tuple<persistent::version_t, uint64_t>>(res);
+    QueryResultHolder<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>> *qrh = 
+        new QueryResultHolder<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>>(res);
     return reinterpret_cast<jlong>(qrh);
 }
 
@@ -711,24 +715,30 @@ JNIEXPORT jobject JNICALL Java_io_cascade_QueryResults_getReplyMap(JNIEnv *env, 
     jint mode = env->GetIntField(obj, mode_fid);
 
     // lambda that translates into bundle types
-    auto bundle_f = [env](std::tuple<persistent::version_t, uint64_t> obj) {
+    auto bundle_f = [env](std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t> obj) {
 
 #ifndef NDEBUG   
         std::cout << "converting bundles with string keys!" << std::endl;
 #endif
 
         // get the version and timestamp pair
-        persistent::version_t ver = std::get<0>(obj);
-        uint64_t timestamp = std::get<1>(obj);
+        persistent::version_t version = std::get<0>(obj);
+        persistent::version_t previous_version = std::get<1>(obj);
+        persistent::version_t previous_version_by_key = std::get<2>(obj);
+        uint64_t timestamp = std::get<3>(obj);
 
 #ifndef NDEBUG
-        std::cout << "version: " << ver << "; timestamp: " << timestamp << std::endl;
+        std::cout << "version: " << version << "; timestamp: " << timestamp << std::endl;
 #endif
 
         // creates the bundle object
         jclass bundle_class = env->FindClass("io/cascade/Bundle");
-        jmethodID bundle_constructor = env->GetMethodID(bundle_class, "<init>", "(JJ)V"); // changed init integer_class
-        return env->NewObject(bundle_class, bundle_constructor, static_cast<jlong>(ver), static_cast<jlong>(timestamp));
+        jmethodID bundle_constructor = env->GetMethodID(bundle_class, "<init>", "(JJJJ)V"); // changed init integer_class
+        return env->NewObject(bundle_class, bundle_constructor, 
+                static_cast<jlong>(version),
+                static_cast<jlong>(previous_version),
+                static_cast<jlong>(previous_version_by_key),
+                static_cast<jlong>(timestamp));
     };
 
 
@@ -800,7 +810,7 @@ JNIEXPORT jobject JNICALL Java_io_cascade_QueryResults_getReplyMap(JNIEnv *env, 
     {
     // bundle
     case 0:
-        create_object_from_query<std::tuple<persistent::version_t, uint64_t>>(env, handle, hash_map_object, bundle_f);
+        create_object_from_query<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>>(env, handle, hash_map_object, bundle_f);
         break;
     // buffers
     case 1:
@@ -934,8 +944,8 @@ JNIEXPORT void JNICALL Java_io_cascade_QueryResults_closeHandle (JNIEnv* env, jo
     switch(mode) {
         case 0:
             {
-                QueryResultHolder<std::tuple<persistent::version_t, uint64_t>>* qrh =
-                    reinterpret_cast<QueryResultHolder<std::tuple<persistent::version_t, uint64_t>>*>(jhandle);
+                QueryResultHolder<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>>* qrh =
+                    reinterpret_cast<QueryResultHolder<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>>*>(jhandle);
                 if (qrh != nullptr) {
                     delete qrh;
                 }
