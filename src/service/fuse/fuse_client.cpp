@@ -154,12 +154,6 @@ static void fs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, stru
     dbg_default_trace("entering {}.", __func__);
 
     FileBytes* pfb = reinterpret_cast<FileBytes*>(fi->fh);
-<<<<<<< HEAD:src/service/fuse_client.cpp
-
-    dbg_default_trace("fs_read() with off:{}, size:{}, file_bytes:{}", off, size, pfb->size);
-
-=======
->>>>>>> v1.0rc:src/service/fuse/fuse_client.cpp
     if (static_cast<size_t>(off) < pfb->size) {
         fuse_reply_buf(req, reinterpret_cast<char*>(pfb->bytes+off), min(pfb->size - off, size));
     } else {
