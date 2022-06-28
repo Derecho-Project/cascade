@@ -21,7 +21,8 @@ namespace derecho {
 namespace cascade {
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-std::tuple<persistent::version_t, uint64_t> SignatureCascadeStore<KT, VT, IK, IV, ST>::put(const VT& value) const {
+std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>
+SignatureCascadeStore<KT, VT, IK, IV, ST>::put(const VT& value) const {
     // Somehow ensure that only one replica does the UDL here
     debug_enter_func_with_args("value.get_key_ref()={}", value.get_key_ref());
     LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_PUT_START, group, value);
@@ -29,13 +30,14 @@ std::tuple<persistent::version_t, uint64_t> SignatureCascadeStore<KT, VT, IK, IV
     derecho::Replicated<SignatureCascadeStore>& subgroup_handle = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put)>(value);
     auto& replies = results.get();
-    std::tuple<persistent::version_t, uint64_t> ret(CURRENT_VERSION, 0);
+    std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t> ret(CURRENT_VERSION, CURRENT_VERSION, CURRENT_VERSION, 0);
     for(auto& reply_pair : replies) {
         ret = reply_pair.second.get();
     }
 
     LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_PUT_END, group, value);
-    debug_leave_func_with_value("version=0x{:x},timestamp={}", std::get<0>(ret), std::get<1>(ret));
+    debug_leave_func_with_value("version=0x{:x},previous_version=0x{:x},previous_version_by_key=0x{:x},timestamp={}",
+                                std::get<0>(ret), std::get<1>(ret), std::get<2>(ret), std::get<3>(ret));
     return ret;
 }
 
@@ -61,17 +63,19 @@ double SignatureCascadeStore<KT, VT, IK, IV, ST>::perf_put(const uint32_t max_pa
 #endif  // ENABLE_EVALUATION
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-std::tuple<persistent::version_t, uint64_t> SignatureCascadeStore<KT, VT, IK, IV, ST>::remove(const KT& key) const {
+std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>
+SignatureCascadeStore<KT, VT, IK, IV, ST>::remove(const KT& key) const {
     debug_enter_func_with_args("key={}", key);
     derecho::Replicated<SignatureCascadeStore>& subgroup_handle = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_remove)>(key);
     auto& replies = results.get();
-    std::tuple<persistent::version_t, uint64_t> ret(CURRENT_VERSION, 0);
+    std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t> ret(CURRENT_VERSION, CURRENT_VERSION, CURRENT_VERSION, 0);
     // TODO: verify consistency ?
     for(auto& reply_pair : replies) {
         ret = reply_pair.second.get();
     }
-    debug_leave_func_with_value("version=0x{:x},timestamp={}", std::get<0>(ret), std::get<1>(ret));
+    debug_leave_func_with_value("version=0x{:x},previous_version=0x{:x},previous_version_by_key=0x{:x},timestamp={}",
+                                std::get<0>(ret), std::get<1>(ret), std::get<2>(ret), std::get<3>(ret));
     return ret;
 }
 
@@ -329,7 +333,8 @@ std::vector<KT> SignatureCascadeStore<KT, VT, IK, IV, ST>::list_keys_by_time(con
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-std::tuple<persistent::version_t, uint64_t> SignatureCascadeStore<KT, VT, IK, IV, ST>::ordered_put(const VT& value) {
+std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>
+SignatureCascadeStore<KT, VT, IK, IV, ST>::ordered_put(const VT& value) {
     debug_enter_func_with_args("key={}", value.get_key_ref());
 
     std::tuple<persistent::version_t, uint64_t> version_and_timestamp = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index).get_current_version();
@@ -338,18 +343,22 @@ std::tuple<persistent::version_t, uint64_t> SignatureCascadeStore<KT, VT, IK, IV
 #else
     LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_PUT_START, group, value, std::get<0>(version_and_timestamp));
 #endif
-    if(this->internal_ordered_put(value) == false) {
-        version_and_timestamp = {persistent::INVALID_VERSION, 0};
-    }
+    auto ret = this->internal_ordered_put(value);
 
 #if __cplusplus > 201703L
     LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_PUT_END, group, value, std::get<0>(version_and_timestamp));
 #else
     LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_PUT_END, group, value, std::get<0>(version_and_timestamp));
 #endif
-    debug_leave_func_with_value("version=0x{:x},timestamp={}", std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp));
-
-    return version_and_timestamp;
+    debug_leave_func_with_value("version=0x{:x},previous_version=0x{:x},previous_version_by_key=0x{:x},timestamp={}",
+                                std::get<0>(ret), std::get<1>(ret), std::get<2>(ret), std::get<3>(ret));
+#ifdef ENABLE_EVALUATION
+    // avoid unused variable warning.
+    if constexpr(!std::is_base_of<IHasMessageID, VT>::value) {
+        version_and_timestamp = version_and_timestamp;
+    }
+#endif
+    return ret;
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
@@ -383,7 +392,8 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::ordered_put_and_forget(const VT&
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-bool SignatureCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put(const VT& value) {
+std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>
+SignatureCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put(const VT& value) {
     static_assert(std::is_base_of_v<IKeepVersion, VT>, "SignatureCascadeStore can only be used with values that implement IKeepVersion");
     std::tuple<persistent::version_t, uint64_t> hash_object_version_and_timestamp
             = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index).get_current_version();
@@ -399,10 +409,14 @@ bool SignatureCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put(const VT& v
         dbg_default_debug("internal_ordered_put: Storing mapping from data ver=0x{:x} -> hash ver=0x{:x}", data_object_version, std::get<0>(hash_object_version_and_timestamp));
         data_to_hash_version->emplace(data_object_version, std::get<0>(hash_object_version_and_timestamp));
     }
-    if(this->persistent_core->ordered_put(value, this->persistent_core.getLatestVersion()) == false) {
+    persistent::version_t previous_version = this->persistent_core.getLatestVersion();
+    persistent::version_t previous_version_by_key;
+    try {
+        previous_version_by_key = this->persistent_core->ordered_put(value, previous_version);
+    } catch(cascade_exception& ex) {
         // verification failed. So we return invalid versions.
-        debug_leave_func_with_value("version=0x{:x},timestamp={}", persistent::INVALID_VERSION, 0);
-        return false;
+        debug_leave_func_with_value("Failed with exception: {}", ex.what());
+        return {persistent::INVALID_VERSION, persistent::INVALID_VERSION, persistent::INVALID_VERSION, 0};
     }
     subgroup_id_t my_subgroup_id = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index).get_subgroup_id();
     // Register a signature notification action for all subscribed clients
@@ -433,12 +447,14 @@ bool SignatureCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put(const VT& v
                 value.get_key_ref(), value,
                 cascade_context_ptr);
     }
-    debug_leave_func_with_value("version=0x{:x},timestamp={}", std::get<0>(hash_object_version_and_timestamp), std::get<1>(hash_object_version_and_timestamp));
-    return true;
+    debug_leave_func_with_value("version=0x{:x},previous_version=0x{:x},previous_version_by_key=0x{:x},timestamp={}",
+                                std::get<0>(hash_object_version_and_timestamp), previous_version, previous_version_by_key, std::get<1>(hash_object_version_and_timestamp));
+    return {std::get<0>(hash_object_version_and_timestamp), previous_version, previous_version_by_key, std::get<1>(hash_object_version_and_timestamp)};
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-std::tuple<persistent::version_t, uint64_t> SignatureCascadeStore<KT, VT, IK, IV, ST>::ordered_remove(const KT& key) {
+std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>
+SignatureCascadeStore<KT, VT, IK, IV, ST>::ordered_remove(const KT& key) {
     debug_enter_func_with_args("key={}", key);
     std::tuple<persistent::version_t, uint64_t> version_and_timestamp = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index).get_current_version();
     auto value = create_null_object_cb<KT, VT, IK, IV>(key);
@@ -448,7 +464,10 @@ std::tuple<persistent::version_t, uint64_t> SignatureCascadeStore<KT, VT, IK, IV
     if constexpr(std::is_base_of<IKeepTimestamp, VT>::value) {
         value.set_timestamp(std::get<1>(version_and_timestamp));
     }
-    if(this->persistent_core->ordered_remove(value, this->persistent_core.getLatestVersion())) {
+    try {
+        auto previous_version = this->persistent_core.getLatestVersion();
+        auto previous_version_by_key = this->persistent_core->ordered_remove(value, this->persistent_core.getLatestVersion());
+
         if(cascade_watcher_ptr) {
             (*cascade_watcher_ptr)(
                     this->subgroup_index,
@@ -457,11 +476,21 @@ std::tuple<persistent::version_t, uint64_t> SignatureCascadeStore<KT, VT, IK, IV
                     key, value,
                     cascade_context_ptr);
         }
+
+        debug_leave_func_with_value("version=0x{:x},previous_version=0x{:x},previous_version_by_key=0x{:x},timestamp={}",
+                                    std::get<0>(version_and_timestamp),
+                                    previous_version,
+                                    previous_version_by_key,
+                                    std::get<1>(version_and_timestamp));
+
+        return {std::get<0>(version_and_timestamp),
+                previous_version,
+                previous_version_by_key,
+                std::get<1>(version_and_timestamp)};
+    } catch(cascade_exception& ex) {
+        debug_leave_func_with_value("Failed with exception:{}", ex.what());
+        return {persistent::INVALID_VERSION, persistent::INVALID_VERSION, persistent::INVALID_VERSION, 0};
     }
-
-    debug_leave_func_with_value("version=0x{:x},timestamp={}", std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp));
-
-    return version_and_timestamp;
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>

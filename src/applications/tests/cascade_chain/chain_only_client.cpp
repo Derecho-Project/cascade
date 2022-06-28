@@ -46,11 +46,13 @@ static void print_cyan(std::string msg) {
               << "\033[0m" << std::endl;
 }
 
-#define check_put_and_remove_result(result)                                                           \
-    for(auto& reply_future : result.get()) {                                                          \
-        auto reply = reply_future.second.get();                                                       \
+#define check_put_and_remove_result(result) \
+    for (auto& reply_future:result.get()) {\
+        auto reply = reply_future.second.get();\
         std::cout << "node(" << reply_future.first << ") replied with version:" << std::get<0>(reply) \
-                  << ",ts_us:" << std::get<1>(reply) << std::endl;                                    \
+                  << ",previous_version:" << std::get<1>(reply) \
+                  << ",previous_version_by_key:" << std::get<2>(reply) \
+                  << ",ts_us:" << std::get<3>(reply) << std::endl;\
     }
 
 void op_put(ServiceClientAPI& capi, const std::string& key, const std::string& value, persistent::version_t pver, persistent::version_t pver_bk) {
@@ -59,7 +61,7 @@ void op_put(ServiceClientAPI& capi, const std::string& key, const std::string& v
     obj.previous_version = pver;
     obj.previous_version_by_key = pver_bk;
     obj.blob = Blob(reinterpret_cast<const uint8_t*>(value.c_str()), value.length());
-    derecho::rpc::QueryResults<std::tuple<persistent::version_t, uint64_t>> result = capi.put(obj);
+    derecho::rpc::QueryResults<std::tuple<persistent::version_t,persistent::version_t,persistent::version_t,uint64_t>> result = capi.put(obj);
     check_put_and_remove_result(result);
 }
 
@@ -402,24 +404,21 @@ bool ChainClientContext<CascadeTypes...>::put_with_signature(const std::vector<s
         subscribed_notification_keys.emplace(signature_key);
     }
     // Step 2: Put the object into the storage pool
-    derecho::rpc::QueryResults<std::tuple<persistent::version_t, uint64_t>> put_result = service_client->put(obj);
+    derecho::rpc::QueryResults<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>>
+            put_result = service_client->put(obj);
     auto put_reply = put_result.get().begin()->second.get();
     std::cout << "Node " << put_result.get().begin()->first << " finished putting the object, replied with version:"
               << std::hex << std::get<0>(put_reply) << std::dec << ", ts_us:" << std::get<1>(put_reply) << std::endl;
+    //Store the version fields in our local copy of the object, so we can hash it accurately
+    obj.version = std::get<0>(put_reply);
+    obj.previous_version = std::get<1>(put_reply);
+    obj.previous_version_by_key = std::get<2>(put_reply);
+    obj.timestamp_us = std::get<3>(put_reply);
+    //Create a record of this object's headers for the cache
     std::shared_ptr<ObjectSignature> signature_record = std::make_shared<ObjectSignature>();
     signature_record->key_suffix = key_suffix;
     signature_record->object_version = std::get<0>(put_reply);
-    auto previous_record_iter = cached_signatures_by_key.find(key_suffix);
-    if(previous_record_iter != cached_signatures_by_key.end()) {
-        // The previous version of the object is the highest version number in our signature cache
-        signature_record->object_previous_version = previous_record_iter->second.rbegin()->first;
-    } else {
-        signature_record->object_previous_version = persistent::INVALID_VERSION;
-    }
-    // Also store these fields in our local copy of the object
-    obj.version = signature_record->object_version;
-    obj.previous_version_by_key = signature_record->object_previous_version;
-    obj.timestamp_us = std::get<1>(put_reply);
+    signature_record->object_previous_version = std::get<2>(put_reply);
     // Step 3: Wait for a signature notification from the signatures object pool that matches this data object's version
     // Register a notification handler callback for this version
     std::mutex callback_waiting_mutex;
@@ -457,19 +456,7 @@ bool ChainClientContext<CascadeTypes...>::put_with_signature(const std::vector<s
     std::cout << "Got the hash object for data version " << std::hex << signature_record->object_version << std::dec << " from node "
               << hash_get_result.get().begin()->first << " and its version is " << std::hex << signature_version << std::dec << std::endl;
     assert(signature_record->signature_version == signature_version);
-    // Step 4: Retrieve the same object we just put, to find out what its previous_version is
-    // This is wasteful, but it's the only way to fill in all the headers of the object so we can hash it locally
-    auto get_result = service_client->get(obj.key, obj.version);
-    ObjectWithStringKey stored_object = get_result.get().begin()->second.get();
-    obj.previous_version = stored_object.previous_version;
-    std::cout << "Got the object back from node " << get_result.get().begin()->first << " and its previous_version is "
-              << std::hex << stored_object.previous_version << std::dec << std::endl;
-    if(stored_object.previous_version_by_key != obj.previous_version_by_key) {
-        std::cout << "Oh no! The local cache did not have the right previous_version_by_key! We thought it was " << std::hex << obj.previous_version_by_key
-                  << " but Cascade recorded it as " << stored_object.previous_version_by_key << std::dec << std::endl;
-        obj.previous_version_by_key = stored_object.previous_version_by_key;
-        signature_record->object_previous_version = stored_object.previous_version_by_key;
-    }
+
     // Step 6: Compute the hash of the object locally, since we don't trust the service
     std::vector<uint8_t> hash = compute_hash(obj);
     if(memcmp(hash_object.blob.bytes, hash.data(), hash.size() != 0)) {
