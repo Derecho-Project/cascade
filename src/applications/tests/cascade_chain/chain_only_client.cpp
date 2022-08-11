@@ -13,8 +13,8 @@
 #include <set>
 #include <string>
 #include <sys/prctl.h>
-#include <typeindex>
 #include <tuple>
+#include <typeindex>
 
 using namespace derecho::cascade;
 
@@ -46,13 +46,13 @@ static void print_cyan(std::string msg) {
               << "\033[0m" << std::endl;
 }
 
-#define check_put_and_remove_result(result) \
-    for (auto& reply_future:result.get()) {\
-        auto reply = reply_future.second.get();\
+#define check_put_and_remove_result(result)                                                           \
+    for(auto& reply_future : result.get()) {                                                          \
+        auto reply = reply_future.second.get();                                                       \
         std::cout << "node(" << reply_future.first << ") replied with version:" << std::get<0>(reply) \
-                  << ",previous_version:" << std::get<1>(reply) \
-                  << ",previous_version_by_key:" << std::get<2>(reply) \
-                  << ",ts_us:" << std::get<3>(reply) << std::endl;\
+                  << ",previous_version:" << std::get<1>(reply)                                       \
+                  << ",previous_version_by_key:" << std::get<2>(reply)                                \
+                  << ",ts_us:" << std::get<3>(reply) << std::endl;                                    \
     }
 
 void op_put(ServiceClientAPI& capi, const std::string& key, const std::string& value, persistent::version_t pver, persistent::version_t pver_bk) {
@@ -61,7 +61,7 @@ void op_put(ServiceClientAPI& capi, const std::string& key, const std::string& v
     obj.previous_version = pver;
     obj.previous_version_by_key = pver_bk;
     obj.blob = Blob(reinterpret_cast<const uint8_t*>(value.c_str()), value.length());
-    derecho::rpc::QueryResults<std::tuple<persistent::version_t,persistent::version_t,persistent::version_t,uint64_t>> result = capi.put(obj);
+    derecho::rpc::QueryResults<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>> result = capi.put(obj);
     check_put_and_remove_result(result);
 }
 
@@ -369,6 +369,8 @@ bool ChainClientContext<CascadeTypes...>::verify_object_signature(const ObjectWi
     std::size_t hash_object_size = mutils::bytes_size(hash);
     uint8_t bytes_of_hash_object[hash_object_size];
     mutils::to_bytes(hash, bytes_of_hash_object);
+    /*
+     * Verbose debug output:
     std::ios normal_stream_state(nullptr);
     normal_stream_state.copyfmt(std::cout);
     std::cout << "Verifying these bytes: " << std::hex << std::setfill('0');
@@ -377,6 +379,7 @@ bool ChainClientContext<CascadeTypes...>::verify_object_signature(const ObjectWi
         std::cout << std::setw(2) << std::right << static_cast<int>(static_cast<uint8_t>(bytes_of_hash_object[i])) << " ";
     }
     std::cout.copyfmt(normal_stream_state);
+     */
     std::cout << std::endl;
     service_verifier->add_bytes(bytes_of_hash_object,
                                 hash_object_size);
@@ -409,12 +412,12 @@ bool ChainClientContext<CascadeTypes...>::put_with_signature(const std::vector<s
     auto put_reply = put_result.get().begin()->second.get();
     std::cout << "Node " << put_result.get().begin()->first << " finished putting the object, replied with version:"
               << std::hex << std::get<0>(put_reply) << std::dec << ", ts_us:" << std::get<1>(put_reply) << std::endl;
-    //Store the version fields in our local copy of the object, so we can hash it accurately
+    // Store the version fields in our local copy of the object, so we can hash it accurately
     obj.version = std::get<0>(put_reply);
     obj.previous_version = std::get<1>(put_reply);
     obj.previous_version_by_key = std::get<2>(put_reply);
     obj.timestamp_us = std::get<3>(put_reply);
-    //Create a record of this object's headers for the cache
+    // Create a record of this object's headers for the cache
     std::shared_ptr<ObjectSignature> signature_record = std::make_shared<ObjectSignature>();
     signature_record->key_suffix = key_suffix;
     signature_record->object_version = std::get<0>(put_reply);
@@ -486,7 +489,7 @@ bool ChainClientContext<CascadeTypes...>::cache_signature(const std::vector<std:
         return false;
     }
     std::string key_suffix = cmd_tokens[1];
-    persistent::version_t object_version = std::stol(cmd_tokens[2]);
+    persistent::version_t object_version = std::stol(cmd_tokens[2], nullptr, 0);
     if(cached_signatures_by_key[key_suffix][object_version] == nullptr) {
         cached_signatures_by_key[key_suffix][object_version] = std::make_shared<ObjectSignature>();
         cached_signatures_by_key[key_suffix][object_version]->key_suffix = key_suffix;
@@ -524,7 +527,7 @@ bool ChainClientContext<CascadeTypes...>::verify_cached_signature(const std::vec
     }
     persistent::version_t verify_version;
     if(cmd_tokens.size() >= 3) {
-        verify_version = static_cast<persistent::version_t>(std::stol(cmd_tokens[2]));
+        verify_version = static_cast<persistent::version_t>(std::stol(cmd_tokens[2], nullptr, 0));
         if(cached_signatures_by_key[key_suffix].find(verify_version) == cached_signatures_by_key[key_suffix].end()) {
             print_red("No signature in the cache for version " + std::to_string(verify_version));
             return false;
@@ -534,10 +537,10 @@ bool ChainClientContext<CascadeTypes...>::verify_cached_signature(const std::vec
     }
     persistent::version_t previous_signature_version = cached_signatures_by_key[key_suffix].at(verify_version)->signature_previous_version;
     // Debug output:
-    std::cout << "Object " << key_suffix << " at version " << verify_version << " has previous version "
-              << cached_signatures_by_key[key_suffix][verify_version]->object_previous_version
-              << ". Its corresponding signature version is " << cached_signatures_by_key[key_suffix][verify_version]->signature_version
-              << " and the previous signature version is " << previous_signature_version << std::endl;
+    // std::cout << "Object " << key_suffix << " at version " << verify_version << " has previous version "
+    //           << cached_signatures_by_key[key_suffix][verify_version]->object_previous_version
+    //           << ". Its corresponding signature version is " << cached_signatures_by_key[key_suffix][verify_version]->signature_version
+    //           << " and the previous signature version is " << previous_signature_version << std::endl;
     // A signature for version X of an object should have signed bytes in this order:
     // 1. Headers of the ObjectWithStringKey containing the hash of the object at version X, which has its own version Y
     // 2. Hash of the object at version X
@@ -572,7 +575,7 @@ bool ChainClientContext<CascadeTypes...>::get_and_verify_signature(const std::ve
     std::string key_suffix = cmd_tokens[1];
     persistent::version_t object_version;
     if(cmd_tokens.size() >= 3) {
-        object_version = static_cast<persistent::version_t>(std::stol(cmd_tokens[2]));
+        object_version = static_cast<persistent::version_t>(std::stol(cmd_tokens[2], nullptr, 0));
     } else {
         object_version = CURRENT_VERSION;
     }
@@ -605,7 +608,7 @@ bool ChainClientContext<CascadeTypes...>::get_and_verify_object(const std::vecto
     std::string key_suffix = cmd_tokens[1];
     persistent::version_t object_version;
     if(cmd_tokens.size() >= 3) {
-        object_version = static_cast<persistent::version_t>(std::stol(cmd_tokens[2]));
+        object_version = static_cast<persistent::version_t>(std::stol(cmd_tokens[2], nullptr, 0));
     } else {
         object_version = CURRENT_VERSION;
     }

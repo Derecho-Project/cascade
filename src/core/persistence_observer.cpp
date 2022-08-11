@@ -18,6 +18,7 @@ PersistenceObserver::PersistenceObserver()
 
 PersistenceObserver::~PersistenceObserver() {
     thread_shutdown = true;
+    events_to_handle.notify_all();
     if(callback_worker.joinable()) {
         callback_worker.join();
     }
@@ -58,7 +59,7 @@ void PersistenceObserver::process_callback_actions() {
             past_due_actions.clear();
         }
         if(has_current_event) {
-            dbg_default_debug("PersistenceObserver: Handling a persistence event for version {}", current_event.version);
+            dbg_default_debug("PersistenceObserver: Handling a persistence event for version {}, is_global={}", current_event.version, current_event.is_global);
             // Take the list of actions out of the map so we can call them without holding the map lock
             std::list<std::function<void()>> action_list;
             {
@@ -84,6 +85,7 @@ void PersistenceObserver::process_callback_actions() {
         std::unique_lock<std::mutex> lock(persistence_events_mutex);
         past_persistence_events.emplace(current_event);
     }
+    dbg_default_debug("PersistenceObserver thread shutting down");
 }
 
 void PersistenceObserver::register_persistence_action(subgroup_id_t subgroup_id, persistent::version_t version, bool is_global, std::function<void()> action) {
