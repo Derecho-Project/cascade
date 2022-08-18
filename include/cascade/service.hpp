@@ -1797,6 +1797,15 @@ namespace cascade {
          */
         ServiceClient<CascadeTypes...>& get_service_client_ref() const;
 
+        /**
+         * Gets a reference to the PersistenceObserver stored in the CascadeContext.
+         * Cascade functions can use the PersistenceObserver to trigger actions when a
+         * particular version of an object has finished persisting. This obviously won't
+         * work on VolatileCascadeStore (or any other Cascade type that doesn't persist
+         * its state).
+         *
+         * @return PersistenceObserver& A reference to a PersistenceObserver.
+         */
         virtual PersistenceObserver& get_persistence_observer() const override;
         /**
          * We give up the following on-demand loading mechanism:

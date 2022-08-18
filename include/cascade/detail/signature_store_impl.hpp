@@ -438,6 +438,12 @@ SignatureCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put(const VT& value)
                     send_client_notification(client_id, copy_of_key, std::get<0>(hash_object_version_and_timestamp), data_object_version);
                 });
     }
+    // Register an action to perform a trigger put of this value, to send its signature to the WanAgent UDL
+    cascade_context_ptr->get_persistence_observer().register_persistence_action(
+            my_subgroup_id, std::get<0>(hash_object_version_and_timestamp), true,
+            [=]() {
+                put_signature_to_self(std::get<0>(hash_object_version_and_timestamp), data_object_version);
+            });
 
     if(cascade_watcher_ptr) {
         (*cascade_watcher_ptr)(
@@ -741,6 +747,38 @@ std::tuple<std::vector<uint8_t>, persistent::version_t> SignatureCascadeStore<KT
 
     debug_leave_func();
     return {signature, previous_signed_version};
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+void SignatureCascadeStore<KT, VT, IK, IV, ST>::put_signature_to_self(persistent::version_t hash_object_version,
+                                                                      persistent::version_t data_object_version) {
+    // Construct a fake "object" containing the signature and the corresponding data object version in addition to the hash
+    VT object_plus_signature;
+    // Initialize by copying the hash object that just finished persisting; we know the version will be an exact match
+    object_plus_signature.copy_from(*persistent_core.template getDelta<VT>(hash_object_version, true));
+    // Copy the object's body to a new blob and add the additional "header fields" to the beginning
+    // This only works if VT has a member called "blob" that is a Blob
+    std::size_t new_body_size = object_plus_signature.blob.size
+                                + persistent_core.getSignatureSize()
+                                + sizeof(data_object_version);
+    uint8_t* new_body_buffer = new uint8_t[new_body_size];
+    std::memcpy(new_body_buffer, reinterpret_cast<uint8_t*>(&data_object_version), sizeof(data_object_version));
+    std::size_t bytes_written = sizeof(data_object_version);
+    persistent::version_t previous_signed_version = persistent::INVALID_VERSION;
+    bool signature_found = persistent_core.getSignature(hash_object_version,
+                                                        new_body_buffer + bytes_written,
+                                                        previous_signed_version);
+    if(!signature_found) {
+        dbg_default_error("Signature not found for version {}, even though persistence has finished", hash_object_version);
+    }
+    bytes_written += persistent_core.getSignatureSize();
+    std::memcpy(new_body_buffer + bytes_written, object_plus_signature.blob.bytes, object_plus_signature.blob.size);
+    // Unnecessary copy because Blob can't take ownership of a buffer; it always copies it in
+    object_plus_signature.blob = Blob(new_body_buffer, new_body_size);
+    delete[] new_body_buffer;
+    // Do a trigger put of the fake object to this node, to send it to the UDL
+    derecho::Replicated<SignatureCascadeStore>& subgroup_handle = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index);
+    subgroup_handle.template p2p_send<RPC_NAME(trigger_put)>(group->get_my_id(), object_plus_signature);
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>

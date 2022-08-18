@@ -84,6 +84,21 @@ private:
     void send_client_notification(node_id_t client_id, const KT& key, persistent::version_t hash_object_version,
                                   persistent::version_t data_object_version) const;
 
+    /**
+     * Sends a trigger_put to the local node that includes a hash object plus its
+     * signature and corresponding data object version. This is done by concatenating
+     * the signature and data object version to the body of the hash object; the
+     * resulting object should not be stored, but only forwarded to the WanAgent UDL
+     * that gets activated upon a trigger_put.
+     *
+     * @param hash_object_version The version identifying the hash object that has
+     * finished being signed. This is used to retrieve it from the DeltaStoreCore.
+     * @param data_object_version The data-object version corresponding to this hash
+     * object. This will be needed by the remote WanAgent to match up this signature
+     * with the data object it receives from the PersistentCascadeStore.
+     */
+    void put_signature_to_self(persistent::version_t hash_object_version, persistent::version_t data_object_version);
+
 public:
     /* Specific to SignatureStore, not part of the Cascade interface */
 

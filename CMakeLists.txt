@@ -68,6 +68,9 @@ endif()
 # json
 find_package(nlohmann_json 3.2.0 REQUIRED)
 
+# This is only required by sha_hash_udl within the service folder, but finding it within that CMakeLists.txt doesn't work
+find_package(wanagent CONFIG REQUIRED)
+
 set(CMAKE_REQUIRED_DEFINITIONS -DFUSE_USE_VERSION=30)
 include(CheckIncludeFiles)
 include(CheckIncludeFileCXX)
