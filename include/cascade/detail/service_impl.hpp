@@ -1904,7 +1904,6 @@ CascadeContext<CascadeTypes...>::CascadeContext() {
 
 template <typename... CascadeTypes>
 void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>* group_ptr) {
-    // 0 - TODO: load resources configuration here.
     // 1 - prepare the service client
     service_client = std::make_unique<ServiceClient<CascadeTypes...>>(group_ptr);
     // 2 - create data path logic loader and register the prefixes. Ideally, this part should be done in the control
@@ -1929,8 +1928,8 @@ void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeMetadataSe
     }
     // 3 - start the working threads
     is_running.store(true);
-    uint32_t num_stateless_multicast_workers = 0, num_stateful_multicast_workers = 0;
-    uint32_t num_stateless_p2p_workers = 0, num_stateful_p2p_workers = 0;
+    uint32_t num_stateless_multicast_workers = 0;
+    uint32_t num_stateless_p2p_workers = 0;
     // 3.1 - initialize stateless multicast workers.
     if (derecho::hasCustomizedConfKey(CASCADE_CONTEXT_NUM_STATELESS_WORKERS_MULTICAST) == false) {
         dbg_default_error("{} is not found, using 0...fix it, or posting to multicast off critical data path causes deadlock.", CASCADE_CONTEXT_NUM_STATELESS_WORKERS_MULTICAST);
@@ -1983,8 +1982,68 @@ void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeMetadataSe
                 this->workhorse(i,stateless_action_queue_for_p2p);
             });
     }
+#ifdef HAS_STATEFUL_UDL_SUPPORT
+    uint32_t num_stateful_multicast_workers = 0;
+    uint32_t num_stateful_p2p_workers = 0;
     // 3.3 - initialize stateful multicast workers
+    if (derecho::hasCustomizedConfKey(CASCADE_CONTEXT_NUM_STATEFUL_WORKERS_MULTICAST) == false) {
+        dbg_default_error("{} is not found, using 0...fix it, or posting to multicast off critical data path causes deadlock.", CASCADE_CONTEXT_NUM_STATEFUL_WORKERS_MULTICAST);
+    } else {
+        num_stateful_multicast_workers = derecho::getConfUInt32(CASCADE_CONTEXT_NUM_STATEFUL_WORKERS_MULTICAST);
+    }
+    stateful_action_queues_for_multicast.resize(num_stateful_multicast_workers);
+    for (uint32_t i=0;i<num_stateful_multicast_workers;i++) {
+        // initialize local queue
+        stateful_action_queues_for_multicast[i] = std::make_unique<struct action_queue>();
+        stateful_action_queues_for_multicast.at(i)->initialize();
+        stateful_workhorses_for_multicast.emplace_back(
+            [this,i](){
+                // set cpu affinity
+                if (this->resource_descriptor.multicast_ocdp_worker_to_cpu_cores.find(i)!=
+                    this->resource_descriptor.multicast_ocdp_worker_to_cpu_cores.end()) {
+                    cpu_set_t cpuset{};
+                    CPU_ZERO(&cpuset);
+                    for (auto core: this->resource_descriptor.multicast_ocdp_worker_to_cpu_cores.at(i)) {
+                        CPU_SET(core,&cpuset);
+                    }
+                    if(pthread_setaffinity_np(pthread_self(),sizeof(cpuset),&cpuset)!=0) {
+                        dbg_default_warn("Failed to set affinity for cascade worker-{}", i);
+                    }
+                }
+                // call workhorse
+                this->workhorse(i,*stateful_action_queues_for_multicast.at(i));
+            });
+    }
     // 3.4 - initialize stateful p2p workers
+    if (derecho::hasCustomizedConfKey(CASCADE_CONTEXT_NUM_STATEFUL_WORKERS_P2P) == false) {
+        dbg_default_error("{} is not found, using 0...fix it, or posting to multicast off critical data path causes deadlock.", CASCADE_CONTEXT_NUM_STATEFUL_WORKERS_P2P);
+    } else {
+        num_stateful_p2p_workers = derecho::getConfUInt32(CASCADE_CONTEXT_NUM_STATEFUL_WORKERS_P2P);
+    }
+    stateful_action_queues_for_p2p.resize(num_stateful_p2p_workers);
+    for (uint32_t i=0;i<num_stateful_p2p_workers;i++) {
+        // initialize local queue
+        stateful_action_queues_for_p2p[i] = std::make_unique<struct action_queue>();
+        stateful_action_queues_for_p2p.at(i)->initialize();
+        stateful_workhorses_for_p2p.emplace_back(
+            [this,i](){
+                // set cpu affinity
+                if (this->resource_descriptor.p2p_ocdp_worker_to_cpu_cores.find(i)!=
+                    this->resource_descriptor.p2p_ocdp_worker_to_cpu_cores.end()) {
+                    cpu_set_t cpuset{};
+                    CPU_ZERO(&cpuset);
+                    for (auto core: this->resource_descriptor.p2p_ocdp_worker_to_cpu_cores.at(i)) {
+                        CPU_SET(core,&cpuset);
+                    }
+                    if(pthread_setaffinity_np(pthread_self(),sizeof(cpuset),&cpuset)!=0) {
+                        dbg_default_warn("Failed to set affinity for cascade worker-{}", i);
+                    }
+                }
+                // call workhorse
+                this->workhorse(i,*stateful_action_queues_for_p2p.at(i));
+            });
+    }
+#endif//HAS_STATEFUL_UDL_SUPPORT
 }
 
 template <typename... CascadeTypes>
