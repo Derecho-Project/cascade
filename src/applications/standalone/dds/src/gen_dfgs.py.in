@@ -24,8 +24,9 @@ if __name__ == '__main__':
         entries_left = entries_left - 1
         print('      {')
         print(f'        "pathname" : "{data_plane_object_pool}",')
-        print(f'        "hook" : ["both"],')
         print(f'        "user_defined_logic_list" : ["{udl_uuid}"],')
+        print(f'        "user_defined_logic_hook_list" : ["both"],')
+        print(f'        "user_defined_logic_stateful_list" : ["stateful"],')
         print(f'        "user_defined_logic_config_list" : [{{"control_plane_suffix":"{control_plane_suffix}"}}],')
         print('        "destinations" : [{}]')
         if entries_left == 0:
