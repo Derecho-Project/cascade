@@ -327,7 +327,7 @@ int do_client(int argc,char** args) {
     }
 
     /** 1 - create external client group*/
-    derecho::ExternalGroup<VCS,PCS> group;
+    derecho::ExternalGroupClient<VCS,PCS> group;
     
     uint64_t msg_size = derecho::getConfUInt64(CONF_SUBGROUP_DEFAULT_MAX_PAYLOAD_SIZE);
     uint32_t my_node_id = derecho::getConfUInt32(CONF_DERECHO_LOCAL_ID);
@@ -338,7 +338,7 @@ int do_client(int argc,char** args) {
             msg_size = derecho::getConfUInt64("SUBGROUP/PCS/max_payload_size") - 128;
         }
         struct client_states cs(max_pending_ops,num_messages,msg_size);
-        char* bbuf = (char*)malloc(msg_size);
+        uint8_t* bbuf = (uint8_t*)malloc(msg_size);
         bzero(bbuf, msg_size);
 
         ExternalClientCaller<PCS,std::remove_reference<decltype(group)>::type>& pcs_ec = group.get_subgroup_caller<PCS>();
@@ -358,7 +358,7 @@ int do_client(int argc,char** args) {
             msg_size = derecho::getConfUInt64("SUBGROUP/VCS/max_payload_size") - 128;
         }
         struct client_states cs(max_pending_ops,num_messages,msg_size);
-        char* bbuf = (char*)malloc(msg_size);
+        uint8_t* bbuf = (uint8_t*)malloc(msg_size);
         bzero(bbuf, msg_size);
 
         ExternalClientCaller<VCS,std::remove_reference<decltype(group)>::type>& vcs_ec = group.get_subgroup_caller<VCS>();

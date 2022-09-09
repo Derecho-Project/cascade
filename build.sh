@@ -56,12 +56,12 @@ colorful_print() {
 }
 
 if [[ $# -lt 1 ]]; then
-    colorful_print orange "USAGE: $0 <Release|Debug|RelWithDebInfo|Benchmark|Clear> [USE_VERBS_API]"
+    colorful_print orange "USAGE: $0 <Release|Debug|RelWithDebInfo|Benchmark|Clean> [USE_VERBS_API]"
     exit -1
 fi
 
-if [[ $1 == "Clear" ]]; then
-    rm -rf build-*
+if [[ $1 == "Clean" ]]; then
+    rm -rf build-* compile_commands.json
     exit 0
 fi
 

@@ -35,34 +35,35 @@ public class StreamTest {
      *  the rich functionalities of a stream, as shown here.
      */
     public static void main1(){
-        Client client = new Client();
-        ShardSupplier supplier = new ShardSupplier(client, ServiceType.PCSS, 0, 0, -1);
-        while (!supplier.build()){
-            try{
-                Thread.sleep(1000);
-                System.out.println("slept for 1 sec...");
-            }catch(InterruptedException e){
-                // do nothing
+        try (Client client = new Client()) {
+            ShardSupplier supplier = new ShardSupplier(client, ServiceType.PersistentCascadeStoreWithStringKey, 0, 0, -1);
+            while (!supplier.build()){
+                try{
+                    Thread.sleep(1000);
+                    System.out.println("slept for 1 sec...");
+                }catch(InterruptedException e){
+                    // do nothing
+                }
             }
+            
+            System.out.println("finished construction, printing...");
+            
+    
+            // Stream.generate(supplier)
+            //       .limit(supplier.size())
+            //       .map(StreamTest::byteBufferToString)
+            //       .sorted((s1, s2) -> s2.compareTo(s1))
+            //       .filter(s -> s.length() > 1)
+            //       .forEachOrdered(System.out::println);
+    
+            String onestr = Stream.generate(supplier)
+                                  .limit(supplier.size())
+                                  .map(StreamTest::byteBufferToString)
+                                  .filter(s -> s.length() > 1)
+                                  .findFirst()
+                                  .orElse(null);
+            System.out.println("the string we get!" + onestr);
         }
-        
-        System.out.println("finished construction, printing...");
-        
-
-        // Stream.generate(supplier)
-        //       .limit(supplier.size())
-        //       .map(StreamTest::byteBufferToString)
-        //       .sorted((s1, s2) -> s2.compareTo(s1))
-        //       .filter(s -> s.length() > 1)
-        //       .forEachOrdered(System.out::println);
-
-        String onestr = Stream.generate(supplier)
-                              .limit(supplier.size())
-                              .map(StreamTest::byteBufferToString)
-                              .filter(s -> s.length() > 1)
-                              .findFirst()
-                              .orElse(null);
-        System.out.println("the string we get!" + onestr);
     }
 
     /**
@@ -73,10 +74,12 @@ public class StreamTest {
      */
     public static ServiceType stringToType(String str) {
         switch (str) {
-            case "VCSS":
-                return ServiceType.VCSS;
-            case "PCSS":
-                return ServiceType.PCSS;
+            case "VolatileCascadeStoreWithStringKey":
+                return ServiceType.VolatileCascadeStoreWithStringKey;
+            case "PersistentCascadeStoreWithStringKey":
+                return ServiceType.PersistentCascadeStoreWithStringKey;
+            case "TriggerCascadeNoStoreWithStringKey":
+                return ServiceType.TriggerCascadeNoStoreWithStringKey;
             default:
                 return null;
         }
@@ -84,42 +87,43 @@ public class StreamTest {
 
     /** Testing the use of SubgroupSupplier. */
     public static void main2(){
-        Client client = new Client();
-        SubgroupSupplier supplier = new SubgroupSupplier(client, ServiceType.PCSS, 0, -1);
-        supplier.build();
-        
-        Stream.generate(supplier)
-              .limit(supplier.size())
-              .map(StreamTest::byteBufferToString)
-              .forEachOrdered(System.out::println);
-        
+        try (Client client = new Client()) {
+            SubgroupSupplier supplier = new SubgroupSupplier(client, ServiceType.PersistentCascadeStoreWithStringKey, 0, -1);
+            supplier.build();
+            
+            Stream.generate(supplier)
+                  .limit(supplier.size())
+                  .map(StreamTest::byteBufferToString)
+                  .forEachOrdered(System.out::println);
+        }
     }
 
     /** Testing the use of VersionSupplier. */
     public static void main3(){
-        Client client = new Client();
-        String str = "34";
-        byte[] arr = str.getBytes();
-        ByteBuffer bb = ByteBuffer.allocateDirect(arr.length);
-        bb.put(arr);
-        VersionSupplier supplier = new VersionSupplier(client, ServiceType.PCSS, 1, 0, bb, -1);
-        Stream.generate(supplier)
-              .limit(supplier.size())
-              .map(StreamTest::byteBufferToString)
-              .forEachOrdered(System.out::println);
+        try (Client client = new Client()) {
+            String str = "34";
+            byte[] arr = str.getBytes();
+            ByteBuffer bb = ByteBuffer.allocateDirect(arr.length);
+            bb.put(arr);
+            VersionSupplier supplier = new VersionSupplier(client, ServiceType.PersistentCascadeStoreWithStringKey, 1, 0, bb, -1);
+            Stream.generate(supplier)
+                  .limit(supplier.size())
+                  .map(StreamTest::byteBufferToString)
+                  .forEachOrdered(System.out::println);
+        }
     }
 
     /** Testing the use of ShardTimeSupplier. */
     public static void main4(){
-        Client client = new Client();
-        ShardTimeSupplier supplier = new ShardTimeSupplier(client, ServiceType.PCSS, 0, 0, 1612579232912819L);
-        supplier.build();
-        
-        Stream.generate(supplier)
-              .limit(supplier.size())
-              .map(StreamTest::byteBufferToString)
-              .forEachOrdered(System.out::println);
-        
+        try (Client client = new Client()) {
+            ShardTimeSupplier supplier = new ShardTimeSupplier(client, ServiceType.PersistentCascadeStoreWithStringKey, 0, 0, 1612579232912819L);
+            supplier.build();
+            
+            Stream.generate(supplier)
+                  .limit(supplier.size())
+                  .map(StreamTest::byteBufferToString)
+                  .forEachOrdered(System.out::println);
+        }
     }
 
     public static final void main(String[] args) {

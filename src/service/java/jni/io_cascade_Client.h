@@ -9,6 +9,14 @@ extern "C" {
 #endif
 /*
  * Class:     io_cascade_Client
+ * Method:    closeClient
+ * Signature: ()V
+ */
+JNIEXPORT void JNICALL Java_io_cascade_Client_closeClient
+  (JNIEnv *, jobject);
+
+/*
+ * Class:     io_cascade_Client
  * Method:    createClient
  * Signature: ()J
  */
@@ -66,18 +74,18 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_putInternal
 /*
  * Class:     io_cascade_Client
  * Method:    getInternal
- * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;J)J
+ * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;JZ)J
  */
 JNIEXPORT jlong JNICALL Java_io_cascade_Client_getInternal
-  (JNIEnv *, jobject, jobject, jlong, jlong, jobject, jlong);
+  (JNIEnv *, jobject, jobject, jlong, jlong, jobject, jlong, jboolean);
 
 /*
  * Class:     io_cascade_Client
  * Method:    getInternalByTime
- * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;J)J
+ * Signature: (Lio/cascade/ServiceType;JJLjava/nio/ByteBuffer;JZ)J
  */
 JNIEXPORT jlong JNICALL Java_io_cascade_Client_getInternalByTime
-  (JNIEnv *, jobject, jobject, jlong, jlong, jobject, jlong);
+  (JNIEnv *, jobject, jobject, jlong, jlong, jobject, jlong, jboolean);
 
 /*
  * Class:     io_cascade_Client
@@ -90,18 +98,34 @@ JNIEXPORT jlong JNICALL Java_io_cascade_Client_removeInternal
 /*
  * Class:     io_cascade_Client
  * Method:    listKeysInternal
- * Signature: (Lio/cascade/ServiceType;JJJ)J
+ * Signature: (Lio/cascade/ServiceType;JZJJ)J
  */
 JNIEXPORT jlong JNICALL Java_io_cascade_Client_listKeysInternal
-  (JNIEnv *, jobject, jobject, jlong, jlong, jlong);
+  (JNIEnv *, jobject, jobject, jlong, jboolean, jlong, jlong);
 
 /*
  * Class:     io_cascade_Client
  * Method:    listKeysByTimeInternal
- * Signature: (Lio/cascade/ServiceType;JJJ)J
+ * Signature: (Lio/cascade/ServiceType;JZJJ)J
  */
 JNIEXPORT jlong JNICALL Java_io_cascade_Client_listKeysByTimeInternal
-  (JNIEnv *, jobject, jobject, jlong, jlong, jlong);
+  (JNIEnv *, jobject, jobject, jlong, jboolean, jlong, jlong);
+
+/*
+ * Class:     io_cascade_Client
+ * Method:    createObjectPoolInternal
+ * Signature: (Ljava/lang/String;Lio/cascade/ServiceType;ILio/cascade/ShardingPolicy;Ljava/util/Map;)J
+ */
+JNIEXPORT jlong JNICALL Java_io_cascade_Client_createObjectPoolInternal
+  (JNIEnv *, jobject, jstring, jobject, jint, jobject, jobject);
+
+/*
+ * Class:     io_cascade_Client
+ * Method:    listObjectPools
+ * Signature: ()Ljava/util/List;
+ */
+JNIEXPORT jobject JNICALL Java_io_cascade_Client_listObjectPools
+  (JNIEnv *, jobject);
 
 #ifdef __cplusplus
 }

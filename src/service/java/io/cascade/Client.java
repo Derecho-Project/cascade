@@ -1,12 +1,13 @@
 package io.cascade;
 
 import java.util.List;
+import java.util.Map;
 import java.nio.ByteBuffer;
 
 /**
  * The client API for cascade.
  */
-public class Client {
+public class Client implements AutoCloseable {
     /* Load JNI library */
     static {
         try {
@@ -28,6 +29,13 @@ public class Client {
     public Client() {
         handle = createClient();
     }
+
+    @Override
+    public void close() {
+        closeClient();
+    }
+
+    private native void closeClient();
 
     /**
      * Creates the client.
@@ -59,8 +67,7 @@ public class Client {
     /**
      * Get all members in the current derecho subgroup and shard.
      * 
-     * @param type          The type of the subgroup. In Cascade, this would be
-     *                      VCSS or PCSS.
+     * @param type          The type of the subgroup.
      * @param subgroupIndex The index of the subgroup with type {@code type}.
      * @param shardID       The index of the shard within the subgroup with type
      *                      {@code type} and subgroup index {@code subgroupIndex}.
@@ -72,8 +79,7 @@ public class Client {
     /**
      * Set the member selection policy of the specified subgroup and shard.
      * 
-     * @param type          The type of the subgroup. In Cascade, this would be
-     *                      VCSS or PCSS.
+     * @param type          The type of the subgroup.
      * @param subgroupIndex The index of the subgroup with type {@code type}.
      * @param shardID       The index of the shard within the subgroup with type
      *                      {@code type} and subgroup index {@code subgroupIndex}.
@@ -87,8 +93,7 @@ public class Client {
     /**
      * Get the member selection policy of the specified subgroup and shard.
      * 
-     * @param type          The type of the subgroup. In Cascade, this would be
-     *                      VCSS or PCSS.
+     * @param type          The type of the subgroup.
      * @param subgroupIndex The index of the subgroup with type {@code type}.
      * @param shardID       The index of the shard within the subgroup with type
      *                      {@code type} and subgroup index {@code subgroupIndex}.
@@ -103,8 +108,7 @@ public class Client {
      * replace the old object if a new key-value pair with the same key as one put
      * before is put.
      * 
-     * @param type          The type of the subgroup. In Cascade, this would be VCSS
-     *                      and PCSS
+     * @param type          The type of the subgroup.
      * @param key           The string key of the key-value pair. Requires:
      *                      {@code key} should be non-negative.
      * @param buf           A Java direct byte buffer that holds the value of the
@@ -125,7 +129,7 @@ public class Client {
         // System.out.println("Finished constructing byte buffer!");
         
         long res = putInternal(type, subgroupIndex, shardID, bbkey, buf);
-        return new QueryResults<Bundle>(res, 0, type);
+        return new QueryResults<Bundle>(res, 0);
     }
 
     /**
@@ -133,8 +137,7 @@ public class Client {
      * object would replace the old object if a new key-value pair with the same key
      * as one put before is put.
      * 
-     * @param type          The type of the subgroup. In Cascade, this would be
-     *                      VCSS or PCSS.
+     * @param type          The type of the subgroup.
      * @param key           The byte buffer key of the key-value pair. The user
      *                      should serialize their key formats into this byte format
      *                      in order to use this method. 
@@ -153,43 +156,13 @@ public class Client {
     public QueryResults<Bundle> put(ServiceType type, ByteBuffer key, ByteBuffer buf, long subgroupIndex,
             long shardID) {
         long res = putInternal(type, subgroupIndex, shardID, key, buf);
-        return new QueryResults<Bundle>(res, 0, type);
-    }
-
-    /**
-     * Get the value corresponding to the long key from cascade.
-     * 
-     * @param type          The type of the subgroup. In Cascade, this would be VCSU
-     *                      and PCSU. Requires: This field should be VCSU or PCSU.
-     * @param key           The long key of the key-value pair. Requires:
-     *                      {@code key} should be non-negative.
-     * @param version       The version field returned by the Bundle object for put
-     *                      operation. Should be -1 when the version field is not
-     *                      known.
-     * @param subgroupIndex The index of the subgroup with type {@code type} to
-     *                      acquire the key-value pair.
-     * @param shardID       The index of the shard within the subgroup with type
-     *                      {@code type} and subgroup index {@code subgroupIndex} to
-     *                      acquire this key-value pair.
-     * @return A Future that stores a handle to a direct byte buffer that contains
-     *         the value that corresponds to the key in the specified
-     *         subgroup/shard. The byte buffer would be empty if the key has not
-     *         been put into cascade.
-     */
-    public QueryResults<CascadeObject> get(ServiceType type, long key, long version, long subgroupIndex, long shardID) {
-        String str = Long.toString(key);
-        byte[] arr = str.getBytes();
-        ByteBuffer bbkey = ByteBuffer.allocateDirect(arr.length);
-        bbkey.put(arr);
-        long res = getInternal(type, subgroupIndex, shardID, bbkey, version);
-        return new QueryResults<CascadeObject>(res, 1, type);
+        return new QueryResults<Bundle>(res, 0);
     }
 
     /**
      * Get the value corresponding to the byte buffer key from cascade.
      * 
-     * @param type          The type of the subgroup. In Cascade, this would be
-     *                      VCSS or PCSS.
+     * @param type          The type of the subgroup.
      * @param key           The byte buffer key of the key-value pair. The user
      *                      should serialize their key formats into this byte format
      *                      in order to use this method. If you use VCSU and PCSU as
@@ -198,6 +171,7 @@ public class Client {
      * @param version       The version field returned by the Bundle object for put
      *                      operation. Should be -1 when the version field is not
      *                      known.
+     * @param stable        get stable version or not.
      * @param subgroupIndex The index of the subgroup with type {@code type} to
      *                      acquire the key-value pair.
      * @param shardID       The index of the shard within the subgroup with type
@@ -208,10 +182,10 @@ public class Client {
      *         subgroup/shard. The byte buffer would be empty if the key has not
      *         been put into cascade.
      */
-    public QueryResults<CascadeObject> get(ServiceType type, ByteBuffer key, long version, long subgroupIndex,
-            long shardID) {
-        long res = getInternal(type, subgroupIndex, shardID, key, version);
-        return new QueryResults<CascadeObject>(res, 1, type);
+    public QueryResults<CascadeObject> get(ServiceType type, ByteBuffer key, long version, boolean stable,
+            long subgroupIndex, long shardID) {
+        long res = getInternal(type, subgroupIndex, shardID, key, version, stable);
+        return new QueryResults<CascadeObject>(res, 1);
     }
 
     /**
@@ -223,6 +197,7 @@ public class Client {
      *                      {@code key} should be non-negative.
      * @param timestamp     The timestamp field returned by the Bundle object for
      *                      put operation.
+     * @param stable        get stable version or not.
      * @param subgroupIndex The index of the subgroup with type {@code type} to
      *                      acquire the key-value pair.
      * @param shardID       The index of the shard within the subgroup with type
@@ -233,21 +208,20 @@ public class Client {
      *         subgroup/shard. The byte buffer would be empty if the key has not
      *         been put into cascade.
      */
-    public QueryResults<CascadeObject> getByTime(ServiceType type, long key, long timestamp, long subgroupIndex,
+    public QueryResults<CascadeObject> getByTime(ServiceType type, long key, long timestamp, boolean stable, long subgroupIndex,
             long shardID) {
         String str = Long.toString(key);
         byte[] arr = str.getBytes();
         ByteBuffer bbkey = ByteBuffer.allocateDirect(arr.length);
         bbkey.put(arr);
-        long res = getInternalByTime(type, subgroupIndex, shardID, bbkey, timestamp);
-        return new QueryResults<CascadeObject>(res, 1, type);
+        long res = getInternalByTime(type, subgroupIndex, shardID, bbkey, timestamp, stable);
+        return new QueryResults<CascadeObject>(res, 1);
     }
 
     /**
      * Get the value corresponding to the byte buffer key from cascade by timestamp.
      * 
-     * @param type          The type of the subgroup. Requires: This field should be
-     *                      PCSU or PCSS.
+     * @param type          The type of the subgroup.
      * @param key           The byte buffer key of the key-value pair. The user
      *                      should serialize their key formats into this byte format
      *                      in order to use this method. If you use VCSU and PCSU as
@@ -256,6 +230,7 @@ public class Client {
      * @param timestamp     The timestamp field returned by the Bundle object for
      *                      put operation. Should be -1 when the version field is
      *                      not known.
+     * @param stable        get stable version or not.
      * @param subgroupIndex The index of the subgroup with type {@code type} to
      *                      acquire the key-value pair.
      * @param shardID       The index of the shard within the subgroup with type
@@ -266,17 +241,16 @@ public class Client {
      *         subgroup/shard. The byte buffer would be empty if the key has not
      *         been put into cascade.
      */
-    public QueryResults<CascadeObject> getByTime(ServiceType type, ByteBuffer key, long timestamp, long subgroupIndex,
-            long shardID) {
-        long res = getInternalByTime(type, subgroupIndex, shardID, key, timestamp);
-        return new QueryResults<CascadeObject>(res, 1, type);
+    public QueryResults<CascadeObject> getByTime(ServiceType type, ByteBuffer key, long timestamp, boolean stable,
+            long subgroupIndex, long shardID) {
+        long res = getInternalByTime(type, subgroupIndex, shardID, key, timestamp, stable);
+        return new QueryResults<CascadeObject>(res, 1);
     }
 
     /**
      * Remove a long key and its corresponding value from cascade.
      * 
-     * @param type          The type of the subgroup. In Cascade, this would be VCSS
-     *                      or PCSS.
+     * @param type          The type of the subgroup.
      * @param key           The long key of the key-value pair. Requires:
      *                      {@code key} should be non-negative.
      * @param subgroupIndex The index of the subgroup with type {@code type} to put
@@ -293,14 +267,13 @@ public class Client {
         ByteBuffer bbkey = ByteBuffer.allocateDirect(arr.length);
         bbkey.put(arr);
         long res = removeInternal(type, subgroupIndex, shardID, bbkey);
-        return new QueryResults<Bundle>(res, 0, type);
+        return new QueryResults<Bundle>(res, 0);
     }
 
     /**
      * Remove a byte buffer key and its corresponding value from cascade.
      * 
-     * @param type          The type of the subgroup. In Cascade, this would be
-     *                      VCSS or PCSS.
+     * @param type          The type of the subgroup.
      * @param key           The byte buffer key of the key-value pair. The user
      *                      should serialize their key formats into this byte format
      *                      in order to use this method. If you use VCSU and PCSU as
@@ -316,15 +289,14 @@ public class Client {
      */
     public QueryResults<Bundle> remove(ServiceType type, ByteBuffer key, long subgroupIndex, long shardID) {
         long res = removeInternal(type, subgroupIndex, shardID, key);
-        return new QueryResults<Bundle>(res, 0, type);
+        return new QueryResults<Bundle>(res, 0);
     }
 
     /**
      * List all keys in the specified shard and subgroup up to a specified persistent 
      * version.
      * 
-     * @param type          The type of the subgroup. In Cascade, this would be
-     *                      VCSU, PCSU, VCSS, and PCSS.
+     * @param type          The type of the subgroup.
      * @param version       The upper bound persistent version of all keys listed.
      *                      -1 if you want to list all keys.
      * @param subgroupIndex The index of the subgroup with type {@code type} to put
@@ -336,15 +308,14 @@ public class Client {
      *         all keys included in the operation.
      */
     public QueryResults<List<ByteBuffer>> listKeys(ServiceType type, long version, long subgroupIndex, long shardIndex){
-        long res = listKeysInternal(type, version, subgroupIndex, shardIndex);
-        return new QueryResults<List<ByteBuffer>>(res, 2, type);
+        long res = listKeysInternal(type, version, true/*TODO:stable*/, subgroupIndex, shardIndex);
+        return new QueryResults<List<ByteBuffer>>(res, 2);
     }
 
     /**
      * List all keys in the specified shard and subgroup up to a specified timestamp.
      * 
-     * @param type          The type of the subgroup. In Cascade, this would be
-     *                      VCSU, PCSU, VCSS, and PCSS.
+     * @param type          The type of the subgroup.
      * @param timestamp     The upper bound timestamp of all keys listed.
      * @param subgroupIndex The index of the subgroup with type {@code type} to put
      *                      this key-value pair into.
@@ -355,15 +326,14 @@ public class Client {
      *         all keys included in the operation.
      */
     public QueryResults<List<ByteBuffer>> listKeysByTime(ServiceType type, long timestamp, long subgroupIndex, long shardIndex){
-        long res = listKeysByTimeInternal(type, timestamp, subgroupIndex, shardIndex);
-        return new QueryResults<List<ByteBuffer>>(res, 2, type);
+        long res = listKeysByTimeInternal(type, timestamp, true/*TODO:stable*/, subgroupIndex, shardIndex);
+        return new QueryResults<List<ByteBuffer>>(res, 2);
     }
 
 
     /**
      * Get the number of shards within the specified subgroup.
-     * @param type          The type of the subgroup. In Cascade, this would be
-     *                      VCSU, PCSU, VCSS, and PCSS.
+     * @param type          The type of the subgroup.
      * @param subgroupIndex The index of the subgroup with type {@code type} to put
      *                      this key-value pair into.
      * @return The number of shards within the specified subgroup.
@@ -377,8 +347,7 @@ public class Client {
     /**
      * Internal interface for put operation.
      * 
-     * @param type          The type of the subgroup. In Cascade, this would be
-     *                      VCSS or PCSS.
+     * @param type          The type of the subgroup.
      * @param subgroupIndex The index of the subgroup with type {@code type} to put
      *                      this key-value pair into.
      * @param shardIndex    The index of the shard within the subgroup with type
@@ -395,8 +364,7 @@ public class Client {
     /**
      * Internal interface for get operation.
      * 
-     * @param type          The type of the subgroup. In Cascade, this would be
-     *                      VCSS or PCSS.
+     * @param type          The type of the subgroup.
      * @param subgroupIndex The index of the subgroup with type {@code type} to get
      *                      this key-value pair from.
      * @param shardIndex    The index of the shard within the subgroup with type
@@ -405,16 +373,16 @@ public class Client {
      * @param key           The byte buffer key of the key-value pair.
      * @param version       The version returned by the Future object of past put.
      *                      -1 if no version is available.
+     * @param stable        get stable version or not.
      * @return A handle of the C++ future that stores the byte buffer for values.
      */
     private native long getInternal(ServiceType type, long subgroupIndex, long shardIndex, ByteBuffer key,
-            long version);
+            long version, boolean stable);
 
     /**
      * Internal interface for get by time operation.
      * 
-     * @param type          The type of the subgroup. In Cascade, this would be
-     *                      VCSS or PCSS.
+     * @param type          The type of the subgroup.
      * @param subgroupIndex The index of the subgroup with type {@code type} to get
      *                      this key-value pair from.
      * @param shardIndex    The index of the shard within the subgroup with type
@@ -422,16 +390,16 @@ public class Client {
      *                      get this key-value pair from.
      * @param key           The byte buffer key of the key-value pair.
      * @param timestamp     The timestamp returned by the Future object of past put.
+     * @param stable        get stable data or not.
      * @return A handle of the C++ future that stores the byte buffer for values.
      */
     private native long getInternalByTime(ServiceType type, long subgroupIndex, long shardIndex, ByteBuffer key,
-            long timestamp);
+            long timestamp, boolean stable);
 
     /**
      * Internal interface for remove operation.
      * 
-     * @param type          The type of the subgroup. In Cascade, this would be
-     *                      VCSS or PCSS.
+     * @param type          The type of the subgroup.
      * @param subgroupIndex The index of the subgroup with type {@code type} to
      *                      remove this key-value pair from.
      * @param shardIndex    The index of the shard within the subgroup with type
@@ -446,10 +414,10 @@ public class Client {
     /**
      * Internal interface for list key operation.
      * 
-     * @param type          The type of the subgroup. In Cascade, this would be
-     *                      VCSU, PCSU, VCSS, and PCSS.
+     * @param type          The type of the subgroup.
      * @param version       The upper bound persistent version of all keys listed.
      *                      -1 if you want to list all keys.
+     * @param stable        get stable data or not.
      * @param subgroupIndex The index of the subgroup with type {@code type} to
      *                      remove this key-value pair from.
      * @param shardIndex    The index of the shard within the subgroup with type
@@ -457,14 +425,14 @@ public class Client {
      *                      remove this key-value pair from.
      * @return A handle of the C++ future that stores a vector with all keys included.
      */
-    private native long listKeysInternal(ServiceType type, long version, long subgroupIndex, long shardIndex);
+    private native long listKeysInternal(ServiceType type, long version, boolean stable, long subgroupIndex, long shardIndex);
 
     /**
      * Internal interface for list key by time operation.
      * 
-     * @param type          The type of the subgroup. In Cascade, this would be
-     *                      VCSU, PCSU, VCSS, and PCSS.
+     * @param type          The type of the subgroup.
      * @param timestamp     The upper bound timestamp of all keys listed.
+     * @param stable        get stable data or not.
      * @param subgroupIndex The index of the subgroup with type {@code type} to
      *                      remove this key-value pair from.
      * @param shardIndex    The index of the shard within the subgroup with type
@@ -472,6 +440,41 @@ public class Client {
      *                      remove this key-value pair from.
      * @return A handle of the C++ future that stores a vector with all keys included.
      */
-    private native long listKeysByTimeInternal(ServiceType type, long timestamp, long subgroupIndex, long shardIndex);
+    private native long listKeysByTimeInternal(ServiceType type, long timestamp, boolean stable, long subgroupIndex, long shardIndex);
 
+    /**
+     * Create an object pool
+     *
+     * @param pathname      The pathname of the objectpool
+     * @param type          The type of the subgroup
+     * @param subgroupIndex The index of the subgroup with type {@code type}
+     * @param shardingPolicy    The sharding policy of this object pool
+     * @param objectLocations   The specified ObjectLocations
+     *
+     * @return a future for the result
+     */
+    public QueryResults<Bundle> createObjectPool(String pathname, ServiceType service_type, int subgroupIndex, ShardingPolicy shardingPolicy, Map<String,Integer> objectLocations) {
+        long res = createObjectPoolInternal(pathname,service_type,subgroupIndex,shardingPolicy,objectLocations);
+        return new QueryResults<Bundle>(res, 0);
+    }
+
+    /**
+     * Create an object pool Internal version
+     *
+     * @param pathname      The pathname of the objectpool
+     * @param type          The type of the subgroup
+     * @param subgroupIndex The index of the subgroup with type {@code type}
+     * @param shardingPolicy    The sharding policy of this object pool
+     * @param objectLocations   The specified ObjectLocations
+     *
+     * @return A handle of the C++ future
+     */
+    private native long createObjectPoolInternal(String pathname, ServiceType service_type, int subgroupIndex, ShardingPolicy shardingPolicy, Map<String,Integer> objectLocations);
+
+    /**
+     * List object pools
+     *
+     * @return a list of object pools
+     */
+    public native List<String> listObjectPools();
 }

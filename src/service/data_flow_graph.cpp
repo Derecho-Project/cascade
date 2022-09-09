@@ -19,13 +19,22 @@ DataFlowGraph::DataFlowGraph(const json& dfg_conf):
         if(dfgv.pathname.back() != PATH_SEPARATOR) {
             dfgv.pathname = dfgv.pathname + PATH_SEPARATOR;
         }
-        for(size_t i=0;i<(*it)[DFG_JSON_DATA_PATH_LOGIC_LIST].size();i++) {
-            std::string udl_uuid = (*it)[DFG_JSON_DATA_PATH_LOGIC_LIST].at(i);
+        for(size_t i=0;i<(*it)[DFG_JSON_UDL_LIST].size();i++) {
+            std::string udl_uuid = (*it)[DFG_JSON_UDL_LIST].at(i);
             // shard dispatchers
             dfgv.shard_dispatchers[udl_uuid] = DataFlowGraph::VertexShardDispatcher::ONE;
             if (it->contains(DFG_JSON_SHARD_DISPATCHER_LIST)) {
-                dfgv.shard_dispatchers[udl_uuid] = ((*it)[DFG_JSON_SHARD_DISPATCHER_LIST].at(i).get<std::string>() == "ALL")?
+                dfgv.shard_dispatchers[udl_uuid] = ((*it)[DFG_JSON_SHARD_DISPATCHER_LIST].at(i).get<std::string>() == "all")?
                     DataFlowGraph::VertexShardDispatcher::ALL : DataFlowGraph::VertexShardDispatcher::ONE;
+            }
+            // hooks
+            dfgv.hooks[udl_uuid] = DataFlowGraph::VertexHook::BOTH;
+            if (it->contains(DFG_JSON_UDL_HOOK_LIST)) {
+                if ((*it)[DFG_JSON_UDL_HOOK_LIST].at(i).get<std::string>() == "trigger") {
+                    dfgv.hooks[udl_uuid] = DataFlowGraph::VertexHook::TRIGGER_PUT;
+                } else if ((*it)[DFG_JSON_SHARD_DISPATCHER_LIST].at(i).get<std::string>() == "ordered") {
+                    dfgv.hooks[udl_uuid] = DataFlowGraph::VertexHook::ORDERED_PUT;
+                }
             }
             // configurations
             if (it->contains(DFG_JSON_UDL_CONFIG_LIST)) {

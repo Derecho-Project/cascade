@@ -4,8 +4,8 @@ set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 project(cascade CXX)
 
 # Version
-set(cascade_VERSION 1.0-rc1)
-set(cascade_build_VERSION 1.0-rc1)
+set(cascade_VERSION 1.0rc0)
+set(cascade_build_VERSION 1.0rc0)
 
 # C++ STANDARD
 set(CMAKE_CXX_STANDARD 17)
@@ -67,9 +67,6 @@ endif()
 # json
 find_package(nlohmann_json 3.2.0 REQUIRED)
 
-#opencv
-find_package(OpenCV QUIET)
-
 set(CMAKE_REQUIRED_DEFINITIONS -DFUSE_USE_VERSION=30)
 include(CheckIncludeFiles)
 include(CheckIncludeFileCXX)
@@ -79,17 +76,6 @@ CHECK_INCLUDE_FILES("fuse3/fuse.h;fuse3/fuse_lowlevel.h" HAS_FUSE)
 
 # boolinq
 CHECK_INCLUDE_FILE_CXX("boolinq/boolinq.h" HAS_BOOLINQ)
-
-#mxnet
-set(CMAKE_REQUIRED_LIBRARIES mxnet)
-CHECK_INCLUDE_FILE_CXX("mxnet-cpp/MxNetCpp.h" HAS_MXNET_CPP)
-unset(CMAKE_REQUIRED_LIBRARIES)
-
-#cuda
-find_package(CUDA QUIET)
-if (CUDA_FOUND)
-    set (ENABLE_GPU 1)
-endif()
 
 # enable evaluation
 set (ENABLE_EVALUATION 1)
@@ -106,7 +92,6 @@ add_subdirectory(src/core)
 add_subdirectory(src/utils)
 add_subdirectory(src/service)
 add_subdirectory(src/applications/tests)
-add_subdirectory(src/applications/demos)
 
 # make libcascade.so
 add_library(cascade SHARED
@@ -152,11 +137,18 @@ export (EXPORT cascadeTargets
     FILE "${CMAKE_CURRENT_BINARY_DIR}/cascade/cascadeTargets.cmake"
 )
 
-configure_file (cascadeConfig.cmake
-    "${CMAKE_CURRENT_BINARY_DIR}/cascade/cascadeConfig.cmake"
-)
+#configure_file (cascadeConfig.cmake
+#    "${CMAKE_CURRENT_BINARY_DIR}/cascade/cascadeConfig.cmake"
+#)
 
 set(ConfigPackageLocation ${CMAKE_INSTALL_LIBDIR}/cmake/cascade)
+
+configure_package_config_file(cascadeConfig.cmake.in
+    "${CMAKE_CURRENT_BINARY_DIR}/cascade/cascadeConfig.cmake"
+    INSTALL_DESTINATION ${ConfigPackageLocation}
+    PATH_VARS CMAKE_INSTALL_LIBDIR CMAKE_INSTALL_INCLUDEDIR ConfigPackageLocation
+)
+
 install(EXPORT cascadeTargets
     FILE cascadeTargets.cmake
     NAMESPACE derecho::
