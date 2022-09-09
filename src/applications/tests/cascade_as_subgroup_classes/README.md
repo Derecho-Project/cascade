@@ -19,7 +19,7 @@ Press ENTER to shutdown...
 ## Starting client node
 ```
 test/cli_example_cfg/n2 $ ../../cli_example client
-Finished constructing ExternalGroup.
+Finished constructing ExternalGroupClient.
 Members in top derecho group:[ 0 1 ]
 Members in the single shard of Volatile Cascade Store:[ 0 ]
 Members in the single shard of Persistent Cascade Store:[ 1 ]

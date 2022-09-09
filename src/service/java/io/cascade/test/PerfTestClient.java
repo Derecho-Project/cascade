@@ -63,6 +63,8 @@ class PollingThread extends Thread {
                     client.idleTxSlotCV.signalAll();
                     client.idleTxSlotLock.unlock();
                 }
+                // Release the allocated handle.
+                qr.close();
             }
 
             if (futureCounter == client.numMessages) {
@@ -226,71 +228,72 @@ public class PerfTestClient {
             return;
         }
 
-        Client client = new Client();
-        // System.out.println("Created client!");
-
-        if (isPersistent > 0) {
-            // System.out.println("start persistent!");
-
-            PerfTestClient cs = new PerfTestClient(maxPendingOps, numMessages, messageSize);
-
-            byte[] arr = new byte[messageSize];
-            for (int i = 0; i < messageSize; ++i){
-                arr[i] = (byte)i;
+        try(Client client = new Client()) {
+            // System.out.println("Created client!");
+    
+            if (isPersistent > 0) {
+                // System.out.println("start persistent!");
+    
+                PerfTestClient cs = new PerfTestClient(maxPendingOps, numMessages, messageSize);
+    
+                byte[] arr = new byte[messageSize];
+                for (int i = 0; i < messageSize; ++i){
+                    arr[i] = (byte)i;
+                }
+                ByteBuffer bb = ByteBuffer.allocateDirect(messageSize).put(arr);
+    
+                // starting the polling thread
+                cs.thread.start();
+    
+                // send!
+                for (int i = 0; i < numMessages; ++i) {
+                    String key = "k" + (randomize_key(i) % maxDistinctObjects);
+                    // System.out.println("key: "+key);
+                    cs.send(ServiceType.PersistentCascadeStoreWithStringKey, i, client, key, bb);
+                }
+    
+    
+                // wait for the polling thread to finish
+                try {
+                    // System.out.println("waiting for thread to join!");
+                    cs.thread.join();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                // print the statistics
+                cs.printStatistics();
+            } else {
+                // System.out.println("start volatile!");
+    
+                PerfTestClient cs = new PerfTestClient(maxPendingOps, numMessages, messageSize);
+    
+                byte[] arr = new byte[messageSize];
+                for (int i = 0; i < messageSize; ++i){
+                    arr[i] = (byte)i;
+                }
+                ByteBuffer bb = ByteBuffer.allocateDirect(messageSize).put(arr);
+    
+                // starting the polling thread
+    
+                cs.thread.start();
+    
+                // send!
+                for (int i = 0; i < numMessages; ++i) {
+                    String key = "" + (randomize_key(i) % maxDistinctObjects);
+                    // System.out.println("key: "+key);
+                    cs.send(ServiceType.VolatileCascadeStoreWithStringKey, i, client, key, bb);
+                }
+    
+                // wait for the polling thread to finish
+                try {
+                    // System.out.println("waiting for thread to join!");
+                    cs.thread.join();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                // print the statistics
+                cs.printStatistics();
             }
-            ByteBuffer bb = ByteBuffer.allocateDirect(messageSize).put(arr);
-
-            // starting the polling thread
-            cs.thread.start();
-
-            // send!
-            for (int i = 0; i < numMessages; ++i) {
-                String key = "k" + (randomize_key(i) % maxDistinctObjects);
-                // System.out.println("key: "+key);
-                cs.send(ServiceType.PCSS, i, client, key, bb);
-            }
-
-
-            // wait for the polling thread to finish
-            try {
-                // System.out.println("waiting for thread to join!");
-                cs.thread.join();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            // print the statistics
-            cs.printStatistics();
-        } else {
-            // System.out.println("start volatile!");
-
-            PerfTestClient cs = new PerfTestClient(maxPendingOps, numMessages, messageSize);
-
-            byte[] arr = new byte[messageSize];
-            for (int i = 0; i < messageSize; ++i){
-                arr[i] = (byte)i;
-            }
-            ByteBuffer bb = ByteBuffer.allocateDirect(messageSize).put(arr);
-
-            // starting the polling thread
-
-            cs.thread.start();
-
-            // send!
-            for (int i = 0; i < numMessages; ++i) {
-                String key = "" + (randomize_key(i) % maxDistinctObjects);
-                // System.out.println("key: "+key);
-                cs.send(ServiceType.VCSS, i, client, key, bb);
-            }
-
-            // wait for the polling thread to finish
-            try {
-                // System.out.println("waiting for thread to join!");
-                cs.thread.join();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            // print the statistics
-            cs.printStatistics();
         }
         // System.out.println("Finished performance test!");
     }

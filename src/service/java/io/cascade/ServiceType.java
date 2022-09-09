@@ -4,9 +4,9 @@ package io.cascade;
  * An enum on the type of services offered by cascade.
  */
 public enum ServiceType {
-    // VCSS: volatile cascade store with string keys
-    // PCSS: persistent cascade store with string keys
-    VCSS(0), PCSS(1);
+    VolatileCascadeStoreWithStringKey(0), 
+    PersistentCascadeStoreWithStringKey(1),
+    TriggerCascadeNoStoreWithStringKey(2);
 
     private int value;
 

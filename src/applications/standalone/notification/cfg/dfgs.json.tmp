@@ -1,0 +1,15 @@
+[
+    {
+        "id": "eb708f2a-a169-11ec-b011-0242ac110002",
+        "desc": "notification DFG",
+        "graph": [
+            {
+                "pathname": "/notification",
+                "shard_dispatcher_list": ["one"],
+                "hook": ["trigger_put"],
+                "user_defined_logic_list": ["b4e58924-a169-11ec-9150-0242ac110002"],
+                "destinations": [{}]
+            }
+        ]
+    }
+]

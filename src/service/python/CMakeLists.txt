@@ -6,6 +6,23 @@ set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 find_package(pybind11 QUIET)
 
 if (pybind11_FOUND)
+    # test if some python dependencies are included
+    execute_process(COMMAND pip3 show build RESULT_VARIABLE HAS_PYTHON_BUILD OUTPUT_QUIET ERROR_QUIET)
+    if(NOT ${HAS_PYTHON_BUILD} EQUAL 0)
+        message(WARNING "pip3 failed to find 'build' package. If you didn't install it with another package manager, please install it by 'pip3 install build'")
+    endif()
+
+    execute_process(COMMAND pip3 show setuptools RESULT_VARIABLE HAS_PYTHON_SETUPTOOLS OUTPUT_QUIET ERROR_QUIET)
+    if(NOT ${HAS_PYTHON_SETUPTOOLS} EQUAL 0)
+        message(WARNING "pip3 failed to find 'setuptools' package. If you didn't install it with another package manager, please install it by 'pip3 install setuptools'")
+    endif()
+
+    execute_process(COMMAND pip3 show virtualenv RESULT_VARIABLE HAS_PYTHON_VIRTUALENV OUTPUT_QUIET ERROR_QUIET)
+    if(NOT ${HAS_PYTHON_VIRTUALENV} EQUAL 0)
+        message(WARNING "pip3 failed to find 'virtualenv' package. If you didn't install it with another package manager, please install it by 'pip3 install python-venv'")
+    endif()
+
+    configure_file(setup.py.in ${CMAKE_CURRENT_BINARY_DIR}/setup.py)
     # pybind11 is found, so we compile the python bindings.
     pybind11_add_module(cascade_py cascade_py.cpp)
     target_include_directories(cascade_py PRIVATE
@@ -14,15 +31,21 @@ if (pybind11_FOUND)
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     )
     target_link_libraries(cascade_py PUBLIC cascade)
+    add_custom_command(TARGET cascade_py PRE_LINK
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/derecho ${CMAKE_CURRENT_BINARY_DIR}/derecho)
     add_custom_command(TARGET cascade_py POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/interactive_test.py ${CMAKE_CURRENT_BINARY_DIR}/interactive_test.py
-        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/perf_test.py ${CMAKE_CURRENT_BINARY_DIR}/perf_test.py
-        DEPENDS interactive_test.py perf_test.py
+        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/README.md ${CMAKE_CURRENT_BINARY_DIR}/README.md
+        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/cascade_client.py ${CMAKE_CURRENT_BINARY_DIR}/cascade_client.py
+        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/cascade_perf.py ${CMAKE_CURRENT_BINARY_DIR}/cascade_perf.py
+        COMMAND python -m build
+        DEPENDS cascade_client.py cascade_perf.py
     )
-    install(TARGETS cascade_py EXPORT cascade_py
-        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
-    install(FILES interactive_test.py perf_test.py
+    set_target_properties(cascade_py PROPERTIES
+        OUTPUT_NAME derecho/cascade/client
+    )
+    install(FILES cascade_client.py cascade_perf.py
             TYPE BIN
-            PERMISSIONS OWNER_WRITE OWNER_READ GROUP_READ WORLD_READ OWNER_EXECUTE GROUP_EXECUTE WORLD_EXECUTE)
+            PERMISSIONS OWNER_WRITE OWNER_READ GROUP_READ WORLD_READ OWNER_EXECUTE GROUP_EXECUTE WORLD_EXECUTE
+    )
 endif()
 

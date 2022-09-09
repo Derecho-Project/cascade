@@ -58,7 +58,7 @@ static void client_help() {
 // put_type = 0 : volatile
 // put_type = 1 : persistent
 // put_type = 2 : trigger
-static void client_put(derecho::ExternalGroup<VCS,PCS,TCS>& group,
+static void client_put(derecho::ExternalGroupClient<VCS,PCS,TCS>& group,
                        node_id_t member,
                        const std::vector<std::string>& tokens,
                        bool is_persistent) {
@@ -69,7 +69,7 @@ static void client_put(derecho::ExternalGroup<VCS,PCS,TCS>& group,
     uint64_t key = std::stoll(tokens[1]);
     
     //TODO: the previous_version should be used to enforce version check. INVALID_VERSION disables the feature.
-    ObjectWithUInt64Key o(key,Blob(tokens[2].c_str(),tokens[2].size()));
+    ObjectWithUInt64Key o(key,Blob(reinterpret_cast<const uint8_t*>(tokens[2].c_str()),tokens[2].size()));
 
     if (is_persistent) {
         ExternalClientCaller<PCS,std::remove_reference<decltype(group)>::type>& pcs_ec = group.get_subgroup_caller<PCS>();
@@ -87,7 +87,7 @@ static void client_put(derecho::ExternalGroup<VCS,PCS,TCS>& group,
     return;
 }
 
-static void client_trigger_put(derecho::ExternalGroup<VCS,PCS,TCS>& group,
+static void client_trigger_put(derecho::ExternalGroupClient<VCS,PCS,TCS>& group,
                                node_id_t member,
                                const std::vector<std::string>& tokens) {
     if (tokens.size() != 3) {
@@ -96,7 +96,7 @@ static void client_trigger_put(derecho::ExternalGroup<VCS,PCS,TCS>& group,
 
     uint64_t key = std::stoll(tokens[1]);
     
-    ObjectWithUInt64Key o(key,Blob(tokens[2].c_str(),tokens[2].size()));
+    ObjectWithUInt64Key o(key,Blob(reinterpret_cast<const uint8_t*>(tokens[2].c_str()),tokens[2].size()));
 
     ExternalClientCaller<TCS,std::remove_reference<decltype(group)>::type>& vcs_ec = group.get_subgroup_caller<TCS>();
     auto result = vcs_ec.p2p_send<RPC_NAME(trigger_put)>(member,o);
@@ -106,10 +106,11 @@ static void client_trigger_put(derecho::ExternalGroup<VCS,PCS,TCS>& group,
 }
 
 // get
-static void client_get(derecho::ExternalGroup<VCS,PCS,TCS>& group,
+static void client_get(derecho::ExternalGroupClient<VCS,PCS,TCS>& group,
                        node_id_t member,
                        const std::vector<std::string>& tokens,
-                       bool is_persistent) {
+                       bool is_persistent,
+                       bool is_stable) {
     if (tokens.size() != 2 && tokens.size() != 4) {
         std::cout << "Invalid format of 'put' command." << std::endl;
     }
@@ -133,16 +134,16 @@ static void client_get(derecho::ExternalGroup<VCS,PCS,TCS>& group,
     if (is_persistent) {
         ExternalClientCaller<PCS,std::remove_reference<decltype(group)>::type>& pcs_ec = group.get_subgroup_caller<PCS>();
         if (ts != 0) {
-            opt.emplace(pcs_ec.p2p_send<RPC_NAME(get_by_time)>(member,key,ts));
+            opt.emplace(pcs_ec.p2p_send<RPC_NAME(get_by_time)>(member,key,ts,is_stable));
         } else {
-            opt.emplace(pcs_ec.p2p_send<RPC_NAME(get)>(member,key,ver,false));
+            opt.emplace(pcs_ec.p2p_send<RPC_NAME(get)>(member,key,ver,is_stable,false));
         }
     } else {
         ExternalClientCaller<VCS,std::remove_reference<decltype(group)>::type>& vcs_ec = group.get_subgroup_caller<VCS>();
         if (ts != 0) {
-            opt.emplace(vcs_ec.p2p_send<RPC_NAME(get_by_time)>(member,key,ts));
+            opt.emplace(vcs_ec.p2p_send<RPC_NAME(get_by_time)>(member,key,ts,is_stable));
         } else {
-            opt.emplace(vcs_ec.p2p_send<RPC_NAME(get)>(member,key,ver,false));
+            opt.emplace(vcs_ec.p2p_send<RPC_NAME(get)>(member,key,ver,is_stable,false));
         }
     }
     auto reply = opt.value().get().get(member);
@@ -150,7 +151,7 @@ static void client_get(derecho::ExternalGroup<VCS,PCS,TCS>& group,
 }
 
 // list
-static void client_list(derecho::ExternalGroup<VCS,PCS,TCS>& group,
+static void client_list(derecho::ExternalGroupClient<VCS,PCS,TCS>& group,
                         node_id_t member,
                         const std::vector<std::string>& tokens,
                         bool is_persistent) {
@@ -172,16 +173,16 @@ static void client_list(derecho::ExternalGroup<VCS,PCS,TCS>& group,
     if (is_persistent) {
         ExternalClientCaller<PCS,std::remove_reference<decltype(group)>::type>& pcs_ec = group.get_subgroup_caller<PCS>();
         if (ts != 0) {
-            opt.emplace(pcs_ec.p2p_send<RPC_NAME(list_keys_by_time)>(member,ts));
+            opt.emplace(pcs_ec.p2p_send<RPC_NAME(list_keys_by_time)>(member,"",ts,true));
         } else {
-            opt.emplace(pcs_ec.p2p_send<RPC_NAME(list_keys)>(member,ver));
+            opt.emplace(pcs_ec.p2p_send<RPC_NAME(list_keys)>(member,"",ver,true));
         }
     } else {
         ExternalClientCaller<VCS,std::remove_reference<decltype(group)>::type>& vcs_ec = group.get_subgroup_caller<VCS>();
         if (ts != 0) {
-            opt.emplace(vcs_ec.p2p_send<RPC_NAME(list_keys_by_time)>(member,ts));
+            opt.emplace(vcs_ec.p2p_send<RPC_NAME(list_keys_by_time)>(member,"",ts,true));
         } else {
-            opt.emplace(vcs_ec.p2p_send<RPC_NAME(list_keys)>(member,ver));
+            opt.emplace(vcs_ec.p2p_send<RPC_NAME(list_keys)>(member,"",ver,true));
         }
     }
 
@@ -193,7 +194,7 @@ static void client_list(derecho::ExternalGroup<VCS,PCS,TCS>& group,
 }
 
 // remove
-static void client_remove(derecho::ExternalGroup<VCS,PCS,TCS>& group,
+static void client_remove(derecho::ExternalGroupClient<VCS,PCS,TCS>& group,
                           node_id_t member,
                           const std::vector<std::string>& tokens,
                           bool is_persistent) {
@@ -221,8 +222,8 @@ static void client_remove(derecho::ExternalGroup<VCS,PCS,TCS>& group,
 
 void do_client() {
     /** 1 - create external client group*/
-    derecho::ExternalGroup<VCS,PCS,TCS> group;
-    std::cout << "Finished constructing ExternalGroup." << std::endl;
+    derecho::ExternalGroupClient<VCS,PCS,TCS> group;
+    std::cout << "Finished constructing ExternalGroupClient." << std::endl;
 
     /** 2 - get members */
     std::vector<node_id_t> g_members = group.get_members();
@@ -272,9 +273,9 @@ void do_client() {
         } else if (cmd_tokens[0].compare("tput") == 0) {
             client_trigger_put(group,tcs_members[0],cmd_tokens);
         } else if (cmd_tokens[0].compare("vget") == 0) {
-            client_get(group,vcs_members[0],cmd_tokens,false);
+            client_get(group,vcs_members[0],cmd_tokens,true/*stable get*/,false);
         } else if (cmd_tokens[0].compare("pget") == 0) {
-            client_get(group,pcs_members[0],cmd_tokens,true);
+            client_get(group,pcs_members[0],cmd_tokens,true/*stable get*/,true);
         } else if (cmd_tokens[0].compare("vlist") == 0) {
             client_list(group,vcs_members[0],cmd_tokens,false);
         } else if (cmd_tokens[0].compare("plist") == 0) {

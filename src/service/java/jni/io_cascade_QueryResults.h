@@ -15,6 +15,14 @@ extern "C" {
 JNIEXPORT jobject JNICALL Java_io_cascade_QueryResults_getReplyMap
   (JNIEnv *, jobject, jlong);
 
+/*
+ * Class:     io_cascade_QueryResults
+ * Method:    closeHandle
+ * Signature: ()V
+ */
+JNIEXPORT void JNICALL Java_io_cascade_QueryResults_closeHandle
+  (JNIEnv *, jobject);
+
 #ifdef __cplusplus
 }
 #endif
