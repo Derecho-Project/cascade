@@ -2,4 +2,5 @@
 #cmakedefine HAS_BOOLINQ
 #cmakedefine ENABLE_EVALUATION
 #cmakedefine DUMP_TIMESTAMP_WORKAROUND
+#cmakedefine HAS_STATEFUL_UDL_SUPPORT
 #define PATH_SEPARATOR '/'

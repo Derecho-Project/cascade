@@ -71,6 +71,9 @@ set(CMAKE_REQUIRED_DEFINITIONS -DFUSE_USE_VERSION=30)
 include(CheckIncludeFiles)
 include(CheckIncludeFileCXX)
 
+# stateful udl support
+set(HAS_STATEFUL_UDL_SUPPORT 1)
+
 # fuse
 CHECK_INCLUDE_FILES("fuse3/fuse.h;fuse3/fuse_lowlevel.h" HAS_FUSE)
 

@@ -27,6 +27,13 @@ DataFlowGraph::DataFlowGraph(const json& dfg_conf):
                 dfgv.shard_dispatchers[udl_uuid] = ((*it)[DFG_JSON_SHARD_DISPATCHER_LIST].at(i).get<std::string>() == "all")?
                     DataFlowGraph::VertexShardDispatcher::ALL : DataFlowGraph::VertexShardDispatcher::ONE;
             }
+            // stateful
+            dfgv.stateful[udl_uuid] = false;
+            if (it->contains(DFG_JSON_UDL_STATEFUL_LIST)) {
+                if ((*it)[DFG_JSON_UDL_STATEFUL_LIST].at(i).get<std::string>() == "stateful") {
+                    dfgv.stateful[udl_uuid] = true;
+                }
+            }
             // hooks
             dfgv.hooks[udl_uuid] = DataFlowGraph::VertexHook::BOTH;
             if (it->contains(DFG_JSON_UDL_HOOK_LIST)) {
