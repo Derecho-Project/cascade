@@ -2220,7 +2220,8 @@ bool CascadeContext<CascadeTypes...>::post(Action&& action, bool is_trigger) {
         if (is_trigger) {
 #ifdef HAS_STATEFUL_UDL_SUPPORT
             if (is_stateful) {
-                //TODO:
+                uint32_t thread_index = std::hash<std::string>{}(action.key_string) % stateful_action_queues_for_p2p.size();
+                stateful_action_queues_for_p2p[thread_index]->action_buffer_enqueue(std::move(action));
             } else {
 #endif
                 stateless_action_queue_for_p2p.action_buffer_enqueue(std::move(action));
@@ -2230,7 +2231,8 @@ bool CascadeContext<CascadeTypes...>::post(Action&& action, bool is_trigger) {
         } else {
 #ifdef HAS_STATEFUL_UDL_SUPPORT
             if (is_stateful) {
-                //TODO:
+                uint32_t thread_index = std::hash<std::string>{}(action.key_string) % stateful_action_queues_for_multicast.size();
+                stateful_action_queues_for_multicast[thread_index]->action_buffer_enqueue(std::move(action));
             } else {
 #endif
                 stateless_action_queue_for_multicast.action_buffer_enqueue(std::move(action));
