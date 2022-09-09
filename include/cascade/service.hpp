@@ -1482,6 +1482,9 @@ namespace cascade {
                     std::string, // udl_id
                     std::tuple<
                         DataFlowGraph::VertexShardDispatcher,         // shard dispatcher
+#ifdef HAS_STATEFUL_UDL_SUPPORT
+                        bool,                                         // is stateful or not
+#endif//HAS_STATEFUL_UDL_SUPPORT
                         DataFlowGraph::VertexHook,                    // hook
                         std::shared_ptr<OffCriticalDataPathObserver>, // ocdpo
                         std::unordered_map<std::string,bool>          // output map{prefix->bool}
@@ -1621,6 +1624,9 @@ namespace cascade {
          */
         virtual void register_prefixes(const std::unordered_set<std::string>& prefixes,
                                        const DataFlowGraph::VertexShardDispatcher shard_dispatcher,
+#ifdef HAS_STATEFUL_UDL_SUPPORT
+                                       const bool stateful,
+#endif
                                        const DataFlowGraph::VertexHook hook,
                                        const std::string& user_defined_logic_id,
                                        const std::shared_ptr<OffCriticalDataPathObserver>& ocdpo_ptr,
@@ -1653,9 +1659,9 @@ namespace cascade {
          *          context already shut down.
          */
 #ifdef HAS_STATEFUL_UDL_SUPPORT
-        virtual bool post(Action&& action, bool is_stateful, bool is_trigger = false);
+        virtual bool post(Action&& action, bool is_stateful, bool is_trigger);
 #else
-        virtual bool post(Action&& action, bool is_trigger = false);
+        virtual bool post(Action&& action, bool is_trigger);
 #endif//HAS_STATEFUL_UDL_SUPPORT
 
         /**

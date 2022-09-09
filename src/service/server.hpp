@@ -68,11 +68,19 @@ class CascadeServiceCDPO : public CriticalDataPathObserver<CascadeType> {
                     // per_prefix.second is a set of handlers
                     for(auto it = per_prefix.second.cbegin(); it != per_prefix.second.cend();) {
                         // it->first is handler uuid
-                        // it->second is a 4-tuple of shard dispatcher,hook,ocdpo,and outputs;
+                        // it->second is a 5-tuple of shard dispatcher,stateful,hook,ocdpo,and outputs;
+#ifdef HAS_STATEFUL_UDL_SUPPORT
+                        if((std::get<2>(it->second) == DataFlowGraph::VertexHook::ORDERED_PUT && is_trigger) || (std::get<2>(it->second) == DataFlowGraph::VertexHook::TRIGGER_PUT && !is_trigger)) {
+#else
                         if((std::get<1>(it->second) == DataFlowGraph::VertexHook::ORDERED_PUT && is_trigger) || (std::get<1>(it->second) == DataFlowGraph::VertexHook::TRIGGER_PUT && !is_trigger)) {
+#endif
                             // not my hook, skip it.
                             per_prefix.second.erase(it++);
+#ifdef HAS_STATEFUL_UDL_SUPPORT
+                        } else if((std::get<2>(it->second) != DataFlowGraph::VertexHook::ORDERED_PUT) && is_trigger) {
+#else
                         } else if((std::get<1>(it->second) != DataFlowGraph::VertexHook::ORDERED_PUT) && is_trigger) {
+#endif
                             new_actions = true;
                             it++;
                         } else {
@@ -112,17 +120,29 @@ class CascadeServiceCDPO : public CriticalDataPathObserver<CascadeType> {
                 // per_prefix.second is a set of handlers
                 for(const auto& handler : per_prefix.second) {
                     // handler.first is handler uuid
-                    // handler.second is a 3-tuple of shard dispatcher,ocdpo,and outputs;
+                    // handler.second is a 4,5-tuple of shard dispatcher,stateful,hook,ocdpo,and outputs;
                     Action action(
                             sender_id,
                             key,
                             per_prefix.first.size(),
                             value.get_version(),
+#ifdef HAS_STATEFUL_UDL_SUPPORT
+                            std::get<3>(handler.second),  // ocdpo
+#else
                             std::get<2>(handler.second),  // ocdpo
+#endif
                             value_ptr,
+#ifdef HAS_STATEFUL_UDL_SUPPORT
+                            std::get<4>(handler.second)  // outputs
+#else
                             std::get<3>(handler.second)  // outputs
+#endif
                     );
+#ifdef HAS_STATEFUL_UDL_SUPPORT
+                    ctxt->post(std::move(action), std::get<1>(handler.second), is_trigger);
+#else
                     ctxt->post(std::move(action), is_trigger);
+#endif//HAS_STATEFUL_UDL_SUPPORT
                 }
             }
         }
