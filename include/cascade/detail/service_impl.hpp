@@ -2140,6 +2140,24 @@ void CascadeContext<CascadeTypes...>::destroy() {
     stateless_workhorses_for_multicast.clear();
     stateless_workhorses_for_p2p.clear();
 #ifdef HAS_STATEFUL_UDL_SUPPORT
+    for (auto& queue: stateful_action_queues_for_multicast) {
+        queue->notify_all();
+    }
+    for (auto& queue: stateful_action_queues_for_p2p) {
+        queue->notify_all();
+    }
+    for (auto& th: stateful_workhorses_for_multicast) {
+        if (th.joinable()) {
+            th.join();
+        }
+    }
+    for (auto& th: stateful_workhorses_for_p2p) {
+        if (th.joinable()) {
+            th.join();
+        }
+    }
+    stateful_workhorses_for_multicast.clear();
+    stateful_workhorses_for_p2p.clear();
 #endif//HAS_STATEFUL_UDL_SUPPORT
     dbg_default_trace("Cascade context@{:p} is destroyed.",static_cast<void*>(this));
 }
