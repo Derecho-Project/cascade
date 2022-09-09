@@ -1917,6 +1917,9 @@ void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeMetadataSe
                 register_prefixes(
                         {vertex.second.pathname},
                         vertex.second.shard_dispatchers.at(edge.first),
+#ifdef HAS_STATEFUL_UDL_SUPPORT
+                        vertex.second.stateful.at(edge.first),
+#endif
                         vertex.second.hooks.at(edge.first),
                         edge.first,
                         user_defined_logic_manager->get_observer(
@@ -2150,13 +2153,20 @@ template <typename... CascadeTypes>
 void CascadeContext<CascadeTypes...>::register_prefixes(
         const std::unordered_set<std::string>& prefixes,
         const DataFlowGraph::VertexShardDispatcher shard_dispatcher,
+#ifdef HAS_STATEFUL_UDL_SUPPORT
+        const bool stateful,
+#endif
         const DataFlowGraph::VertexHook hook,
         const std::string& user_defined_logic_id,
         const std::shared_ptr<OffCriticalDataPathObserver>& ocdpo_ptr,
         const std::unordered_map<std::string,bool>& outputs) {
     for (const auto& prefix:prefixes) {
         prefix_registry_ptr->atomically_modify(prefix,
+#ifdef HAS_STATEFUL_UDL_SUPPORT
+            [&prefix,&shard_dispatcher,&stateful,&hook,&user_defined_logic_id,&ocdpo_ptr,&outputs](const std::shared_ptr<prefix_entry_t>& entry){
+#else
             [&prefix,&shard_dispatcher,&hook,&user_defined_logic_id,&ocdpo_ptr,&outputs](const std::shared_ptr<prefix_entry_t>& entry){
+#endif
                 std::shared_ptr<prefix_entry_t> new_entry;
                 if (entry) {
                     new_entry = std::make_shared<prefix_entry_t>(*entry);
@@ -2164,9 +2174,17 @@ void CascadeContext<CascadeTypes...>::register_prefixes(
                     new_entry = std::make_shared<prefix_entry_t>(prefix_entry_t{});
                 }
                 if (new_entry->find(user_defined_logic_id) == new_entry->end()) {
+#ifdef HAS_STATEFUL_UDL_SUPPORT
+                    new_entry->emplace(user_defined_logic_id,std::tuple{shard_dispatcher,stateful,hook,ocdpo_ptr,outputs});
+#else
                     new_entry->emplace(user_defined_logic_id,std::tuple{shard_dispatcher,hook,ocdpo_ptr,outputs});
+#endif
                 } else {
+#ifdef HAS_STATEFUL_UDL_SUPPORT
+                    std::get<4>(new_entry->at(user_defined_logic_id)).insert(outputs.cbegin(),outputs.cend());
+#else
                     std::get<3>(new_entry->at(user_defined_logic_id)).insert(outputs.cbegin(),outputs.cend());
+#endif
                 }
                 return new_entry;
             },true);
