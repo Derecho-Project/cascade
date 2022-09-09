@@ -39,7 +39,7 @@ DataFlowGraph::DataFlowGraph(const json& dfg_conf):
             if (it->contains(DFG_JSON_UDL_HOOK_LIST)) {
                 if ((*it)[DFG_JSON_UDL_HOOK_LIST].at(i).get<std::string>() == "trigger") {
                     dfgv.hooks[udl_uuid] = DataFlowGraph::VertexHook::TRIGGER_PUT;
-                } else if ((*it)[DFG_JSON_SHARD_DISPATCHER_LIST].at(i).get<std::string>() == "ordered") {
+                } else if ((*it)[DFG_JSON_UDL_HOOK_LIST].at(i).get<std::string>() == "ordered") {
                     dfgv.hooks[udl_uuid] = DataFlowGraph::VertexHook::ORDERED_PUT;
                 }
             }
