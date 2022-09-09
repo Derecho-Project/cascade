@@ -1440,8 +1440,10 @@ namespace cascade {
     /**
      * configuration keys
      */
-    #define CASCADE_CONTEXT_NUM_WORKERS_MULTICAST   "CASCADE/num_workers_for_multicast_ocdp"
-    #define CASCADE_CONTEXT_NUM_WORKERS_P2P         "CASCADE/num_workers_for_p2p_ocdp"
+    #define CASCADE_CONTEXT_NUM_STATELESS_WORKERS_MULTICAST   "CASCADE/num_stateless_workers_for_multicast_ocdp"
+    #define CASCADE_CONTEXT_NUM_STATELESS_WORKERS_P2P         "CASCADE/num_stateless_workers_for_p2p_ocdp"
+    #define CASCADE_CONTEXT_NUM_STATEFUL_WORKERS_MULTICAST   "CASCADE/num_stateful_workers_for_multicast_ocdp"
+    #define CASCADE_CONTEXT_NUM_STATEFUL_WORKERS_P2P         "CASCADE/num_stateful_workers_for_p2p_ocdp"
     #define CASCADE_CONTEXT_CPU_CORES               "CASCADE/cpu_cores"
     #define CASCADE_CONTEXT_GPUS                    "CASCADE/gpus"
     #define CASCADE_CONTEXT_WORKER_CPU_AFFINITY     "CASCADE/worker_cpu_affinity"
@@ -1503,8 +1505,12 @@ namespace cascade {
             inline void notify_all();
         };
         /** action (ring) buffer control */
-        struct action_queue action_queue_for_multicast;
-        struct action_queue action_queue_for_p2p;
+#ifdef HAS_STATEFUL_UDL_SUPPORT
+        std::vector<struct action_queue> stateful_action_queues_for_multicast;
+        std::vector<struct action_queue> stateful_action_queue_for_p2p;
+#endif//HAS_STATEFUL_UDL_SUPPORT
+        struct action_queue stateless_action_queue_for_multicast;
+        struct action_queue stateless_action_queue_for_p2p;
 
         /** thread pool control */
         std::atomic<bool>       is_running;
@@ -1515,8 +1521,12 @@ namespace cascade {
         /** the data path logic loader */
         std::unique_ptr<UserDefinedLogicManager<CascadeTypes...>> user_defined_logic_manager;
         /** the off-critical data path worker thread pools */
-        std::vector<std::thread> workhorses_for_multicast;
-        std::vector<std::thread> workhorses_for_p2p;
+        std::vector<std::thread> stateless_workhorses_for_multicast;
+        std::vector<std::thread> stateless_workhorses_for_p2p;
+#ifdef HAS_STATEFUL_UDL_SUPPORT
+        std::vector<std::thread> stateful_workhorses_for_multicast;
+        std::vector<std::thread> stateful_workhorses_for_p2p;
+#endif//HAS_STATEFUL_UDL_SUPPORT
         /** the service client: off critical data path logic use it to send data to a next tier. */
         std::unique_ptr<ServiceClient<CascadeTypes...>> service_client;
         /**
@@ -1636,20 +1646,25 @@ namespace cascade {
          * post an action to the Context for processing.
          *
          * @param action        The action
+         * @param is_stateful   If the action is stateful or not
          * @param is_trigger    True for trigger, meaning the action will be processed in the workhorses for p2p send
          *
          * @return  true for a successful post, false for failure. The current only reason for failure is to post to a
          *          context already shut down.
          */
+#ifdef HAS_STATEFUL_UDL_SUPPORT
+        virtual bool post(Action&& action, bool is_stateful, bool is_trigger = false);
+#else
         virtual bool post(Action&& action, bool is_trigger = false);
+#endif//HAS_STATEFUL_UDL_SUPPORT
 
         /**
-         * Get the action queue length
+         * Get the stateless action queue length
          *
          * @return current queue_length
          */
-        virtual size_t action_queue_length_p2p();
-        virtual size_t action_queue_length_multicast();
+        virtual size_t stateless_action_queue_length_p2p();
+        virtual size_t stateless_action_queue_length_multicast();
 
         /**
          * Destructor

@@ -1897,8 +1897,8 @@ uint32_t ServiceClient<CascadeTypes...>::get_subgroup_type_index() {
 
 template <typename... CascadeTypes>
 CascadeContext<CascadeTypes...>::CascadeContext() {
-    action_queue_for_multicast.initialize();
-    action_queue_for_p2p.initialize();
+    stateless_action_queue_for_multicast.initialize();
+    stateless_action_queue_for_p2p.initialize();
     prefix_registry_ptr = std::make_shared<PrefixRegistry<prefix_entry_t,PATH_SEPARATOR>>();
 }
 
@@ -1929,16 +1929,17 @@ void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeMetadataSe
     }
     // 3 - start the working threads
     is_running.store(true);
-    uint32_t num_multicast_workers = 0;
-    uint32_t num_p2p_workers = 0;
-    if (derecho::hasCustomizedConfKey(CASCADE_CONTEXT_NUM_WORKERS_MULTICAST) == false) {
-        dbg_default_error("{} is not found, using 0...fix it, or posting to multicast off critical data path causes deadlock.", CASCADE_CONTEXT_NUM_WORKERS_MULTICAST);
+    uint32_t num_stateless_multicast_workers = 0, num_stateful_multicast_workers = 0;
+    uint32_t num_stateless_p2p_workers = 0, num_stateful_p2p_workers = 0;
+    // 3.1 - initialize stateless multicast workers.
+    if (derecho::hasCustomizedConfKey(CASCADE_CONTEXT_NUM_STATELESS_WORKERS_MULTICAST) == false) {
+        dbg_default_error("{} is not found, using 0...fix it, or posting to multicast off critical data path causes deadlock.", CASCADE_CONTEXT_NUM_STATELESS_WORKERS_MULTICAST);
     } else {
-        num_multicast_workers = derecho::getConfUInt32(CASCADE_CONTEXT_NUM_WORKERS_MULTICAST);
+        num_stateless_multicast_workers = derecho::getConfUInt32(CASCADE_CONTEXT_NUM_STATELESS_WORKERS_MULTICAST);
     }
-    for (uint32_t i=0;i<num_multicast_workers;i++) {
+    for (uint32_t i=0;i<num_stateless_multicast_workers;i++) {
         // off_critical_data_path_thread_pool.emplace_back(std::thread(&CascadeContext<CascadeTypes...>::workhorse,this,i));
-        workhorses_for_multicast.emplace_back(
+        stateless_workhorses_for_multicast.emplace_back(
             [this,i](){
                 // set cpu affinity
                 if (this->resource_descriptor.multicast_ocdp_worker_to_cpu_cores.find(i)!=
@@ -1953,17 +1954,18 @@ void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeMetadataSe
                     }
                 }
                 // call workhorse
-                this->workhorse(i,action_queue_for_multicast);
+                this->workhorse(i,stateless_action_queue_for_multicast);
             });
     }
-    if (derecho::hasCustomizedConfKey(CASCADE_CONTEXT_NUM_WORKERS_P2P) == false) {
-        dbg_default_error("{} is not found, using 0...fix it, or posting to multicast off critical data path causes deadlock.", CASCADE_CONTEXT_NUM_WORKERS_MULTICAST);
+    // 3.2 -initialize stateless p2p workers.
+    if (derecho::hasCustomizedConfKey(CASCADE_CONTEXT_NUM_STATELESS_WORKERS_P2P) == false) {
+        dbg_default_error("{} is not found, using 0...fix it, or posting to multicast off critical data path causes deadlock.", CASCADE_CONTEXT_NUM_STATELESS_WORKERS_P2P);
     } else {
-        num_p2p_workers = derecho::getConfUInt32(CASCADE_CONTEXT_NUM_WORKERS_P2P);
+        num_stateless_p2p_workers = derecho::getConfUInt32(CASCADE_CONTEXT_NUM_STATELESS_WORKERS_P2P);
     }
-    for (uint32_t i=0;i<num_p2p_workers;i++) {
+    for (uint32_t i=0;i<num_stateless_p2p_workers;i++) {
         // off_critical_data_path_thread_pool.emplace_back(std::thread(&CascadeContext<CascadeTypes...>::workhorse,this,i));
-        workhorses_for_p2p.emplace_back(
+        stateless_workhorses_for_p2p.emplace_back(
             [this,i](){
                 // set cpu affinity
                 if (this->resource_descriptor.p2p_ocdp_worker_to_cpu_cores.find(i)!=
@@ -1978,9 +1980,11 @@ void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeMetadataSe
                     }
                 }
                 // call workhorse
-                this->workhorse(i,action_queue_for_p2p);
+                this->workhorse(i,stateless_action_queue_for_p2p);
             });
     }
+    // 3.3 - initialize stateful multicast workers
+    // 3.4 - initialize stateful p2p workers
 }
 
 template <typename... CascadeTypes>
@@ -2059,20 +2063,22 @@ template <typename... CascadeTypes>
 void CascadeContext<CascadeTypes...>::destroy() {
     dbg_default_trace("Destroying Cascade context@{:p}.",static_cast<void*>(this));
     is_running.store(false);
-    action_queue_for_multicast.notify_all();
-    action_queue_for_p2p.notify_all();
-    for (auto& th:workhorses_for_multicast) {
+    stateless_action_queue_for_multicast.notify_all();
+    stateless_action_queue_for_p2p.notify_all();
+    for (auto& th:stateless_workhorses_for_multicast) {
         if (th.joinable()) {
             th.join();
         }
     }
-    for (auto& th:workhorses_for_p2p) {
+    for (auto& th:stateless_workhorses_for_p2p) {
         if (th.joinable()) {
             th.join();
         }
     }
-    workhorses_for_multicast.clear();
-    workhorses_for_p2p.clear();
+    stateless_workhorses_for_multicast.clear();
+    stateless_workhorses_for_p2p.clear();
+#ifdef HAS_STATEFUL_UDL_SUPPORT
+#endif//HAS_STATEFUL_UDL_SUPPORT
     dbg_default_trace("Cascade context@{:p} is destroyed.",static_cast<void*>(this));
 }
 
@@ -2145,13 +2151,33 @@ match_results_t CascadeContext<CascadeTypes...>::get_prefix_handlers(const std::
 }
 
 template <typename... CascadeTypes>
+#ifdef HAS_STATEFUL_UDL_SUPPORT
+bool CascadeContext<CascadeTypes...>::post(Action&& action, bool is_stateful, bool is_trigger) {
+#else
 bool CascadeContext<CascadeTypes...>::post(Action&& action, bool is_trigger) {
+#endif//HAS_STATEFUL_UDL_SUPPORT
     dbg_default_trace("Posting an action to Cascade context@{:p}.", static_cast<void*>(this));
     if (is_running) {
         if (is_trigger) {
-            action_queue_for_p2p.action_buffer_enqueue(std::move(action));
+#ifdef HAS_STATEFUL_UDL_SUPPORT
+            if (is_stateful) {
+                //TODO:
+            } else {
+#endif
+                stateless_action_queue_for_p2p.action_buffer_enqueue(std::move(action));
+#ifdef HAS_STATEFUL_UDL_SUPPORT
+            }
+#endif
         } else {
-            action_queue_for_multicast.action_buffer_enqueue(std::move(action));
+#ifdef HAS_STATEFUL_UDL_SUPPORT
+            if (is_stateful) {
+                //TODO:
+            } else {
+#endif
+                stateless_action_queue_for_multicast.action_buffer_enqueue(std::move(action));
+#ifdef HAS_STATEFUL_UDL_SUPPORT
+            }
+#endif
         }
     } else {
         dbg_default_warn("Failed to post to Cascade context@{:p} because it is not running.", static_cast<void*>(this));
@@ -2162,13 +2188,13 @@ bool CascadeContext<CascadeTypes...>::post(Action&& action, bool is_trigger) {
 }
 
 template <typename... CascadeTypes>
-size_t CascadeContext<CascadeTypes...>::action_queue_length_p2p() {
-    return (action_queue_for_p2p.action_buffer_tail - action_queue_for_multicast.action_buffer_head + ACTION_BUFFER_SIZE)%ACTION_BUFFER_SIZE;
+size_t CascadeContext<CascadeTypes...>::stateless_action_queue_length_p2p() {
+    return (stateless_action_queue_for_p2p.action_buffer_tail - stateless_action_queue_for_multicast.action_buffer_head + ACTION_BUFFER_SIZE)%ACTION_BUFFER_SIZE;
 }
 
 template <typename... CascadeTypes>
-size_t CascadeContext<CascadeTypes...>::action_queue_length_multicast() {
-    return (action_queue_for_multicast.action_buffer_tail - action_queue_for_multicast.action_buffer_head + ACTION_BUFFER_SIZE)%ACTION_BUFFER_SIZE;
+size_t CascadeContext<CascadeTypes...>::stateless_action_queue_length_multicast() {
+    return (stateless_action_queue_for_multicast.action_buffer_tail - stateless_action_queue_for_multicast.action_buffer_head + ACTION_BUFFER_SIZE)%ACTION_BUFFER_SIZE;
 }
 
 template <typename... CascadeTypes>
