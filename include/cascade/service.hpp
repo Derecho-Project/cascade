@@ -1506,8 +1506,8 @@ namespace cascade {
         };
         /** action (ring) buffer control */
 #ifdef HAS_STATEFUL_UDL_SUPPORT
-        std::vector<struct action_queue> stateful_action_queues_for_multicast;
-        std::vector<struct action_queue> stateful_action_queue_for_p2p;
+        std::vector<std::unique_ptr<struct action_queue>> stateful_action_queues_for_multicast;
+        std::vector<std::unique_ptr<struct action_queue>> stateful_action_queues_for_p2p;
 #endif//HAS_STATEFUL_UDL_SUPPORT
         struct action_queue stateless_action_queue_for_multicast;
         struct action_queue stateless_action_queue_for_p2p;
