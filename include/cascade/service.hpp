@@ -166,7 +166,7 @@ namespace cascade {
          */
         inline void fire(ICascadeContext* ctxt,uint32_t worker_id) {
             if (value_ptr && ocdpo_ptr) {
-                dbg_default_trace("In {}: action is fired.", __PRETTY_FUNCTION__);
+                dbg_default_trace("In {}: [worker_id={}] action is fired.", __PRETTY_FUNCTION__, worker_id);
                 (*ocdpo_ptr)(sender,key_string,prefix_length,version,value_ptr.get(),outputs,ctxt,worker_id);
             }
         }
