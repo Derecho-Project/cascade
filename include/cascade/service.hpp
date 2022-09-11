@@ -66,17 +66,17 @@ namespace cascade {
     public:
         /**
          * This function has to be re-entrant/thread-safe.
-         * @param sender        The sender id
-         * @param key_string    The key string
-         * @param prefix        The matching prefix length key_string.subtring(0,prefix) returns the prefix.
-         *                      Please note that the trailing '/' is included.
-         * @param version       The version of the key
-         * @param value_ptr     The raw value pointer
-         * @param ctxt          The CascadeContext
-         * @param worker_id     The off critical data path worker id.
+         * @param sender            The sender id
+         * @param full_key_string   The full key string
+         * @param prefix            The matching prefix length key_string.subtring(0,prefix) returns the prefix.
+         *                          Please note that the trailing '/' is included.
+         * @param version           The version of the key
+         * @param value_ptr         The raw value pointer
+         * @param ctxt              The CascadeContext
+         * @param worker_id         The off critical data path worker id.
          */
         virtual void operator() (const node_id_t sender,
-                                 const std::string& key_string,
+                                 const std::string& full_key_string,
                                  const uint32_t prefix_length,
                                  persistent::version_t version,
                                  const mutils::ByteRepresentable* const value_ptr,
