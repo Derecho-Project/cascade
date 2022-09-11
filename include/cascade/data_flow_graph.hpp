@@ -67,7 +67,8 @@ namespace cascade {
  * 3) The MANDATORY "user_defined_logic_list" attribute gives a list of UDLs that should be registered for this vertex.
  * 4) The OPTIONAL "user_defined_logic_stateful_list" atrribute defines that a UDL is registered as stateless or
  * stateful. A stateful UDL has to always use the same thread to handle the same key; while a stateless UDL can use
- * different thread to handle the messgaes of the same key. The default setting is "stateless".
+ * different thread to handle the messgaes of the same key. The default setting is "stateful". You can change it to
+ * stateless for better performance.
  * 5) The OPTIONAL "user_defined_logic_hook_list" attribute defines on which hook(s) the UDLs will be triggered. It can be
  * "trigger", "ordered", or  "both". "trigger" means the corresponding UDL is only triggered by trigger_put;
  * "ordered" means that the corresponding UDL is only triggered by ordered_put; "both" means the corresponding UDL is
