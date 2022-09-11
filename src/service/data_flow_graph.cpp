@@ -28,10 +28,10 @@ DataFlowGraph::DataFlowGraph(const json& dfg_conf):
                     DataFlowGraph::VertexShardDispatcher::ALL : DataFlowGraph::VertexShardDispatcher::ONE;
             }
             // stateful
-            dfgv.stateful[udl_uuid] = false;
+            dfgv.stateful[udl_uuid] = true;
             if (it->contains(DFG_JSON_UDL_STATEFUL_LIST)) {
-                if ((*it)[DFG_JSON_UDL_STATEFUL_LIST].at(i).get<std::string>() == "stateful") {
-                    dfgv.stateful[udl_uuid] = true;
+                if ((*it)[DFG_JSON_UDL_STATEFUL_LIST].at(i).get<std::string>() == "stateless") {
+                    dfgv.stateful[udl_uuid] = false;
                 }
             }
             // hooks
