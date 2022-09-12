@@ -58,17 +58,22 @@ std::shared_ptr<OffCriticalDataPathObserver> get_observer(
  */
 void release(ICascadeContext* ctxt);
 
-class DefaultOffCriticalDataPathObserver: public OffCriticalDataPathObserver {
+/**
+ * An Easier to use API with service type awareness.
+ * Hierarchy:
+ *
+ * OffCriticalDataPathObserver    [IDefaultOffCriticalDataPathObserver]
+ *             ^                                     ^
+ *             |                                     |
+ *             |      +------------------------------+
+ *             |      |
+ * DefaultOffCriticalDataPathObserver
+ * 
+ * Please derive your own ocdpo from DefaultOffCriticalDataPathObserver, and override the virtual methods defined in
+ * IDefaultOffCriticalDataPathObserver
+ */
+class IDefaultOffCriticalDataPathObserver {
 public:
-    virtual void operator() (
-            const node_id_t sender,
-            const std::string& full_key_string,
-            const uint32_t prefix_length,
-            persistent::version_t version,
-            const mutils::ByteRepresentable* const value_ptr,
-            const std::unordered_map<std::string,bool>& outputs,
-            ICascadeContext* ctxt,
-            uint32_t worker_id) override;
     /** 
      * Typed ocdpo handler derived from the Cascade service types defined in service_types.hpp
      * @param sender                The sender id
@@ -88,6 +93,9 @@ public:
             DefaultCascadeContextType*      typed_ctxt,
             uint32_t                        worker_id) = 0;
 };
+class DefaultOffCriticalDataPathObserver;
+
+#include "detail/udl_toolkits.hpp"
 
 } // namespace cascade
 } // namespace derecho
