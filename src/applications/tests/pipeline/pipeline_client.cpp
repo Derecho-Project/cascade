@@ -26,11 +26,11 @@ static void make_pipeline_workload(uint32_t payload_size, const std::string& key
 
 static std::set<std::string> collect_dfgs_object_pools() {
     std::set<std::string> object_pools;
-    for (const auto dfg: DataFlowGraph::get_data_flow_graphs()) {
-        for (const auto v: dfg.vertices) {
+    for (const auto& dfg: DataFlowGraph::get_data_flow_graphs()) {
+        for (const auto& v: dfg.vertices) {
             object_pools.emplace(v.first);
-            for (const auto ekv: v.second.edges) {
-                for (const auto tkv: ekv.second) {
+            for (const auto& ekv: v.second.edges) {
+                for (const auto& tkv: ekv.second) {
                     object_pools.emplace(tkv.first);
                 }
             }

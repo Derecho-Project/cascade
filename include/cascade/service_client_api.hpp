@@ -326,16 +326,5 @@ CascadeObjpoolLinq<CascadeType,ServiceClientType> from_objectpool(
 
 #endif//HAS_BOOLINQ
 
-// specialize create_null_object_cb for Cascade Types...
-using opm_t = ObjectPoolMetadata<VolatileCascadeStoreWithStringKey,PersistentCascadeStoreWithStringKey,TriggerCascadeNoStoreWithStringKey>;
-template<>
-inline opm_t create_null_object_cb<std::string,opm_t,&opm_t::IK,&opm_t::IV>(const std::string& key) {
-    opm_t opm;
-    opm.pathname = key;
-    opm.subgroup_type_index = opm_t::invalid_subgroup_type_index;
-    return opm;
-}
-
-
 }// namespace cascade
 }// namespace derecho
