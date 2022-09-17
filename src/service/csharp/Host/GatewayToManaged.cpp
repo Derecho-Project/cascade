@@ -202,9 +202,9 @@ managed_direct_method_ptr GatewayToManaged::CreateManagedDelegate()
 	managed_direct_method_ptr managedDirectMethod;
 
 	int hr = createManagedDelegate(_hostHandle,	_domainId,
-						"GatewayLib",
-						"GatewayLib.Gateway",
-						"ManagedDirectMethod",
+						"Derecho.Cascade",
+						"HelloWorldUDL",
+						"OcdpoHandler",
 						(void**)&managedDirectMethod);
 
 	if (hr >= 0)

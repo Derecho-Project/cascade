@@ -38,8 +38,8 @@ namespace Derecho.Cascade
             return;
         }
 
-        public void OcdpoHandler(in NodeId sender, in string objectPoolPathname, in string keyString, 
-            in ObjectWithStringKey obj, in Action<string, Object> emit, 
+        public void OcdpoHandler(NodeId sender, string objectPoolPathname, string keyString, 
+            ObjectWithStringKey obj, Action<string, Object> emit, 
             DefaultCascadeContextType typedCtxt, UInt32 workerId)
         {
             System.Console.WriteLine("Hello, World!");
