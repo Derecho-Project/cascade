@@ -1,4 +1,4 @@
-using System.Text.Json;
+using System.Collections.Generic;  
 
 namespace Derecho.Cascade
 {
@@ -19,15 +19,20 @@ namespace Derecho.Cascade
             return Description;
         }
 
+        public static void StaticVoidEntryPoint()
+        {
+            System.Console.WriteLine("Static void method has been called.");
+        }
+
         public void Initialize(ICascadeContext context)
         {
-            if (!_udlInstance) {
-                _udlInstance = new _udlInstance();
+            if (_udlInstance != null) {
+                _udlInstance = new HelloWorldUDL();
             }
         }
 
         public DefaultOffCriticalDataPathObserver GetObserver(ICascadeContext context,
-            JsonObject udlConfig)
+            Dictionary<string, System.Object> udlConfig)
         {
             return _udlInstance; 
         }
@@ -38,9 +43,9 @@ namespace Derecho.Cascade
             return;
         }
 
-        public void OcdpoHandler(NodeId sender, string objectPoolPathname, string keyString, 
-            ObjectWithStringKey obj, Action<string, Object> emit, 
-            DefaultCascadeContextType typedCtxt, UInt32 workerId)
+        public void OcdpoHandler(System.Int64 sender, string objectPoolPathname, string keyString, 
+            ObjectWithStringKey obj, System.Action<string, System.Object> emit, 
+            DefaultCascadeContextType typedCtxt, System.UInt32 workerId)
         {
             System.Console.WriteLine("Hello, World!");
         }

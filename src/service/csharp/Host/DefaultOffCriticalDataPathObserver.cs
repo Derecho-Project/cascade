@@ -1,10 +1,7 @@
-using System.Text.Json;
+using System.Collections.Generic;  
 
 namespace Derecho.Cascade 
 {
-
-    using NodeId = Int64;
-
     public interface DefaultOffCriticalDataPathObserver 
     {
         string GetUuid();
@@ -14,13 +11,13 @@ namespace Derecho.Cascade
         void Initialize(ICascadeContext context);
 
         DefaultOffCriticalDataPathObserver GetObserver(ICascadeContext context,
-            JsonObject udlConfig);
+            Dictionary<string, System.Object> udlConfig);
 
         void Release();
 
         // TODO: use correct type for blob instead of Object
-        void OcdpoHandler(NodeId sender, string objectPoolPathname, string keyString, 
-            ObjectWithStringKey obj, Action<string, Object> emit, 
-            DefaultCascadeContextType typedCtxt, UInt32 workerId);
+        void OcdpoHandler(System.Int64 sender, string objectPoolPathname, string keyString, 
+            ObjectWithStringKey obj, System.Action<string, System.Object> emit, 
+            DefaultCascadeContextType typedCtxt, System.UInt32 workerId);
     }
 } // namespace Derecho.Cascade

@@ -202,9 +202,10 @@ managed_direct_method_ptr GatewayToManaged::CreateManagedDelegate()
 	managed_direct_method_ptr managedDirectMethod;
 
 	int hr = createManagedDelegate(_hostHandle,	_domainId,
-						"Derecho.Cascade",
-						"HelloWorldUDL",
-						"OcdpoHandler",
+						"TestUDL",
+						// TODO: UDL name is currently hardcoded 
+						"Derecho.Cascade.HelloWorldUDL",
+						"StaticVoidEntryPoint",
 						(void**)&managedDirectMethod);
 
 	if (hr >= 0)
