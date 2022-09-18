@@ -6,7 +6,10 @@ Currently in development.
 
 ### Building an unmanaged host in Linux for C# DLL
 
-This is not intended to be the final feature, but to test a C# DLL on Linux, do the following:
+Before we start, you will want to update the `Host/GatewayToManaged.cpp` file which declares the
+dotnet path in a `#define` macro. This is currently on line 14 for Linux.
+
+To test a C# DLL on Linux, do the following (or simply run `sh ./test.sh` in `Host/`):
 
 1. Move your file to the `Host` directory: `mv YourDllFile.dll Host/`
 
