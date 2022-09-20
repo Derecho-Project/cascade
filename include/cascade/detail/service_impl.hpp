@@ -129,6 +129,15 @@ void Service<CascadeTypes...>::wait() {
     }
 }
 
+template <typename... CascadeTypes>
+CascadeContext<CascadeTypes...>* Service<CascadeTypes...>::get_context() {
+    if (service_ptr) {
+        return service_ptr->context.get();
+    } else {
+        return nullptr;
+    }
+}
+
 template <typename CascadeType>
 std::unique_ptr<CascadeType> client_stub_factory() {
     return std::make_unique<CascadeType>();

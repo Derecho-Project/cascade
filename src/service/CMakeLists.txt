@@ -19,19 +19,19 @@ add_custom_command(TARGET server POST_BUILD
     ${CMAKE_CURRENT_BINARY_DIR}/cfg
 )
 
-# add_executable(chain_server chain_server.cpp)
-# target_include_directories(chain_server PRIVATE
-#     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
-#     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
-#     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-#     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
-# )
-# target_link_libraries(chain_server cascade dl)
-# set_target_properties(chain_server PROPERTIES OUTPUT_NAME cascadechain_server)
-# add_custom_command(TARGET chain_server POST_BUILD
-#     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/cfg
-#     ${CMAKE_CURRENT_BINARY_DIR}/cfg
-# )
+add_executable(backup_server backup_server.cpp)
+target_include_directories(backup_server PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
+)
+target_link_libraries(backup_server cascade dl wanagent::wanagent)
+set_target_properties(backup_server PROPERTIES OUTPUT_NAME backup_server)
+add_custom_command(TARGET backup_server POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/cfg
+    ${CMAKE_CURRENT_BINARY_DIR}/cfg
+)
 
 
 add_executable(client client.cpp perftest.cpp)

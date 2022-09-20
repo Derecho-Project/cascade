@@ -274,6 +274,15 @@ namespace cascade {
          * wait on the service util it stop
          */
         static void wait();
+        /**
+         * Gets a pointer to the CascadeContext object for the singleton service, assuming
+         * the service has been started. The CascadeContext can be used to interact with
+         * the service by invoking requests as a client.
+         *
+         * @return A non-owning raw pointer to the CascadeContext owned by the singleton
+         * service, or a null pointer if the service has not been started.
+         */
+        static CascadeContext<CascadeTypes...>* get_context();
     };
 
     /**
