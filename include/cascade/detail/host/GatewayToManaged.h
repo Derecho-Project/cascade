@@ -15,7 +15,7 @@ public:
 	GatewayToManaged();
 	~GatewayToManaged();
 
-	bool Init(const char* path);
+	bool Init(const char* path, const char* assembly_name);
 	char* Invoke(const char* funcName, const char* jsonArgs, unmanaged_callback_ptr unmanagedCallback);
 	bool Close();
 
@@ -23,9 +23,7 @@ private:
 	void* _hostHandle;
 	unsigned int _domainId;
 	managed_direct_method_ptr _managedDirectMethod;
-
-	void BuildTpaList(const char* directory, const char* extension, string& tpaList);
-	managed_direct_method_ptr CreateManagedDelegate();
+	managed_direct_method_ptr CreateManagedDelegate(const string& assembly_name);
 
 #if WINDOWS
 	HMODULE _coreClr;

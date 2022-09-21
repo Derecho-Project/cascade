@@ -1,6 +1,8 @@
 #pragma once
 
 #include <dlfcn.h>
+#include "host/GatewayToManaged.h"
+#include "host/callback.c"
 
 namespace derecho {
 namespace cascade {
@@ -10,6 +12,8 @@ class DLLUserDefinedLogic: public UserDefinedLogic<CascadeTypes...> {
 private:
     std::string                     filename;
     void*                           dl_handle;
+    bool                            is_cpp_dll;
+    GatewayToManaged                gateway;
 
     /**
      * load symbol
@@ -28,10 +32,20 @@ private:
 
         return ret;
     }
-    /**
-     * load dll from file on constructor
+
+   /**
+     * Determines whether a certain filename string represents a C# .NET 
+     * dynamically linked library. Currently assumes that .dll is for 
+     * .NET only, and .so is for C++.
      */
-    void load() {
+    bool is_dotnet(const std::string& filename) const {
+        return filename.substr(filename.find_last_of(".") + 1) == "dll";
+    }
+    
+    /**
+     * load C++ dll from file on constructor
+     */
+    void load_cpp() {
         dl_handle = dlopen(filename.c_str(),RTLD_LAZY);
         if (!dl_handle) {
             dbg_default_error("Failed to load shared library file:{}. error={}", filename, dlerror());
@@ -55,12 +69,31 @@ private:
             dbg_default_warn("Failed to load description for shared library file:{}", filename);
         }
     }
+
+     /**
+     * load C# dll from file on constructor
+     */
+    void load_cs() {
+        std::string base_filename = filename.substr(filename.find_last_of("/\\") + 1);
+        gateway.Init(filename.c_str(), base_filename.c_str());
+
+        UserDefinedLogic<CascadeTypes...>::id = gateway.Invoke("GetUuid", "", UnmanagedCallback);
+        UserDefinedLogic<CascadeTypes...>::description = gateway.Invoke("GetDescription", "", UnmanagedCallback);
+    }
+
 public:
-    /** Constructor
+    /** 
+     * Constructor
      */
     DLLUserDefinedLogic(const std::string& _filename):
         filename(_filename) {
-        load();
+        if (is_dotnet(_filename)) {
+            is_cpp_dll = false;
+            load_cs();
+        } else {
+            is_cpp_dll = true;
+            load_cpp();
+        }
     }
 
     /**
@@ -69,6 +102,7 @@ public:
     bool is_valid() {
         return (dl_handle != nullptr) && (UserDefinedLogic<CascadeTypes...>::id.size() > 0);
     }
+
     //@override
     virtual void initialize(CascadeContext<CascadeTypes...>* ctxt) {
         void (*initialize_fun)(ICascadeContext*);
@@ -114,6 +148,8 @@ private:
 	/* a table for all the UDLs */
     std::unordered_map<std::string,std::unique_ptr<UserDefinedLogic<CascadeTypes...>>> udl_map;
     CascadeContext<CascadeTypes...>* cascade_context;
+    bool is_dotnet_clr_loaded;
+
     /**
      * Load DLL files from configuration file.
      * The default configuration file for DLLFileManager is udl_dlls.config
@@ -122,6 +158,7 @@ private:
      * dll_folder_1/udl_a.so
      * dll_folder_2/udl_b.so
      * dll_folder_2/udl_c.so
+     * dll_folder_2/udl_cs.dll
      * =====================
      */
     void load_and_initialize_dlls(CascadeContext<CascadeTypes...>* ctxt) {
@@ -131,7 +168,7 @@ private:
             dbg_default_warn("{} failed because {} does not exist or is not readable.", __PRETTY_FUNCTION__, UDL_DLLS_CONFIG);
             return;
         }
-        //step 2: load .so files one by one.
+        //step 2: load .so (C++) and .dll (C#) files one by one.
         std::string dll_file_path;
         while(std::getline(config,dll_file_path)) {
             auto udl = std::make_unique<DLLUserDefinedLogic<CascadeTypes...>>(dll_file_path);
