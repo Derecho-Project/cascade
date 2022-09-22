@@ -36,6 +36,7 @@ std::string get_description();
 
 /**
  * Initialize the user defined logic
+ * This function is called only once on dll loading.
  *
  * @param ctxt - cascade context
  */
@@ -43,6 +44,7 @@ void initialize(ICascadeContext* ctxt);
 
 /**
  * register triggers to cascade
+ * This function will be called on each UDL instance registered in application DFGs.
  *
  * @param   ctxt - cascade context
  * @param   config is a configuration string from dfgs.json to customize the UDL behaviour.
@@ -53,6 +55,7 @@ std::shared_ptr<OffCriticalDataPathObserver> get_observer(
 
 /**
  * Release the user defined logic
+ * This function is called only once on dll unloading.
  *
  * @param ctxt
  */
