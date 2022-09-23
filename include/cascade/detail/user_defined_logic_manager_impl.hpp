@@ -82,7 +82,7 @@ public:
             CascadeContext<CascadeTypes...>* ctxt,
             const nlohmann::json& udl_config = nlohmann::json{}) {
         std::shared_ptr<OffCriticalDataPathObserver> (*get_observer_fun)(ICascadeContext*,const nlohmann::json&);
-        *reinterpret_cast<void **>(&get_observer_fun) = load_symbol("_ZN7derecho7cascade12get_observerEPNS0_15ICascadeContextERKN8nlohmann10basic_jsonISt3mapSt6vectorNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEblmdSaNS3_14adl_serializerES6_IhSaIhEEEE");
+        *reinterpret_cast<void **>(&get_observer_fun) = load_symbol("_ZN7derecho7cascade12get_observerEPNS0_15ICascadeContextERKN8nlohmann12json_v3_11_110basic_jsonISt3mapSt6vectorNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEblmdSaNS4_14adl_serializerES7_IhSaIhEEEE");
         if (get_observer_fun != nullptr) {
             return get_observer_fun(ctxt,udl_config);
         } else {
