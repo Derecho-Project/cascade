@@ -2,6 +2,18 @@
 
 #include <dlfcn.h>
 
+#ifdef BOOTSTRAPPING_UDL_SIGNATURE
+// for signature detection
+#define GET_UUID_SIG ""
+#define GET_DESCRIPTION_SIG ""
+#define INITIALIZE_SIG ""
+#define GET_OBSERVER_SIG ""
+#define RELEASE_SIG ""
+#else
+// detected signatures
+#include <cascade/detail/udl_signature.hpp>
+#endif
+
 namespace derecho {
 namespace cascade {
 
@@ -40,7 +52,7 @@ private:
 
         // load uuid
         std::string (*get_uuid)();
-        *reinterpret_cast<void **>(&get_uuid) = load_symbol("_ZN7derecho7cascade8get_uuidB5cxx11Ev");
+        *reinterpret_cast<void **>(&get_uuid) = load_symbol(GET_UUID_SIG);
         if (get_uuid != nullptr) {
             UserDefinedLogic<CascadeTypes...>::id = get_uuid();
         } else {
@@ -48,7 +60,7 @@ private:
             return;
         }
         std::string (*get_desc)();
-        *reinterpret_cast<void **>(&get_desc) = load_symbol("_ZN7derecho7cascade15get_descriptionB5cxx11Ev");
+        *reinterpret_cast<void **>(&get_desc) = load_symbol(GET_DESCRIPTION_SIG);
         if (get_desc != nullptr) {
             UserDefinedLogic<CascadeTypes...>::description = get_desc();
         } else {
@@ -72,7 +84,7 @@ public:
     //@override
     virtual void initialize(CascadeContext<CascadeTypes...>* ctxt) {
         void (*initialize_fun)(ICascadeContext*);
-        *reinterpret_cast<void **>(&initialize_fun) = load_symbol("_ZN7derecho7cascade10initializeEPNS0_15ICascadeContextE");
+        *reinterpret_cast<void **>(&initialize_fun) = load_symbol(INITIALIZE_SIG);
         if (initialize_fun != nullptr) {
             initialize_fun(ctxt);
         }
@@ -82,7 +94,7 @@ public:
             CascadeContext<CascadeTypes...>* ctxt,
             const nlohmann::json& udl_config = nlohmann::json{}) {
         std::shared_ptr<OffCriticalDataPathObserver> (*get_observer_fun)(ICascadeContext*,const nlohmann::json&);
-        *reinterpret_cast<void **>(&get_observer_fun) = load_symbol("_ZN7derecho7cascade12get_observerEPNS0_15ICascadeContextERKN8nlohmann12json_v3_11_110basic_jsonISt3mapSt6vectorNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEblmdSaNS4_14adl_serializerES7_IhSaIhEEEE");
+        *reinterpret_cast<void **>(&get_observer_fun) = load_symbol(GET_OBSERVER_SIG);
         if (get_observer_fun != nullptr) {
             return get_observer_fun(ctxt,udl_config);
         } else {
@@ -92,7 +104,7 @@ public:
     //@override
     virtual void release(CascadeContext<CascadeTypes...>* ctxt) {
         void (*release_fun)(ICascadeContext*);
-        *reinterpret_cast<void **>(&release_fun) = load_symbol("_ZN7derecho7cascade7releaseEPNS0_15ICascadeContextE");
+        *reinterpret_cast<void **>(&release_fun) = load_symbol(RELEASE_SIG);
         if (release_fun != nullptr) {
             release_fun(ctxt);
         }
