@@ -28,8 +28,8 @@ namespace cascade {
  *                 "4f0373a2-9b3c-11eb-a651-0242ac110002"
  *             ],
  *             "user_defined_logic_stateful_list": [
- *                 "stateless",
- *                 "stateful"
+ *                 "stateful"|"stateless"|"singlethreaded"|,
+ *                 "stateful"|"stateless"|"singlethreaded"|
  *             ],
  *             "user_defined_logic_hook_list: [
  *                 "trigger",
@@ -65,10 +65,11 @@ namespace cascade {
  * or just one of the members. Cascade will randomly pick one of the node using key hash and node's rank in the shard.
  * This option is only relevant to put operation and does not apply to trigger put operation. The default value is "one".
  * 3) The MANDATORY "user_defined_logic_list" attribute gives a list of UDLs that should be registered for this vertex.
- * 4) The OPTIONAL "user_defined_logic_stateful_list" atrribute defines that a UDL is registered as stateless or
- * stateful. A stateful UDL has to always use the same thread to handle the same key; while a stateless UDL can use
- * different thread to handle the messgaes of the same key. The default setting is "stateful". You can change it to
- * stateless for better performance.
+ * 4) The OPTIONAL "user_defined_logic_stateful_list" atrribute defines that a UDL is registered as stateless, stateful,
+ * or single-threaded. A stateful UDL has to always use the same thread to handle the same key; while a stateless UDL can
+ * use different threads to handle the messgaes of the same key; which a single-threaded UDL will be handled by one
+ * thread. The single-threaded UDL is useful in some case like python udl, only one thread per process is allowed due to
+ * the GIL and numpy constraints. The default setting is "stateful". You can change it to stateless for better performance.
  * 5) The OPTIONAL "user_defined_logic_hook_list" attribute defines on which hook(s) the UDLs will be triggered. It can be
  * "trigger", "ordered", or  "both". "trigger" means the corresponding UDL is only triggered by trigger_put;
  * "ordered" means that the corresponding UDL is only triggered by ordered_put; "both" means the corresponding UDL is
@@ -109,6 +110,12 @@ public:
         BOTH,
     };
 
+    enum Statefulness {
+        STATEFUL,
+        STATELESS,
+        SINGLETHREADED,
+    };
+
     // the Hex UUID
     const std::string id;
     // description of the DFG
@@ -122,7 +129,7 @@ public:
         // uuid->shard_dispatcher
         std::unordered_map<std::string,VertexShardDispatcher> shard_dispatchers;
         // uuid->stateful
-        std::unordered_map<std::string,bool> stateful;
+        std::unordered_map<std::string,Statefulness> stateful;
         // uuid->hook
         std::unordered_map<std::string,VertexHook> hooks;
         // The optional initialization string for each UUID
@@ -140,7 +147,19 @@ public:
                 out << "\t-{udl:" << sd.first << "} uses shard dispatcher:" << sd.second << "\n";
             }
             for (auto& st: stateful) {
-                out << "\t-{udl:" << st.first << "} is " << (st.second?"stateful":"stateless") << "\n";
+                out << "\t-{udl:" << st.first << "} is ";
+                switch (st.second) {
+                case STATEFUL:
+                    out << "stateful";
+                    break;
+                case STATELESS:
+                    out << "stateless";
+                    break;
+                case SINGLETHREADED:
+                    out << "singlethreaded";
+                    break;
+                }
+                out << "\n";
             }
             for (auto& vk: hooks) {
                 out << "\t-{udl:" << vk.first << "} is registered on hook:" << vk.second << "\n";

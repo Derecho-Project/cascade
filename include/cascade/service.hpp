@@ -1483,7 +1483,7 @@ namespace cascade {
                     std::tuple<
                         DataFlowGraph::VertexShardDispatcher,         // shard dispatcher
 #ifdef HAS_STATEFUL_UDL_SUPPORT
-                        bool,                                         // is stateful or not
+                        DataFlowGraph::Statefulness,                  // is stateful/stateless/singlethreaded
 #endif//HAS_STATEFUL_UDL_SUPPORT
                         DataFlowGraph::VertexHook,                    // hook
                         std::shared_ptr<OffCriticalDataPathObserver>, // ocdpo
@@ -1511,6 +1511,8 @@ namespace cascade {
 #ifdef HAS_STATEFUL_UDL_SUPPORT
         std::vector<std::unique_ptr<struct action_queue>> stateful_action_queues_for_multicast;
         std::vector<std::unique_ptr<struct action_queue>> stateful_action_queues_for_p2p;
+        struct action_queue single_threaded_action_queue_for_multicast;
+        struct action_queue single_threaded_action_queue_for_p2p;
 #endif//HAS_STATEFUL_UDL_SUPPORT
         struct action_queue stateless_action_queue_for_multicast;
         struct action_queue stateless_action_queue_for_p2p;
@@ -1529,6 +1531,8 @@ namespace cascade {
 #ifdef HAS_STATEFUL_UDL_SUPPORT
         std::vector<std::thread> stateful_workhorses_for_multicast;
         std::vector<std::thread> stateful_workhorses_for_p2p;
+        std::thread              single_threaded_workhorse_for_multicast;
+        std::thread              single_threaded_workhorse_for_p2p;
 #endif//HAS_STATEFUL_UDL_SUPPORT
         /** the service client: off critical data path logic use it to send data to a next tier. */
         std::unique_ptr<ServiceClient<CascadeTypes...>> service_client;
@@ -1625,7 +1629,7 @@ namespace cascade {
         virtual void register_prefixes(const std::unordered_set<std::string>& prefixes,
                                        const DataFlowGraph::VertexShardDispatcher shard_dispatcher,
 #ifdef HAS_STATEFUL_UDL_SUPPORT
-                                       const bool stateful,
+                                       const DataFlowGraph::Statefulness stateful,
 #endif
                                        const DataFlowGraph::VertexHook hook,
                                        const std::string& user_defined_logic_id,
@@ -1652,14 +1656,14 @@ namespace cascade {
          * post an action to the Context for processing.
          *
          * @param action        The action
-         * @param is_stateful   If the action is stateful or not
+         * @param stateful      If the action is stateful|stateless|singlethreaded
          * @param is_trigger    True for trigger, meaning the action will be processed in the workhorses for p2p send
          *
          * @return  true for a successful post, false for failure. The current only reason for failure is to post to a
          *          context already shut down.
          */
 #ifdef HAS_STATEFUL_UDL_SUPPORT
-        virtual bool post(Action&& action, bool is_stateful, bool is_trigger);
+        virtual bool post(Action&& action, DataFlowGraph::Statefulness stateful, bool is_trigger);
 #else
         virtual bool post(Action&& action, bool is_trigger);
 #endif//HAS_STATEFUL_UDL_SUPPORT

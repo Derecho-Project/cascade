@@ -2046,6 +2046,24 @@ void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeMetadataSe
                 this->workhorse(i,*stateful_action_queues_for_p2p.at(i));
             });
     }
+    // 3.5 - initialize single threaded workers
+    single_threaded_action_queue_for_multicast.initialize();
+    single_threaded_action_queue_for_p2p.initialize();
+    single_threaded_workhorse_for_multicast = std::thread(
+            [this](){
+                // TODO:set cpu affinity
+                // call workhorse
+                // worker id 0xFFFFFFFF is reserved for single thread
+                this->workhorse(0xFFFFFFFF,single_threaded_action_queue_for_multicast);
+            });
+    single_threaded_workhorse_for_p2p = std::thread(
+            [this](){
+                // TODO:set cpu affinity
+                // call workhorse
+                // worker id 0xFFFFFFFF is reserved for single thread
+                this->workhorse(0xFFFFFFFF,single_threaded_action_queue_for_p2p);
+            });
+
 #endif//HAS_STATEFUL_UDL_SUPPORT
 }
 
@@ -2158,6 +2176,12 @@ void CascadeContext<CascadeTypes...>::destroy() {
     }
     stateful_workhorses_for_multicast.clear();
     stateful_workhorses_for_p2p.clear();
+    if(single_threaded_workhorse_for_multicast.joinable()) {
+        single_threaded_workhorse_for_multicast.join();
+    }
+    if(single_threaded_workhorse_for_p2p.joinable()) {
+        single_threaded_workhorse_for_p2p.join();
+    }
 #endif//HAS_STATEFUL_UDL_SUPPORT
     dbg_default_trace("Cascade context@{:p} is destroyed.",static_cast<void*>(this));
 }
@@ -2172,7 +2196,7 @@ void CascadeContext<CascadeTypes...>::register_prefixes(
         const std::unordered_set<std::string>& prefixes,
         const DataFlowGraph::VertexShardDispatcher shard_dispatcher,
 #ifdef HAS_STATEFUL_UDL_SUPPORT
-        const bool stateful,
+        const DataFlowGraph::Statefulness stateful,
 #endif
         const DataFlowGraph::VertexHook hook,
         const std::string& user_defined_logic_id,
@@ -2247,7 +2271,7 @@ match_results_t CascadeContext<CascadeTypes...>::get_prefix_handlers(const std::
 
 template <typename... CascadeTypes>
 #ifdef HAS_STATEFUL_UDL_SUPPORT
-bool CascadeContext<CascadeTypes...>::post(Action&& action, bool is_stateful, bool is_trigger) {
+bool CascadeContext<CascadeTypes...>::post(Action&& action, DataFlowGraph::Statefulness stateful, bool is_trigger) {
 #else
 bool CascadeContext<CascadeTypes...>::post(Action&& action, bool is_trigger) {
 #endif//HAS_STATEFUL_UDL_SUPPORT
@@ -2255,24 +2279,40 @@ bool CascadeContext<CascadeTypes...>::post(Action&& action, bool is_trigger) {
     if (is_running) {
         if (is_trigger) {
 #ifdef HAS_STATEFUL_UDL_SUPPORT
-            if (is_stateful) {
-                uint32_t thread_index = std::hash<std::string>{}(action.key_string) % stateful_action_queues_for_p2p.size();
-                stateful_action_queues_for_p2p[thread_index]->action_buffer_enqueue(std::move(action));
-            } else {
+            switch(stateful) {
+            case DataFlowGraph::Statefulness::STATEFUL:
+                {
+                    uint32_t thread_index = std::hash<std::string>{}(action.key_string) % stateful_action_queues_for_p2p.size();
+                    stateful_action_queues_for_p2p[thread_index]->action_buffer_enqueue(std::move(action));
+                }
+                break;
+            case DataFlowGraph::Statefulness::STATELESS:
 #endif
                 stateless_action_queue_for_p2p.action_buffer_enqueue(std::move(action));
 #ifdef HAS_STATEFUL_UDL_SUPPORT
+                break;
+            case DataFlowGraph::Statefulness::SINGLETHREADED:
+                single_threaded_action_queue_for_p2p.action_buffer_enqueue(std::move(action));
+                break;
             }
 #endif
         } else {
 #ifdef HAS_STATEFUL_UDL_SUPPORT
-            if (is_stateful) {
-                uint32_t thread_index = std::hash<std::string>{}(action.key_string) % stateful_action_queues_for_multicast.size();
-                stateful_action_queues_for_multicast[thread_index]->action_buffer_enqueue(std::move(action));
-            } else {
+            switch(stateful) {
+            case DataFlowGraph::Statefulness::STATEFUL:
+                {
+                    uint32_t thread_index = std::hash<std::string>{}(action.key_string) % stateful_action_queues_for_multicast.size();
+                    stateful_action_queues_for_multicast[thread_index]->action_buffer_enqueue(std::move(action));
+                }
+                break;
+            case DataFlowGraph::Statefulness::STATELESS:
 #endif
                 stateless_action_queue_for_multicast.action_buffer_enqueue(std::move(action));
 #ifdef HAS_STATEFUL_UDL_SUPPORT
+                break;
+            case DataFlowGraph::Statefulness::SINGLETHREADED:
+                single_threaded_action_queue_for_multicast.action_buffer_enqueue(std::move(action));
+                break;
             }
 #endif
         }
