@@ -532,6 +532,10 @@ PersistentCascadeStore<KT, VT, IK, IV, ST>::PersistentCascadeStore(
                                                nullptr, pr),
                                cascade_watcher_ptr(cw),
                                cascade_context_ptr(cc) {
+    CascadeStoreRegistry* reg = cc->get_cascade_store_registry();
+    if(reg){
+        reg->register_cascade_store<PersistentCascadeStore<KT, VT, IK, IV, ST>>(this);
+    }
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
@@ -542,6 +546,10 @@ PersistentCascadeStore<KT, VT, IK, IV, ST>::PersistentCascadeStore(
         ICascadeContext* cc) : persistent_core(std::move(_persistent_core)),
                                cascade_watcher_ptr(cw),
                                cascade_context_ptr(cc) {
+    CascadeStoreRegistry* reg = cc->get_cascade_store_registry();
+    if(reg){
+        reg->register_cascade_store<PersistentCascadeStore<KT, VT, IK, IV, ST>>(this);
+    }
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
