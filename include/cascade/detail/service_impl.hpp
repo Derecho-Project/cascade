@@ -1896,6 +1896,28 @@ uint32_t ServiceClient<CascadeTypes...>::get_subgroup_type_index() {
 }
 
 template <typename... CascadeTypes>
+std::unique_ptr<ServiceClient<CascadeTypes...>> ServiceClient<CascadeTypes...>::service_client_singleton_ptr;
+
+template <typename... CascadeTypes>
+std::mutex ServiceClient<CascadeTypes...>::singleton_mutex;
+
+template <typename... CascadeTypes>
+void ServiceClient<CascadeTypes...>::initialize(derecho::Group<CascadeMetadataService<CascadeTypes...>, CascadeTypes...>* _group_ptr) {
+    std::lock_guard<std::mutex> lock_guard(singleton_mutex);
+    if (!service_client_singleton_ptr) {
+        service_client_singleton_ptr = std::make_unique<ServiceClient<CascadeTypes...>>(_group_ptr);
+    }
+}
+
+template <typename... CascadeTypes>
+ServiceClient<CascadeTypes...>& ServiceClient<CascadeTypes...>::get_service_client() {
+    std::lock_guard<std::mutex> lock_guard(singleton_mutex);
+    if (!service_client_singleton_ptr) {
+        service_client_singleton_ptr = std::make_unique<ServiceClient<CascadeTypes...>>(nullptr);
+    }
+}
+
+template <typename... CascadeTypes>
 CascadeContext<CascadeTypes...>::CascadeContext() {
     stateless_action_queue_for_multicast.initialize();
     stateless_action_queue_for_p2p.initialize();

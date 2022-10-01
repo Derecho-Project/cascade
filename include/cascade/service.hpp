@@ -197,10 +197,11 @@ namespace cascade {
      */
     template <typename... CascadeTypes>
     class Service {
-    public:
         /**
          * Constructor
          * The constructor will load the configuration, start the service thread.
+         * Constructor is hidden for singleton.
+         *
          * @param dsms deserialization managers
          * @param metadata_service_factory
          * @param factories: subgroup factories.
@@ -208,6 +209,7 @@ namespace cascade {
         Service(const std::vector<DeserializationContext*>& dsms,
                 derecho::cascade::Factory<CascadeMetadataService<CascadeTypes...>> metadata_service_factory,
                 derecho::cascade::Factory<CascadeTypes>... factories);
+    public:
         /**
          * The workhorse
          */
@@ -491,15 +493,16 @@ namespace cascade {
         std::tuple<uint32_t,uint32_t,uint32_t> key_to_shard(
                 const KeyType& key, bool check_object_location = true);
 
-    public:
         /**
          * The Constructor
+         * We prevent calling the constructor explicitely, because the ServiceClient is a singleton.
          * @param _group_ptr The caller can pass a pointer pointing to a derecho group object. If the pointer is
          *                   valid, the implementation will reply on the group object instead of creating an external
          *                   client to communicate with group members.
          */
         ServiceClient(derecho::Group<CascadeMetadataService<CascadeTypes...>, CascadeTypes...>* _group_ptr=nullptr);
 
+    public:
         /**
          * ServiceClient can be an external client or a cascade server. is_external_client() test this condition.
          * The external client implementation is based on ExternalGroupClient<> while the cascade node implementation is
@@ -826,7 +829,6 @@ namespace cascade {
                 uint32_t subgroup_index,
                 uint32_t shard_index);
     public:
-
         /**
          * object pool version
          */
@@ -1434,7 +1436,26 @@ namespace cascade {
          */
         template <typename SubgroupType>
         inline static uint32_t get_subgroup_type_index();
-    };
+
+        /* singleton */
+    private:
+        static std::unique_ptr<ServiceClient> service_client_singleton_ptr;
+        static std::mutex                     singleton_mutex;
+    public:
+        /**
+         * Initialize the service_client_single_ptr singleton with a cascade service. This can only be called once
+         * before any get_service_client() is called.
+         * @param _group_ptr The caller can pass a pointer pointing to a derecho group object. If the pointer is
+         *                   valid, the implementation will reply on the group object instead of creating an external
+         *                   client to communicate with group members.
+         */
+        static void initialize(derecho::Group<CascadeMetadataService<CascadeTypes...>, CascadeTypes...>* _group_ptr);
+
+        /**
+         * Get the singleton ServiceClient API. If it does not exists, initialize it as an external client.
+         */
+        static ServiceClient& get_service_client();
+    }; // ServiceClient
 
 
     /**
@@ -1680,7 +1701,7 @@ namespace cascade {
          * Destructor
          */
         virtual ~CascadeContext();
-    };
+    };//CascadeContext
 } // cascade
 } // derecho
 
