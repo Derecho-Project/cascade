@@ -23,6 +23,7 @@
 #include "user_defined_logic_manager.hpp"
 #include "data_flow_graph.hpp"
 #include "detail/prefix_registry.hpp"
+#include "cascade_store_registry.hpp"
 
 /**
  * The cascade service templates
@@ -491,7 +492,11 @@ namespace cascade {
         std::tuple<uint32_t,uint32_t,uint32_t> key_to_shard(
                 const KeyType& key, bool check_object_location = true);
 
+        CascadeStoreRegistry* cascade_store_registry = nullptr;
+
     public:
+        void set_cascade_store_registry(CascadeStoreRegistry* reg);
+
         /**
          * The Constructor
          * @param _group_ptr The caller can pass a pointer pointing to a derecho group object. If the pointer is
@@ -1546,7 +1551,17 @@ namespace cascade {
          */
         void workhorse(uint32_t,struct action_queue&);
 
+        /*
+         * Cascade store registry.
+         */
+        CascadeStoreRegistry cascade_store_registry;
+
     public:
+        /*
+         * Returns the store registry
+         */
+        CascadeStoreRegistry* get_cascade_store_registry();
+
         /** Resources **/
         const ResourceDescriptor resource_descriptor;
         /**
