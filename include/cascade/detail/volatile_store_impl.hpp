@@ -541,6 +541,10 @@ VolatileCascadeStore<KT, VT, IK, IV>::VolatileCascadeStore(
                                cascade_watcher_ptr(cw),
                                cascade_context_ptr(cc) {
     debug_enter_func();
+    CascadeStoreRegistry* reg = cc->get_cascade_store_registry();
+    if(reg){
+        reg->register_cascade_store<VolatileCascadeStore<KT, VT, IK, IV>>(this);
+    }
     debug_leave_func();
 }
 
@@ -556,6 +560,10 @@ VolatileCascadeStore<KT, VT, IK, IV>::VolatileCascadeStore(
                                cascade_watcher_ptr(cw),
                                cascade_context_ptr(cc) {
     debug_enter_func_with_args("copy to kv_map, size={}", kv_map.size());
+    CascadeStoreRegistry* reg = cc->get_cascade_store_registry();
+    if(reg){
+        reg->register_cascade_store<VolatileCascadeStore<KT, VT, IK, IV>>(this);
+    }
     debug_leave_func();
 }
 
@@ -571,6 +579,10 @@ VolatileCascadeStore<KT, VT, IK, IV>::VolatileCascadeStore(
                                cascade_watcher_ptr(cw),
                                cascade_context_ptr(cc) {
     debug_enter_func_with_args("move to kv_map, size={}", kv_map.size());
+    CascadeStoreRegistry* reg = cc->get_cascade_store_registry();
+    if(reg){
+        reg->register_cascade_store<VolatileCascadeStore<KT, VT, IK, IV>>(this);
+    }
     debug_leave_func();
 }
 }  // namespace cascade

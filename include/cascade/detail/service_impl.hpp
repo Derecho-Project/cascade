@@ -135,6 +135,11 @@ std::unique_ptr<CascadeType> client_stub_factory() {
 }
 
 template <typename... CascadeTypes>
+void ServiceClient<CascadeTypes...>::set_cascade_store_registry(CascadeStoreRegistry* reg){
+    cascade_store_registry = reg;
+}
+
+template <typename... CascadeTypes>
 ServiceClient<CascadeTypes...>::ServiceClient(derecho::Group<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>* _group_ptr):
     external_group_ptr(nullptr),
     group_ptr(_group_ptr) {
@@ -696,6 +701,14 @@ derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> ServiceClien
             // do p2p get as a subgroup member
             auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
             if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
+                // local get
+                if(cascade_store_registry){
+                    SubgroupType* store = cascade_store_registry->get_cascade_store<SubgroupType>();
+                    if(store){
+                        auto obj = store->get(key,version,stable);
+                        //return; // TODO create QueryResults
+                    }
+                }
                 node_id = group_ptr->get_my_id();
             }
             return subgroup_handle.template p2p_send<RPC_NAME(get)>(node_id,key,version,stable,false);
@@ -1906,6 +1919,7 @@ template <typename... CascadeTypes>
 void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>* group_ptr) {
     // 1 - prepare the service client
     service_client = std::make_unique<ServiceClient<CascadeTypes...>>(group_ptr);
+    service_client->set_cascade_store_registry(&cascade_store_registry);
     // 2 - create data path logic loader and register the prefixes. Ideally, this part should be done in the control
     // plane, where a centralized controller should issue the control messages to do load/unload.
     // TODO: implement the control plane.
@@ -2339,6 +2353,10 @@ CascadeContext<CascadeTypes...>::~CascadeContext() {
     destroy();
 }
 
+template <typename... CascadeTypes>
+CascadeStoreRegistry* CascadeContext<CascadeTypes...>::get_cascade_store_registry(){
+    return &cascade_store_registry;
+}
 
 }
 }
