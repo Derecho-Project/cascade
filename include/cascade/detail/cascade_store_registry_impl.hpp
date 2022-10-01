@@ -11,7 +11,7 @@ template <typename SubgroupType>
 SubgroupType* CascadeStoreRegistry::get_cascade_store(){
     auto ti = std::type_index(typeid(SubgroupType));
     if(cascade_store.count(ti) > 0){
-        return cascade_store[ti];
+        return (SubgroupType*)cascade_store[ti];
     }
     return nullptr;
 }
