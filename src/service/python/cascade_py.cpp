@@ -416,7 +416,7 @@ PYBIND11_MODULE(client, m) {
     m.attr("__name__") = "derecho.cascade.client";
     m.doc() = "Cascade Client Python API.";
 
-    py::class_<ServiceClientAPI_PythonWrapper>(m, "ServiceClientAPI_PythonWrapper")
+    py::class_<ServiceClientAPI_PythonWrapper>(m, "ServiceClientAPI")
             .def(py::init(), "Service Client API for managing cascade store.")
             .def_property_readonly_static("CASCADE_SUBGROUP_TYPES",
                     [](py::object/*self*/) {
