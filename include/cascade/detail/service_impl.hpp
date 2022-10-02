@@ -102,6 +102,7 @@ bool Service<CascadeTypes...>::is_running() {
     return _is_running;
 }
 
+
 template <typename... CascadeTypes>
 std::unique_ptr<Service<CascadeTypes...>> Service<CascadeTypes...>::service_ptr;
 
@@ -1877,6 +1878,7 @@ derecho::rpc::QueryResults<double> ServiceClient<CascadeTypes...>::perf_put(cons
 }
 #endif//ENABLE_EVALUATION
 
+
 template <typename... CascadeTypes>
 const std::vector<std::type_index> ServiceClient<CascadeTypes...>::subgroup_type_order{typeid(CascadeTypes)...};
 
@@ -1906,6 +1908,7 @@ template <typename... CascadeTypes>
 void ServiceClient<CascadeTypes...>::initialize(derecho::Group<CascadeMetadataService<CascadeTypes...>, CascadeTypes...>* _group_ptr) {
     std::lock_guard<std::mutex> lock_guard(singleton_mutex);
     if (!service_client_singleton_ptr) {
+        dbg_default_trace("initializing ServiceClient singleton as cascade member, group pointer={:p}",static_cast<void*>(_group_ptr));
         service_client_singleton_ptr = std::unique_ptr<ServiceClient<CascadeTypes...>>(new ServiceClient<CascadeTypes...>(_group_ptr));
     }
 }
@@ -1916,6 +1919,7 @@ ServiceClient<CascadeTypes...>& ServiceClient<CascadeTypes...>::get_service_clie
         std::lock_guard<std::mutex> lock_guard(singleton_mutex);
         // test again in case another thread has initialized it already.
         if (!service_client_singleton_ptr) {
+            dbg_default_trace("initializing ServiceClient singleton as external client");
             service_client_singleton_ptr = std::unique_ptr<ServiceClient<CascadeTypes...>>(new ServiceClient<CascadeTypes...>(nullptr));
         }
     }
