@@ -58,7 +58,7 @@ int main(int argc, char** argv) {
         // STEP 1: load file
         auto obj = get_photo_object(key, file_name);
         // STEP 2: send to server
-        ServiceClientAPI capi;
+        auto& capi = ServiceClientAPI::get_service_client();
         derecho::rpc::QueryResults<void> ret = capi.trigger_put(obj);
         ret.get();
         std::cout << "finish put to trigger put" << std::endl;
