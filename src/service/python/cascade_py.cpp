@@ -14,6 +14,15 @@
 
 using namespace derecho::cascade;
 
+
+class ServiceClientAPI_PythonWrapper {
+public:
+    ServiceClientAPI& ref;
+    ServiceClientAPI_PythonWrapper():
+        ref(ServiceClientAPI::get_service_client()){}
+};
+
+
 namespace py = pybind11;
 #define on_all_subgroup_type(x, ft, ...)                      \
     if((x) == "VolatileCascadeStoreWithStringKey") {          \
@@ -407,7 +416,7 @@ PYBIND11_MODULE(client, m) {
     m.attr("__name__") = "derecho.cascade.client";
     m.doc() = "Cascade Client Python API.";
 
-    py::class_<ServiceClientAPI>(m, "ServiceClientAPI")
+    py::class_<ServiceClientAPI_PythonWrapper>(m, "ServiceClientAPI_PythonWrapper")
             .def(py::init(), "Service Client API for managing cascade store.")
             .def_property_readonly_static("CASCADE_SUBGROUP_TYPES",
                     [](py::object/*self*/) {
@@ -421,21 +430,23 @@ PYBIND11_MODULE(client, m) {
                 )
             .def(
                     "__repr__",
-                    [](const ServiceClientAPI& a) {
+                    [](const ServiceClientAPI_PythonWrapper& a) {
                         return "Service Client API for managing cascade store.";
                     }
                 )
             .def(
                     "get_members",
-                    &ServiceClientAPI::get_members, 
+                    [](ServiceClientAPI_PythonWrapper& capi) {
+                        return capi.ref.get_members();
+                    },
                     "Get all members in the current derecho group.\n"
                     "\r@return  a list of node ids"
                 )
             .def(
                     "get_shard_members", 
-                    [](ServiceClientAPI& capi, std::string service_type, uint32_t subgroup_index, uint32_t shard_index) {
+                    [](ServiceClientAPI_PythonWrapper& capi, std::string service_type, uint32_t subgroup_index, uint32_t shard_index) {
                         std::vector<node_id_t> members;
-                        on_all_subgroup_type(service_type, members = capi.template get_shard_members, subgroup_index, shard_index);
+                        on_all_subgroup_type(service_type, members = capi.ref.template get_shard_members, subgroup_index, shard_index);
                         return members;
                     },
                     "Get members of a shard.\n"
@@ -448,9 +459,9 @@ PYBIND11_MODULE(client, m) {
                 )
             .def(
                     "set_member_selection_policy",
-                    [](ServiceClientAPI& capi, std::string service_type, uint32_t subgroup_index, uint32_t shard_index, std::string policy, uint32_t usernode) {
+                    [](ServiceClientAPI_PythonWrapper& capi, std::string service_type, uint32_t subgroup_index, uint32_t shard_index, std::string policy, uint32_t usernode) {
                         ShardMemberSelectionPolicy real_policy = parse_policy_name(policy);
-                        on_all_subgroup_type(service_type, capi.template set_member_selection_policy, subgroup_index, shard_index, real_policy, usernode);
+                        on_all_subgroup_type(service_type, capi.ref.template set_member_selection_policy, subgroup_index, shard_index, real_policy, usernode);
                     },
                     "Set the member selection policy of a specified subgroup and shard.\n"
                     "\t@arg0    service_type    VolatileCascadeStoreWithStringKey | \n"
@@ -468,9 +479,9 @@ PYBIND11_MODULE(client, m) {
                 )
             .def(
                     "get_member_selection_policy",
-                    [](ServiceClientAPI& capi, std::string service_type, uint32_t subgroup_index, uint32_t shard_index) {
+                    [](ServiceClientAPI_PythonWrapper& capi, std::string service_type, uint32_t subgroup_index, uint32_t shard_index) {
                         std::tuple<derecho::cascade::ShardMemberSelectionPolicy, unsigned int> policy;
-                        on_all_subgroup_type(service_type, policy = capi.template get_member_selection_policy, subgroup_index, shard_index);
+                        on_all_subgroup_type(service_type, policy = capi.ref.template get_member_selection_policy, subgroup_index, shard_index);
 
                         std::string pol;
                         switch(std::get<0>(policy)) {
@@ -508,7 +519,7 @@ PYBIND11_MODULE(client, m) {
                 )
             .def(
                     "put",
-                    [](ServiceClientAPI& capi, std::string& key, py::bytes value, py::kwargs kwargs) {
+                    [](ServiceClientAPI_PythonWrapper& capi, std::string& key, py::bytes value, py::kwargs kwargs) {
                         std::string subgroup_type;
                         uint32_t subgroup_index = 0;
                         uint32_t shard_index = 0;
@@ -555,21 +566,21 @@ PYBIND11_MODULE(client, m) {
                         obj.blob = Blob(reinterpret_cast<const uint8_t*>(value.cast<std::string>().c_str()),value.cast<std::string>().size());
                         if (subgroup_type.empty()) {
                             if (trigger) {
-                                capi.trigger_put(obj);
+                                capi.ref.trigger_put(obj);
                             } else if (blocking) {
-                                auto result = capi.put(obj);
+                                auto result = capi.ref.put(obj);
                                 auto s = new QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>(std::move(result), bundle_f);
                                 return py::cast(s);
                             } else {
-                                capi.put_and_forget(obj);
+                                capi.ref.put_and_forget(obj);
                             }
                         } else {
                             if (trigger) {
-                                on_all_subgroup_type(subgroup_type, trigger_put, capi, obj, subgroup_index, shard_index);
+                                on_all_subgroup_type(subgroup_type, trigger_put, capi.ref, obj, subgroup_index, shard_index);
                             } else if (blocking) {
-                                on_all_subgroup_type(subgroup_type, return put, capi, obj, subgroup_index, shard_index);
+                                on_all_subgroup_type(subgroup_type, return put, capi.ref, obj, subgroup_index, shard_index);
                             } else {
-                                on_all_subgroup_type(subgroup_type, put_and_forget, capi, obj, subgroup_index, shard_index);
+                                on_all_subgroup_type(subgroup_type, put_and_forget, capi.ref, obj, subgroup_index, shard_index);
                             }
                         }
 
@@ -596,7 +607,7 @@ PYBIND11_MODULE(client, m) {
             )
             .def(
                     "remove",
-                    [](ServiceClientAPI& capi, std::string& key, py::kwargs kwargs) {
+                    [](ServiceClientAPI_PythonWrapper& capi, std::string& key, py::kwargs kwargs) {
                         std::string subgroup_type;
                         uint32_t subgroup_index = 0;
                         uint32_t shard_index = 0;
@@ -611,11 +622,11 @@ PYBIND11_MODULE(client, m) {
                         }
 
                         if (subgroup_type.empty()) {
-                            auto result = capi.remove(key);
+                            auto result = capi.ref.remove(key);
                             auto s = new QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>(std::move(result), bundle_f);
                             return py::cast(s);
                         } else {
-                            on_all_subgroup_type(subgroup_type, return remove, capi, key, subgroup_index, shard_index);
+                            on_all_subgroup_type(subgroup_type, return remove, capi.ref, key, subgroup_index, shard_index);
                         }
 
                         return py::cast(NULL);
@@ -633,7 +644,7 @@ PYBIND11_MODULE(client, m) {
             )
             .def(
                     "get",
-                    [](ServiceClientAPI& capi, std::string& key, py::kwargs kwargs) {
+                    [](ServiceClientAPI_PythonWrapper& capi, std::string& key, py::kwargs kwargs) {
                         std::string subgroup_type;
                         uint32_t subgroup_index = 0;
                         uint32_t shard_index = 0;
@@ -662,20 +673,20 @@ PYBIND11_MODULE(client, m) {
                         if (timestamp != 0 && version == CURRENT_VERSION ) {
                             // timestamped get
                             if (subgroup_type.empty()) {
-                                auto res = capi.get_by_time(key,timestamp,stable);
+                                auto res = capi.ref.get_by_time(key,timestamp,stable);
                                 auto s = new QueryResultsStore<const ObjectWithStringKey,py::dict>(std::move(res), object_unwrapper);
                                 return py::cast(s);
                             } else {
-                                on_all_subgroup_type(subgroup_type, return get_by_time, capi, key, timestamp, stable, subgroup_index, shard_index);
+                                on_all_subgroup_type(subgroup_type, return get_by_time, capi.ref, key, timestamp, stable, subgroup_index, shard_index);
                             }
                         } else {
                             // get versioned get
                             if (subgroup_type.empty()) {
-                                auto res = capi.get(key,version,stable);
+                                auto res = capi.ref.get(key,version,stable);
                                 auto s = new QueryResultsStore<const ObjectWithStringKey,py::dict>(std::move(res), object_unwrapper);
                                 return py::cast(s);
                             } else {
-                                on_all_subgroup_type(subgroup_type, return get, capi, key, version, stable, subgroup_index, shard_index);
+                                on_all_subgroup_type(subgroup_type, return get, capi.ref, key, version, stable, subgroup_index, shard_index);
                             }
                         }
 
@@ -696,7 +707,7 @@ PYBIND11_MODULE(client, m) {
             )
             .def(
                     "multi_get",
-                    [](ServiceClientAPI& capi, std::string& key, py::kwargs kwargs) {
+                    [](ServiceClientAPI_PythonWrapper& capi, std::string& key, py::kwargs kwargs) {
                         std::string subgroup_type;
                         uint32_t subgroup_index = 0;
                         uint32_t shard_index = 0;
@@ -712,11 +723,11 @@ PYBIND11_MODULE(client, m) {
 
                         // get versioned get
                         if (subgroup_type.empty()) {
-                            auto res = capi.multi_get(key);
+                            auto res = capi.ref.multi_get(key);
                             auto s = new QueryResultsStore<const ObjectWithStringKey,py::dict>(std::move(res), object_unwrapper);
                             return py::cast(s);
                         } else {
-                            on_all_subgroup_type(subgroup_type, return multi_get, capi, key, subgroup_index, shard_index);
+                            on_all_subgroup_type(subgroup_type, return multi_get, capi.ref, key, subgroup_index, shard_index);
                         }
 
                         return py::cast(NULL);
@@ -733,7 +744,7 @@ PYBIND11_MODULE(client, m) {
             )
             .def(
                     "get_size",
-                    [](ServiceClientAPI& capi, std::string& key, py::kwargs kwargs) {
+                    [](ServiceClientAPI_PythonWrapper& capi, std::string& key, py::kwargs kwargs) {
                         std::string subgroup_type;
                         uint32_t subgroup_index = 0;
                         uint32_t shard_index = 0;
@@ -762,20 +773,20 @@ PYBIND11_MODULE(client, m) {
                         if (timestamp != 0 && version == CURRENT_VERSION ) {
                             // timestamped get
                             if (subgroup_type.empty()) {
-                                auto res = capi.get_size_by_time(key,timestamp,stable);
+                                auto res = capi.ref.get_size_by_time(key,timestamp,stable);
                                 auto s = new QueryResultsStore<uint64_t,uint64_t>(std::move(res), [](const uint64_t& size){return size;});
                                 return py::cast(s);
                             } else {
-                                on_all_subgroup_type(subgroup_type, return get_size_by_time, capi, key, timestamp, stable, subgroup_index, shard_index);
+                                on_all_subgroup_type(subgroup_type, return get_size_by_time, capi.ref, key, timestamp, stable, subgroup_index, shard_index);
                             }
                         } else {
                             // get versioned get
                             if (subgroup_type.empty()) {
-                                auto res = capi.get_size(key,version,stable);
+                                auto res = capi.ref.get_size(key,version,stable);
                                 auto s = new QueryResultsStore<uint64_t,uint64_t>(std::move(res), [](const uint64_t& size){return size;});
                                 return py::cast(s);
                             } else {
-                                on_all_subgroup_type(subgroup_type, return get_size, capi, key, version, stable, subgroup_index, shard_index);
+                                on_all_subgroup_type(subgroup_type, return get_size, capi.ref, key, version, stable, subgroup_index, shard_index);
                             }
                         }
 
@@ -796,7 +807,7 @@ PYBIND11_MODULE(client, m) {
             )
             .def(
                     "multi_get_size",
-                    [](ServiceClientAPI& capi, std::string& key, py::kwargs kwargs) {
+                    [](ServiceClientAPI_PythonWrapper& capi, std::string& key, py::kwargs kwargs) {
                         std::string subgroup_type;
                         uint32_t subgroup_index = 0;
                         uint32_t shard_index = 0;
@@ -812,11 +823,11 @@ PYBIND11_MODULE(client, m) {
 
                         // get versioned get
                         if (subgroup_type.empty()) {
-                            auto res = capi.multi_get_size(key);
+                            auto res = capi.ref.multi_get_size(key);
                             auto s = new QueryResultsStore<uint64_t,uint64_t>(std::move(res), [](const uint64_t& size){return size;});
                             return py::cast(s);
                         } else {
-                            on_all_subgroup_type(subgroup_type, return multi_get_size, capi, key, subgroup_index, shard_index);
+                            on_all_subgroup_type(subgroup_type, return multi_get_size, capi.ref, key, subgroup_index, shard_index);
                         }
 
                         return py::cast(NULL);
@@ -833,7 +844,7 @@ PYBIND11_MODULE(client, m) {
             )
             .def(
                     "list_keys_in_shard",
-                    [](ServiceClientAPI& capi, std::string& subgroup_type, py::kwargs kwargs) {
+                    [](ServiceClientAPI_PythonWrapper& capi, std::string& subgroup_type, py::kwargs kwargs) {
                         uint32_t subgroup_index = 0;
                         uint32_t shard_index = 0;
                         persistent::version_t version = CURRENT_VERSION;
@@ -857,9 +868,9 @@ PYBIND11_MODULE(client, m) {
 
                         if (timestamp != 0 && version == CURRENT_VERSION ) {
                             // timestamped get
-                            on_all_subgroup_type(subgroup_type, return list_keys_by_time, capi, timestamp, stable, subgroup_index, shard_index);
+                            on_all_subgroup_type(subgroup_type, return list_keys_by_time, capi.ref, timestamp, stable, subgroup_index, shard_index);
                         } else {
-                            on_all_subgroup_type(subgroup_type, return list_keys, capi, version, stable, subgroup_index, shard_index);
+                            on_all_subgroup_type(subgroup_type, return list_keys, capi.ref, version, stable, subgroup_index, shard_index);
                         }
 
                         return py::cast(NULL);
@@ -878,7 +889,7 @@ PYBIND11_MODULE(client, m) {
             )
             .def(
                     "multi_list_keys_in_shard",
-                    [](ServiceClientAPI& capi, std::string& subgroup_type, py::kwargs kwargs) {
+                    [](ServiceClientAPI_PythonWrapper& capi, std::string& subgroup_type, py::kwargs kwargs) {
                         uint32_t subgroup_index = 0;
                         uint32_t shard_index = 0;
                         if (kwargs.contains("subgroup_index")) {
@@ -888,7 +899,7 @@ PYBIND11_MODULE(client, m) {
                             shard_index = kwargs["shard_index"].cast<uint32_t>();
                         }
 
-                        on_all_subgroup_type(subgroup_type, return multi_list_keys, capi, subgroup_index, shard_index);
+                        on_all_subgroup_type(subgroup_type, return multi_list_keys, capi.ref, subgroup_index, shard_index);
                         return py::cast(NULL);
                     },
                     "List the keys in a shard using multi_get\n"
@@ -902,7 +913,7 @@ PYBIND11_MODULE(client, m) {
             )
             .def(
                     "list_keys_in_object_pool",
-                    [](ServiceClientAPI& capi, std::string& object_pool_pathname, py::kwargs kwargs) {
+                    [](ServiceClientAPI_PythonWrapper& capi, std::string& object_pool_pathname, py::kwargs kwargs) {
                         persistent::version_t version = CURRENT_VERSION;
                         bool stable = true;
                         uint64_t timestamp = 0ull;
@@ -918,9 +929,9 @@ PYBIND11_MODULE(client, m) {
 
                         std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<std::string>>>> results;
                         if (timestamp != 0 && version == CURRENT_VERSION) {
-                            results = std::move(capi.list_keys_by_time(timestamp, stable, object_pool_pathname));
+                            results = std::move(capi.ref.list_keys_by_time(timestamp, stable, object_pool_pathname));
                         } else {
-                            results = std::move(capi.list_keys(version,stable,object_pool_pathname));
+                            results = std::move(capi.ref.list_keys(version,stable,object_pool_pathname));
                         }
                         py::list future_list;
                         for (auto& result:results) {
@@ -939,9 +950,9 @@ PYBIND11_MODULE(client, m) {
             )
             .def(
                     "multi_list_keys_in_object_pool",
-                    [](ServiceClientAPI& capi, std::string& object_pool_pathname, py::kwargs kwargs) {
+                    [](ServiceClientAPI_PythonWrapper& capi, std::string& object_pool_pathname, py::kwargs kwargs) {
                         std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<std::string>>>> results;
-                        results = std::move(capi.multi_list_keys(object_pool_pathname));
+                        results = std::move(capi.ref.multi_list_keys(object_pool_pathname));
                         py::list future_list;
                         for (auto& result:results) {
                             auto s = new QueryResultsStore<std::vector<std::string>, py::list> (std::move(*result), list_unwrapper);
@@ -955,8 +966,8 @@ PYBIND11_MODULE(client, m) {
             )
             .def(
                     "create_object_pool", 
-                    [](ServiceClientAPI& capi, const std::string& object_pool_pathname, const std::string& service_type, uint32_t subgroup_index) {
-                        on_all_subgroup_type(service_type, return create_object_pool, capi, object_pool_pathname, subgroup_index);
+                    [](ServiceClientAPI_PythonWrapper& capi, const std::string& object_pool_pathname, const std::string& service_type, uint32_t subgroup_index) {
+                        on_all_subgroup_type(service_type, return create_object_pool, capi.ref, object_pool_pathname, subgroup_index);
                         return py::cast(NULL);
                     },
                     "Create an Object Pool. \n"
@@ -970,15 +981,15 @@ PYBIND11_MODULE(client, m) {
             )
             .def(
                     "list_object_pools",
-                    [](ServiceClientAPI& capi) {
-                        return list_object_pools(capi);
+                    [](ServiceClientAPI_PythonWrapper& capi) {
+                        return list_object_pools(capi.ref);
                     },
                     "List the object pools\n"
                     "\t@return  a list of object pools")
             .def(
                     "get_object_pool",
-                    [](ServiceClientAPI& capi, const std::string& object_pool_pathname) {
-                        return get_object_pool(capi, object_pool_pathname);
+                    [](ServiceClientAPI_PythonWrapper& capi, const std::string& object_pool_pathname) {
+                        return get_object_pool(capi.ref, object_pool_pathname);
                     },
                     "Get an object pool by pathname. \n"
                     "\t@arg0    object pool pathname \n"

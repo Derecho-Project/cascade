@@ -1555,8 +1555,6 @@ namespace cascade {
         std::thread              single_threaded_workhorse_for_multicast;
         std::thread              single_threaded_workhorse_for_p2p;
 #endif//HAS_STATEFUL_UDL_SUPPORT
-        /** the service client: off critical data path logic use it to send data to a next tier. */
-        std::unique_ptr<ServiceClient<CascadeTypes...>> service_client;
         /**
          * destroy the context, to be called in destructor
          */
@@ -1581,12 +1579,12 @@ namespace cascade {
          * global/static variables: CascadeContext relies on the global configuration from derecho implementation, which is
          * generally initialized with commandline parameters in main(). If we initialize the CascadeContext singleton in its
          * constructor, which happens before main(), it might miss extra configuration from commandline. Therefore,
-         * CascadeContext singleton needs to be initialized in main() by calling CascadeContext::initialize(). Moreover, it
+         * CascadeContext singleton needs to be initialized in main() by calling CascadeContext::construct(). Moreover, it
          * needs the off critical data path handler from main();
          *
          * @param group_ptr                         The group handle
          */
-        void construct(derecho::Group<CascadeMetadataService<CascadeTypes...>, CascadeTypes...>* group_ptr);
+        void construct();
         /**
          * get the reference to encapsulated service client handle.
          * The reference is valid only after construct() is called.

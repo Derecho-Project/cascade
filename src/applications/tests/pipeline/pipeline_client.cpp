@@ -83,7 +83,7 @@ int main(int argc, char** argv) {
     if (prctl(PR_SET_NAME, PROC_NAME, 0, 0, 0) != 0) {
         dbg_default_debug("Failed to set proc name to {},", PROC_NAME);
     }
-    ServiceClientAPI capi;
+    auto& capi = ServiceClientAPI::get_service_client();
 
     if (argc != 6) {
         std::cout << "Usage:" << argv[0] << " <trigger_put|put_and_forget> <object pool pathname> <member selection policy> <max rate> <duration in sec>" << std::endl;
