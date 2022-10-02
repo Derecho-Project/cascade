@@ -571,10 +571,9 @@ static void do_command(
 
 int main(int argc, char** argv) {
     std::cout << "Cascade DDS Client" << std::endl;
-    std::shared_ptr<ServiceClientAPI> capi = std::make_shared<ServiceClientAPI>();
     auto dds_config = DDSConfig::get();
-    auto metadata_client = DDSMetadataClient::create(capi,dds_config);
-    auto client = DDSClient::create(capi,dds_config);
+    auto metadata_client = DDSMetadataClient::create(dds_config);
+    auto client = DDSClient::create(dds_config);
 
     // shell mode
     if (argc == 1) {
