@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from derecho.cascade import client
+from derecho.cascade import external_client as client
 import threading
 import time
 import math

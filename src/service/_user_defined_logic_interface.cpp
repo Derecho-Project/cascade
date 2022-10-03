@@ -1,4 +1,4 @@
-#include <cascade/user_defined_logic_interface.hpp>
+#include <cascade/detail/_user_defined_logic_interface.hpp>
 
 namespace derecho {
 namespace cascade {

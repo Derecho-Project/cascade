@@ -1,3 +1,7 @@
+#ifndef __EXTERNAL_CLIENT__
+#define __WITHOUT_SERVICE_SINGLETONS__
+#endif//__EXTERNAL_CLIENT__
+
 #include <cascade/cascade.hpp>
 #include <cascade/service_client_api.hpp>
 #include <derecho/core/detail/rpc_utils.hpp>
@@ -415,7 +419,6 @@ std::vector<std::string> legal_cascade_subgroup_types{
 PYBIND11_MODULE(client, m) {
     m.attr("__name__") = "derecho.cascade.client";
     m.doc() = "Cascade Client Python API.";
-
     py::class_<ServiceClientAPI_PythonWrapper>(m, "ServiceClientAPI")
             .def(py::init(), "Service Client API for managing cascade store.")
             .def_property_readonly_static("CASCADE_SUBGROUP_TYPES",
