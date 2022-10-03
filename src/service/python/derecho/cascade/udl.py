@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import abc
 import numpy as np
-from derecho.cascade.member_client import ServiceClientAPI
 
 class UserDefinedLogic(abc.ABC):
     '''
@@ -17,7 +16,6 @@ class UserDefinedLogic(abc.ABC):
         conf                -- (string) the configuration from application configuration ( the
                                "user_defined_logic_config_list" option in dfgs.json)
         '''
-        self.capi = ServiceClientAPI()
         pass
 
     @abc.abstractmethod

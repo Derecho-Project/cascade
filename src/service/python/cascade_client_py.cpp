@@ -1,6 +1,6 @@
 #ifndef __EXTERNAL_CLIENT__
 #define __WITHOUT_SERVICE_SINGLETONS__
-#endif//__EXTERNAL_CLIENT__
+#endif//not __EXTERNAL_CLIENT__
 
 #include <cascade/cascade.hpp>
 #include <cascade/service_client_api.hpp>
@@ -416,11 +416,16 @@ std::vector<std::string> legal_cascade_subgroup_types{
     "TriggerCascadeNoStoreWithStringKey"
 };
 
-PYBIND11_MODULE(client, m) {
-    m.attr("__name__") = "derecho.cascade.client";
+#ifdef __EXTERNAL_CLIENT__
+PYBIND11_MODULE(external_client, m) {
+    m.attr("__name__") = "derecho.cascade.external_client";
+#else
+PYBIND11_MODULE(member_client, m) {
+    m.attr("__name__") = "derecho.cascade.member_client";
+#endif//__EXTERNAL_CLIENT__
     m.doc() = "Cascade Client Python API.";
     py::class_<ServiceClientAPI_PythonWrapper>(m, "ServiceClientAPI")
-            .def(py::init(), "Service Client API for managing cascade store.")
+            .def(py::init(), "Service Client API to access cascade K/V store.")
             .def_property_readonly_static("CASCADE_SUBGROUP_TYPES",
                     [](py::object/*self*/) {
                         return legal_cascade_subgroup_types;
