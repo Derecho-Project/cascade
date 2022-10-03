@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import cmd, sys
 import logging
-from derecho.cascade.client import ServiceClientAPI
+from derecho.cascade.external_client import ServiceClientAPI
 
 class bcolors:
     OK = '\033[92m' #GREEN

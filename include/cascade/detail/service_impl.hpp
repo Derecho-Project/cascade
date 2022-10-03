@@ -102,7 +102,7 @@ bool Service<CascadeTypes...>::is_running() {
     return _is_running;
 }
 
-
+#ifndef __WITHOUT_SERVICE_SINGLETONS__
 template <typename... CascadeTypes>
 std::unique_ptr<Service<CascadeTypes...>> Service<CascadeTypes...>::service_ptr;
 
@@ -130,6 +130,7 @@ void Service<CascadeTypes...>::wait() {
         service_ptr->join();
     }
 }
+#endif//__WITHOUT_SERVICE_SINGLETONS__
 
 template <typename CascadeType>
 std::unique_ptr<CascadeType> client_stub_factory() {
@@ -1878,7 +1879,7 @@ derecho::rpc::QueryResults<double> ServiceClient<CascadeTypes...>::perf_put(cons
 }
 #endif//ENABLE_EVALUATION
 
-
+#ifndef __WITHOUT_SERVICE_SINGLETONS__
 template <typename... CascadeTypes>
 const std::vector<std::type_index> ServiceClient<CascadeTypes...>::subgroup_type_order{typeid(CascadeTypes)...};
 
@@ -1925,6 +1926,7 @@ ServiceClient<CascadeTypes...>& ServiceClient<CascadeTypes...>::get_service_clie
     }
     return *service_client_singleton_ptr;
 }
+#endif//__WITHOUT_SERVICE_SINGLETONS__
 
 template <typename... CascadeTypes>
 CascadeContext<CascadeTypes...>::CascadeContext() {
