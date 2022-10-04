@@ -138,11 +138,6 @@ std::unique_ptr<CascadeType> client_stub_factory() {
 }
 
 template <typename... CascadeTypes>
-void ServiceClient<CascadeTypes...>::set_cascade_store_registry(CascadeStoreRegistry* reg){
-    cascade_store_registry = reg;
-}
-
-template <typename... CascadeTypes>
 ServiceClient<CascadeTypes...>::ServiceClient(derecho::Group<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>* _group_ptr):
     external_group_ptr(nullptr),
     group_ptr(_group_ptr) {
@@ -706,17 +701,12 @@ derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> ServiceClien
             if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
                 node_id = group_ptr->get_my_id();
                 // local get
-                if(cascade_store_registry){
-                    SubgroupType* store = cascade_store_registry->get_cascade_store<SubgroupType>();
-                    if(store){
-                        auto obj = store->get(key,version,stable);
-                        auto pending_results = std::make_shared<PendingResults<const typename SubgroupType::ObjectType>>();
-                        pending_results->fulfill_map({node_id});
-                        pending_results->set_value(node_id,obj);                     
-                        auto query_results = pending_results->get_future();
-                        return std::move(*query_results);
-                    }
-                }
+                auto obj = subgroup_handle.get_ref().get(key,version,stable);
+                auto pending_results = std::make_shared<PendingResults<const typename SubgroupType::ObjectType>>();
+                pending_results->fulfill_map({node_id});
+                pending_results->set_value(node_id,obj);                     
+                auto query_results = pending_results->get_future();
+                return std::move(*query_results);
             }
             return subgroup_handle.template p2p_send<RPC_NAME(get)>(node_id,key,version,stable,false);
         } catch (derecho::invalid_subgroup_exception& ex) {
@@ -2113,9 +2103,6 @@ void CascadeContext<CascadeTypes...>::construct() {
             });
 
 #endif//HAS_STATEFUL_UDL_SUPPORT
-    
-    // cascade store registry
-    get_service_client_ref().set_cascade_store_registry(&cascade_store_registry);
 }
 
 template <typename... CascadeTypes>
@@ -2388,11 +2375,6 @@ size_t CascadeContext<CascadeTypes...>::stateless_action_queue_length_multicast(
 template <typename... CascadeTypes>
 CascadeContext<CascadeTypes...>::~CascadeContext() {
     destroy();
-}
-
-template <typename... CascadeTypes>
-CascadeStoreRegistry* CascadeContext<CascadeTypes...>::get_cascade_store_registry(){
-    return &cascade_store_registry;
 }
 
 }
