@@ -138,7 +138,7 @@ std::unique_ptr<CascadeType> client_stub_factory() {
 }
 
 template <typename... CascadeTypes>
-void ServiceClient<CascadeTypes...>::set_cascade_store_registry(const CascadeStoreRegistry* reg){
+void ServiceClient<CascadeTypes...>::set_cascade_store_registry(CascadeStoreRegistry* reg){
     cascade_store_registry = reg;
 }
 
@@ -707,7 +707,7 @@ derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> ServiceClien
                 node_id = group_ptr->get_my_id();
                 // local get
                 if(cascade_store_registry){
-                    const SubgroupType* store = cascade_store_registry->get_cascade_store<SubgroupType>();
+                    SubgroupType* store = cascade_store_registry->get_cascade_store<SubgroupType>();
                     if(store){
                         auto obj = store->get(key,version,stable);
                         auto pending_results = std::make_shared<PendingResults<const typename SubgroupType::ObjectType>>();
@@ -2113,6 +2113,9 @@ void CascadeContext<CascadeTypes...>::construct() {
             });
 
 #endif//HAS_STATEFUL_UDL_SUPPORT
+    
+    // cascade store registry
+    get_service_client_ref().set_cascade_store_registry(&cascade_store_registry);
 }
 
 template <typename... CascadeTypes>
@@ -2236,9 +2239,7 @@ void CascadeContext<CascadeTypes...>::destroy() {
 
 template <typename... CascadeTypes>
 ServiceClient<CascadeTypes...>& CascadeContext<CascadeTypes...>::get_service_client_ref() const {
-    auto &service = ServiceClient<CascadeTypes...>::get_service_client();
-    service.set_cascade_store_registry(&cascade_store_registry);
-    return service;
+    return ServiceClient<CascadeTypes...>::get_service_client();
 }
 
 template <typename... CascadeTypes>
@@ -2390,7 +2391,7 @@ CascadeContext<CascadeTypes...>::~CascadeContext() {
 }
 
 template <typename... CascadeTypes>
-const CascadeStoreRegistry* CascadeContext<CascadeTypes...>::get_cascade_store_registry(){
+CascadeStoreRegistry* CascadeContext<CascadeTypes...>::get_cascade_store_registry(){
     return &cascade_store_registry;
 }
 

@@ -494,10 +494,10 @@ namespace cascade {
         std::tuple<uint32_t,uint32_t,uint32_t> key_to_shard(
                 const KeyType& key, bool check_object_location = true);
 
-        const CascadeStoreRegistry* cascade_store_registry = nullptr;
+        CascadeStoreRegistry* cascade_store_registry = nullptr;
 
     public:
-        void set_cascade_store_registry(const CascadeStoreRegistry* reg);
+        void set_cascade_store_registry(CascadeStoreRegistry* reg);
 
         /**
          * The Constructor
@@ -1573,13 +1573,13 @@ namespace cascade {
         /*
          * Cascade store registry.
          */
-        const CascadeStoreRegistry cascade_store_registry;
+        CascadeStoreRegistry cascade_store_registry;
 
     public:
         /*
          * Returns the store registry
          */
-        const CascadeStoreRegistry* get_cascade_store_registry();
+        CascadeStoreRegistry* get_cascade_store_registry();
 
         /** Resources **/
         const ResourceDescriptor resource_descriptor;
