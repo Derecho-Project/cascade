@@ -707,7 +707,7 @@ derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> ServiceClien
                 node_id = group_ptr->get_my_id();
                 // local get
                 if(cascade_store_registry){
-                    SubgroupType* store = cascade_store_registry->get_cascade_store<SubgroupType>();
+                    const SubgroupType* store = cascade_store_registry->get_cascade_store<SubgroupType>();
                     if(store){
                         auto obj = store->get(key,version,stable);
                         auto pending_results = std::make_shared<PendingResults<const typename SubgroupType::ObjectType>>();
@@ -2390,7 +2390,7 @@ CascadeContext<CascadeTypes...>::~CascadeContext() {
 }
 
 template <typename... CascadeTypes>
-CascadeStoreRegistry* CascadeContext<CascadeTypes...>::get_cascade_store_registry(){
+const CascadeStoreRegistry* CascadeContext<CascadeTypes...>::get_cascade_store_registry(){
     return &cascade_store_registry;
 }
 
