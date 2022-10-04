@@ -138,7 +138,7 @@ std::unique_ptr<CascadeType> client_stub_factory() {
 }
 
 template <typename... CascadeTypes>
-void ServiceClient<CascadeTypes...>::set_cascade_store_registry(CascadeStoreRegistry* reg){
+void ServiceClient<CascadeTypes...>::set_cascade_store_registry(const CascadeStoreRegistry* reg){
     cascade_store_registry = reg;
 }
 
@@ -2236,7 +2236,7 @@ void CascadeContext<CascadeTypes...>::destroy() {
 
 template <typename... CascadeTypes>
 ServiceClient<CascadeTypes...>& CascadeContext<CascadeTypes...>::get_service_client_ref() const {
-    auto service = ServiceClient<CascadeTypes...>::get_service_client();
+    auto &service = ServiceClient<CascadeTypes...>::get_service_client();
     service.set_cascade_store_registry(&cascade_store_registry);
     return service;
 }
