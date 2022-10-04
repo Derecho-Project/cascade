@@ -1643,7 +1643,7 @@ int main(int argc,char** argv) {
     if( prctl(PR_SET_NAME, PROC_NAME, 0, 0, 0) != 0 ) {
         dbg_default_debug("Failed to set proc name to {}.",PROC_NAME);
     }
-    ServiceClientAPI capi;
+    auto& capi = ServiceClientAPI::get_service_client();
 #ifdef ENABLE_EVALUATION
     // start working thread.
     PerfTestServer pts(capi);

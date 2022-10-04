@@ -198,10 +198,11 @@ namespace cascade {
      */
     template <typename... CascadeTypes>
     class Service {
-    public:
         /**
          * Constructor
          * The constructor will load the configuration, start the service thread.
+         * Constructor is hidden for singleton.
+         *
          * @param dsms deserialization managers
          * @param metadata_service_factory
          * @param factories: subgroup factories.
@@ -209,6 +210,7 @@ namespace cascade {
         Service(const std::vector<DeserializationContext*>& dsms,
                 derecho::cascade::Factory<CascadeMetadataService<CascadeTypes...>> metadata_service_factory,
                 derecho::cascade::Factory<CascadeTypes>... factories);
+    public:
         /**
          * The workhorse
          */
@@ -499,6 +501,7 @@ namespace cascade {
 
         /**
          * The Constructor
+         * We prevent calling the constructor explicitely, because the ServiceClient is a singleton.
          * @param _group_ptr The caller can pass a pointer pointing to a derecho group object. If the pointer is
          *                   valid, the implementation will reply on the group object instead of creating an external
          *                   client to communicate with group members.
@@ -831,7 +834,6 @@ namespace cascade {
                 uint32_t subgroup_index,
                 uint32_t shard_index);
     public:
-
         /**
          * object pool version
          */
@@ -1439,7 +1441,26 @@ namespace cascade {
          */
         template <typename SubgroupType>
         inline static uint32_t get_subgroup_type_index();
-    };
+
+        /* singleton */
+    private:
+        static std::unique_ptr<ServiceClient> service_client_singleton_ptr;
+        static std::mutex                     singleton_mutex;
+    public:
+        /**
+         * Initialize the service_client_single_ptr singleton with a cascade service. This can only be called once
+         * before any get_service_client() is called.
+         * @param _group_ptr The caller can pass a pointer pointing to a derecho group object. If the pointer is
+         *                   valid, the implementation will reply on the group object instead of creating an external
+         *                   client to communicate with group members.
+         */
+        static void initialize(derecho::Group<CascadeMetadataService<CascadeTypes...>, CascadeTypes...>* _group_ptr);
+
+        /**
+         * Get the singleton ServiceClient API. If it does not exists, initialize it as an external client.
+         */
+        static ServiceClient& get_service_client();
+    }; // ServiceClient
 
 
     /**
@@ -1539,8 +1560,6 @@ namespace cascade {
         std::thread              single_threaded_workhorse_for_multicast;
         std::thread              single_threaded_workhorse_for_p2p;
 #endif//HAS_STATEFUL_UDL_SUPPORT
-        /** the service client: off critical data path logic use it to send data to a next tier. */
-        std::unique_ptr<ServiceClient<CascadeTypes...>> service_client;
         /**
          * destroy the context, to be called in destructor
          */
@@ -1575,12 +1594,12 @@ namespace cascade {
          * global/static variables: CascadeContext relies on the global configuration from derecho implementation, which is
          * generally initialized with commandline parameters in main(). If we initialize the CascadeContext singleton in its
          * constructor, which happens before main(), it might miss extra configuration from commandline. Therefore,
-         * CascadeContext singleton needs to be initialized in main() by calling CascadeContext::initialize(). Moreover, it
+         * CascadeContext singleton needs to be initialized in main() by calling CascadeContext::construct(). Moreover, it
          * needs the off critical data path handler from main();
          *
          * @param group_ptr                         The group handle
          */
-        void construct(derecho::Group<CascadeMetadataService<CascadeTypes...>, CascadeTypes...>* group_ptr);
+        void construct();
         /**
          * get the reference to encapsulated service client handle.
          * The reference is valid only after construct() is called.
@@ -1695,7 +1714,7 @@ namespace cascade {
          * Destructor
          */
         virtual ~CascadeContext();
-    };
+    };//CascadeContext
 } // cascade
 } // derecho
 

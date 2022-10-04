@@ -960,7 +960,7 @@ private:
     struct timespec init_timestamp;
 
     /** The real cascade client talking to cascade servers. */
-    ServiceClientAPI capi;
+    ServiceClientAPI& capi;
 
     /** The inodes are stored in \a inodes. */
     mutils::KindMap<_CascadeTypeINode,CascadeTypes...> inodes;
@@ -996,6 +996,7 @@ private:
 
 public:
     FuseClientContext() :
+        capi(ServiceClientAPI::get_service_client()),
         metadata_inode(capi),
         objectpool_inode(capi),
         admin_metadata_inode(capi){}
