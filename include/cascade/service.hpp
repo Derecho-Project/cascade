@@ -497,7 +497,7 @@ namespace cascade {
         CascadeStoreRegistry* cascade_store_registry = nullptr;
 
     public:
-        void set_cascade_store_registry(CascadeStoreRegistry* reg);
+        void set_cascade_store_registry(const CascadeStoreRegistry* reg);
 
         /**
          * The Constructor
