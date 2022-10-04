@@ -89,7 +89,7 @@ static int do_server(int argc, char** argv) {
     // 1 - load frames to prepare the workload
     auto frames = load_frames(frame_path);
     ::rpc::server rpc_server(localhost,port);
-    ServiceClientAPI capi;
+    auto& capi = ServiceClientAPI::get_service_client();
     // 2 - create rpclib server, waiting for execution
     rpc_server.bind("perf",[&frames,&capi,payload_size](
         const std::string& pathname,

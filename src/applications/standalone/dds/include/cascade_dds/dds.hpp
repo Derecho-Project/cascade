@@ -105,7 +105,7 @@ public:
 class DDSMetadataClient {
 private:
     /** shared cascade client */
-    std::shared_ptr<ServiceClientAPI> capi;
+    ServiceClientAPI& capi;
     /** the object pool for DDS metadata */
     std::string metadata_pathname;
     /* local cache of the topics, a map from topic name to topic object. */
@@ -116,10 +116,9 @@ private:
 public:
     /**
      * Constructor
-     * @param _capi             shared cascade client
      * @param metadata_pathname the object pool for DDS metadata
      */
-    DDSMetadataClient(const std::shared_ptr<ServiceClientAPI>& _capi,const std::string& metadata_pathname);
+    DDSMetadataClient(const std::string& metadata_pathname);
 
     /**
      * list the topics
@@ -166,7 +165,7 @@ public:
     /**
      * create an DDSMetadataClient object.
      */
-    static std::unique_ptr<DDSMetadataClient> create(const std::shared_ptr<ServiceClientAPI>& capi, std::shared_ptr<DDSConfig> dds_config);
+    static std::unique_ptr<DDSMetadataClient> create(std::shared_ptr<DDSConfig> dds_config);
 };
 
 /**
@@ -249,18 +248,16 @@ class DDSSubscriberRegistry;
  */
 class DDSClient {
 private:
+    ServiceClientAPI&                       capi;
     std::unique_ptr<DDSSubscriberRegistry>  subscriber_registry;
-    std::shared_ptr<ServiceClientAPI>       capi;
     std::unique_ptr<DDSMetadataClient>      metadata_service;
 
 public:
     /**
      * Constructor
-     * @param capi                  A shared capi handle
      * @param dds_config            The dds configuration
      */
-    DDSClient(const std::shared_ptr<ServiceClientAPI>& _capi,
-            const std::shared_ptr<DDSConfig>& _dds_config);
+    DDSClient(const std::shared_ptr<DDSConfig>& _dds_config);
     /**
      * create a publisher
      * @tparam MessageType          Serializable application message type, must be either pod types, stl types, or
@@ -298,11 +295,9 @@ public:
 
     /**
      * create a DDSClient
-     * @param capi                  A shared capi handle
      * @param dds_config            The dds configuration
      */
     static std::unique_ptr<DDSClient> create(
-            const std::shared_ptr<ServiceClientAPI>& capi,
             const std::shared_ptr<DDSConfig>& dds_config);
 };
 

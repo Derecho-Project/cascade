@@ -60,7 +60,8 @@ Service<CascadeTypes...>::Service(const std::vector<DeserializationContext*>& ds
                 factory_wrapper(context.get(),factories)...);
     dbg_default_trace("joined group.");
     // STEP 4 - construct context
-    context->construct(group.get());
+    ServiceClient<CascadeTypes...>::initialize(group.get());
+    context->construct();
     // STEP 5 - create service thread
     this->_is_running = true;
     service_thread = std::thread(&Service<CascadeTypes...>::run, this);
@@ -101,6 +102,7 @@ bool Service<CascadeTypes...>::is_running() {
     return _is_running;
 }
 
+#ifndef __WITHOUT_SERVICE_SINGLETONS__
 template <typename... CascadeTypes>
 std::unique_ptr<Service<CascadeTypes...>> Service<CascadeTypes...>::service_ptr;
 
@@ -109,7 +111,7 @@ void Service<CascadeTypes...>::start(const std::vector<DeserializationContext*>&
         derecho::cascade::Factory<CascadeMetadataService<CascadeTypes...>> metadata_factory,
         derecho::cascade::Factory<CascadeTypes>... factories) {
     if (!service_ptr) {
-        service_ptr = std::make_unique<Service<CascadeTypes...>>(dsms, metadata_factory, factories...);
+        service_ptr = std::unique_ptr<Service<CascadeTypes...>>(new Service<CascadeTypes...>(dsms, metadata_factory, factories...));
     } 
 }
 
@@ -128,6 +130,7 @@ void Service<CascadeTypes...>::wait() {
         service_ptr->join();
     }
 }
+#endif//__WITHOUT_SERVICE_SINGLETONS__
 
 template <typename CascadeType>
 std::unique_ptr<CascadeType> client_stub_factory() {
@@ -1893,6 +1896,7 @@ derecho::rpc::QueryResults<double> ServiceClient<CascadeTypes...>::perf_put(cons
 }
 #endif//ENABLE_EVALUATION
 
+#ifndef __WITHOUT_SERVICE_SINGLETONS__
 template <typename... CascadeTypes>
 const std::vector<std::type_index> ServiceClient<CascadeTypes...>::subgroup_type_order{typeid(CascadeTypes)...};
 
@@ -1913,6 +1917,35 @@ uint32_t ServiceClient<CascadeTypes...>::get_subgroup_type_index() {
 }
 
 template <typename... CascadeTypes>
+std::unique_ptr<ServiceClient<CascadeTypes...>> ServiceClient<CascadeTypes...>::service_client_singleton_ptr;
+
+template <typename... CascadeTypes>
+std::mutex ServiceClient<CascadeTypes...>::singleton_mutex;
+
+template <typename... CascadeTypes>
+void ServiceClient<CascadeTypes...>::initialize(derecho::Group<CascadeMetadataService<CascadeTypes...>, CascadeTypes...>* _group_ptr) {
+    std::lock_guard<std::mutex> lock_guard(singleton_mutex);
+    if (!service_client_singleton_ptr) {
+        dbg_default_trace("initializing ServiceClient singleton as cascade member, group pointer={:p}",static_cast<void*>(_group_ptr));
+        service_client_singleton_ptr = std::unique_ptr<ServiceClient<CascadeTypes...>>(new ServiceClient<CascadeTypes...>(_group_ptr));
+    }
+}
+
+template <typename... CascadeTypes>
+ServiceClient<CascadeTypes...>& ServiceClient<CascadeTypes...>::get_service_client() {
+    if (!service_client_singleton_ptr) {
+        std::lock_guard<std::mutex> lock_guard(singleton_mutex);
+        // test again in case another thread has initialized it already.
+        if (!service_client_singleton_ptr) {
+            dbg_default_trace("initializing ServiceClient singleton as external client");
+            service_client_singleton_ptr = std::unique_ptr<ServiceClient<CascadeTypes...>>(new ServiceClient<CascadeTypes...>(nullptr));
+        }
+    }
+    return *service_client_singleton_ptr;
+}
+#endif//__WITHOUT_SERVICE_SINGLETONS__
+
+template <typename... CascadeTypes>
 CascadeContext<CascadeTypes...>::CascadeContext() {
     stateless_action_queue_for_multicast.initialize();
     stateless_action_queue_for_p2p.initialize();
@@ -1920,11 +1953,8 @@ CascadeContext<CascadeTypes...>::CascadeContext() {
 }
 
 template <typename... CascadeTypes>
-void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>* group_ptr) {
-    // 1 - prepare the service client
-    service_client = std::make_unique<ServiceClient<CascadeTypes...>>(group_ptr);
-    service_client->set_cascade_store_registry(&cascade_store_registry);
-    // 2 - create data path logic loader and register the prefixes. Ideally, this part should be done in the control
+void CascadeContext<CascadeTypes...>::construct() {
+    // 1 - create data path logic loader and register the prefixes. Ideally, this part should be done in the control
     // plane, where a centralized controller should issue the control messages to do load/unload.
     // TODO: implement the control plane.
     user_defined_logic_manager = UserDefinedLogicManager<CascadeTypes...>::create(this);
@@ -1947,11 +1977,11 @@ void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeMetadataSe
             }
         }
     }
-    // 3 - start the working threads
+    // 2 - start the working threads
     is_running.store(true);
     uint32_t num_stateless_multicast_workers = 0;
     uint32_t num_stateless_p2p_workers = 0;
-    // 3.1 - initialize stateless multicast workers.
+    // 2.1 - initialize stateless multicast workers.
     if (derecho::hasCustomizedConfKey(CASCADE_CONTEXT_NUM_STATELESS_WORKERS_MULTICAST) == false) {
         dbg_default_error("{} is not found, using 0...fix it, or posting to multicast off critical data path causes deadlock.", CASCADE_CONTEXT_NUM_STATELESS_WORKERS_MULTICAST);
     } else {
@@ -1977,7 +2007,7 @@ void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeMetadataSe
                 this->workhorse(i,stateless_action_queue_for_multicast);
             });
     }
-    // 3.2 -initialize stateless p2p workers.
+    // 2.2 -initialize stateless p2p workers.
     if (derecho::hasCustomizedConfKey(CASCADE_CONTEXT_NUM_STATELESS_WORKERS_P2P) == false) {
         dbg_default_error("{} is not found, using 0...fix it, or posting to multicast off critical data path causes deadlock.", CASCADE_CONTEXT_NUM_STATELESS_WORKERS_P2P);
     } else {
@@ -2006,7 +2036,7 @@ void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeMetadataSe
 #ifdef HAS_STATEFUL_UDL_SUPPORT
     uint32_t num_stateful_multicast_workers = 0;
     uint32_t num_stateful_p2p_workers = 0;
-    // 3.3 - initialize stateful multicast workers
+    // 2.3 - initialize stateful multicast workers
     if (derecho::hasCustomizedConfKey(CASCADE_CONTEXT_NUM_STATEFUL_WORKERS_MULTICAST) == false) {
         dbg_default_error("{} is not found, using 0...fix it, or posting to multicast off critical data path causes deadlock.", CASCADE_CONTEXT_NUM_STATEFUL_WORKERS_MULTICAST);
     } else {
@@ -2035,7 +2065,7 @@ void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeMetadataSe
                 this->workhorse(i,*stateful_action_queues_for_multicast.at(i));
             });
     }
-    // 3.4 - initialize stateful p2p workers
+    // 2.4 - initialize stateful p2p workers
     if (derecho::hasCustomizedConfKey(CASCADE_CONTEXT_NUM_STATEFUL_WORKERS_P2P) == false) {
         dbg_default_error("{} is not found, using 0...fix it, or posting to multicast off critical data path causes deadlock.", CASCADE_CONTEXT_NUM_STATEFUL_WORKERS_P2P);
     } else {
@@ -2064,7 +2094,7 @@ void CascadeContext<CascadeTypes...>::construct(derecho::Group<CascadeMetadataSe
                 this->workhorse(i,*stateful_action_queues_for_p2p.at(i));
             });
     }
-    // 3.5 - initialize single threaded workers
+    // 2.5 - initialize single threaded workers
     single_threaded_action_queue_for_multicast.initialize();
     single_threaded_action_queue_for_p2p.initialize();
     single_threaded_workhorse_for_multicast = std::thread(
@@ -2206,7 +2236,9 @@ void CascadeContext<CascadeTypes...>::destroy() {
 
 template <typename... CascadeTypes>
 ServiceClient<CascadeTypes...>& CascadeContext<CascadeTypes...>::get_service_client_ref() const {
-    return *service_client.get();
+    auto service = ServiceClient<CascadeTypes...>::get_service_client();
+    service.set_cascade_store_registry(&cascade_store_registry);
+    return service;
 }
 
 template <typename... CascadeTypes>

@@ -13,7 +13,7 @@ int main(int argc, char** argv) {
     std::cout << "KVS Client Example in C++." << std::endl;
 
     std::cout << "1) Load configuration and connecting to cascade service..." << std::endl;
-    ServiceClientAPI capi;
+    ServiceClientAPI& capi = ServiceClientAPI::get_service_client();
     std::cout << "- connected." << std::endl;
 
 #define OBJECT_FOLDER   "/vcss_objects"
