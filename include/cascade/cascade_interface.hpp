@@ -20,7 +20,7 @@ namespace cascade {
  */
 class ICascadeContext : public derecho::DeserializationContext {
     public:
-        const virtual CascadeStoreRegistry* get_cascade_store_registry() = 0; 
+        virtual CascadeStoreRegistry* get_cascade_store_registry() = 0; 
 };
 
 #define CURRENT_VERSION (persistent::INVALID_VERSION)
