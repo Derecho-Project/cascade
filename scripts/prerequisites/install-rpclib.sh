@@ -15,6 +15,6 @@ cd rpclib
 git checkout tags/v2.3.0
 mkdir build
 cd build
-cmake ..
+cmake -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} ..
 make -j `nproc`
 make install
