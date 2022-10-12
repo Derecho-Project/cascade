@@ -6,6 +6,7 @@
 #include <map>
 #include <memory>
 #include <nlohmann/json.hpp>
+#include <tuple>
 #include <wan_agent.hpp>
 
 // JSON key names for the DFG options list
@@ -27,6 +28,20 @@ class WanAgentBackupObserver : public OffCriticalDataPathObserver {
      * get_observer() can pass in configuration options.
      */
     std::unique_ptr<wan_agent::WanAgent> wanagent;
+    /**
+     * A copy of the CascadeContext pointer that should point to the CascadeContext
+     * for the node running this UDL. Cached from the pointer given to the get()
+     * function the first time it is called. Hopefully this won't become invalid
+     * because the CascadeContext is uniquely owned by the Service and the Service
+     * object outlives everything else.
+     */
+    ICascadeContext* cascade_context;
+    /**
+     * Maps each WanAgent message ID to the (key, version) pair for the object
+     * sent in that WanAgent message. Used to determine which object has finished
+     * being backed up when a WanAgent message is acknowledged.
+     */
+    std::map<uint64_t, std::pair<std::string, persistent::version_t>> key_for_message_id;
 
     static void atomic_initialize(ICascadeContext* context, const nlohmann::json& config_options) {
         uint32_t expected_uninit = UNINITIALIZED;
@@ -47,13 +62,34 @@ public:
                 min_msg_num = entry.second;
             }
         }
-        std::cout << "Message " << min_msg_num << " has been received by all backups" << std::endl;
-        // I could notify the client here, if there was any way to get access to the Derecho group handle
+        // Message number must be in the map, since we had to send it before we can receive an ack for it
+        auto [key_string, version] = key_for_message_id.at(min_msg_num);
+        std::cout << "Message " << min_msg_num << ", corresponding to " << key_string << " at version " << version << " has been received by all backups" << std::endl;
+        // Send a notification message to the client that submitted the update,
+        // indicating that the object has reached "backup stability"
+        // Message format: object key, object version (for now, we will assume all StandardCascadeNotifications indicate backup stability)
+        std::size_t message_size = mutils::bytes_size(key_string) + mutils::bytes_size(version);
+        // Problem: There is no way to construct a Blob without copying data into the buffer twice
+        uint8_t* temp_buffer_for_blob = new uint8_t[message_size];
+        std::size_t body_offset = 0;
+        body_offset += mutils::to_bytes(key_string, temp_buffer_for_blob + body_offset);
+        body_offset += mutils::to_bytes(version, temp_buffer_for_blob + body_offset);
+        Blob message_body(temp_buffer_for_blob, message_size);
+        delete[] temp_buffer_for_blob;
+        // PROBLEM: The UDL doesn't know which client submitted the update, and even if the client
+        // "subscribes" by sending a message to the PersistentStore/SignatureStore, the UDL won't know
+        // about the list of subscribed clients.
+
+        // node_id_t client_id = ???
+        // auto typed_context = dynamic_cast<DefaultCascadeContextType*>(cascade_context);
+        // typed_context->get_service_client_ref().notify(message_body, get_pathname<std::string>(key_string), client_id);
     }
     void agent_remote_message_callback(const uint32_t sender, const uint8_t* msg, const size_t size) {
         // This UDL's WanAgent should not be getting remote messages from the backup sites; it only sends to them
+        std::cout << "WARNING: Got a WanAgent message from backup site with ID " << sender << ", size = " << size << std::endl;
     }
-    WanAgentBackupObserver(ICascadeContext* context, const nlohmann::json& config_options) {
+    WanAgentBackupObserver(ICascadeContext* context, const nlohmann::json& config_options)
+            : cascade_context(context) {
         auto test_context = dynamic_cast<DefaultCascadeContextType*>(context);
         if(test_context == nullptr) {
             std::cerr << "ERROR: WanAgentBackupObserver was constructed on a server where the context type does not match DefaultCascadeContextType!" << std::endl;
@@ -81,6 +117,8 @@ public:
         // Send it with WanAgent
         uint64_t msg_num = wanagent->send(serialized_object.data(), serialized_object.size());
         std::cout << "Sent an object to the backup sites in message number " << msg_num << std::endl;
+        // Save the message number with the object's key and version
+        key_for_message_id.emplace(msg_num, std::make_pair(key_string, version));
     }
 
     static void initialize(ICascadeContext* context) {

@@ -37,6 +37,10 @@ add_custom_command(TARGET chain_only_client POST_BUILD
      ${CMAKE_CURRENT_BINARY_DIR}/chain_pipeline_cfg/n3/dfgs.json
      COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/chain_pipeline_cfg/dfgs.json
      ${CMAKE_CURRENT_BINARY_DIR}/chain_pipeline_cfg/n4/dfgs.json
+     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/chain_pipeline_cfg/backup_dfgs.json
+     ${CMAKE_CURRENT_BINARY_DIR}/chain_pipeline_cfg/n5/dfgs.json
+     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/chain_pipeline_cfg/backup_dfgs.json
+     ${CMAKE_CURRENT_BINARY_DIR}/chain_pipeline_cfg/n6/dfgs.json
      COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/chain_pipeline_cfg/udl_dlls.cfg
      ${CMAKE_CURRENT_BINARY_DIR}/chain_pipeline_cfg/n0/udl_dlls.cfg
      COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/chain_pipeline_cfg/udl_dlls.cfg
@@ -66,5 +70,7 @@ add_custom_command(TARGET chain_only_client POST_BUILD
              ${CMAKE_CURRENT_SOURCE_DIR}/chain_pipeline_cfg/dfgs.json
              ${CMAKE_CURRENT_SOURCE_DIR}/chain_pipeline_cfg/udl_dlls.cfg
              ${CMAKE_CURRENT_SOURCE_DIR}/chain_pipeline_cfg/layout.json
+             ${CMAKE_CURRENT_SOURCE_DIR}/chain_pipeline_cfg/backup_layout.json
+             ${CMAKE_CURRENT_SOURCE_DIR}/chain_pipeline_cfg/backup_dfgs.json
      COMMENT "prepare cascade_chain configuration"
 )

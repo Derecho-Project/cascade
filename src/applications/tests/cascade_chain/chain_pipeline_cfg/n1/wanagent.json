@@ -1,7 +1,7 @@
 {
     "version": "1.0.0",
     "transport" : "tcp",
-    "private_ip": "127.0.0.1",
+    "private_ip": "128.84.139.11",
     "private_port": 35000,
     "local_site_id" : 0,
     "max_payload_size": 102400,
@@ -9,12 +9,12 @@
     "sites": [
       {
         "id": 0,
-        "ip": "127.0.0.1",
+        "ip": "128.84.139.10",
         "port": 35000
       },
       {
         "id": 1,
-        "ip": "127.0.0.1",
+        "ip": "128.84.139.20",
         "port": 35001
       }
     ]

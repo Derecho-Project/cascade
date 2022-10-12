@@ -1,0 +1,20 @@
+[
+    {
+        "id": "8b0c1582-cd06-43bc-86cb-5ac99f315b3c",
+        "desc": "CascadeChain Backup Site DFG",
+        "graph": [
+            {
+                "pathname": "/storage",
+                "user_defined_logic_list": [],
+                "user_defined_logic_config_list": [{}],
+                "destinations": [{}]
+            },
+            {
+                "pathname": "/signatures",
+                "user_defined_logic_list": [],
+                "user_defined_logic_config_list": [{}],
+                "destinations": [{}]
+            }
+        ]
+    }
+]
