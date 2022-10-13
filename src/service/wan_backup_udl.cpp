@@ -131,6 +131,10 @@ public:
     }
 };
 
+std::shared_ptr<OffCriticalDataPathObserver> WanAgentBackupObserver::singleton_ptr;
+std::atomic<uint32_t> WanAgentBackupObserver::initialize_state;
+
+
 /* ----------------------- UDL Interface ----------------------- */
 
 std::string get_uuid() {
