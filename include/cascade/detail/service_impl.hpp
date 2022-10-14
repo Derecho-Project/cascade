@@ -69,6 +69,11 @@ Service<CascadeTypes...>::Service(const std::vector<DeserializationContext*>& ds
 }
 
 template <typename... CascadeTypes>
+Service<CascadeTypes...>::~Service() {
+    dbg_default_trace("{}:{} Service destructor is called.", __FILE__,__LINE__);
+}
+
+template <typename... CascadeTypes>
 void Service<CascadeTypes...>::run() {
     std::unique_lock<std::mutex> lck(this->service_control_mutex);
     this->service_control_cv.wait(lck, [this](){return !this->_is_running;});
@@ -129,6 +134,7 @@ void Service<CascadeTypes...>::wait() {
     if (service_ptr) {
         service_ptr->join();
     }
+    service_ptr.reset();
 }
 #endif//__WITHOUT_SERVICE_SINGLETONS__
 

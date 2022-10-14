@@ -118,6 +118,11 @@ public:
     }
 };
 
+template <typename... CascadeTypes>
+UserDefinedLogicManager<CascadeTypes...>::~UserDefinedLogicManager() {
+    // doing nothing, just make destructor virtual so that the real destructor will be called.
+}
+
 #define UDL_DLLS_CONFIG "udl_dlls.cfg"
 
 template <typename... CascadeTypes>
@@ -160,6 +165,7 @@ public:
     /* constructor */
     DLLFileManager(CascadeContext<CascadeTypes...>* ctxt):
         cascade_context(ctxt) {
+        dbg_default_trace("{}:{} DLLFileManager constructor is called.", __FILE__, __LINE__);
         load_and_initialize_dlls(ctxt);
     }
 
@@ -181,7 +187,9 @@ public:
     }
 
     virtual ~DLLFileManager() {
+        dbg_default_trace("{}:{} DLLFileManager destructor is called.", __FILE__, __LINE__);
         for (auto& kv:udl_map) {
+            dbg_default_trace("{}:{} releasing UDL:{}.", __FILE__, __LINE__, kv.first);
             kv.second->release(cascade_context);
         }
     }

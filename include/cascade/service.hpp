@@ -209,7 +209,12 @@ namespace cascade {
         Service(const std::vector<DeserializationContext*>& dsms,
                 derecho::cascade::Factory<CascadeMetadataService<CascadeTypes...>> metadata_service_factory,
                 derecho::cascade::Factory<CascadeTypes>... factories);
+
     public:
+        /**
+         * The virtual Service destructor.
+         */
+        virtual ~Service();
         /**
          * The workhorse
          */
