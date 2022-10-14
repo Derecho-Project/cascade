@@ -706,6 +706,13 @@ derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> ServiceClien
             auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
             if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
                 node_id = group_ptr->get_my_id();
+                // local get
+                auto obj = subgroup_handle.get_ref().get(key,version,stable);
+                auto pending_results = std::make_shared<PendingResults<const typename SubgroupType::ObjectType>>();
+                pending_results->fulfill_map({node_id});
+                pending_results->set_value(node_id,obj);                     
+                auto query_results = pending_results->get_future();
+                return std::move(*query_results);
             }
             return subgroup_handle.template p2p_send<RPC_NAME(get)>(node_id,key,version,stable,false);
         } catch (derecho::invalid_subgroup_exception& ex) {
@@ -2375,7 +2382,6 @@ template <typename... CascadeTypes>
 CascadeContext<CascadeTypes...>::~CascadeContext() {
     destroy();
 }
-
 
 }
 }
