@@ -498,6 +498,7 @@ namespace cascade {
         std::tuple<uint32_t,uint32_t,uint32_t> key_to_shard(
                 const KeyType& key, bool check_object_location = true);
 
+    public:
         /**
          * The Constructor
          * We prevent calling the constructor explicitely, because the ServiceClient is a singleton.
@@ -507,7 +508,6 @@ namespace cascade {
          */
         ServiceClient(derecho::Group<CascadeMetadataService<CascadeTypes...>, CascadeTypes...>* _group_ptr=nullptr);
 
-    public:
         /**
          * ServiceClient can be an external client or a cascade server. is_external_client() test this condition.
          * The external client implementation is based on ExternalGroupClient<> while the cascade node implementation is
