@@ -3,7 +3,8 @@
 1. Copy the `console_printer_udl` folder to your own project.
 1. Build the project as follows:
 ```
-project-folder $ mkdir build && cd build
+project-folder $ mkdir build && cd build 
+project-folder/build $ cmake ../console_printer_udl/
 project-folder/build $ make
 ```
 Then you should see the udl binary `libconsole_printer_udl.so` in your build folder.
