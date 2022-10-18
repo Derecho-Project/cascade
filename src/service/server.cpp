@@ -3,12 +3,7 @@
 #include "cascade/cascade.hpp"
 #include "cascade/service.hpp"
 #include "cascade/service_types.hpp"
-//
-// We should add a cascade service library side-by-side to libcascade.so to include the client-side implementations for
-// cascade service client. Right now, we put some of the implementations (create_null_object_cb<>, e.g.) as inline
-// functions in service_client_api.hpp. It's not a good design, which should change later.
 #include "cascade/object.hpp"
-#include "cascade/service_client_api.hpp"
 
 #include <derecho/conf/conf.hpp>
 #include <derecho/utils/logger.hpp>

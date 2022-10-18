@@ -70,17 +70,17 @@ namespace cascade {
     public:
         /**
          * This function has to be re-entrant/thread-safe.
-         * @param sender        The sender id
-         * @param key_string    The key string
-         * @param prefix        The matching prefix length key_string.subtring(0,prefix) returns the prefix.
-         *                      Please note that the trailing '/' is included.
-         * @param version       The version of the key
-         * @param value_ptr     The raw value pointer
-         * @param ctxt          The CascadeContext
-         * @param worker_id     The off critical data path worker id.
+         * @param sender            The sender id
+         * @param full_key_string   The full key string
+         * @param prefix            The matching prefix length key_string.subtring(0,prefix) returns the prefix.
+         *                          Please note that the trailing '/' is included.
+         * @param version           The version of the key
+         * @param value_ptr         The raw value pointer
+         * @param ctxt              The CascadeContext
+         * @param worker_id         The off critical data path worker id.
          */
         virtual void operator() (const node_id_t sender,
-                                 const std::string& key_string,
+                                 const std::string& full_key_string,
                                  const uint32_t prefix_length,
                                  persistent::version_t version,
                                  const mutils::ByteRepresentable* const value_ptr,
@@ -170,7 +170,7 @@ namespace cascade {
          */
         inline void fire(ICascadeContext* ctxt,uint32_t worker_id) {
             if (value_ptr && ocdpo_ptr) {
-                dbg_default_trace("In {}: action is fired.", __PRETTY_FUNCTION__);
+                dbg_default_trace("In {}: [worker_id={}] action is fired.", __PRETTY_FUNCTION__, worker_id);
                 (*ocdpo_ptr)(sender,key_string,prefix_length,version,value_ptr.get(),outputs,ctxt,worker_id);
             }
         }
@@ -1687,8 +1687,10 @@ namespace cascade {
     /**
      * configuration keys
      */
-    #define CASCADE_CONTEXT_NUM_WORKERS_MULTICAST   "CASCADE/num_workers_for_multicast_ocdp"
-    #define CASCADE_CONTEXT_NUM_WORKERS_P2P         "CASCADE/num_workers_for_p2p_ocdp"
+    #define CASCADE_CONTEXT_NUM_STATELESS_WORKERS_MULTICAST   "CASCADE/num_stateless_workers_for_multicast_ocdp"
+    #define CASCADE_CONTEXT_NUM_STATELESS_WORKERS_P2P         "CASCADE/num_stateless_workers_for_p2p_ocdp"
+    #define CASCADE_CONTEXT_NUM_STATEFUL_WORKERS_MULTICAST   "CASCADE/num_stateful_workers_for_multicast_ocdp"
+    #define CASCADE_CONTEXT_NUM_STATEFUL_WORKERS_P2P         "CASCADE/num_stateful_workers_for_p2p_ocdp"
     #define CASCADE_CONTEXT_CPU_CORES               "CASCADE/cpu_cores"
     #define CASCADE_CONTEXT_GPUS                    "CASCADE/gpus"
     #define CASCADE_CONTEXT_WORKER_CPU_AFFINITY     "CASCADE/worker_cpu_affinity"
@@ -1727,6 +1729,9 @@ namespace cascade {
                     std::string, // udl_id
                     std::tuple<
                         DataFlowGraph::VertexShardDispatcher,         // shard dispatcher
+#ifdef HAS_STATEFUL_UDL_SUPPORT
+                        DataFlowGraph::Statefulness,                  // is stateful/stateless/singlethreaded
+#endif//HAS_STATEFUL_UDL_SUPPORT
                         DataFlowGraph::VertexHook,                    // hook
                         std::shared_ptr<OffCriticalDataPathObserver>, // ocdpo
                         std::unordered_map<std::string,bool>          // output map{prefix->bool}
@@ -1750,8 +1755,14 @@ namespace cascade {
             inline void notify_all();
         };
         /** action (ring) buffer control */
-        struct action_queue action_queue_for_multicast;
-        struct action_queue action_queue_for_p2p;
+#ifdef HAS_STATEFUL_UDL_SUPPORT
+        std::vector<std::unique_ptr<struct action_queue>> stateful_action_queues_for_multicast;
+        std::vector<std::unique_ptr<struct action_queue>> stateful_action_queues_for_p2p;
+        struct action_queue single_threaded_action_queue_for_multicast;
+        struct action_queue single_threaded_action_queue_for_p2p;
+#endif//HAS_STATEFUL_UDL_SUPPORT
+        struct action_queue stateless_action_queue_for_multicast;
+        struct action_queue stateless_action_queue_for_p2p;
 
         /** thread pool control */
         std::atomic<bool>       is_running;
@@ -1762,8 +1773,14 @@ namespace cascade {
         /** the data path logic loader */
         std::unique_ptr<UserDefinedLogicManager<CascadeTypes...>> user_defined_logic_manager;
         /** the off-critical data path worker thread pools */
-        std::vector<std::thread> workhorses_for_multicast;
-        std::vector<std::thread> workhorses_for_p2p;
+        std::vector<std::thread> stateless_workhorses_for_multicast;
+        std::vector<std::thread> stateless_workhorses_for_p2p;
+#ifdef HAS_STATEFUL_UDL_SUPPORT
+        std::vector<std::thread> stateful_workhorses_for_multicast;
+        std::vector<std::thread> stateful_workhorses_for_p2p;
+        std::thread              single_threaded_workhorse_for_multicast;
+        std::thread              single_threaded_workhorse_for_p2p;
+#endif//HAS_STATEFUL_UDL_SUPPORT
         /** the service client: off critical data path logic use it to send data to a next tier. */
         std::unique_ptr<ServiceClient<CascadeTypes...>> service_client;
         /** The persistence observer: lets CascadeStore objects register actions to fire when their data finishes persisting */
@@ -1871,6 +1888,9 @@ namespace cascade {
          */
         virtual void register_prefixes(const std::unordered_set<std::string>& prefixes,
                                        const DataFlowGraph::VertexShardDispatcher shard_dispatcher,
+#ifdef HAS_STATEFUL_UDL_SUPPORT
+                                       const DataFlowGraph::Statefulness stateful,
+#endif
                                        const DataFlowGraph::VertexHook hook,
                                        const std::string& user_defined_logic_id,
                                        const std::shared_ptr<OffCriticalDataPathObserver>& ocdpo_ptr,
@@ -1896,20 +1916,25 @@ namespace cascade {
          * post an action to the Context for processing.
          *
          * @param action        The action
+         * @param stateful      If the action is stateful|stateless|singlethreaded
          * @param is_trigger    True for trigger, meaning the action will be processed in the workhorses for p2p send
          *
          * @return  true for a successful post, false for failure. The current only reason for failure is to post to a
          *          context already shut down.
          */
-        virtual bool post(Action&& action, bool is_trigger = false);
+#ifdef HAS_STATEFUL_UDL_SUPPORT
+        virtual bool post(Action&& action, DataFlowGraph::Statefulness stateful, bool is_trigger);
+#else
+        virtual bool post(Action&& action, bool is_trigger);
+#endif//HAS_STATEFUL_UDL_SUPPORT
 
         /**
-         * Get the action queue length
+         * Get the stateless action queue length
          *
          * @return current queue_length
          */
-        virtual size_t action_queue_length_p2p();
-        virtual size_t action_queue_length_multicast();
+        virtual size_t stateless_action_queue_length_p2p();
+        virtual size_t stateless_action_queue_length_multicast();
 
         /**
          * Destructor

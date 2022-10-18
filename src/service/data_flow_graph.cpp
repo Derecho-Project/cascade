@@ -30,12 +30,21 @@ DataFlowGraph::DataFlowGraph(const json& dfg_conf):
                 dfgv.shard_dispatchers[udl_uuid] = ((*it)[DFG_JSON_SHARD_DISPATCHER_LIST].at(i).get<std::string>() == "all")?
                     DataFlowGraph::VertexShardDispatcher::ALL : DataFlowGraph::VertexShardDispatcher::ONE;
             }
+            // stateful
+            dfgv.stateful[udl_uuid] = DataFlowGraph::Statefulness::STATEFUL;
+            if (it->contains(DFG_JSON_UDL_STATEFUL_LIST)) {
+                if ((*it)[DFG_JSON_UDL_STATEFUL_LIST].at(i).get<std::string>() == "stateless") {
+                    dfgv.stateful[udl_uuid] = DataFlowGraph::Statefulness::STATEFUL;
+                } else if ((*it)[DFG_JSON_UDL_STATEFUL_LIST].at(i).get<std::string>() == "singlethreaded") {
+                    dfgv.stateful[udl_uuid] = DataFlowGraph::Statefulness::SINGLETHREADED;
+                }
+            }
             // hooks
             dfgv.hooks[udl_uuid] = DataFlowGraph::VertexHook::BOTH;
             if (it->contains(DFG_JSON_UDL_HOOK_LIST)) {
                 if ((*it)[DFG_JSON_UDL_HOOK_LIST].at(i).get<std::string>() == "trigger") {
                     dfgv.hooks[udl_uuid] = DataFlowGraph::VertexHook::TRIGGER_PUT;
-                } else if ((*it)[DFG_JSON_SHARD_DISPATCHER_LIST].at(i).get<std::string>() == "ordered") {
+                } else if ((*it)[DFG_JSON_UDL_HOOK_LIST].at(i).get<std::string>() == "ordered") {
                     dfgv.hooks[udl_uuid] = DataFlowGraph::VertexHook::ORDERED_PUT;
                 }
             }

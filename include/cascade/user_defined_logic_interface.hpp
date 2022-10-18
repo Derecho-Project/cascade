@@ -36,6 +36,7 @@ std::string get_description();
 
 /**
  * Initialize the user defined logic
+ * This function is called only once on dll loading.
  *
  * @param ctxt - cascade context
  */
@@ -43,6 +44,7 @@ void initialize(ICascadeContext* ctxt);
 
 /**
  * register triggers to cascade
+ * This function will be called on each UDL instance registered in application DFGs.
  *
  * @param   ctxt - cascade context
  * @param   config is a configuration string from dfgs.json to customize the UDL behaviour.
@@ -53,10 +55,50 @@ std::shared_ptr<OffCriticalDataPathObserver> get_observer(
 
 /**
  * Release the user defined logic
+ * This function is called only once on dll unloading.
  *
  * @param ctxt
  */
 void release(ICascadeContext* ctxt);
+
+/**
+ * An Easier to use API with service type awareness.
+ * Hierarchy:
+ *
+ * OffCriticalDataPathObserver    [IDefaultOffCriticalDataPathObserver]
+ *             ^                                     ^
+ *             |                                     |
+ *             |      +------------------------------+
+ *             |      |
+ * DefaultOffCriticalDataPathObserver
+ * 
+ * Please derive your own ocdpo from DefaultOffCriticalDataPathObserver, and override the virtual methods defined in
+ * IDefaultOffCriticalDataPathObserver
+ */
+class IDefaultOffCriticalDataPathObserver {
+public:
+    /** 
+     * Typed ocdpo handler derived from the Cascade service types defined in service_types.hpp
+     * @param sender                The sender id
+     * @param object_pool_pathname  The object pool pathname
+     * @param key_string            The key inside the object pool's domain
+     * @param object                The immutable object live in the temporary buffer shared by multiple worker threads.
+     * @param emit                  Output of the result
+     * @param typed_ctxt            The typed context pointer to get access of extra Cascade service
+     * @param worker_id             The off critical data path worker id.
+     */
+    virtual void ocdpo_handler (
+            const node_id_t                 sender,
+            const std::string&              object_pool_pathname,
+            const std::string&              key_string,
+            const ObjectWithStringKey&      object,
+            const std::function<void(const std::string&, const Blob&)>& emit,
+            DefaultCascadeContextType*      typed_ctxt,
+            uint32_t                        worker_id) = 0;
+};
+class DefaultOffCriticalDataPathObserver;
+
+#include "detail/udl_toolkits.hpp"
 
 } // namespace cascade
 } // namespace derecho

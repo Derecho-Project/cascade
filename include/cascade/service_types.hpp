@@ -60,5 +60,20 @@ using ChainServiceType = Service<PersistentCascadeStoreWithStringKey,
 using ChainContextType = CascadeContext<PersistentCascadeStoreWithStringKey,
                                         SignatureCascadeStoreWithStringKey>;
 
+using DefaultObjectPoolMetadataType = ObjectPoolMetadata<
+                                                VolatileCascadeStoreWithStringKey,
+                                                PersistentCascadeStoreWithStringKey,
+                                                TriggerCascadeNoStoreWithStringKey>;
+template <>
+inline DefaultObjectPoolMetadataType create_null_object_cb<
+                                        std::string,
+                                        DefaultObjectPoolMetadataType,
+                                        &DefaultObjectPoolMetadataType::IK,
+                                        &DefaultObjectPoolMetadataType::IV>(const std::string& key) {
+    DefaultObjectPoolMetadataType opm;
+    opm.pathname = key;
+    opm.subgroup_type_index = DefaultObjectPoolMetadataType::invalid_subgroup_type_index;
+    return opm;
+}
 } // namespace cascade
 } // namespace derecho
