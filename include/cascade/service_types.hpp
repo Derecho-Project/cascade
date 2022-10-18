@@ -52,18 +52,11 @@ using DefaultCascadeContextType = CascadeContext<VolatileCascadeStoreWithStringK
                                                  SignatureCascadeStoreWithStringKey,
                                                  TriggerCascadeNoStoreWithStringKey>;
 
-// Specializations for CascadeChain
-// For now, these will not be used, and we'll just add SignatureCascadeStore to the default service
-using ChainServiceType = Service<PersistentCascadeStoreWithStringKey,
-                                 SignatureCascadeStoreWithStringKey>;
+using DefaultObjectPoolMetadataType = ObjectPoolMetadata<VolatileCascadeStoreWithStringKey,
+                                                         PersistentCascadeStoreWithStringKey,
+                                                         SignatureCascadeStoreWithStringKey,
+                                                         TriggerCascadeNoStoreWithStringKey>;
 
-using ChainContextType = CascadeContext<PersistentCascadeStoreWithStringKey,
-                                        SignatureCascadeStoreWithStringKey>;
-
-using DefaultObjectPoolMetadataType = ObjectPoolMetadata<
-                                                VolatileCascadeStoreWithStringKey,
-                                                PersistentCascadeStoreWithStringKey,
-                                                TriggerCascadeNoStoreWithStringKey>;
 template <>
 inline DefaultObjectPoolMetadataType create_null_object_cb<
                                         std::string,
@@ -75,5 +68,14 @@ inline DefaultObjectPoolMetadataType create_null_object_cb<
     opm.subgroup_type_index = DefaultObjectPoolMetadataType::invalid_subgroup_type_index;
     return opm;
 }
+
+// Specializations for CascadeChain, if we decide to make it a different type of service from the default
+// For now, these will not be used, and we'll just add SignatureCascadeStore to the default service
+using ChainServiceType = Service<PersistentCascadeStoreWithStringKey,
+                                 SignatureCascadeStoreWithStringKey>;
+
+using ChainContextType = CascadeContext<PersistentCascadeStoreWithStringKey,
+                                        SignatureCascadeStoreWithStringKey>;
+
 } // namespace cascade
 } // namespace derecho

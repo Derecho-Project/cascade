@@ -36,10 +36,10 @@ void DefaultOffCriticalDataPathObserver::operator() (
 #ifdef ENABLE_EVALUATION
                             0,
 #endif
-                            INVALID_VERSION,
+                            persistent::INVALID_VERSION,
                             0ull,
-                            INVALID_VERSION,
-                            INVALID_VERSION,
+                            persistent::INVALID_VERSION,
+                            persistent::INVALID_VERSION,
                             new_key,
                             blob,
                             true);
