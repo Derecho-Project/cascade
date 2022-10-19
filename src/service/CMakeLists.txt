@@ -113,6 +113,7 @@ target_include_directories(sha_hash_udl PRIVATE
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
 )
 target_link_libraries(sha_hash_udl derecho::derecho OpenSSL::Crypto)
+add_dependencies(sha_hash_udl cascade)
 
 add_library(wan_backup_udl SHARED wan_backup_udl.cpp)
 target_include_directories(wan_backup_udl PRIVATE
@@ -122,6 +123,7 @@ target_include_directories(wan_backup_udl PRIVATE
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
 )
 target_link_libraries(wan_backup_udl derecho::derecho wanagent::wanagent)
+add_dependencies(wan_backup_udl cascade)
 
 # install
 install(TARGETS client server
