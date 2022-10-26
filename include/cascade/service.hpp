@@ -1504,9 +1504,9 @@ namespace cascade {
      * 3 - a bounded Action buffer.
      */
     using prefix_entry_t =
-                std::unordered_map<
-                    std::string, // udl_id
+                std::vector<
                     std::tuple<
+                        std::string,                                  // udl_id
                         DataFlowGraph::VertexShardDispatcher,         // shard dispatcher
 #ifdef HAS_STATEFUL_UDL_SUPPORT
                         DataFlowGraph::Statefulness,                  // is stateful/stateless/singlethreaded

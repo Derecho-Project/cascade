@@ -1957,19 +1957,19 @@ void CascadeContext<CascadeTypes...>::construct() {
     auto dfgs = DataFlowGraph::get_data_flow_graphs();
     for (auto& dfg:dfgs) {
         for (auto& vertex:dfg.vertices) {
-            for (auto& edge:vertex.second.edges) {
+            for (int i=0; i<vertex.uuids.size(); i++) {
                 register_prefixes(
-                        {vertex.second.pathname},
-                        vertex.second.shard_dispatchers.at(edge.first),
+                    {vertex.second.pathname},
+                    vertex.second.shard_dispatchers[i],
 #ifdef HAS_STATEFUL_UDL_SUPPORT
-                        vertex.second.stateful.at(edge.first),
+                    vertex.second.stateful[i],
 #endif
-                        vertex.second.hooks.at(edge.first),
-                        edge.first,
-                        user_defined_logic_manager->get_observer(
-                            edge.first, // UUID
-                            vertex.second.configurations.at(edge.first)),
-                        edge.second);
+                    vertex.second.hooks[i],
+                    vertex.second.uuids[i],
+                    user_defined_logic_manager->get_observer(
+                        vertex.second.uuid[i],
+                        vertex.second.configuration[i]),
+                    vertex.second.edges[i]);
             }
         }
     }
