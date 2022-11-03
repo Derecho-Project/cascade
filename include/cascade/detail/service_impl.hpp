@@ -2149,7 +2149,7 @@ template <typename... CascadeTypes>
 void CascadeContext<CascadeTypes...>::action_queue::action_buffer_enqueue(Action&& action) {
     std::unique_lock<std::mutex> lck(action_buffer_slot_mutex);
     while (ACTION_BUFFER_IS_FULL) {
-        dbg_default_warn("In {}: Critical data path waits for 10 ms.", __PRETTY_FUNCTION__);
+        dbg_default_warn("In {}: Critical data path waits for 10 ms. The action buffer is full! You are sending too fast or the UDL workers are too slow. This can cause a soft deadlock.", __PRETTY_FUNCTION__);
         action_buffer_slot_cv.wait_for(lck,10ms,[this]{return !ACTION_BUFFER_IS_EMPTY;});
     }
 
