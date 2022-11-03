@@ -90,7 +90,7 @@ namespace cascade {
      *
      * !!! IMPORTANT NOTES ON "ACTION" DESIGN !!!
      * Action carries the key string, version, prefix handler (ocdpo_raw_ptr), and the object value so that the prefix
-     * handler have all the information to process in the worker thread. It is important to avoid unnecessary copies
+     * handler has all the information to process in the worker thread. It is important to avoid unnecessary copies
      * because the object value is big sometime (for example, a high resolution video clip). Currently, we copied the
      * value data into a new allocated memory buffer pointed by a unique pointer in the critical data path because the
      * value in critical data path is in Derecho's managed RDMA buffer, which will not last beyond the lifetime of the
