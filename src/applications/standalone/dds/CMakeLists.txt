@@ -27,13 +27,13 @@ add_library(cascade_dds SHARED src/dds.cpp)
 target_include_directories(cascade_dds PUBLIC
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>)
-target_link_libraries(cascade_dds derecho::cascade)
+target_link_libraries(cascade_dds derecho::cascade pthread)
 
 add_executable(cascade_dds_client src/client.cpp)
 target_include_directories(cascade_dds PUBLIC
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>)
-target_link_libraries(cascade_dds_client derecho::cascade cascade_dds readline)
+target_link_libraries(cascade_dds_client derecho::cascade cascade_dds readline pthread)
 
 add_library(cascade_dds_udl SHARED src/dds_udl.cpp)
 target_include_directories(cascade_dds_udl PRIVATE
