@@ -48,7 +48,7 @@ Cascade is a C++17 cloud application framework powered by optimized RDMA data pa
 ```
 Please note that the cmake script will check whether the python3 environment (along with pybind11) is available or not. If python environment is not detected, the building process will disable python support quietly. If your `pybind11` is not installed in a standard place, which is very common if `pybind11` is install by `pip3`, you can use `-Dpybind11_DIR=` option for cmake to specify the location of pybind11 as following:
 ```
-cmake -Dpybind11_DIR=/usr/local/lib/python3.8/dist-packages/pybind11/share/cmake/pybind11 ..
+cmake -Dpybind11_DIR=`pybind11-config --cmakedir` ..
 ```
 
 3) Install Cascade
