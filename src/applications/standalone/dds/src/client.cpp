@@ -143,7 +143,7 @@ static bool run_pingpong_latency(
 }
 
 /**
- * throughput test. 
+ * perftest: controlled latency and throughput test. 
  * There are two possible modes: pub/sub. In pub mode, the tester will publish a series of
  * messages to the specified topic; In sub mode, the tester will wait on the give topic for specified number of
  * messages. A log file <topic>.<pub|sub>.log will be generated.
@@ -155,7 +155,7 @@ static bool run_pingpong_latency(
  * @param count             The total number of messages to publish
  * @param rate_mps          Message rate at number of messages per second, only relavent to the subscriber.
  */
-static bool run_throughput(
+static bool run_perftest(
         DDSMetadataClient& metadata_client,
         DDSClient& client,
         const std::string& topic,
@@ -525,9 +525,9 @@ std::vector<command_entry_t> commands = {
         }
     },
     {
-        "throughput",
-        "Perform throughput performance test",
-        "throughput <pub|sub> <topic> [count] [rate_mps]\n"
+        "perftest",
+        "Performance test for end-to-end latency/throughput",
+        "perftest <pub|sub> <topic> [count] [rate_mps]\n"
             "\trate_mps - target sending rate at message per second, default to 100 mps\n"
             "\tcount    - the total number of messages to send, default to 1000 mps",
         [](DDSMetadataClient& metadata_client,DDSClient& client,const std::vector<std::string>& cmd_tokens) {
@@ -542,7 +542,7 @@ std::vector<command_entry_t> commands = {
             if (cmd_tokens.size() >= 5) {
                 rate_mps = std::stoul(cmd_tokens[4]);
             }
-            return run_throughput(metadata_client,client,topic,pub_mode,count,rate_mps);
+            return run_perftest(metadata_client,client,topic,pub_mode,count,rate_mps);
         }
     },
 };
