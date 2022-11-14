@@ -106,7 +106,7 @@ class DDSOCDPO: public OffCriticalDataPathObserver {
                                     seqno ++;
                                 }
                             }
-                            server_timestamp.clear();
+                            server_timestamp.at(command.topic).clear();
                             outfile.close();
                             dbg_default_trace("flush timestamp for topic:{}",command.topic);
 #endif
