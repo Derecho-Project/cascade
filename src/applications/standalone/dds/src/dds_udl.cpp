@@ -38,7 +38,9 @@ class DDSOCDPO: public OffCriticalDataPathObserver {
                               const std::unordered_map<std::string,bool>&, // output
                               ICascadeContext* ctxt,
                               uint32_t /*worker_id*/) override {
+#ifdef ENABLE_SERVER_TIMESTAMP_LOG
         auto* typed_ctxt = dynamic_cast<DefaultCascadeContextType*>(ctxt);
+#endif
         if (key_string.size() <= prefix_length) {
             dbg_default_warn("{}: skipping invalid key_string:{}.", __PRETTY_FUNCTION__, key_string);
             return;
@@ -51,7 +53,11 @@ class DDSOCDPO: public OffCriticalDataPathObserver {
             mutils::deserialize_and_run(
                     nullptr, 
                     object->blob.bytes, 
+#ifdef ENABLE_SERVER_TIMESTAMP_LOG
                     [&sender,&key_string,&typed_ctxt,this](const DDSCommand& command){
+#else
+                    [&sender,this](const DDSCommand& command){
+#endif
                         if (command.command_type == DDSCommand::SUBSCRIBE) {
                             std::unique_lock<std::shared_mutex> wlock(this->subscriber_registry_mutex);
                             if (subscriber_registry.find(command.topic) == subscriber_registry.end()) {
@@ -65,6 +71,7 @@ class DDSOCDPO: public OffCriticalDataPathObserver {
                                 subscriber_registry.at(command.topic).erase(sender);
                             }
                             dbg_default_trace("Sender {} unsubscribed from topic:{}",sender,command.topic);
+#ifdef ENABLE_SERVER_TIMESTAMP_LOG
                         } else if (command.command_type == DDSCommand::FLUSH_TIMESTAMP_TRIGGER){
                             std::cout << "node " << sender << " triggered flush timestamp for topic: " << command.topic << std::endl;
                             DDSCommand ordered_flush_command(DDSCommand::CommandType::FLUSH_TIMESTAMP_ORDERED,command.topic);
@@ -78,6 +85,7 @@ class DDSOCDPO: public OffCriticalDataPathObserver {
                             // TODO: flush it.
                             std::cout << "Member " << sender << " asked to flush timestamp for topic: " << command.topic << std::endl;
                             dbg_default_trace("Member {} asked to flush timestamp for topic:{}",sender,command.topic);
+#endif
                         } else {
                             dbg_default_warn("Unknown DDS command Received: type={},topic='{}'",
                                     command.command_type,command.topic);

@@ -545,6 +545,7 @@ std::vector<command_entry_t> commands = {
             return run_perftest(metadata_client,client,topic,pub_mode,count,rate_mps);
         }
     },
+#ifdef ENABLE_SERVER_TIMESTAMP_LOG
     {
         "flush_timestamp",
         "Flush and clear the timestamp logger for a topic",
@@ -556,6 +557,7 @@ std::vector<command_entry_t> commands = {
             return true;
         }
     },
+#endif
 };
 
 static void do_command(
