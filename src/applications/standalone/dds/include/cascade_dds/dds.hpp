@@ -3,6 +3,7 @@
 #include <derecho/mutils-serialization/SerializationSupport.hpp>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <vector>
 #include <unordered_map>
 #include <shared_mutex>
@@ -177,6 +178,8 @@ public:
         INVALID_TYPE,
         SUBSCRIBE,
         UNSUBSCRIBE,
+        FLUSH_TIMESTAMP_TRIGGER, // trigger a flush timestamp operation (in trigger)
+        FLUSH_TIMESTAMP_ORDERED // really flush timestamp
     };
     /* Command type */
     CommandType command_type;
@@ -196,6 +199,12 @@ public:
             break;
         case UNSUBSCRIBE:
             command_name = "unsubscribe";
+            break;
+        case FLUSH_TIMESTAMP_TRIGGER:
+            command_name = "flush_timestamp_trigger";
+            break;
+        case FLUSH_TIMESTAMP_ORDERED:
+            command_name = "flush_timestamp_ordered";
             break;
         default:
             command_name = "invalid";
@@ -251,6 +260,7 @@ private:
     ServiceClientAPI&                       capi;
     std::unique_ptr<DDSSubscriberRegistry>  subscriber_registry;
     std::unique_ptr<DDSMetadataClient>      metadata_service;
+    std::string                             control_plane_suffix;
 
 public:
     /**
@@ -287,6 +297,12 @@ public:
      */
     template <typename MessageType>
     void unsubscribe(const std::unique_ptr<DDSSubscriber<MessageType>>& subscriber);
+
+    /**
+     * flush the timestamp of a topic
+     * @param topic                 topic name
+     */
+    void flush_timestamp(const std::string& topic);
 
     /**
      * destructor

@@ -38,6 +38,7 @@ class DDSOCDPO: public OffCriticalDataPathObserver {
                               const std::unordered_map<std::string,bool>&, // output
                               ICascadeContext* ctxt,
                               uint32_t /*worker_id*/) override {
+        auto* typed_ctxt = dynamic_cast<DefaultCascadeContextType*>(ctxt);
         if (key_string.size() <= prefix_length) {
             dbg_default_warn("{}: skipping invalid key_string:{}.", __PRETTY_FUNCTION__, key_string);
             return;
@@ -45,12 +46,12 @@ class DDSOCDPO: public OffCriticalDataPathObserver {
         std::string key_without_prefix = key_string.substr(prefix_length);
         dbg_default_trace("{}: key_without_prefix={}.", __PRETTY_FUNCTION__, key_without_prefix);
         const ObjectWithStringKey* object = dynamic_cast<const ObjectWithStringKey*>(value_ptr);
-        if (key_without_prefix == control_plane_suffix) {
+            if (key_without_prefix == control_plane_suffix) {
             // control plane
             mutils::deserialize_and_run(
                     nullptr, 
                     object->blob.bytes, 
-                    [&sender,this](const DDSCommand& command){
+                    [&sender,&key_string,&typed_ctxt,this](const DDSCommand& command){
                         if (command.command_type == DDSCommand::SUBSCRIBE) {
                             std::unique_lock<std::shared_mutex> wlock(this->subscriber_registry_mutex);
                             if (subscriber_registry.find(command.topic) == subscriber_registry.end()) {
@@ -64,6 +65,19 @@ class DDSOCDPO: public OffCriticalDataPathObserver {
                                 subscriber_registry.at(command.topic).erase(sender);
                             }
                             dbg_default_trace("Sender {} unsubscribed from topic:{}",sender,command.topic);
+                        } else if (command.command_type == DDSCommand::FLUSH_TIMESTAMP_TRIGGER){
+                            std::cout << "node " << sender << " triggered flush timestamp for topic: " << command.topic << std::endl;
+                            DDSCommand ordered_flush_command(DDSCommand::CommandType::FLUSH_TIMESTAMP_ORDERED,command.topic);
+                            std::size_t buffer_size = mutils::bytes_size(ordered_flush_command);
+                            uint8_t stack_buffer[buffer_size];
+                            mutils::to_bytes(ordered_flush_command,stack_buffer);
+                            ObjectWithStringKey object(key_string,Blob(stack_buffer,buffer_size,true));
+                            typed_ctxt->get_service_client_ref().put_and_forget(object);
+                            dbg_default_trace("Sender {} triggered flush timestamp for topic:{}",sender,command.topic);
+                        } else if (command.command_type == DDSCommand::FLUSH_TIMESTAMP_ORDERED){
+                            // TODO: flush it.
+                            std::cout << "Member " << sender << " asked to flush timestamp for topic: " << command.topic << std::endl;
+                            dbg_default_trace("Member {} asked to flush timestamp for topic:{}",sender,command.topic);
                         } else {
                             dbg_default_warn("Unknown DDS command Received: type={},topic='{}'",
                                     command.command_type,command.topic);
