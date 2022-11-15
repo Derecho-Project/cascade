@@ -126,7 +126,11 @@ class DDSOCDPO: public OffCriticalDataPathObserver {
                     typed_ctxt->get_service_client_ref().notify(object->blob,key_string.substr(0,prefix_length-1),client_id);
                 }
 #ifdef ENABLE_SERVER_TIMESTAMP_LOG
-                server_timestamp.at(key_without_prefix).emplace_back(get_time_us());
+                // topic(key_without_prefix) may not exists in server_timestamp map if 
+                // subscriber_registry[topic] is empty.
+                if (server_timestamp.find(key_without_prefix) != server_timestamp.cend()) {
+                    server_timestamp.at(key_without_prefix).emplace_back(get_time_us());
+                }
 #endif
             } else {
                 dbg_default_trace("Key:{} is not found in subscriber_registry.", key_without_prefix);
