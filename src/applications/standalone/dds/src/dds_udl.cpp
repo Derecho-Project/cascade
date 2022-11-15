@@ -105,8 +105,8 @@ class DDSOCDPO: public OffCriticalDataPathObserver {
                                     outfile << seqno << " " << ts << std::endl;
                                     seqno ++;
                                 }
+                                server_timestamp.at(command.topic).clear();
                             }
-                            server_timestamp.at(command.topic).clear();
                             outfile.close();
                             dbg_default_trace("flush timestamp for topic:{}",command.topic);
 #endif
