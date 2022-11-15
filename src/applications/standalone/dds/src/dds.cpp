@@ -292,10 +292,26 @@ void DDSSubscriberRegistry::_topic_control(ServiceClientAPI& capi, const Topic& 
 
 DDSClient::DDSClient(
         const std::shared_ptr<DDSConfig>& _dds_config):
+#ifdef ENABLE_SERVER_TIMESTAMP_LOG
+        control_plane_suffix(_dds_config->get_control_plane_suffix()),
+#endif
         capi(ServiceClientAPI::get_service_client()) {
     subscriber_registry = std::make_unique<DDSSubscriberRegistry>(_dds_config->get_control_plane_suffix());
     metadata_service = std::make_unique<DDSMetadataClient>(_dds_config->get_metadata_pathname());
 }
+
+#ifdef ENABLE_SERVER_TIMESTAMP_LOG
+void DDSClient::flush_timestamp(const std::string& topic) {
+    auto topic_info = metadata_service->get_topic(topic);
+    DDSCommand command(DDSCommand::CommandType::FLUSH_TIMESTAMP_TRIGGER,topic_info.name);
+    std::size_t buffer_size = mutils::bytes_size(command);
+    uint8_t stack_buffer[buffer_size];
+    mutils::to_bytes(command,stack_buffer);
+    ObjectWithStringKey object(topic_info.pathname + PATH_SEPARATOR + control_plane_suffix,Blob(stack_buffer,buffer_size,true));
+    capi.trigger_put(object);
+    dbg_default_trace("Sent DDS command:{} to service, command key={}", command.to_string(), object.get_key_ref());
+}
+#endif
 
 DDSClient::~DDSClient() {
     // nothing to release manually

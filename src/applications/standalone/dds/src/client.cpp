@@ -545,6 +545,19 @@ std::vector<command_entry_t> commands = {
             return run_perftest(metadata_client,client,topic,pub_mode,count,rate_mps);
         }
     },
+#ifdef ENABLE_SERVER_TIMESTAMP_LOG
+    {
+        "flush_timestamp",
+        "Flush and clear the timestamp logger for a topic",
+        "flush_timestamp <topic>",
+        [](DDSMetadataClient& metadata_client,DDSClient& client,const std::vector<std::string>& cmd_tokens) {
+            CHECK_FORMAT(cmd_tokens,1);
+            std::string topic = cmd_tokens[1];
+            client.flush_timestamp(topic);
+            return true;
+        }
+    },
+#endif
 };
 
 static void do_command(
