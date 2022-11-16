@@ -215,7 +215,7 @@ void TimestampLogger::instance_clear() {
     pthread_spin_unlock(&lck);
 }
 
-TimestampLogger TimestampLogger::_tl;
+TimestampLogger TimestampLogger::_tl{};
 #endif
 
 }
