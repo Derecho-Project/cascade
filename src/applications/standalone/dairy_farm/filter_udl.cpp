@@ -51,7 +51,7 @@ class DairyFarmFilterOCDPO: public OffCriticalDataPathObserver {
         auto* typed_ctxt = dynamic_cast<DefaultCascadeContextType*>(ctxt);
 #ifdef ENABLE_EVALUATION
         if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
-            global_timestamp_logger.log(TLT_FRONTEND_TRIGGERED,
+            TimestampLogger::log(TLT_FRONTEND_TRIGGERED,
                                         typed_ctxt->get_service_client_ref().get_my_id(),
                                         reinterpret_cast<const ObjectWithStringKey*>(value_ptr)->get_message_id(),
                                         get_walltime());
@@ -123,7 +123,7 @@ class DairyFarmFilterOCDPO: public OffCriticalDataPathObserver {
         // std::cout << "prediction: " << prediction << std::endl;
 #ifdef ENABLE_EVALUATION
         if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
-            global_timestamp_logger.log(TLT_FRONTEND_PREDICTED,
+            TimestampLogger::log(TLT_FRONTEND_PREDICTED,
                                         typed_ctxt->get_service_client_ref().get_my_id(),
                                         tcss_value->get_message_id(),
                                         get_walltime());
@@ -165,7 +165,7 @@ class DairyFarmFilterOCDPO: public OffCriticalDataPathObserver {
         }
 #ifdef ENABLE_EVALUATION
         if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
-            global_timestamp_logger.log(TLT_FRONTEND_FORWARDED,
+            TimestampLogger::log(TLT_FRONTEND_FORWARDED,
                                         typed_ctxt->get_service_client_ref().get_my_id(),
                                         tcss_value->get_message_id(),
                                         get_walltime());

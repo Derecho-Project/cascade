@@ -34,7 +34,7 @@ class PipelineOCDPO: public OffCriticalDataPathObserver {
         auto* typed_ctxt = dynamic_cast<DefaultCascadeContextType*>(ctxt);
         const auto* const value = dynamic_cast<const ObjectWithStringKey* const>(value_ptr);
 #ifdef ENABLE_EVALUATION
-        global_timestamp_logger.log(TLT_PIPELINE(stage),
+        TimestampLogger::log(TLT_PIPELINE(stage),
             typed_ctxt->get_service_client_ref().get_my_id(),
             value->get_message_id(),
             get_walltime(),

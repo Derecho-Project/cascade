@@ -182,11 +182,12 @@ public:
 #define TLT_PIPELINE(x)                     (10000 + (x))
 #define TLT_DAIRYFARMDEMO(x)                (20000 + (x))
 
+#define CASCADE_TIMESTAMP_LOGGER
+
 class TimestampLogger {
 private:
     std::vector<std::tuple<uint64_t,uint64_t,uint64_t,uint64_t,uint64_t>> _log;
     pthread_spinlock_t lck;
-public:
     /**
      * Constructor
      */
@@ -198,20 +199,47 @@ public:
      * @param msg_id    message id
      * @param ts_ns     timestamp in nanoseconds
      */
-    void log(uint64_t tag, uint64_t node_id, uint64_t msg_id, uint64_t ts_ns, uint64_t extra=0ull);
+    void instance_log(uint64_t tag, uint64_t node_id, uint64_t msg_id, uint64_t ts_ns, uint64_t extra=0ull);
     /**
      * Flush log to file
      * @param filename  filename
      * @param clear     True for clear the log after flush
      */
-    void flush(const std::string& filename, bool clear = true);
+    void instance_flush(const std::string& filename, bool clear = true);
     /**
      * Clear the log
      */
-    void clear();
-};
+    void instance_clear();
 
-extern TimestampLogger global_timestamp_logger;
+    /** singleton */
+    static TimestampLogger _tl;
+
+public:
+    /**
+     * Log the timestamp
+     * @param tag       timestamp tag
+     * @param node_id   node id
+     * @param msg_id    message id
+     * @param ts_ns     timestamp in nanoseconds
+     */
+    static inline void log(uint64_t tag, uint64_t node_id, uint64_t msg_id, uint64_t ts_ns, uint64_t extra=0ull) {
+        _tl.instance_log(tag,node_id,msg_id,ts_ns,extra);
+    }
+    /**
+     * Flush log to file
+     * @param filename  filename
+     * @param clear     True for clear the log after flush
+     */
+    static inline void flush(const std::string& filename, bool clear = true) {
+        _tl.instance_flush(filename,clear);
+    }
+    /**
+     * Clear the log
+     */
+    static inline void clear() {
+        _tl.instance_clear();
+    }
+};
 
 #endif
 

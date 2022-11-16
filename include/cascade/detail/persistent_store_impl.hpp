@@ -490,7 +490,7 @@ void PersistentCascadeStore<KT, VT, IK, IV, ST>::dump_timestamp_log(const std::s
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_dump_timestamp_log(const std::string& filename) {
     debug_enter_func_with_args("filename={}", filename);
-    global_timestamp_logger.flush(filename);
+    TimestampLogger::flush(filename);
     debug_leave_func();
 }
 
@@ -498,7 +498,7 @@ void PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_dump_timestamp_log(cons
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void PersistentCascadeStore<KT, VT, IK, IV, ST>::dump_timestamp_log_workaround(const std::string& filename) const {
     debug_enter_func_with_args("filename={}", filename);
-    global_timestamp_logger.flush(filename);
+    TimestampLogger::flush(filename);
     debug_leave_func();
 }
 #endif
