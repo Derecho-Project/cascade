@@ -22,11 +22,16 @@ namespace cascade {
 #define debug_enter_func() dbg_default_debug("Entering {}.", __func__)
 #define debug_leave_func() dbg_default_debug("Leaving {}.", __func__)
 
-inline uint64_t get_time_us(bool use_wall_clock = true) {
+inline uint64_t get_time_ns(bool use_wall_clock = true) {
     struct timespec tv;
     clock_gettime(use_wall_clock?CLOCK_REALTIME:CLOCK_MONOTONIC,&tv);
-    return (tv.tv_sec*1000000 + tv.tv_nsec/1000);
+    return (tv.tv_sec*1e9+ tv.tv_nsec);
 }
+
+inline uint64_t get_time_us(bool use_wall_clock = true) {
+    return get_time_ns(use_wall_clock)/1e3;
+}
+
 
 /**
  * decompose the prefix into tokens. Please note that the token after the last separator is not considered a part of
@@ -224,7 +229,7 @@ public:
      * @param msg_id    message id
      * @param ts_ns     timestamp in nanoseconds
      */
-    static inline void log(uint64_t tag, uint64_t node_id, uint64_t msg_id, uint64_t ts_ns, uint64_t extra=0ull) {
+    static inline void log(uint64_t tag, uint64_t node_id, uint64_t msg_id, uint64_t ts_ns=get_time_ns(), uint64_t extra=0ull) {
         _tl.instance_log(tag,node_id,msg_id,ts_ns,extra);
     }
     /**
