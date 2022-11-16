@@ -48,7 +48,7 @@ Service<CascadeTypes...>::Service(const std::vector<DeserializationContext*>& ds
                     nullptr,
                     // persistent
                     [this](subgroup_id_t sgid, persistent::version_t ver){
-                        global_timestamp_logger.log(TLT_PERSISTED,group->get_my_id(),0,get_walltime(),ver);
+                        TimestampLogger::log(TLT_PERSISTED,group->get_my_id(),0,get_walltime(),ver);
                     },
                     nullptr
 #endif

@@ -657,7 +657,7 @@ bool dump_timestamp(ServiceClientAPI &capi,
                                subgroup_index,shard_index,filename);
     auto result = capi.template dump_timestamp<SubgroupType>(filename,subgroup_index,shard_index);
     result.get();
-    global_timestamp_logger.flush(filename);
+    TimestampLogger::flush(filename);
     debug_leave_func();
     return true;
 }
