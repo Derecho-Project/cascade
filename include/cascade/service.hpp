@@ -1381,13 +1381,13 @@ namespace cascade {
 
 #ifdef ENABLE_EVALUATION
         /**
-         * Dump the timestamp log entries into a file on each of the nodes in a subgroup.
+         * Dump the timestamp log entries into a file on each of the nodes in a shard.
          *
          * @param filename         - the output filename
          * @param subgroup_index   - the subgroup index
          * @param shard_index      - the shard index
          *
-         * @return a vector of query results.
+         * @return query results
          */
         template <typename SubgroupType>
         derecho::rpc::QueryResults<void> dump_timestamp(const std::string& filename, const uint32_t subgroup_index, const uint32_t shard_index);
@@ -1395,13 +1395,28 @@ namespace cascade {
         /**
          * The object store version:
          *
-         * @param filename             -   the filename version
-         * @param object_pool_pathname -   the object pool version
+         * @param filename             -   the filename
+         * @param object_pool_pathname -   the object pool pathname
+         */
+        void dump_timestamp(const std::string& filename, const std::string& object_pool_pathname);
+
+        /**
+         * Dump the timestamp log entries into a file on each of the nodes in a subgroup.
          *
-         * @return query results
+         * @param filename         - the output filename
+         * @param subgroup_index   - the subgroup index
          */
         template <typename SubgroupType>
-        std::vector<std::unique_ptr<derecho::rpc::QueryResults<void>>> dump_timestamp(const std::string& filename, const std::string& object_pool_pathname);
+        void dump_timestamp(const uint32_t subgroup_index, const std::string& filename);
+
+    protected:
+        template <typename FirstType, typename SecondType, typename... RestTypes>
+        void type_recursive_dump(uint32_t type_index, uint32_t subgroup_index, const std::string& filename);
+        
+        template <typename LastType>
+        void type_recursive_dump(uint32_t type_index, uint32_t subgroup_index, const std::string& filename);
+
+    public:
 #ifdef DUMP_TIMESTAMP_WORKAROUND
         /**
          * Dump the timestamp log entries into a file on a specific node.

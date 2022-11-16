@@ -1825,37 +1825,49 @@ derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::dump_timestamp(
 }
 
 template <typename... CascadeTypes>
-template <typename SubgroupType>
-std::vector<std::unique_ptr<derecho::rpc::QueryResults<void>>> ServiceClient<CascadeTypes...>::dump_timestamp(const std::string& filename, const std::string& object_pool_pathname) {
+template <typename FirstType, typename SecondType, typename... RestTypes>
+void ServiceClient<CascadeTypes...>::type_recursive_dump(
+        uint32_t type_index,
+        uint32_t subgroup_index,
+        const std::string& filename) {
+    if (type_index == 0) {
+        this->template dump_timestamp<FirstType>(subgroup_index,filename);
+    } else {
+        this->template type_recursive_dump<SecondType, RestTypes...>(type_index-1,subgroup_index,filename);
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename LastType>
+void ServiceClient<CascadeTypes...>::type_recursive_dump(
+        uint32_t type_index,
+        uint32_t subgroup_index,
+        const std::string& filename) {
+    if (type_index == 0) {
+        this->template dump_timestamp<LastType>(subgroup_index,filename);
+    } else {
+        throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) + ": type index is out of boundary.");
+    }
+}
+
+template <typename... CascadeTypes>
+void ServiceClient<CascadeTypes...>::dump_timestamp(const std::string& filename, const std::string& object_pool_pathname) {
     auto opm = find_object_pool(object_pool_pathname);
     if (!opm.is_valid() || opm.is_null() || opm.deleted) {
         throw derecho::derecho_exception("Failed to find object_pool:" + object_pool_pathname);
     }
-    uint32_t subgroup_index = opm.subgroup_index;
+
+    this->template type_recursive_dump<CascadeTypes...>(opm.subgroup_type_index,opm.subgroup_index,filename); 
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+void ServiceClient<CascadeTypes...>::dump_timestamp(const uint32_t subgroup_index,const std::string& filename){
     uint32_t shards = get_number_of_shards<SubgroupType>(subgroup_index);
-    std::vector<std::unique_ptr<derecho::rpc::QueryResults<void>>> result;
     for (uint32_t shard_index = 0; shard_index < shards; shard_index ++){
-        if (!is_external_client()) {
-            std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
-            if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
-                auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
-                auto qr = subgroup_handle.template ordered_send<RPC_NAME(ordered_dump_timestamp_log)>(filename);
-                result.emplace_back(std::make_unique<derecho::rpc::QueryResults<void>>(std::move(qr)));
-            } else {
-                auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
-                node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
-                auto qr = subgroup_handle.template p2p_send<RPC_NAME(dump_timestamp_log)>(node_id,filename);
-                result.emplace_back(std::make_unique<derecho::rpc::QueryResults<void>>(std::move(qr)));
-            }
-        } else {
-            std::lock_guard<std::mutex> lck(this->external_group_ptr_mutex);
-            auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
-            node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
-            auto qr = caller.template p2p_send<RPC_NAME(dump_timestamp_log)>(node_id,filename);
-            result.emplace_back(std::make_unique<derecho::rpc::QueryResults<void>>(std::move(qr)));
-        }
+        auto result = this->template dump_timestamp<SubgroupType>(filename,subgroup_index,shard_index);
+        result.get();
     }
-    return result;
 }
 
 template <typename... CascadeTypes>

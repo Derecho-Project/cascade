@@ -1594,6 +1594,18 @@ std::vector<command_entry_t> commands =
             return true;
         }
     },
+    {
+        "op_dump_timestamp",
+        "Dump timestamps for a given object pool. Each node will write its timestamps to the given file.",
+        "op_dump_timestamp <object_pool> <filename>\n"
+            "filename := timestamp log filename",
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+            CHECK_FORMAT(cmd_tokens,3);
+            capi.dump_timestamp(cmd_tokens[2],cmd_tokens[1]);
+            TimestampLogger::flush(cmd_tokens[2]);
+            return true;
+        }
+    },
 #endif
 };
 
