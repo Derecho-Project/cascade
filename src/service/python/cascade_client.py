@@ -2,6 +2,7 @@
 import cmd, sys
 import logging
 from derecho.cascade.external_client import ServiceClientAPI
+from derecho.cascade.external_client import TimestampLogger
 
 class bcolors:
     OK = '\033[92m' #GREEN
@@ -660,6 +661,55 @@ class CascadeClientShell(cmd.Cmd):
         else:
             res = self.capi.get_object_pool(args[0])
             print(bcolors.OK + f"{res}" + bcolors.RESET)
+
+    def do_timestamp_logger(self, arg):
+        '''
+        timestamp_logger <command> ...
+        ================
+        Test timestamp_logger function
+
+        command:        could be either 'log', 'clear', and 'flush'.
+
+        case 'log':
+        timestamp_logger log <tag> <msg_id> <extra>
+        , where
+        tag:            the event tag, as listed in include/cascade/utils.hpp
+        msg_id:         an integer for message id, given by the user.
+        extra:          an extra integer as a memo space, its value is up to the user. It will appear as the last
+                        components of the timestamp log.
+
+        case 'clear':
+        timestamp_logger clear
+
+        case 'flush':
+        timestamp_logger flush <filename>
+        , where
+        filename:       the log filename.
+        '''
+        self.check_capi()
+        args = arg.split()
+        if len(args) < 1:
+            print(bcolors.FAIL + 'At least one argument is required.' + bcolors.RESET)
+            return;
+        cmd = args[0]
+        tl = TimestampLogger()
+        if cmd == 'log':
+            if len(args) < 4:
+                print(bcolors.FAIL + 'Please provide tag, message id, AND extra arguments.' + bcolors.RESET)
+                return
+            tag = int(args[1])
+            msg_id = int(args[2])
+            extra = int(args[3])
+            tl.log(int(tag),self.capi.get_my_id(),msg_id,extra)
+        elif cmd == 'clear':
+            tl.clear()
+        elif cmd == 'flush':
+            if len(args) < 2:
+                print(bcolors.FAIL + 'No filename is given.' + bcolors.RESET)
+                return
+            tl.flush(args[1],True)
+        else:
+            print(bcolors.FAIL + f"Unknown timestamp_logger command: {cmd}." + bcolors.RESET)
 
     # end of CascadeClientShell definition
 

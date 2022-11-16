@@ -443,6 +443,14 @@ PYBIND11_MODULE(member_client, m) {
                     }
                 )
             .def(
+                    "get_my_id",
+                    [](ServiceClientAPI_PythonWrapper& capi) {
+                        return static_cast<int64_t>(capi.ref.get_my_id());
+                    },
+                    "Get my node id. \n"
+                    "\t@return my node id."
+                ) 
+            .def(
                     "get_members",
                     [](ServiceClientAPI_PythonWrapper& capi) {
                         return capi.ref.get_members();
@@ -1041,10 +1049,20 @@ PYBIND11_MODULE(member_client, m) {
                     return qrs.get_result();
                     },
                     "Get result from QueryResultsStore for std::vector<std::string>");
-#if ENABLE_EVALUATION
+#ifdef ENABLE_EVALUATION
     /* TimeLogger facility */
-    class TimestampLogger_PythonWrapper {};
-    py::class_<TimestampLogger_PythonWrappper>(m, "TimestampLogger")
+    class TimestampLogger_PythonWrapper {
+    public:
+        TimestampLogger_PythonWrapper() {}
+    };
+    py::class_<TimestampLogger_PythonWrapper>(m, "TimestampLogger")
+        .def(py::init(), "TimestampLogger API to log timestamps.")
+        .def(
+                "__repr__",
+                [](const TimestampLogger& tl) {
+                    return "TimestampLogger for logging timestamps.";
+                }
+            )
         .def(
                 "log", [](TimestampLogger_PythonWrapper&, uint64_t tag, uint64_t node_id, uint64_t msg_id, uint64_t ts_ns, uint64_t extra) {
                     TimestampLogger::log(tag,node_id,msg_id,ts_ns,extra);
@@ -1068,7 +1086,7 @@ PYBIND11_MODULE(member_client, m) {
                 "\t@arg3    extra, the extra information you want to add."
             )
         .def(
-                "flush", [](TimestampLogger_PythonWrapper&, const string& filename, bool clear) {
+                "flush", [](TimestampLogger_PythonWrapper&, const std::string& filename, bool clear) {
                     TimestampLogger::flush(filename,clear);
                 },
                 "Flush timestamp log to file. \n"
@@ -1078,7 +1096,7 @@ PYBIND11_MODULE(member_client, m) {
         .def(
                 "clear", [](TimestampLogger_PythonWrapper&) {
                     TimestampLogger::clear();
-                }
+                },
                 "Clear timestamp log. \n"
             );
 #endif // ENABLE_EVALUATION
