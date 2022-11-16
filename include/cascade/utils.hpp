@@ -9,6 +9,7 @@
 #include <condition_variable>
 #include <time.h>
 #include <thread>
+#include <unordered_set>
 #include <cascade/config.h>
 
 namespace derecho {
@@ -182,12 +183,13 @@ public:
 #define TLT_PIPELINE(x)                     (10000 + (x))
 #define TLT_DAIRYFARMDEMO(x)                (20000 + (x))
 
-#define CASCADE_TIMESTAMP_LOGGER
+#define CASCADE_TIMESTAMP_TAG_FILTER        "CASCADE/timestamp_tag_filter"
 
 class TimestampLogger {
 private:
     std::vector<std::tuple<uint64_t,uint64_t,uint64_t,uint64_t,uint64_t>> _log;
     pthread_spinlock_t lck;
+    std::unordered_set<uint64_t> tag_filter;
     /**
      * Constructor
      */
