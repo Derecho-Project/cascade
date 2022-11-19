@@ -85,6 +85,12 @@ using emit_func_t = std::function<void(const std::string&,
 #endif
                                        const Blob&)>;
 
+#ifdef ENABLE_EVALUATION
+#define EMIT_NO_VERSION_AND_TIMESTAMP   persistent::INVALID_VERSION,0,persistent::INVALID_VERSION,persistent::INVALID_VERSION,0
+#else
+#define EMIT_NO_VERSION_AND_TIMESTAMP   persistent::INVALID_VERSION,0,persistent::INVALID_VERSION,persistent::INVALID_VERSION
+#endif
+
 class IDefaultOffCriticalDataPathObserver {
 public:
     /** 
