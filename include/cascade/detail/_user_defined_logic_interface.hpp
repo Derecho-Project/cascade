@@ -1,4 +1,5 @@
 #pragma once
+#include <cascade/config.h>
 #include "../service.hpp"
 #include "../service_types.hpp"
 #include <unordered_set>
