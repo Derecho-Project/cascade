@@ -1,9 +1,10 @@
 #pragma once
 
-#include "cascade/cascade.hpp"
-#include "cascade/object.hpp"
-#include "cascade/service.hpp"
-#include "cascade/service_types.hpp"
+#include <cascade/cascade.hpp>
+#include <cascade/object.hpp>
+#include <cascade/service.hpp>
+#include <cascade/service_types.hpp>
+#include <cascade/utils.hpp>
 
 #include <string>
 #include <type_traits>
@@ -138,11 +139,33 @@ class CascadeServiceCDPO : public CriticalDataPathObserver<CascadeType> {
                             std::get<3>(handler.second)  // outputs
 #endif
                     );
+
+#ifdef ENABLE_EVALUATION
+                    ActionPostExtraInfo apei;
+                    apei.uint64_val = 0;
+                    apei.info.is_trigger = is_trigger;
+#endif
+
+#ifdef HAS_STATEFUL_UDL_SUPPORT
+#ifdef ENABLE_EVALUATION
+                    apei.info.stateful = std::get<1>(handler.second);
+#endif
+#endif
+                    TimestampLogger::log(TLT_ACTION_POST_START,
+                                         ctxt->get_service_client_ref().get_my_id(),
+                                         dynamic_cast<const IHasMessageID*>(&value)->get_message_id(),
+                                         get_time_ns(),
+                                         apei.uint64_val);
 #ifdef HAS_STATEFUL_UDL_SUPPORT
                     ctxt->post(std::move(action), std::get<1>(handler.second), is_trigger);
 #else
                     ctxt->post(std::move(action), is_trigger);
 #endif//HAS_STATEFUL_UDL_SUPPORT
+                    TimestampLogger::log(TLT_ACTION_POST_END,
+                                         ctxt->get_service_client_ref().get_my_id(),
+                                         dynamic_cast<const IHasMessageID*>(&value)->get_message_id(),
+                                         get_time_ns(),
+                                         apei.uint64_val);
                 }
             }
         }
