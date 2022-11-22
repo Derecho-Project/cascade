@@ -19,6 +19,7 @@
 #include <utility>
 #include <derecho/conf/conf.hpp>
 #include "cascade.hpp"
+#include "utils.hpp"
 #include "object_pool_metadata.hpp"
 #include "user_defined_logic_manager.hpp"
 #include "data_flow_graph.hpp"

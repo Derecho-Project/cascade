@@ -419,6 +419,10 @@ typedef union __attribute__((packed,aligned(8))) action_post_extra_info {
 #define TLT_ACTION_POST_START                       (6001)
 #define TLT_ACTION_POST_END                         (6002)
 
+/*
+ * TODO: add the following timestamps. I haven't done it yet was because Action.fire() has not type information so
+ * that it cannot access the local id. Fix it later.
+ */
 typedef union __attribute__((packed,aligned(8))) action_fire_extra_info {
     struct {
         uint32_t worker_id;
@@ -428,7 +432,6 @@ typedef union __attribute__((packed,aligned(8))) action_fire_extra_info {
 } ActionFireExtraInfo;
 #define TLT_ACTION_FIRE_START                       (6003)
 #define TLT_ACTION_FIRE_END                         (6004)
-
 
 #define CASCADE_TIMESTAMP_TAG_FILTER        "CASCADE/timestamp_tag_filter"
 
