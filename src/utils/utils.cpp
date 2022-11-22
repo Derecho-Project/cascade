@@ -189,7 +189,7 @@ TimestampLogger::TimestampLogger() {
         std::istringstream f(getConfString(CASCADE_TIMESTAMP_TAG_FILTER));
         std::string s;
         while(getline(f,s,',')) {
-            this->tag_filter.emplace(std::stoul(s));
+            this->tag_enabler.emplace(std::stoul(s));
         }
     }
     pthread_spin_init(&lck,PTHREAD_PROCESS_PRIVATE);
@@ -197,7 +197,7 @@ TimestampLogger::TimestampLogger() {
 }
 
 void TimestampLogger::instance_log(uint64_t tag, uint64_t node_id, uint64_t msg_id, uint64_t ts_ns, uint64_t extra) {
-    if (tag_filter.find(tag) != tag_filter.cend()) {
+    if (tag_enabler.find(tag) != tag_enabler.cend()) {
         pthread_spin_lock(&lck);
         _log.emplace_back(tag,node_id,msg_id,ts_ns,extra);
         pthread_spin_unlock(&lck);

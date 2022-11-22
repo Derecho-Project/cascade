@@ -433,13 +433,13 @@ typedef union __attribute__((packed,aligned(8))) action_fire_extra_info {
 #define TLT_ACTION_FIRE_START                       (6003)
 #define TLT_ACTION_FIRE_END                         (6004)
 
-#define CASCADE_TIMESTAMP_TAG_FILTER        "CASCADE/timestamp_tag_filter"
+#define CASCADE_TIMESTAMP_TAG_FILTER        "CASCADE/timestamp_tag_enabler"
 
 class TimestampLogger {
 private:
     std::vector<std::tuple<uint64_t,uint64_t,uint64_t,uint64_t,uint64_t>> _log;
     pthread_spinlock_t lck;
-    std::unordered_set<uint64_t> tag_filter;
+    std::unordered_set<uint64_t> tag_enabler;
     /**
      * Constructor
      */
