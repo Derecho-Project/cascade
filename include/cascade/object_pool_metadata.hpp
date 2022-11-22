@@ -23,12 +23,19 @@ using sharding_policy_t = enum sharding_policy_type {
  * Please note that an empty string "" is allowed to represent an invalid Metadata object.
  */
 template<typename... CascadeTypes>
-class ObjectPoolMetadata : public mutils::ByteRepresentable,
-                           public ICascadeObject<std::string,ObjectPoolMetadata<CascadeTypes...>>,
-                           public IKeepTimestamp,
-                           public IValidator<std::string,ObjectPoolMetadata<CascadeTypes...>>,
-                           public IVerifyPreviousVersion {
+class ObjectPoolMetadata : public mutils::ByteRepresentable
+                           ,public ICascadeObject<std::string,ObjectPoolMetadata<CascadeTypes...>>
+                           ,public IKeepTimestamp
+                           ,public IValidator<std::string,ObjectPoolMetadata<CascadeTypes...>>
+                           ,public IVerifyPreviousVersion 
+#ifdef ENABLE_EVALUATION
+                           ,public IHasMessageID
+#endif
+                           {
 public:
+#ifdef ENABLE_EVALUATION
+    mutable uint64_t                            message_id;
+#endif
     mutable persistent::version_t               version;
     mutable uint64_t                            timestamp_us;
     mutable persistent::version_t               previous_version;
@@ -42,6 +49,9 @@ public:
 
     // serialization support
     DEFAULT_SERIALIZATION_SUPPORT(ObjectPoolMetadata<CascadeTypes...>,
+#ifdef ENABLE_EVALUATION
+                                  message_id,
+#endif
                                   version,
                                   timestamp_us,
                                   previous_version,
@@ -55,6 +65,9 @@ public:
 
     // constructor 0: default
     ObjectPoolMetadata():
+#ifdef ENABLE_EVALUATION
+        message_id(0),
+#endif
         version(persistent::INVALID_VERSION),
         timestamp_us(0),
         previous_version(persistent::INVALID_VERSION),
@@ -67,7 +80,11 @@ public:
         deleted(false) {}
 
     // constructor 1:
-    ObjectPoolMetadata(const persistent::version_t _version,
+    ObjectPoolMetadata(
+#ifdef ENABLE_EVALUATION
+                       const uint64_t _message_id,
+#endif
+                       const persistent::version_t _version,
                        const uint64_t _timestamp_us,
                        const persistent::version_t _previous_version,
                        const persistent::version_t _previous_version_by_key,
@@ -77,6 +94,9 @@ public:
                        sharding_policy_t _sharding_policy,
                        const std::unordered_map<std::string,uint32_t>& _object_locations,
                        bool _deleted):
+#ifdef ENABLE_EVALUATION
+        message_id(_message_id),
+#endif
         version(_version),
         timestamp_us(_timestamp_us),
         previous_version(_previous_version),
@@ -98,6 +118,9 @@ public:
                        sharding_policy_t _sharding_policy,
                        const std::unordered_map<std::string,uint32_t>& _object_locations,
                        bool _deleted):
+#ifdef ENABLE_EVALUATION
+        message_id(0),
+#endif
         version(persistent::INVALID_VERSION),
         timestamp_us(0),
         previous_version(persistent::INVALID_VERSION),
@@ -115,6 +138,9 @@ public:
 
     // constructor 2: copy constructor
     ObjectPoolMetadata(const ObjectPoolMetadata& other):
+#ifdef ENABLE_EVALUATION
+        message_id(other.message_id),
+#endif
         version(other.version),
         timestamp_us(other.timestamp_us),
         previous_version(other.previous_version),
@@ -128,6 +154,9 @@ public:
 
     // constructor 3: move constructor
     ObjectPoolMetadata(ObjectPoolMetadata&& other):
+#ifdef ENABLE_EVALUATION
+        message_id(other.message_id),
+#endif
         version(other.version),
         timestamp_us(other.timestamp_us),
         previous_version(other.previous_version),
@@ -140,6 +169,9 @@ public:
         deleted(other.deleted) {}
 
     void operator = (const ObjectPoolMetadata& other) {
+#ifdef ENABLE_EVALUATION
+        this->message_id = other.message_id;
+#endif
         this->version = other.version;
         this->timestamp_us = other.timestamp_us;
         this->previous_version = other.previous_version;
@@ -151,6 +183,16 @@ public:
         this->object_locations = other.object_locations;
         this->deleted = other.deleted;
     }
+
+#ifdef ENABLE_EVALUATION
+    virtual void set_message_id(uint64_t id) const override {
+        this->message_id = id;
+    }
+
+    virtual uint64_t get_message_id() const override {
+        return this->message_id;
+    }
+#endif
 
     virtual const std::string& get_key_ref() const override {
         return this->pathname;
@@ -275,8 +317,11 @@ std::string ObjectPoolMetadata<CascadeTypes...>::IK;
 
 template<typename... CascadeTypes>
 ObjectPoolMetadata<CascadeTypes...> ObjectPoolMetadata<CascadeTypes...>::IV(
+#ifdef ENABLE_EVALUATION
+        0,                           // message id
+#endif
         persistent::INVALID_VERSION, // version
-        0,                           //timestamp_us
+        0,                           // timestamp_us
         persistent::INVALID_VERSION, // previous_version
         persistent::INVALID_VERSION, // previous_version_by_key
         "",                          // ID
@@ -317,6 +362,9 @@ inline std::ostream& operator<<(std::ostream& out, const ObjectPoolMetadata<Casc
         << (opm.is_null()?"null":"not null.") << std::endl;
     if(opm.is_valid() && !opm.is_null()) {
         out << std::string{typeid(opm).name()} << "\n" <<
+#ifdef ENABLE_EVALUATION
+            "\tmessage_id:" << opm.message_id << "\n" <<
+#endif
             "\tversion:" << opm.version << "\n" <<
             "\ttimestamp_us:" << opm.timestamp_us << "\n" <<
             "\tprevious_version:" << opm.previous_version << "\n" <<

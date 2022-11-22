@@ -1,3 +1,4 @@
+#include <cascade/config.h>
 #include <cascade/object.hpp>
 #include <cascade/service_client_api.hpp>
 #include <memory>

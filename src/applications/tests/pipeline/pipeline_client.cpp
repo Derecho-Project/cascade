@@ -3,6 +3,7 @@
 #include <cascade/service_client_api.hpp>
 #include <cascade/service_types.hpp>
 #include <sys/prctl.h>
+#include "pipeline_common.hpp"
 
 using namespace derecho::cascade;
 

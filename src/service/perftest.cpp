@@ -1,5 +1,4 @@
 #include <cascade/config.h>
-#ifdef ENABLE_EVALUATION
 #include "perftest.hpp"
 #include <derecho/conf/conf.hpp>
 #include <derecho/core/detail/rpc_utils.hpp>
@@ -13,6 +12,10 @@
 namespace derecho {
 namespace cascade {
 
+
+#ifdef ENABLE_EVALUATION
+#define TLT_READY_TO_SEND       (11000)
+#define TLT_EC_SENT             (12000)
 /////////////////////////////////////////////////////
 // PerfTestClient/PerfTestServer implementation    //
 /////////////////////////////////////////////////////
