@@ -324,14 +324,26 @@ template <typename KT, typename VT, KT* IK, VT* IV>
 std::vector<KT> VolatileCascadeStore<KT, VT, IK, IV>::ordered_list_keys(const std::string& prefix) {
     debug_enter_func();
 
-    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_LIST_KEYS_START, group, *IV);
+#ifdef ENABLE_EVALUATION
+    std::tuple<persistent::version_t, uint64_t> version_and_timestamp = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
+#endif
+
+#if __cplusplus > 201703L
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_LIST_KEYS_START,group,*IV,std::get<0>(version_and_timestamp));
+#else
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_LIST_KEYS_START,group,*IV,std::get<0>(version_and_timestamp));
+#endif
     std::vector<KT> key_list;
     for(auto kv : this->kv_map) {
         if(get_pathname<KT>(kv.first).find(prefix) == 0) {
             key_list.push_back(kv.first);
         }
     }
-    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_LIST_KEYS_END, group, *IV);
+#if __cplusplus > 201703L
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_LIST_KEYS_END,group,*IV,std::get<0>(version_and_timestamp));
+#else
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_LIST_KEYS_END,group,*IV,std::get<0>(version_and_timestamp));
+#endif
 
     debug_leave_func();
     return key_list;
@@ -340,15 +352,25 @@ std::vector<KT> VolatileCascadeStore<KT, VT, IK, IV>::ordered_list_keys(const st
 template <typename KT, typename VT, KT* IK, VT* IV>
 std::tuple<persistent::version_t, uint64_t> VolatileCascadeStore<KT, VT, IK, IV>::ordered_put(const VT& value) {
     debug_enter_func_with_args("key={}", value.get_key_ref());
-    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_PUT_START,group,value);
 
     std::tuple<persistent::version_t, uint64_t> version_and_timestamp = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
+
+#if __cplusplus > 201703L
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_PUT_START,group,value,std::get<0>(version_and_timestamp));
+#else
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_PUT_START,group,value,std::get<0>(version_and_timestamp));
+#endif
 
     if(this->internal_ordered_put(value) == false) {
         version_and_timestamp = {persistent::INVALID_VERSION, 0};
     }
 
-    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_PUT_END,group,value);
+#if __cplusplus > 201703L
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_PUT_END,group,value,std::get<0>(version_and_timestamp));
+#else
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_PUT_END,group,value,std::get<0>(version_and_timestamp));
+#endif
+
     debug_leave_func_with_value("version=0x{:x},timestamp={}", std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp));
 
     return version_and_timestamp;
@@ -357,9 +379,20 @@ std::tuple<persistent::version_t, uint64_t> VolatileCascadeStore<KT, VT, IK, IV>
 template <typename KT, typename VT, KT* IK, VT* IV>
 void VolatileCascadeStore<KT, VT, IK, IV>::ordered_put_and_forget(const VT& value) {
     debug_enter_func_with_args("key={}", value.get_key_ref());
-    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_PUT_AND_FORGET_START, group, value);
+#ifdef ENABLE_EVALUATION
+    std::tuple<persistent::version_t, uint64_t> version_and_timestamp = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
+#endif
+#if __cplusplus > 201703L
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_PUT_AND_FORGET_START,group,value,std::get<0>(version_and_timestamp));
+#else
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_PUT_AND_FORGET_START,group,value,std::get<0>(version_and_timestamp));
+#endif
     internal_ordered_put(value);
-    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_PUT_AND_FORGET_END, group, value);
+#if __cplusplus > 201703L
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_PUT_AND_FORGET_END,group,value,std::get<0>(version_and_timestamp));
+#else
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_PUT_AND_FORGET_END,group,value,std::get<0>(version_and_timestamp));
+#endif
     debug_leave_func();
 }
 
@@ -441,9 +474,14 @@ bool VolatileCascadeStore<KT, VT, IK, IV>::internal_ordered_put(const VT& value)
 template <typename KT, typename VT, KT* IK, VT* IV>
 std::tuple<persistent::version_t, uint64_t> VolatileCascadeStore<KT, VT, IK, IV>::ordered_remove(const KT& key) {
     debug_enter_func_with_args("key={}", key);
-    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_REMOVE_START, group,*IV);
 
     std::tuple<persistent::version_t, uint64_t> version_and_timestamp = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
+
+#if __cplusplus > 201703L
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_REMOVE_START,group,*IV,std::get<0>(version_and_timestamp));
+#else
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_REMOVE_START,group,*IV,std::get<0>(version_and_timestamp));
+#endif
 
     if(this->kv_map.find(key) == this->kv_map.end()) {
         debug_leave_func_with_value("version=0x{:x},timestamp={}", std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp));
@@ -499,7 +537,12 @@ std::tuple<persistent::version_t, uint64_t> VolatileCascadeStore<KT, VT, IK, IV>
                 key, value, cascade_context_ptr);
     }
 
-    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_REMOVE_END, group, *IV);
+#if __cplusplus > 201703L
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_REMOVE_END,group,*IV,std::get<0>(version_and_timestamp));
+#else
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_REMOVE_END,group,*IV,std::get<0>(version_and_timestamp));
+#endif
+
     debug_leave_func_with_value("version=0x{:x},timestamp={}", std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp));
 
     return version_and_timestamp;
@@ -508,13 +551,30 @@ std::tuple<persistent::version_t, uint64_t> VolatileCascadeStore<KT, VT, IK, IV>
 template <typename KT, typename VT, KT* IK, VT* IV>
 const VT VolatileCascadeStore<KT, VT, IK, IV>::ordered_get(const KT& key) {
     debug_enter_func_with_args("key={}", key);
-    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_GET_START,group,*IV);
+#ifdef ENABLE_EVALUATION
+    std::tuple<persistent::version_t, uint64_t> version_and_timestamp = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
+#endif
+
+#if __cplusplus > 201703L
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_GET_START,group,*IV,std::get<0>(version_and_timestamp));
+#else
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_GET_START,group,*IV,std::get<0>(version_and_timestamp));
+#endif
+
     if(this->kv_map.find(key) != this->kv_map.end()) {
         debug_leave_func_with_value("key={}", key);
-        LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_GET_END,group,*IV);
+#if __cplusplus > 201703L
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_GET_END,group,*IV,std::get<0>(version_and_timestamp));
+#else
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_GET_END,group,*IV,std::get<0>(version_and_timestamp));
+#endif
         return this->kv_map.at(key);
     } else {
-        LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_GET_END,group,*IV);
+#if __cplusplus > 201703L
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_GET_END,group,*IV,std::get<0>(version_and_timestamp));
+#else
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_GET_END,group,*IV,std::get<0>(version_and_timestamp));
+#endif
         debug_leave_func();
         return *IV;
     }
@@ -524,12 +584,29 @@ template <typename KT, typename VT, KT* IK, VT* IV>
 uint64_t VolatileCascadeStore<KT, VT, IK, IV>::ordered_get_size(const KT& key) {
     debug_enter_func_with_args("key={}", key);
 
-    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_GET_SIZE_START, group, *IV);
+#ifdef ENABLE_EVALUATION
+    std::tuple<persistent::version_t, uint64_t> version_and_timestamp = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
+#endif
+
+#if __cplusplus > 201703L
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_GET_SIZE_START,group,*IV,std::get<0>(version_and_timestamp));
+#else
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_GET_SIZE_START,group,*IV,std::get<0>(version_and_timestamp));
+#endif
+
     if(this->kv_map.find(key) != this->kv_map.end()) {
-        LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_GET_SIZE_END, group, *IV);
+#if __cplusplus > 201703L
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_GET_SIZE_END,group,*IV,std::get<0>(version_and_timestamp));
+#else
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_GET_SIZE_END,group,*IV,std::get<0>(version_and_timestamp));
+#endif
         return mutils::bytes_size(this->kv_map.at(key));
     } else {
-        LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_GET_SIZE_END, group, *IV);
+#if __cplusplus > 201703L
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_GET_SIZE_END,group,*IV,std::get<0>(version_and_timestamp));
+#else
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_GET_SIZE_END,group,*IV,std::get<0>(version_and_timestamp));
+#endif
         debug_leave_func();
         return 0;
     }
