@@ -374,15 +374,61 @@ public:
 #define TLT_PERSISTENT_ORDERED_GET_SIZE_END         (3093)
 #define TLT_PERSISTENT_MULTI_GET_SIZE_END           (3094)
 
-// TODO: list_keys, multi_list_keys, get_size, multi_get_size
+/* For TriggerCascadeNoStore:
+ * ::trigger_put():
+ *      TLT_TRIGGER_PUT_START
+ *      TLT_TRIGGER_PUT_END
+ */
+#define TLT_TRIGGER_PUT_START                       (4001)
+#define TLT_TRIGGER_PUT_END                         (4002)
 
-#define TLT_TRIGGER_PUT_START               (10)
-#define TLT_TRIGGER_PUT_END                 (11)
-#define TLT_P2P_TRIGGERED                   (20)
-#define TLT_ORDERED_TRIGGERED               (21)
-#define TLT_PERSISTED                       (22)
+/*
+ * For Persistent:
+ *      TLT_PERSISTED
+ */
+#define TLT_PERSISTED                               (5001)
 
-#define TLT_DAIRYFARMDEMO(x)                (20000 + (x))
+/*
+ * For UDLs:
+ *      TLT_ACTION_POST     The time when action is inserted into an action_queue for off critical data path processing.
+ *                          The extra info is defined as follows:
+ *                          struct {
+ *                              uint8_t trigger;    // 0 - for ordered_put; 1 - for trigger_put
+ *                              uint8_t stateful;   // Following DataFlowGRaph::Statefulness enumerate
+ *                              uint8_t rsv8_0;
+ *                              uint8_t rsv8_1;
+ *                              uint32_t rsv32_0;
+ *                          } info
+ *      TLT_ACTION_FIRE     The time when action is fired by a worker thread. The extra info is defined as follows:
+ *                          struct {
+ *                              uint32_t worker_id; // the id of the worker thread
+ *                              uint32_t rsv;
+ *                          }
+ */
+
+typedef union __attribute__((packed,aligned(8))) action_post_extra_info {
+    struct {
+        uint8_t is_trigger;
+        uint8_t stateful;
+        uint8_t rsv8_0;
+        uint8_t rsv8_1;
+        uint32_t rsv32_0;
+    }           info;
+    uint64_t    uint64_val;
+} ActionPostExtraInfo;
+#define TLT_ACTION_POST_START                       (6001)
+#define TLT_ACTION_POST_END                         (6002)
+
+typedef union __attribute__((packed,aligned(8))) action_fire_extra_info {
+    struct {
+        uint32_t worker_id;
+        uint32_t rsv;
+    }           info;
+    uint64_t    uint64_val;
+} ActionFireExtraInfo;
+#define TLT_ACTION_FIRE_START                       (6003)
+#define TLT_ACTION_FIRE_END                         (6004)
+
 
 #define CASCADE_TIMESTAMP_TAG_FILTER        "CASCADE/timestamp_tag_filter"
 
