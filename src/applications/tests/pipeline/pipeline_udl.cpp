@@ -5,6 +5,7 @@
 #include <nlohmann/json.hpp>
 #include <iostream>
 #include <memory>
+#include "pipeline_common.hpp"
 
 namespace derecho {
 namespace cascade {

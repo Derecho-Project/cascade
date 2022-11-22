@@ -43,9 +43,9 @@ namespace cascade {
     using Factory = std::function<std::unique_ptr<CascadeType>(persistent::PersistentRegistry*, subgroup_id_t subgroup_id, ICascadeContext*)>;
 
     /* Cascade Metadata Service type*/
-	template<typename...CascadeTypes>
-	using CascadeMetadataService = PersistentCascadeStore<
-    	std::remove_cv_t<std::remove_reference_t<decltype(std::declval<ObjectPoolMetadata<CascadeTypes...>>().get_key_ref())>>,
+    template<typename...CascadeTypes>
+    using CascadeMetadataService = PersistentCascadeStore<
+        std::remove_cv_t<std::remove_reference_t<decltype(std::declval<ObjectPoolMetadata<CascadeTypes...>>().get_key_ref())>>,
         ObjectPoolMetadata<CascadeTypes...>,
         &ObjectPoolMetadata<CascadeTypes...>::IK,
         &ObjectPoolMetadata<CascadeTypes...>::IV,

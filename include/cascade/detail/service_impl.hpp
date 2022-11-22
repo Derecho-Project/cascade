@@ -6,6 +6,7 @@
 #include <typeindex>
 #include <variant>
 #include <derecho/core/derecho.hpp>
+#include <cascade/config.h>
 #include <cascade/data_flow_graph.hpp>
 #include <chrono>
 
@@ -142,6 +143,15 @@ template <typename CascadeType>
 std::unique_ptr<CascadeType> client_stub_factory() {
     return std::make_unique<CascadeType>();
 }
+
+
+#ifdef ENABLE_EVALUATION
+#define LOG_SERVICE_CLIENT_TIMESTAMP(tag,msgid) \
+    TimestampLogger::log(tag,this->get_my_id(),msgid,get_walltime());
+#else
+#define LOG_SERVICE_CLIENT_TIMESTAMP(tag,msgid)
+#endif
+
 
 template <typename... CascadeTypes>
 ServiceClient<CascadeTypes...>::ServiceClient(derecho::Group<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>* _group_ptr):
@@ -347,14 +357,14 @@ node_id_t ServiceClient<CascadeTypes...>::pick_member_by_policy(uint32_t subgrou
     return node_id;
 }
 
-
-
 template <typename... CascadeTypes>
 template <typename SubgroupType>
 derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::put(
         const typename SubgroupType::ObjectType& value,
         uint32_t subgroup_index,
         uint32_t shard_index) {
+    LOG_SERVICE_CLIENT_TIMESTAMP(TLT_SERVICE_CLIENT_PUT_START,
+            (std::is_base_of<IHasMessageID,typename SubgroupType::ObjectType>::value?value.get_message_id():0));
     if (!is_external_client()) {
         std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
         if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
@@ -434,6 +444,8 @@ void ServiceClient<CascadeTypes...>::put_and_forget(
         const typename SubgroupType::ObjectType& value,
         uint32_t subgroup_index,
         uint32_t shard_index) {
+    LOG_SERVICE_CLIENT_TIMESTAMP(TLT_SERVICE_CLIENT_PUT_AND_FORGET_START,
+            (std::is_base_of<IHasMessageID,typename SubgroupType::ObjectType>::value?value.get_message_id():0));
     if (!is_external_client()) {
         std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
         if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
@@ -512,6 +524,8 @@ derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::trigger_put(
         const typename SubgroupType::ObjectType& value,
         uint32_t subgroup_index,
         uint32_t shard_index) {
+    LOG_SERVICE_CLIENT_TIMESTAMP(TLT_SERVICE_CLIENT_TRIGGER_PUT_START,
+            (std::is_base_of<IHasMessageID,typename SubgroupType::ObjectType>::value?value.get_message_id():0));
     if (!is_external_client()) {
         std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
         if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index){
@@ -586,6 +600,8 @@ void ServiceClient<CascadeTypes...>::collective_trigger_put(
         const typename SubgroupType::ObjectType& value,
         uint32_t subgroup_index,
         std::unordered_map<node_id_t,std::unique_ptr<derecho::rpc::QueryResults<void>>>& nodes_and_futures) {
+    LOG_SERVICE_CLIENT_TIMESTAMP(TLT_SERVICE_CLIENT_COLLECTIVE_TRIGGER_PUT_START,
+            (std::is_base_of<IHasMessageID,typename SubgroupType::ObjectType>::value?value.get_message_id():0));
     if (!is_external_client()) {
         std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
         if (group_ptr->template get_my_shard<SubgroupType>(subgroup_index) != -1) {
@@ -617,6 +633,7 @@ derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceCl
         const typename SubgroupType::KeyType& key,
         uint32_t subgroup_index,
         uint32_t shard_index) {
+    LOG_SERVICE_CLIENT_TIMESTAMP(TLT_SERVICE_CLIENT_REMOVE_START,0);
     if (!is_external_client()) {
         std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
         if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
@@ -698,6 +715,7 @@ derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> ServiceClien
         bool stable,
         uint32_t subgroup_index,
         uint32_t shard_index) {
+    LOG_SERVICE_CLIENT_TIMESTAMP(TLT_SERVICE_CLIENT_GET_START,0);
     if (!is_external_client()) {
         std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
         node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
@@ -734,6 +752,7 @@ derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> ServiceClien
         const typename SubgroupType::KeyType& key,
         uint32_t subgroup_index,
         uint32_t shard_index) {
+    LOG_SERVICE_CLIENT_TIMESTAMP(TLT_SERVICE_CLIENT_MULTI_GET_START,0);
     if (!is_external_client()) {
         std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
         node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
@@ -947,6 +966,7 @@ derecho::rpc::QueryResults<uint64_t> ServiceClient<CascadeTypes...>::get_size(
         const bool stable,
         uint32_t subgroup_index,
         uint32_t shard_index) {
+    LOG_SERVICE_CLIENT_TIMESTAMP(TLT_SERVICE_CLIENT_GET_SIZE_START,0);
     if (!is_external_client()) {
         std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
         node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
@@ -1028,6 +1048,7 @@ template <typename SubgroupType>
 derecho::rpc::QueryResults<uint64_t> ServiceClient<CascadeTypes...>::multi_get_size(
         const typename SubgroupType::KeyType& key,
         uint32_t subgroup_index, uint32_t shard_index) {
+    LOG_SERVICE_CLIENT_TIMESTAMP(TLT_SERVICE_CLIENT_MULTI_GET_SIZE_START,0);
     if (!is_external_client()) {
         std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
         node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
@@ -1186,6 +1207,7 @@ derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> ServiceC
         const bool stable,
         uint32_t subgroup_index,
         uint32_t shard_index) {
+    LOG_SERVICE_CLIENT_TIMESTAMP(TLT_SERVICE_CLIENT_LIST_KEYS_START,0);
     if (!is_external_client()) {
         std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
         node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);
@@ -1316,6 +1338,7 @@ template <typename SubgroupType>
 derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> ServiceClient<CascadeTypes...>::multi_list_keys(
         uint32_t subgroup_index,
         uint32_t shard_index) {
+    LOG_SERVICE_CLIENT_TIMESTAMP(TLT_SERVICE_CLIENT_MULTI_LIST_KEYS_START,0);
     if (!is_external_client()) {
         std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
         node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index);

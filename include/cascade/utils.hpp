@@ -160,17 +160,120 @@ public:
 };
 
 #ifdef ENABLE_EVALUATION
-// time logger tags (TLTs)
-#define TLT_READY_TO_SEND                   (0)
-#define TLT_EC_SENT                         (1)
-#define TLT_VOLATILE_PUT_START              (2)
-#define TLT_VOLATILE_PUT_END                (3)
-#define TLT_VOLATILE_PUT_AND_FORGET_START   (4)
-#define TLT_VOLATILE_PUT_AND_FORGET_END     (5)
-#define TLT_VOLATILE_ORDERED_PUT_START      (6)
-#define TLT_VOLATILE_ORDERED_PUT_END        (7)
-#define TLT_VOLATILE_ORDERED_PUT_AND_FORGET_START      (8)
-#define TLT_VOLATILE_ORDERED_PUT_AND_FORGET_END        (9)
+/*
+ * time logger tags (TLTs)
+ * 
+ * We support a wide range of timestamps in cascade for performance tests.
+ * For Service Client (Please note that the END time is not logged because the return clause should be included.
+ * The callers should measure it by themselves):
+ * ::put():
+ *      TLT_SERVICE_CLIENT_PUT_START
+ * ::put_and_forget():
+ *      TLT_SERVICE_CLIENT_PUT_AND_FORGET_START
+ * ::trigger_put():
+ *      TLT_SERVICE_CLIENT_TRIGGER_PUT_START
+ * ::collective_trigger_put():
+ *      TLT_SERVICE_CLIENT_COLLECTIVE_TRIGGER_PUT_START
+ * ::remove():
+ *      TLT_SERVICE_CLIENT_REMOVE_START     # no message id
+ * ::get():
+ *      TLT_SERVICE_CLIENT_GET_START        # no message id
+ * ::multi_get():
+ *      TLT_SERVICE_CLIENT_MULTI_GET_START  # no message id
+ * ::list_keys():
+ *      TLT_SERVICE_CLIENT_LIST_KEYS_START  # no message id
+ * ::multi_list_keys():
+ *      TLT_SERVICE_CLIENT_MULTI_LIST_KEYS_START    # no message id
+ * ::get_size():
+ *      TLT_SERVICE_CLIENT_GET_SIZE_START           # no message id
+ * ::multi_get_size():
+ *      TLT_SERVICE_CLIENT_MULTI_GET_SIZE_START     # no message id
+ */
+#define TLT_SERVICE_CLIENT_PUT_START                (1001)
+#define TLT_SERVICE_CLIENT_PUT_AND_FORGET_START     (1002)
+#define TLT_SERVICE_CLIENT_TRIGGER_PUT_START        (1003)
+#define TLT_SERVICE_CLIENT_COLLECTIVE_TRIGGER_PUT_START \
+                                                    (1004)
+#define TLT_SERVICE_CLIENT_REMOVE_START             (1005)
+#define TLT_SERVICE_CLIENT_GET_START                (1006)
+#define TLT_SERVICE_CLIENT_MULTI_GET_START          (1007)
+#define TLT_SERVICE_CLIENT_LIST_KEYS_START          (1008)
+#define TLT_SERVICE_CLIENT_MULTI_LIST_KEYS_START    (1009)
+#define TLT_SERVICE_CLIENT_GET_SIZE_START           (1010)
+#define TLT_SERVICE_CLIENT_MULTI_GET_SIZE_START     (1011)
+
+/* For VolatileCascadeStore:
+ * ::put():
+ *      TLT_VOLATILE_PUT_START
+ *      TLT_VOLATILE_ORDERED_PUT_START
+ *      TLT_VOLATILE_ORDERED_PUT_END
+ *      TLT_VOLATILE_PUT_END
+ * ::put_and_forget():
+ *      TLT_VOLATILE_PUT_AND_FORGET_START
+ *      TLT_VOLATILE_ORDERED_PUT_AND_FORGET_START
+ *      TLT_VOLATILE_ORDERED_PUT_AND_FORGET_END
+ *      TLT_VOLATILE_PUT_AND_FORGET_END
+ * ::trigger_put():
+ *      TLT_VOLATILE_TRIGGER_PUT_START
+ *      TLT_VOLATILE_TRIGGER_PUT_END
+ * ::remove():
+ *      TLT_VOLATILE_REMOVE_START
+ *      TLT_VOLATILE_ORDERED_REMOVE_START
+ *      TLT_VOLATILE_ORDERED_REMOVE_END
+ *      TLT_VOLATILE_REMOVE_END
+ * ::get():
+ *      TLT_VOLATILE_GET_START
+ *      TLT_VOLATILE_GET_END
+ * ::multi_get():
+ *      TLT_VOLATILE_MULTI_GET_START
+ *      TLT_VOLATILE_ORDERED_GET_START
+ *      TLT_VOLATILE_ORDERED_GET_END
+ *      TLT_VOLATILE_MULTI_GET_END
+ * ::list_keys():
+ *      TLT_VOLATILE_LIST_KEYS_START
+ *      TLT_VOLATILE_LIST_KEYS_END
+ * ::multi_list_keys():
+ *      TLT_VOLATILE_MULTI_LIST_KEYS_START
+ *      TLT_VOLATILE_ORDERED_LIST_KEYS_START
+ *      TLT_VOLATILE_ORDERED_LIST_KEYS_END
+ *      TLT_VOLATILE_MULTI_LIST_KEYS_END
+ * ::get_size():
+ *      TLT_VOLATILE_GET_SIZE_START
+ *      TLT_VOLATILE_GET_SIZE_END
+ * ::multi_get_size():
+ *      TLT_VOLATILE_MULTI_GET_SIZE_START
+ *      TLT_VOLATILE_ORDERED_GET_SIZE_START
+ *      TLT_VOLATILE_ORDERED_GET_SIZE_END
+ *      TLT_VOLATILE_MULTI_GET_SIZE_END
+ */
+#define TLT_VOLATILE_PUT_START                      (2001)
+#define TLT_VOLATILE_ORDERED_PUT_START              (2002)
+#define TLT_VOLATILE_ORDERED_PUT_END                (2003)
+#define TLT_VOLATILE_PUT_END                        (2004)
+
+#define TLT_VOLATILE_PUT_AND_FORGET_START           (2011)
+#define TLT_VOLATILE_ORDERED_PUT_AND_FORGET_START   (2012)
+#define TLT_VOLATILE_ORDERED_PUT_AND_FORGET_END     (2013)
+#define TLT_VOLATILE_PUT_AND_FORGET_END             (2014)
+
+#define TLT_VOLATILE_TRIGGER_PUT_START              (2021)
+#define TLT_VOLATILE_TRIGGER_PUT_END                (2022)
+
+#define TLT_VOLATILE_REMOVE_START                   (2031)
+#define TLT_VOLATILE_ORDERED_REMOVE_START           (2032)
+#define TLT_VOLATILE_ORDERED_REMOVE_END             (2033)
+#define TLT_VOLATILE_REMOVE_END                     (2034)
+
+#define TLT_VOLATILE_GET_START                      (2041)
+#define TLT_VOLATILE_GET_END                        (2042)
+
+#define TLT_VOLATILE_MULTI_GET_START                (2051)
+#define TLT_VOLATILE_ORDERED_GET_START              (2052)
+#define TLT_VOLATILE_ORDERED_GET_END                (2053)
+#define TLT_VOLATILE_MULTI_GET_END                  (2054)
+
+// TODO: list_keys, multi_list_keys, get_size, multi_get_size
+
 #define TLT_TRIGGER_PUT_START               (10)
 #define TLT_TRIGGER_PUT_END                 (11)
 #define TLT_PERSISTENT_PUT_START            (12)
@@ -185,7 +288,6 @@ public:
 #define TLT_ORDERED_TRIGGERED               (21)
 #define TLT_PERSISTED                       (22)
 
-#define TLT_PIPELINE(x)                     (10000 + (x))
 #define TLT_DAIRYFARMDEMO(x)                (20000 + (x))
 
 #define CASCADE_TIMESTAMP_TAG_FILTER        "CASCADE/timestamp_tag_filter"
