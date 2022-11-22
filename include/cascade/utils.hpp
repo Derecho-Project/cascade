@@ -272,6 +272,24 @@ public:
 #define TLT_VOLATILE_ORDERED_GET_END                (2053)
 #define TLT_VOLATILE_MULTI_GET_END                  (2054)
 
+#define TLT_VOLATILE_LIST_KEYS_START                (2061)
+#define TLT_VOLATILE_LIST_KEYS_END                  (2062)
+
+#define TLT_VOLATILE_MULTI_LIST_KEYS_START          (2071)
+#define TLT_VOLATILE_ORDERED_LIST_KEYS_START        (2072)
+#define TLT_VOLATILE_ORDERED_LIST_KEYS_END          (2073)
+#define TLT_VOLATILE_MULTI_LIST_KEYS_END            (2074)
+
+#define TLT_VOLATILE_GET_SIZE_START                 (2081)
+#define TLT_VOLATILE_GET_SIZE_END                   (2082)
+
+#define TLT_VOLATILE_MULTI_GET_SIZE_START           (2091)
+#define TLT_VOLATILE_ORDERED_GET_SIZE_START         (2092)
+#define TLT_VOLATILE_ORDERED_GET_SIZE_END           (2093)
+#define TLT_VOLATILE_MULTI_GET_SIZE_END             (2094)
+
+
+
 // TODO: list_keys, multi_list_keys, get_size, multi_get_size
 
 #define TLT_TRIGGER_PUT_START               (10)
