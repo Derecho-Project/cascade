@@ -81,7 +81,11 @@ public:
         return topic;
     }
 
-    virtual void send(const MessageType& message) override {
+    virtual void send(const MessageType& message
+#ifdef ENABLE_EVALUATION
+                      ,uint64_t message_id = 0
+#endif
+                      ) override {
         std::size_t requested_size = mutils::bytes_size(message) + DDS_MESSAGE_HEADER_SIZE;
         const blob_generator_func_t blob_generator = [requested_size,&message,this] (uint8_t* buffer, const std::size_t buffer_size) {
             if ( buffer_size > requested_size ) {
@@ -99,7 +103,7 @@ public:
         // prepare the object
         ObjectWithStringKey object(
 #ifdef ENABLE_EVALUATION
-                    0,
+                    message_id,
 #endif//ENABLE_EVALUATION
                     CURRENT_VERSION,
                     0,

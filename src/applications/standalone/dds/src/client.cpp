@@ -206,7 +206,7 @@ static bool run_perftest(
             }
             header->seqno = i;
             header->sending_ts_us = get_walltime()/1000;
-            publisher->send(message);
+            publisher->send(message,static_cast<uint64_t>(header->seqno));
             if (next_us != 0) {
                 next_us += interval_us;
             } else {

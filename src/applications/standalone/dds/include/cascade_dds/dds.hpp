@@ -232,7 +232,11 @@ public:
      * publish a message
      * @message the message to publish to the topic
      */
-    virtual void send(const MessageType& message) = 0;
+    virtual void send(const MessageType& message
+#ifdef ENABLE_EVALUATION
+            ,uint64_t message_id = 0
+#endif
+            ) = 0;
 };
 
 /**
