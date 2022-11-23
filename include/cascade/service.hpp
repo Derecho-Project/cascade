@@ -112,7 +112,8 @@ namespace cascade {
      *
      */
 #define ACTION_BUFFER_ENTRY_SIZE    (256)
-#define ACTION_BUFFER_SIZE          (1024)
+#define ACTION_BUFFER_SIZE          (8192)
+// #define ACTION_BUFFER_SIZE          (1024)
     struct Action {
         node_id_t                       sender;
         std::string                     key_string;
