@@ -286,8 +286,8 @@ void ServiceClient<CascadeTypes...>::refresh_member_cache_entry(uint32_t subgrou
 template <typename... CascadeTypes>
 template <typename KeyType>
 std::tuple<uint32_t,uint32_t,uint32_t> ServiceClient<CascadeTypes...>::key_to_shard(
-	    const KeyType& key,
-	    bool check_object_location) {
+        const KeyType& key,
+        bool check_object_location) {
     std::string object_pool_pathname = get_pathname<KeyType>(key);
     if (object_pool_pathname.empty()) {
         std::string exp_msg("Key:");
