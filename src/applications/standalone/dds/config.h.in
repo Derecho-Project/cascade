@@ -1,3 +1,8 @@
+#include <cascade/cascade.hpp>
 #define UDL_UUID    "@UDL_UUID@"
 #define DISABLE_DDS_COPY    @DISABLE_DDS_COPY@
 #cmakedefine USE_DDS_TIMESTAMP_LOG
+#if !defined(USE_DDS_TIMESTAMP_LOG) && defined(ENABLE_EVALUATION)
+#define TLT_DDS(x)                          (100000 + (x))
+#define TLT_DDS_NOTIFYING_SUBSCRIBER        TLT_DDS(10)             // 100010
+#endif

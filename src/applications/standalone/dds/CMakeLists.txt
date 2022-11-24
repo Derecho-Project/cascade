@@ -21,7 +21,8 @@ set(UDL_UUID 94f8509c-a6e6-11ec-a9f5-0242ac110002)
 
 set(DISABLE_DDS_COPY 0)
 
-set(USE_DDS_TIMESTAMP_LOG 1)
+# enabling per topic timestamps and disable cascade timestamping infrastructure, aka TimestampLogger::log()
+set(USE_DDS_TIMESTAMP_LOG 0)
 
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/cascade_dds/config.h)
 
