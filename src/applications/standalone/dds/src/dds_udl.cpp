@@ -28,7 +28,7 @@ class DDSOCDPO: public OffCriticalDataPathObserver {
     std::string control_plane_suffix;
     /* subscriber registry */
     std::unordered_map<std::string,std::unordered_set<node_id_t>> subscriber_registry;
-#ifdef ENABLE_SERVER_TIMESTAMP_LOG
+#ifdef USE_DDS_TIMESTAMP_LOG
 #define INIT_TIMESTAMP_SLOTS    (262144)
     /* log the server timestamp, they are grouped by topic name */
     std::unordered_map<std::string,std::vector<uint64_t>> server_timestamp;
@@ -57,7 +57,7 @@ class DDSOCDPO: public OffCriticalDataPathObserver {
             mutils::deserialize_and_run(
                     nullptr, 
                     object->blob.bytes, 
-#ifdef ENABLE_SERVER_TIMESTAMP_LOG
+#ifdef USE_DDS_TIMESTAMP_LOG
                     [&sender,&key_string,&typed_ctxt,this](const DDSCommand& command){
 #else
                     [&sender,this](const DDSCommand& command){
@@ -66,7 +66,7 @@ class DDSOCDPO: public OffCriticalDataPathObserver {
                             std::unique_lock<std::shared_mutex> wlock(this->subscriber_registry_mutex);
                             if (subscriber_registry.find(command.topic) == subscriber_registry.end()) {
                                 subscriber_registry.emplace(command.topic,std::unordered_set<node_id_t>{});
-#ifdef ENABLE_SERVER_TIMESTAMP_LOG
+#ifdef USE_DDS_TIMESTAMP_LOG
                                 // only add log for new topic.
                                 server_timestamp.emplace(command.topic,std::vector<uint64_t>{});
                                 server_timestamp.at(command.topic).reserve(INIT_TIMESTAMP_SLOTS);
@@ -78,7 +78,7 @@ class DDSOCDPO: public OffCriticalDataPathObserver {
                             std::unique_lock<std::shared_mutex> wlock(this->subscriber_registry_mutex);
                             if (subscriber_registry.find(command.topic) != subscriber_registry.end()) {
                                 subscriber_registry.at(command.topic).erase(sender);
-#ifdef ENABLE_SERVER_TIMESTAMP_LOG
+#ifdef USE_DDS_TIMESTAMP_LOG
                                 // remove it if nobody is listening to this topic.
                                 if (subscriber_registry.at(command.topic).empty()) {
                                     server_timestamp.erase(command.topic);
@@ -86,7 +86,7 @@ class DDSOCDPO: public OffCriticalDataPathObserver {
 #endif
                             }
                             dbg_default_trace("Sender {} unsubscribed from topic:{}",sender,command.topic);
-#ifdef ENABLE_SERVER_TIMESTAMP_LOG
+#ifdef USE_DDS_TIMESTAMP_LOG
                         } else if (command.command_type == DDSCommand::FLUSH_TIMESTAMP_TRIGGER){
                             DDSCommand ordered_flush_command(DDSCommand::CommandType::FLUSH_TIMESTAMP_ORDERED,command.topic);
                             std::size_t buffer_size = mutils::bytes_size(ordered_flush_command);
@@ -125,7 +125,7 @@ class DDSOCDPO: public OffCriticalDataPathObserver {
                             object->blob.size, key_without_prefix, client_id);
                     typed_ctxt->get_service_client_ref().notify(object->blob,key_string.substr(0,prefix_length-1),client_id);
                 }
-#ifdef ENABLE_SERVER_TIMESTAMP_LOG
+#ifdef USE_DDS_TIMESTAMP_LOG
                 // topic(key_without_prefix) may not exists in server_timestamp map if 
                 // subscriber_registry[topic] is empty.
                 if (server_timestamp.find(key_without_prefix) != server_timestamp.cend()) {

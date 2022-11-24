@@ -178,7 +178,7 @@ public:
         INVALID_TYPE,
         SUBSCRIBE,
         UNSUBSCRIBE,
-#ifdef ENABLE_SERVER_TIMESTAMP_LOG
+#ifdef USE_DDS_TIMESTAMP_LOG
         FLUSH_TIMESTAMP_TRIGGER, // trigger a flush timestamp operation (in trigger)
         FLUSH_TIMESTAMP_ORDERED // really flush timestamp
 #endif
@@ -202,7 +202,7 @@ public:
         case UNSUBSCRIBE:
             command_name = "unsubscribe";
             break;
-#ifdef ENABLE_SERVER_TIMESTAMP_LOG
+#ifdef USE_DDS_TIMESTAMP_LOG
         case FLUSH_TIMESTAMP_TRIGGER:
             command_name = "flush_timestamp_trigger";
             break;
@@ -268,7 +268,7 @@ private:
     ServiceClientAPI&                       capi;
     std::unique_ptr<DDSSubscriberRegistry>  subscriber_registry;
     std::unique_ptr<DDSMetadataClient>      metadata_service;
-#ifdef ENABLE_SERVER_TIMESTAMP_LOG
+#ifdef USE_DDS_TIMESTAMP_LOG
     std::string                             control_plane_suffix;
 #endif
 
@@ -308,7 +308,7 @@ public:
     template <typename MessageType>
     void unsubscribe(const std::unique_ptr<DDSSubscriber<MessageType>>& subscriber);
 
-#ifdef ENABLE_SERVER_TIMESTAMP_LOG
+#ifdef USE_DDS_TIMESTAMP_LOG
     /**
      * flush the timestamp of a topic
      * @param topic                 topic name

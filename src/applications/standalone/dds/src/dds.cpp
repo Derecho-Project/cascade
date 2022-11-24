@@ -292,7 +292,7 @@ void DDSSubscriberRegistry::_topic_control(ServiceClientAPI& capi, const Topic& 
 
 DDSClient::DDSClient(
         const std::shared_ptr<DDSConfig>& _dds_config):
-#ifdef ENABLE_SERVER_TIMESTAMP_LOG
+#ifdef USE_DDS_TIMESTAMP_LOG
         control_plane_suffix(_dds_config->get_control_plane_suffix()),
 #endif
         capi(ServiceClientAPI::get_service_client()) {
@@ -300,7 +300,7 @@ DDSClient::DDSClient(
     metadata_service = std::make_unique<DDSMetadataClient>(_dds_config->get_metadata_pathname());
 }
 
-#ifdef ENABLE_SERVER_TIMESTAMP_LOG
+#ifdef USE_DDS_TIMESTAMP_LOG
 void DDSClient::flush_timestamp(const std::string& topic) {
     auto topic_info = metadata_service->get_topic(topic);
     DDSCommand command(DDSCommand::CommandType::FLUSH_TIMESTAMP_TRIGGER,topic_info.name);
