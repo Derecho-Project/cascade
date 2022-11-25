@@ -1,5 +1,4 @@
 #include <cascade/user_defined_logic_interface.hpp>
-#include <cascade_dds/config.h>
 #include <cascade_dds/dds.hpp>
 #include <iostream>
 #include <fstream>
@@ -92,8 +91,8 @@ class DDSOCDPO: public OffCriticalDataPathObserver {
                             std::size_t buffer_size = mutils::bytes_size(ordered_flush_command);
                             uint8_t stack_buffer[buffer_size];
                             mutils::to_bytes(ordered_flush_command,stack_buffer);
-                            ObjectWithStringKey object(key_string,Blob(stack_buffer,buffer_size,true));
-                            typed_ctxt->get_service_client_ref().put_and_forget(object);
+                            ObjectWithStringKey obj(key_string,Blob(stack_buffer,buffer_size,true));
+                            typed_ctxt->get_service_client_ref().put_and_forget(obj);
                             dbg_default_trace("Sender {} triggered flush timestamp for topic:{}",sender,command.topic);
                         } else if (command.command_type == DDSCommand::FLUSH_TIMESTAMP_ORDERED){
                             auto outfile = std::ofstream(command.topic+".log");
@@ -131,6 +130,10 @@ class DDSOCDPO: public OffCriticalDataPathObserver {
                 if (server_timestamp.find(key_without_prefix) != server_timestamp.cend()) {
                     server_timestamp.at(key_without_prefix).emplace_back(get_time_us());
                 }
+#else
+                // Please note that, different from the DDS timestamp log, cascade timestamp log use nanoseconds.
+                TimestampLogger::log(TLT_DDS_NOTIFYING_SUBSCRIBER, typed_ctxt->get_service_client_ref().get_my_id(),
+                        dynamic_cast<const IHasMessageID*>(object)->get_message_id(),get_time_ns());
 #endif
             } else {
                 dbg_default_trace("Key:{} is not found in subscriber_registry.", key_without_prefix);
