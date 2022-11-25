@@ -86,6 +86,9 @@ public:
                       ,uint64_t message_id = 0
 #endif
                       ) override {
+#if !defined(USE_DDS_TIMESTAMP_LOG)
+        TimestampLogger::log(TLT_DDS_PUBLISHER_SEND_START,capi.get_my_id(),message_id,get_time_ns());
+#endif
         std::size_t requested_size = mutils::bytes_size(message) + DDS_MESSAGE_HEADER_SIZE;
         const blob_generator_func_t blob_generator = [requested_size,&message,this] (uint8_t* buffer, const std::size_t buffer_size) {
             if ( buffer_size > requested_size ) {
@@ -117,6 +120,9 @@ public:
         // send message
         dbg_default_trace("in {}: put object with key:{}", __PRETTY_FUNCTION__, cascade_key);
         capi.put_and_forget(object);
+#if !defined(USE_DDS_TIMESTAMP_LOG)
+        TimestampLogger::log(TLT_DDS_PUBLISHER_SEND_END,capi.get_my_id(),message_id,get_time_ns());
+#endif
     }
 
     /** Destructor */
@@ -327,10 +333,14 @@ public:
             registry.emplace(topic,PerTopicRegistry(topic,topic_info.pathname));
             // register universal per-topic handler, which dispatches messages to subscriber cores.
             capi.register_notification_handler(
-                    [this](const Blob& blob)->void{
+                    [this,my_id=capi.get_my_id()](const Blob& blob)->void{
                         const DDSMessageHeader* ptr = reinterpret_cast<const DDSMessageHeader*>(blob.bytes);
                         std::string topic(ptr->topic_name,ptr->topic_name_length);
                         dbg_default_trace("notification handler is triggered on topic:{}, size={]",topic,blob.size);
+#if !defined(USE_DDS_TIMESTAMP_LOG)
+                        // We cannot get the message id here because the notification is not an object but a blob.
+                        TimestampLogger::log(TLT_DDS_SUBSCRIBER_RECV,my_id,0);
+#endif
                         for(auto& subscriber_core:registry.at(topic).registry) {
                             if (subscriber_core.second->online) {
                                 subscriber_core.second->post(blob);

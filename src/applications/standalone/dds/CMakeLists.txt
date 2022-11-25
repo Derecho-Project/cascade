@@ -54,24 +54,32 @@ add_custom_command(TARGET cascade_dds_udl POST_BUILD
         ${CMAKE_CURRENT_BINARY_DIR}/cfg/n1/layout.json
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/layout.json
         ${CMAKE_CURRENT_BINARY_DIR}/cfg/n2/layout.json
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/layout.json
+        ${CMAKE_CURRENT_BINARY_DIR}/cfg/n3/layout.json
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/dfgs.json
         ${CMAKE_CURRENT_BINARY_DIR}/cfg/n0/dfgs.json
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/dfgs.json
         ${CMAKE_CURRENT_BINARY_DIR}/cfg/n1/dfgs.json
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/dfgs.json
         ${CMAKE_CURRENT_BINARY_DIR}/cfg/n2/dfgs.json
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/dfgs.json
+        ${CMAKE_CURRENT_BINARY_DIR}/cfg/n3/dfgs.json
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/udl_dlls.cfg
         ${CMAKE_CURRENT_BINARY_DIR}/cfg/n0/udl_dlls.cfg
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/udl_dlls.cfg
         ${CMAKE_CURRENT_BINARY_DIR}/cfg/n1/udl_dlls.cfg
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/udl_dlls.cfg
         ${CMAKE_CURRENT_BINARY_DIR}/cfg/n2/udl_dlls.cfg
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/udl_dlls.cfg
+        ${CMAKE_CURRENT_BINARY_DIR}/cfg/n3/udl_dlls.cfg
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/dds.json
         ${CMAKE_CURRENT_BINARY_DIR}/cfg/n0/dds.json
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/dds.json
         ${CMAKE_CURRENT_BINARY_DIR}/cfg/n1/dds.json
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/dds.json
         ${CMAKE_CURRENT_BINARY_DIR}/cfg/n2/dds.json
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/dds.json
+        ${CMAKE_CURRENT_BINARY_DIR}/cfg/n3/dds.json
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/cfg/run.sh
             ${CMAKE_CURRENT_SOURCE_DIR}/cfg/layout.json
             ${CMAKE_CURRENT_SOURCE_DIR}/cfg/dfgs.json
