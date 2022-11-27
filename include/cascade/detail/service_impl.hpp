@@ -205,6 +205,26 @@ std::vector<node_id_t> ServiceClient<CascadeTypes...>::get_shard_members(uint32_
 
 template <typename... CascadeTypes>
 template <typename SubgroupType>
+std::vector<std::vector<node_id_t>> ServiceClient<CascadeTypes...>::get_subgroup_members(uint32_t subgroup_index) const {
+    if (!is_external_client()) {
+        return group_ptr->template get_subgroup_members<SubgroupType>(subgroup_index);
+    } else {
+        return external_group_ptr->template get_subgroup_members<SubgroupType>(subgroup_index);
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+uint32_t ServiceClient<CascadeTypes...>::get_number_of_subgroups() const {
+    if (!is_external_client()) {
+        return group_ptr->template get_num_subgroups<SubgroupType>();
+    } else {
+        return external_group_ptr->template get_number_of_subgroups<SubgroupType>();
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
 uint32_t ServiceClient<CascadeTypes...>::get_number_of_shards(uint32_t subgroup_index) const {
     if (!is_external_client()) {
         return group_ptr->template get_subgroup_members<SubgroupType>(subgroup_index).size();

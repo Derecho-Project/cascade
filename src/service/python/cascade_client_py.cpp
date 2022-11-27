@@ -474,6 +474,47 @@ PYBIND11_MODULE(member_client, m) {
                     "\t@return  a list of node ids"
                 )
             .def(
+                    "get_subgroup_members",
+                    [](ServiceClientAPI_PythonWrapper& capi, std::string service_type, uint32_t subgroup_index) {
+                        std::vector<std::vector<node_id_t>> members;
+                        on_all_subgroup_type(service_type, members = capi.ref.template get_subgroup_members, subgroup_index);
+                        return members;
+                    },
+                    "Get members of a subgroup.\n"
+                    "\t@arg0    service_type    VolatileCascadeStoreWithStringKey | \n"
+                    "\t                         PersistentCascadeStoreWithStringKey | \n"
+                    "\t                         TriggerCascadeNoStoreWithStringKey \n"
+                    "\t@arg1    subgroup_index  \n"
+                    "\t@return  a list of shard members, which is a list of node ids"
+                )
+            .def(
+                    "get_number_of_subgroups",
+                    [](ServiceClientAPI_PythonWrapper& capi, std::string service_type) {
+                        uint32_t nsubgroups;
+                        on_all_subgroup_type(service_type, nsubgroups = capi.ref.template get_number_of_subgroups);
+                        return nsubgroups;
+                    },
+                    "Get number of subgroups of a subgroup type.\n"
+                    "\t@arg0    service_type    VolatileCascadeStoreWithStringKey | \n"
+                    "\t                         PersistentCascadeStoreWithStringKey | \n"
+                    "\t                         TriggerCascadeNoStoreWithStringKey \n"
+                    "\t@arg1    subgroup_index"
+                )
+            .def(
+                    "get_number_of_shards",
+                    [](ServiceClientAPI_PythonWrapper& capi, std::string service_type, uint32_t subgroup_index) {
+                        uint32_t nshard;
+                        on_all_subgroup_type(service_type, nshard = capi.ref.template get_number_of_shards, subgroup_index);
+                        return nshard;
+                    },
+                    "Get number of shards in a subgroup.\n"
+                    "\t@arg0    service_type    VolatileCascadeStoreWithStringKey | \n"
+                    "\t                         PersistentCascadeStoreWithStringKey | \n"
+                    "\t                         TriggerCascadeNoStoreWithStringKey \n"
+                    "\t@arg1    subgroup_index  \n"
+                    "\t@return  the number of shards in the subgroup."
+                )
+            .def(
                     "set_member_selection_policy",
                     [](ServiceClientAPI_PythonWrapper& capi, std::string service_type, uint32_t subgroup_index, uint32_t shard_index, std::string policy, uint32_t usernode) {
                         ShardMemberSelectionPolicy real_policy = parse_policy_name(policy);
