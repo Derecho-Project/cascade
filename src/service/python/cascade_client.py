@@ -36,8 +36,8 @@ class CascadeClientShell(cmd.Cmd):
     def do_list_members(self, arg):
         '''
         list_members [subgroup_type [subgroup_index [shard_index]]]
-        ============
-        List the member nodes in the Cascade service.
+        ==================
+        List the member nodes in the service by subgroup_type, subgroup, or shard.
 
         subgroup_type:  the subgroup type, could be either of the following:
                         VolatileCascadeStoreWithStringKey
@@ -48,6 +48,29 @@ class CascadeClientShell(cmd.Cmd):
         '''
         self.check_capi()
         args = arg.split()
+        if len(args) == 0:
+            # list all nodes
+            print("Nodes in Cascade service:%s" % str(self.capi.get_members()))
+            return
+        subgroup_type = args[0]
+        if len(args) == 1:
+            # list all subgroups of this type
+            for subgroup_index in range(self.capi.get_number_of_subgroups(subgroup_type)):
+                print(f"Nodes in subgroup ({subgroup_type}:{subgroup_index}):{str(self.capi.get_subgroup_members(subgroup_type,subgroup_index))}")
+            return
+        subgroup_index = int(args[1],0)
+        if len(args) == 2:
+            # list subgroup members
+            print(f"Nodes in subgroup ({subgroup_type}:{subgroup_index}):{str(self.capi.get_subgroup_members(subgroup_type,subgroup_index))}")
+            return
+        shard_index = int(args[2],0)
+        if len(args) == 3:
+            # list shard members
+            print("Nodes in shard (%s:%d:%d):%s" % (subgroup_type,subgroup_index,shard_index,str(self.capi.get_shard_members(subgroup_type,subgroup_index,shard_index))))
+            return
+        else:
+            print(bcolors.FAIL + "Invalid command format." + bcolors.RESET)
+            
         if len(args) > 0:
             subgroup_type = args[0]
             subgroup_index = 0
@@ -59,6 +82,28 @@ class CascadeClientShell(cmd.Cmd):
             print("Nodes in shard (%s:%d:%d):%s" % (subgroup_type,subgroup_index,shard_index,str(self.capi.get_shard_members(subgroup_type,subgroup_index,shard_index))))
         else:
             print("Nodes in Cascade service:%s" % str(self.capi.get_members()))
+
+    def do_list_subgroup_members(self, arg):
+        '''
+        list_subgroup_members subgroup_type [subgroup_index]
+        ==================
+        List the member nodes in a subgroup.
+
+        subgroup_type:  the subgroup type, could be either of the following:
+                        VolatileCascadeStoreWithStringKey
+                        PersistentCascadeStoreWithStringKey
+                        TriggerCascadeNoStoreWithStringKey
+        subgroup_index: the subgroup index
+        '''
+        self.check_capi()
+        args = arg.split()
+        if len(args) < 1:
+            print(bcolors.FAIL + "At least one arguments are required." + bcolors.RESET)
+        subgroup_type = args[0]
+        subgroup_index = 0
+        if len(args) > 1:
+            subgroup_index = int(args[1],0)
+        print(f"Nodes in subgroup ({subgroup_type}:{subgroup_index}):{str(self.capi.get_subgroup_members(subgroup_type,subgroup_index))}")
 
     def do_set_member_selection_policy(self, arg):
         '''

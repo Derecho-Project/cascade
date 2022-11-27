@@ -17,6 +17,21 @@ using namespace derecho::cascade;
 #define PROC_NAME   "cascade_client"
 
 template <typename SubgroupType>
+void print_subgroup_member(ServiceClientAPI& capi, uint32_t subgroup_index) {
+    std::cout << "Subgroup (Type=" << std::type_index(typeid(SubgroupType)).name() << ","
+              << "subgroup_index=" << subgroup_index << ")" << std::endl;
+    auto members = capi.template get_subgroup_members<SubgroupType>(subgroup_index);
+    uint32_t shard_index = 0;
+    for (const auto& shard: members) {
+        std::cout << "shard-" << shard_index << " = [";
+        for (const auto& nid: shard) {
+            std::cout << nid << ",";
+        }
+        std::cout << "]" << std::endl;
+    }
+}
+
+template <typename SubgroupType>
 void print_shard_member(ServiceClientAPI& capi, uint32_t subgroup_index, uint32_t shard_index) {
     std::cout << "Subgroup (Type=" << std::type_index(typeid(SubgroupType)).name() << ","
               << "subgroup_index=" << subgroup_index << ","
@@ -752,6 +767,21 @@ std::vector<command_entry_t> commands =
                 std::cout << nid << "," ;
             }
             std::cout << "]" << std::endl;
+            return true;
+        }
+    },
+    {
+        "list_subgroup_members",
+        "List the nodes in a subgroup specified by type and subgroup index.",
+        "list_subgroup_members <type> [subgroup index(default:0)]\n"
+            "type := " SUBGROUP_TYPE_LIST,
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+            uint32_t subgroup_index = 0;
+            CHECK_FORMAT(cmd_tokens,2);
+            if (cmd_tokens.size() >= 3) {
+                subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[2],nullptr,0));
+            }
+            on_subgroup_type(cmd_tokens[1],print_subgroup_member,capi,subgroup_index);
             return true;
         }
     },
