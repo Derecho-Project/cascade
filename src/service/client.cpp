@@ -79,12 +79,17 @@ void print_shard_member(ServiceClientAPI& capi, derecho::subgroup_id_t subgroup_
 }
 **/
 
+/**
+ * IMPORTANT: the order of the policy_name has to match ShardMemberSelectionPolicy 
+ * defined in include/cascade/service.hpp
+ */
 static const char* policy_names[] = {
     "FirstMember",
     "LastMember",
     "Random",
     "FixedRandom",
     "RoundRobin",
+    "KeyHashing",
     "UserSpecified",
     nullptr
 };
@@ -738,7 +743,7 @@ ssize_t find_command(const std::vector<command_entry_t>& command_list, const std
 
 bool shell_is_active = true;
 #define SUBGROUP_TYPE_LIST "VCSS|PCSS|TCSS"
-#define SHARD_MEMBER_SELECTION_POLICY_LIST "FirstMember|LastMember|Random|FixedRandom|RoundRobin|UserSpecified"
+#define SHARD_MEMBER_SELECTION_POLICY_LIST "FirstMember|LastMember|Random|FixedRandom|RoundRobin|KeyHashing|UserSpecified"
 #define CHECK_FORMAT(tks,argc) \
             if (tks.size() < argc) { \
                 print_red("Invalid command format. Please try help " + tks[0] + "."); \
@@ -855,7 +860,7 @@ std::vector<command_entry_t> commands =
         "set_member_selection_policy",
         "Set the policy for choosing among a set of server members.",
         "set_member_selection_policy <type> <subgroup_index> <shard_index> <policy> [user specified node id]\n"
-            "type := " SUBGROUP_TYPE_LIST
+            "type := " SUBGROUP_TYPE_LIST "\n"
             "policy := " SHARD_MEMBER_SELECTION_POLICY_LIST,
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             CHECK_FORMAT(cmd_tokens,5);

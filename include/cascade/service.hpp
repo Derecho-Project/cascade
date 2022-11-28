@@ -314,6 +314,7 @@ namespace cascade {
         Random,         // use a random member in the shard for each operations(put/remove/get/get_by_time).
         FixedRandom,    // use a random member and stick to that for the following operations.
         RoundRobin,     // use a member in round-robin order.
+        KeyHashing,     // use the key's hashing 
         UserSpecified,  // user specify which member to contact.
         InvalidPolicy = -1
     };
@@ -468,12 +469,14 @@ namespace cascade {
          * Pick a member by a given a policy.
          * @param subgroup_index
          * @param shard_index
-         * @param retry - if true, refresh the member_cache.
+         * @param key_for_hashing   - only for KeyHashing policy, ignored otherwise.
+         * @param retry             - if true, refresh the member_cache.
          */
-        template <typename SubgroupType>
+        template <typename SubgroupType, typename KeyTypeForHashing>
         node_id_t pick_member_by_policy(uint32_t subgroup_index,
-                                                 uint32_t shard_index,
-                                                 bool retry = false);
+                                        uint32_t shard_index,
+                                        const KeyTypeForHashing& key_for_hashing,
+                                        bool retry = false);
 
         /**
          * Refresh(or fill) a member cache entry.
