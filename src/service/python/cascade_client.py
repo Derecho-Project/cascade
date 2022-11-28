@@ -35,30 +35,72 @@ class CascadeClientShell(cmd.Cmd):
 
     def do_list_members(self, arg):
         '''
-        list_members [subgroup_type [subgroup_index [shard_index]]]
+        list_members
         ============
-        List the member nodes in the Cascade service.
+        List the member nodes in the service by subgroup_type, subgroup, or shard.
 
+        ** optional keyword arguments **
         subgroup_type:  the subgroup type, could be either of the following:
                         VolatileCascadeStoreWithStringKey
                         PersistentCascadeStoreWithStringKey
                         TriggerCascadeNoStoreWithStringKey
-        subgroup_index: the subgroup index
+        subgroup_index: the subgroup index, default to 0 if subgroup_type is specified
         shard_index:    the shard index
+        object_pool_pathname:
+                        the object pool name
+                        Please note that you should either specify object_pool_pathname or 
+                        a (subgroup_type,subgroup_index) pair.
         '''
         self.check_capi()
+        subgroup_type = None
+        subgroup_index = None
+        shard_index = None
+        object_pool_pathname = None
         args = arg.split()
-        if len(args) > 0:
-            subgroup_type = args[0]
-            subgroup_index = 0
-            shard_index = 0
-            if len(args) > 1:
-                subgroup_index = int(args[1],0)
-            if len(args) > 2:
-                shard_index = int(args[2],0)
-            print("Nodes in shard (%s:%d:%d):%s" % (subgroup_type,subgroup_index,shard_index,str(self.capi.get_shard_members(subgroup_type,subgroup_index,shard_index))))
-        else:
+        argpos = 0
+        while argpos < len(args):
+            extra_option = args[argpos].split('=')
+            if len(extra_option) != 2:
+                print(bcolors.FAIL + "Unknown argument:" + args[2] + bcolors.RESET)
+                return
+            elif extra_option[0] == 'subgroup_type':
+                subgroup_type = extra_option[1]
+            elif extra_option[0] == 'subgroup_index':
+                subgroup_index = int(extra_option[1],0)
+            elif extra_option[0] == 'shard_index':
+                shard_index = int(extra_option[1],0)
+            elif extra_option[0] == 'object_pool_pathname':
+                object_pool_pathname = extra_option[1]
+            argpos = argpos + 1
+        if object_pool_pathname is None and subgroup_type is None and subgroup_index is None:
+            # list all nodes
             print("Nodes in Cascade service:%s" % str(self.capi.get_members()))
+            return
+
+        if object_pool_pathname is not None and (subgroup_type is not None or subgroup_index is not None):
+            print("Either object_pool_pathname or (subgroup_type,subgroup_index) pair can be specified")
+            return
+
+        if object_pool_pathname is None:
+            # specified by subgroup_type and subgroup_index
+            if subgroup_index is None:
+                # list all subgroups
+                for subgroup_index in range(self.capi.get_number_of_subgroups(subgroup_type)):
+                    print(f"Nodes in subgroup ({subgroup_type}:{subgroup_index}):{str(self.capi.get_subgroup_members(subgroup_type,subgroup_index))}")
+            elif shard_index is None:
+                # list subgroup members
+                print(f"Nodes in subgroup ({subgroup_type}:{subgroup_index}):{str(self.capi.get_subgroup_members(subgroup_type,subgroup_index))}")
+            else:
+                # list shard members:
+                print("Nodes in shard (%s:%d:%d):%s" % (subgroup_type,subgroup_index,shard_index,str(self.capi.get_shard_members(subgroup_type,subgroup_index,shard_index))))
+        else:
+            # specified by object pool
+            if shard_index is None:
+                # list subgroup members
+                print(f"Nodes in object pool {object_pool_pathname}:{self.capi.get_subgroup_members_by_object_pool(object_pool_pathname)}")
+            else:
+                # list shard members
+                print(f"Node in shard-{shard_index} of object pool {object_pool_pathname}:{self.capi.get_shard_members_by_object_pool(object_pool_pathname,shard_index)}")
 
     def do_set_member_selection_policy(self, arg):
         '''
@@ -78,6 +120,7 @@ class CascadeClientShell(cmd.Cmd):
                         Random
                         FixedRandom
                         RoundRobin
+                        KeyHashing
                         UserSpecified
         node_id:        if policy is 'UserSpecified', you need to specify the corresponding node id.
         '''
