@@ -537,9 +537,25 @@ namespace cascade {
 
         template <typename SubgroupType>
         std::vector<std::vector<node_id_t>> get_subgroup_members(uint32_t subgroup_index) const;
+    protected:
+        template <typename FirstType,typename SecondType, typename...RestTypes>
+        std::vector<std::vector<node_id_t>> type_recursive_get_subgroup_members(uint32_t type_index, uint32_t subgroup_index) const;
+        template <typename LastType>
+        std::vector<std::vector<node_id_t>> type_recursive_get_subgroup_members(uint32_t type_index, uint32_t subgroup_index) const;
+    public:
+        std::vector<std::vector<node_id_t>> get_subgroup_members(const std::string& object_pool_pathname);
 
         template <typename SubgroupType>
         std::vector<node_id_t> get_shard_members(uint32_t subgroup_index,uint32_t shard_index) const;
+    protected:
+        template <typename FirstType,typename SecondType, typename...RestTypes>
+        std::vector<node_id_t> type_recursive_get_shard_members(uint32_t type_index,
+                uint32_t subgroup_index, uint32_t shard_index) const;
+        template <typename LastType>
+        std::vector<node_id_t> type_recursive_get_shard_members(uint32_t type_index,
+                uint32_t subgroup_index, uint32_t shard_index) const;
+    public:
+        std::vector<node_id_t> get_shard_members(const std::string& object_pool_pathname,uint32_t shard_index);
 
         template <typename SubgroupType>
         uint32_t get_number_of_subgroups() const;
@@ -560,6 +576,12 @@ namespace cascade {
          * @param subgroup_index        - the subgroup index in the given type.
          */
         uint32_t get_number_of_shards(uint32_t subgroup_type_index, uint32_t subgroup_index) const;
+
+        /**
+         * This get_number_of_shards(), pick subgroup using object pool pathname.
+         * @param object_pool_pathname  - the object pool name
+         */
+        uint32_t get_number_of_shards(const std::string& object_pool_pathname);
 
         /**
          * Member selection policy control API.

@@ -31,6 +31,19 @@ void print_subgroup_member(ServiceClientAPI& capi, uint32_t subgroup_index) {
     }
 }
 
+void print_subgroup_member(ServiceClientAPI& capi, const std::string& op) {
+    std::cout << "Object Pool=" << op << std::endl;
+    auto members = capi.get_subgroup_members(op);
+    uint32_t shard_index = 0;
+    for (const auto& shard: members) {
+        std::cout << "shard-" << shard_index << " = [";
+        for (const auto& nid: shard) {
+            std::cout << nid << ",";
+        }
+        std::cout << "]" << std::endl;
+    }
+}
+
 template <typename SubgroupType>
 void print_shard_member(ServiceClientAPI& capi, uint32_t subgroup_index, uint32_t shard_index) {
     std::cout << "Subgroup (Type=" << std::type_index(typeid(SubgroupType)).name() << ","
@@ -42,6 +55,17 @@ void print_shard_member(ServiceClientAPI& capi, uint32_t subgroup_index, uint32_
     }
     std::cout << "]" << std::endl;
 }
+
+void print_shard_member(ServiceClientAPI& capi, const std::string& op, uint32_t shard_index) {
+    std::cout << "Object Pool=" << op << ",\n"
+              << "shard_index=" << shard_index << ",\nmember list=[";
+    auto members = capi.get_shard_members(op,shard_index);
+    for (auto nid : members) {
+        std::cout << nid << ",";
+    }
+    std::cout << "]" << std::endl;
+}
+
 
 /** disabled
 void print_shard_member(ServiceClientAPI& capi, derecho::subgroup_id_t subgroup_id, uint32_t shard_index) {
@@ -786,6 +810,16 @@ std::vector<command_entry_t> commands =
         }
     },
     {
+        "op_list_subgroup_members",
+        "List the subgroup members by object pool name.",
+        "op_list_subgroup_members <object pool pathname>",
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+            CHECK_FORMAT(cmd_tokens,2);
+            print_subgroup_member(capi,cmd_tokens[1]);
+            return true;
+        }
+    },
+    {
         "list_shard_members",
         "List the IDs in a shard specified by type, subgroup index, and shard index.",
         "list_shard_members <type> [subgroup index(default:0)] [shard index(default:0)]\n"
@@ -800,6 +834,20 @@ std::vector<command_entry_t> commands =
                 shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3],nullptr,0));
             }
             on_subgroup_type(cmd_tokens[1],print_shard_member,capi,subgroup_index,shard_index);
+            return true;
+        }
+    },
+    {
+        "op_list_shard_members",
+        "List the shard members by object pool name.",
+        "op_list_shard_members <object pool pathname> [shard index(default:0)]",
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+            uint32_t shard_index = 0;
+            CHECK_FORMAT(cmd_tokens,2);
+            if (cmd_tokens.size() >= 3) {
+                shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[2],nullptr,0));
+            }
+            print_shard_member(capi,cmd_tokens[1],shard_index);
             return true;
         }
     },
