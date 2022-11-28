@@ -84,8 +84,10 @@ class CascadeClientShell(cmd.Cmd):
         if object_pool_pathname is None:
             # specified by subgroup_type and subgroup_index
             if subgroup_index is None:
-                subgroup_index = 0
-            if shard_index is None:
+                # list all subgroups
+                for subgroup_index in range(self.capi.get_number_of_subgroups(subgroup_type)):
+                    print(f"Nodes in subgroup ({subgroup_type}:{subgroup_index}):{str(self.capi.get_subgroup_members(subgroup_type,subgroup_index))}")
+            elif shard_index is None:
                 # list subgroup members
                 print(f"Nodes in subgroup ({subgroup_type}:{subgroup_index}):{str(self.capi.get_subgroup_members(subgroup_type,subgroup_index))}")
             else:
@@ -118,6 +120,7 @@ class CascadeClientShell(cmd.Cmd):
                         Random
                         FixedRandom
                         RoundRobin
+                        KeyHashing
                         UserSpecified
         node_id:        if policy is 'UserSpecified', you need to specify the corresponding node id.
         '''

@@ -39,12 +39,16 @@ namespace py = pybind11;
         print_red("unknown subgroup type:" + x);              \
     }
 
+/**
+ * The following names have to match ShardMemberSelectionPolicy defined in include/cascade/service.hpp
+ */
 static const char* policy_names[] = {
         "FirstMember",
         "LastMember",
         "Random",
         "FixedRandom",
         "RoundRobin",
+        "KeyHashing",
         "UserSpecified",
         nullptr};
 
@@ -550,6 +554,7 @@ PYBIND11_MODULE(member_client, m) {
                     "\t                         Random | \n",
                     "\t                         FixedRandom | \n",
                     "\t                         RoundRobin | \n",
+                    "\t                         KeyHashing | \n",
                     "\t                         UserSpecified \n",
                     "\t@arg4    usernode        The node id for 'UserSpecified' policy"
                 )
@@ -575,6 +580,9 @@ PYBIND11_MODULE(member_client, m) {
                                 break;
                             case ShardMemberSelectionPolicy::RoundRobin:
                                 pol = "RoundRobin";
+                                break;
+                            case ShardMemberSelectionPolicy::KeyHashing:
+                                pol = "KeyHashing";
                                 break;
                             case ShardMemberSelectionPolicy::UserSpecified:
                                 pol = "UserSpecified";
