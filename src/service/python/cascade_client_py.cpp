@@ -39,12 +39,16 @@ namespace py = pybind11;
         print_red("unknown subgroup type:" + x);              \
     }
 
+/**
+ * The following names have to match ShardMemberSelectionPolicy defined in include/cascade/service.hpp
+ */
 static const char* policy_names[] = {
         "FirstMember",
         "LastMember",
         "Random",
         "FixedRandom",
         "RoundRobin",
+        "KeyHashing",
         "UserSpecified",
         nullptr};
 
@@ -459,6 +463,29 @@ PYBIND11_MODULE(member_client, m) {
                     "\r@return  a list of node ids"
                 )
             .def(
+                    "get_subgroup_members",
+                    [](ServiceClientAPI_PythonWrapper& capi, std::string service_type, uint32_t subgroup_index) {
+                        std::vector<std::vector<node_id_t>> members;
+                        on_all_subgroup_type(service_type, members = capi.ref.template get_subgroup_members, subgroup_index);
+                        return members;
+                    },
+                    "Get members of a subgroup.\n"
+                    "\t@arg0    service_type    VolatileCascadeStoreWithStringKey | \n"
+                    "\t                         PersistentCascadeStoreWithStringKey | \n"
+                    "\t                         TriggerCascadeNoStoreWithStringKey \n"
+                    "\t@arg1    subgroup_index  \n"
+                    "\t@return  a list of shard members, which is a list of node ids"
+                )
+            .def(
+                    "get_subgroup_members_by_object_pool",
+                    [](ServiceClientAPI_PythonWrapper& capi, const std::string& object_pool_pathname){
+                        return capi.ref.get_subgroup_members(object_pool_pathname);
+                    },
+                    "Get members of a subgroup by object pool.\n"
+                    "\t@arg0    object_pool_pathname \n"
+                    "\t@return  a list of shard members, which is a list of node ids"
+                )
+            .def(
                     "get_shard_members", 
                     [](ServiceClientAPI_PythonWrapper& capi, std::string service_type, uint32_t subgroup_index, uint32_t shard_index) {
                         std::vector<node_id_t> members;
@@ -472,6 +499,43 @@ PYBIND11_MODULE(member_client, m) {
                     "\t@arg1    subgroup_index  \n"
                     "\t@arg2    shard_index     \n"
                     "\t@return  a list of node ids"
+                )
+            .def(
+                    "get_shard_members_by_object_pool",
+                    [](ServiceClientAPI_PythonWrapper& capi, const std::string& object_pool_pathname, uint32_t shard_index){
+                        return capi.ref.get_shard_members(object_pool_pathname,shard_index);
+                    },
+                    "Get members of a shard.\n"
+                    "\t@arg0    object_pool_pathname \n"
+                    "\t@arg1    shard_index     \n"
+                    "\t@return  a list of node ids"
+                )
+            .def(
+                    "get_number_of_subgroups",
+                    [](ServiceClientAPI_PythonWrapper& capi, std::string service_type) {
+                        uint32_t nsubgroups;
+                        on_all_subgroup_type(service_type, nsubgroups = capi.ref.template get_number_of_subgroups);
+                        return nsubgroups;
+                    },
+                    "Get number of subgroups of a subgroup type.\n"
+                    "\t@arg0    service_type    VolatileCascadeStoreWithStringKey | \n"
+                    "\t                         PersistentCascadeStoreWithStringKey | \n"
+                    "\t                         TriggerCascadeNoStoreWithStringKey \n"
+                    "\t@arg1    subgroup_index"
+                )
+            .def(
+                    "get_number_of_shards",
+                    [](ServiceClientAPI_PythonWrapper& capi, std::string service_type, uint32_t subgroup_index) {
+                        uint32_t nshard;
+                        on_all_subgroup_type(service_type, nshard = capi.ref.template get_number_of_shards, subgroup_index);
+                        return nshard;
+                    },
+                    "Get number of shards in a subgroup.\n"
+                    "\t@arg0    service_type    VolatileCascadeStoreWithStringKey | \n"
+                    "\t                         PersistentCascadeStoreWithStringKey | \n"
+                    "\t                         TriggerCascadeNoStoreWithStringKey \n"
+                    "\t@arg1    subgroup_index  \n"
+                    "\t@return  the number of shards in the subgroup."
                 )
             .def(
                     "set_member_selection_policy",
@@ -490,6 +554,7 @@ PYBIND11_MODULE(member_client, m) {
                     "\t                         Random | \n",
                     "\t                         FixedRandom | \n",
                     "\t                         RoundRobin | \n",
+                    "\t                         KeyHashing | \n",
                     "\t                         UserSpecified \n",
                     "\t@arg4    usernode        The node id for 'UserSpecified' policy"
                 )
@@ -515,6 +580,9 @@ PYBIND11_MODULE(member_client, m) {
                                 break;
                             case ShardMemberSelectionPolicy::RoundRobin:
                                 pol = "RoundRobin";
+                                break;
+                            case ShardMemberSelectionPolicy::KeyHashing:
+                                pol = "KeyHashing";
                                 break;
                             case ShardMemberSelectionPolicy::UserSpecified:
                                 pol = "UserSpecified";

@@ -314,6 +314,7 @@ namespace cascade {
         Random,         // use a random member in the shard for each operations(put/remove/get/get_by_time).
         FixedRandom,    // use a random member and stick to that for the following operations.
         RoundRobin,     // use a member in round-robin order.
+        KeyHashing,     // use the key's hashing 
         UserSpecified,  // user specify which member to contact.
         InvalidPolicy = -1
     };
@@ -468,12 +469,14 @@ namespace cascade {
          * Pick a member by a given a policy.
          * @param subgroup_index
          * @param shard_index
-         * @param retry - if true, refresh the member_cache.
+         * @param key_for_hashing   - only for KeyHashing policy, ignored otherwise.
+         * @param retry             - if true, refresh the member_cache.
          */
-        template <typename SubgroupType>
+        template <typename SubgroupType, typename KeyTypeForHashing>
         node_id_t pick_member_by_policy(uint32_t subgroup_index,
-                                                 uint32_t shard_index,
-                                                 bool retry = false);
+                                        uint32_t shard_index,
+                                        const KeyTypeForHashing& key_for_hashing,
+                                        bool retry = false);
 
         /**
          * Refresh(or fill) a member cache entry.
@@ -521,10 +524,11 @@ namespace cascade {
 
         /**
          * Derecho group helpers: They derive the API in derecho::ExternalClient.
-         * - get_my_id          return my local node id.
-         * - get_members        returns all members in the top-level Derecho group.
-         * - get_shard_members  returns the members in a shard specified by subgroup id(or subgroup type/index pair) and
-         *   shard index.
+         * - get_my_id                  return my local node id.
+         * - get_members                returns all members in the top-level Derecho group.
+         * - get_subgroup_members       returns a vector of vectors of node ids: [[node ids in shard 0],[node ids in shard 1],...]
+         * - get_shard_members          returns the members in a shard specified by subgroup id(or subgroup type/index pair) and
+         *                              shard index.
          * - get_number_of_subgroups    returns the number of subgroups of a given type
          * - get_number_of_shards       returns the number of shards of a given subgroup
          * During view change, the Client might experience failure if the member is gone. In such a case, the client needs
@@ -535,7 +539,29 @@ namespace cascade {
         std::vector<node_id_t> get_members() const;
 
         template <typename SubgroupType>
+        std::vector<std::vector<node_id_t>> get_subgroup_members(uint32_t subgroup_index) const;
+    protected:
+        template <typename FirstType,typename SecondType, typename...RestTypes>
+        std::vector<std::vector<node_id_t>> type_recursive_get_subgroup_members(uint32_t type_index, uint32_t subgroup_index) const;
+        template <typename LastType>
+        std::vector<std::vector<node_id_t>> type_recursive_get_subgroup_members(uint32_t type_index, uint32_t subgroup_index) const;
+    public:
+        std::vector<std::vector<node_id_t>> get_subgroup_members(const std::string& object_pool_pathname);
+
+        template <typename SubgroupType>
         std::vector<node_id_t> get_shard_members(uint32_t subgroup_index,uint32_t shard_index) const;
+    protected:
+        template <typename FirstType,typename SecondType, typename...RestTypes>
+        std::vector<node_id_t> type_recursive_get_shard_members(uint32_t type_index,
+                uint32_t subgroup_index, uint32_t shard_index) const;
+        template <typename LastType>
+        std::vector<node_id_t> type_recursive_get_shard_members(uint32_t type_index,
+                uint32_t subgroup_index, uint32_t shard_index) const;
+    public:
+        std::vector<node_id_t> get_shard_members(const std::string& object_pool_pathname,uint32_t shard_index);
+
+        template <typename SubgroupType>
+        uint32_t get_number_of_subgroups() const;
 
         template <typename SubgroupType>
         uint32_t get_number_of_shards(uint32_t subgroup_index) const;
@@ -553,6 +579,12 @@ namespace cascade {
          * @param subgroup_index        - the subgroup index in the given type.
          */
         uint32_t get_number_of_shards(uint32_t subgroup_type_index, uint32_t subgroup_index) const;
+
+        /**
+         * This get_number_of_shards(), pick subgroup using object pool pathname.
+         * @param object_pool_pathname  - the object pool name
+         */
+        uint32_t get_number_of_shards(const std::string& object_pool_pathname);
 
         /**
          * Member selection policy control API.
