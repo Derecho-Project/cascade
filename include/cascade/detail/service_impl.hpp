@@ -204,6 +204,38 @@ std::vector<node_id_t> ServiceClient<CascadeTypes...>::get_shard_members(uint32_
 }
 
 template <typename... CascadeTypes>
+template <typename FirstType,typename SecondType, typename...RestTypes>
+std::vector<node_id_t> ServiceClient<CascadeTypes...>::type_recursive_get_shard_members(uint32_t type_index,
+        uint32_t subgroup_index, uint32_t shard_index) const {
+    if (type_index == 0) {
+        return this->template get_shard_members<FirstType>(subgroup_index,shard_index);
+    } else {
+        return this->template type_recursive_get_shard_members<SecondType, RestTypes...>(type_index-1,subgroup_index,shard_index);
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename LastType>
+std::vector<node_id_t> ServiceClient<CascadeTypes...>::type_recursive_get_shard_members(uint32_t type_index,
+        uint32_t subgroup_index, uint32_t shard_index) const {
+    if (type_index == 0) {
+        return this->template get_shard_members<LastType>(subgroup_index,shard_index);
+    } else {
+        throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) + " type index is out of boundary");
+    }
+}
+
+template <typename... CascadeTypes>
+std::vector<node_id_t> ServiceClient<CascadeTypes...>::get_shard_members(
+        const std::string& object_pool_pathname,uint32_t shard_index) {
+    auto opm = find_object_pool(object_pool_pathname);
+    if (!opm.is_valid() || opm.is_null() || opm.deleted) {
+        throw derecho::derecho_exception("Failed to find object_pool:" + object_pool_pathname);
+    }
+    return this->template type_recursive_get_shard_members<CascadeTypes...>(opm.subgroup_type_index,opm.subgroup_index,shard_index);
+}
+
+template <typename... CascadeTypes>
 template <typename SubgroupType>
 std::vector<std::vector<node_id_t>> ServiceClient<CascadeTypes...>::get_subgroup_members(uint32_t subgroup_index) const {
     if (!is_external_client()) {
@@ -211,6 +243,38 @@ std::vector<std::vector<node_id_t>> ServiceClient<CascadeTypes...>::get_subgroup
     } else {
         return external_group_ptr->template get_subgroup_members<SubgroupType>(subgroup_index);
     }
+}
+
+template <typename... CascadeTypes>
+template <typename FirstType,typename SecondType,typename...RestTypes>
+std::vector<std::vector<node_id_t>> ServiceClient<CascadeTypes...>::type_recursive_get_subgroup_members(
+        uint32_t type_index, uint32_t subgroup_index) const {
+    if (type_index == 0) {
+        return this->template get_subgroup_members<FirstType>(subgroup_index);
+    } else {
+        return this->template type_recursive_get_subgroup_members<SecondType,RestTypes...>(type_index-1,subgroup_index);
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename LastType>
+std::vector<std::vector<node_id_t>> ServiceClient<CascadeTypes...>::type_recursive_get_subgroup_members(
+        uint32_t type_index, uint32_t subgroup_index) const {
+    if (type_index == 0) {
+        return this->template get_subgroup_members<LastType>(subgroup_index);
+    } else {
+        throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) + " type index is out of boundary");
+    }
+}
+
+template <typename... CascadeTypes>
+std::vector<std::vector<node_id_t>> ServiceClient<CascadeTypes...>::get_subgroup_members(
+        const std::string& object_pool_pathname) {
+    auto opm = find_object_pool(object_pool_pathname);
+    if (!opm.is_valid() || opm.is_null() || opm.deleted) {
+        throw derecho::derecho_exception("Failed to find object_pool:" + object_pool_pathname);
+    }
+    return this->template type_recursive_get_subgroup_members<CascadeTypes...>(opm.subgroup_type_index,opm.subgroup_index);
 }
 
 template <typename... CascadeTypes>
@@ -262,6 +326,16 @@ uint32_t ServiceClient<CascadeTypes...>::get_number_of_shards (
 }
 
 template <typename... CascadeTypes>
+uint32_t ServiceClient<CascadeTypes...>::get_number_of_shards (
+        const std::string& object_pool_pathname) {
+    auto opm = find_object_pool(object_pool_pathname);
+    if (!opm.is_valid() || opm.is_null() || opm.deleted) {
+        throw derecho::derecho_exception("Failed to find object_pool:" + object_pool_pathname);
+    }
+    return get_number_of_shards(opm.subgroup_type_index,opm.subgroup_index);
+}
+
+template <typename... CascadeTypes>
 template <typename SubgroupType>
 void ServiceClient<CascadeTypes...>::set_member_selection_policy(uint32_t subgroup_index,uint32_t shard_index,
         ShardMemberSelectionPolicy policy, node_id_t user_specified_node_id) {
@@ -306,8 +380,8 @@ void ServiceClient<CascadeTypes...>::refresh_member_cache_entry(uint32_t subgrou
 template <typename... CascadeTypes>
 template <typename KeyType>
 std::tuple<uint32_t,uint32_t,uint32_t> ServiceClient<CascadeTypes...>::key_to_shard(
-	    const KeyType& key,
-	    bool check_object_location) {
+        const KeyType& key,
+        bool check_object_location) {
     std::string object_pool_pathname = get_pathname<KeyType>(key);
     if (object_pool_pathname.empty()) {
         std::string exp_msg("Key:");
