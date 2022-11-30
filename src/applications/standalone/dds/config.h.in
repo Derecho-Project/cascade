@@ -8,7 +8,7 @@
 #define TLT_DDS_PUBLISHER_SEND_END          TLT_DDS(2)              // 100002
 /* need to log the following CASCADE events, depending on which subgroup type is using
  *
- * - TLT_SERVICE_CLIENT_PUT_AND_FORGET_START    (1001)
+ * - TLT_SERVICE_CLIENT_PUT_AND_FORGET_START    (1002)
  *                                              Volatile/Persistent
  * - *_PUT_AND_FORGET_START                     (2011/3011)
  * - *_ORDERED_PUT_AND_FORGET_START             (2012/3012)
