@@ -15,7 +15,7 @@ if (${HAS_FUSE})
     )
     target_link_libraries(fuse_client cascade readline fuse3)
     set_target_properties(fuse_client PROPERTIES OUTPUT_NAME cascade_fuse_client)
- 
+
     add_custom_command(TARGET fuse_client POST_BUILD
         	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/testfuse.py ${CMAKE_CURRENT_BINARY_DIR}/.
         	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/util.py ${CMAKE_CURRENT_BINARY_DIR}/.
@@ -29,4 +29,3 @@ if (${HAS_FUSE})
 	    )
 
 endif()
-
