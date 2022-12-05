@@ -1,10 +1,11 @@
 #include "server.hpp"
 
 #include "cascade/cascade.hpp"
+#include "cascade/object.hpp"
 #include "cascade/service.hpp"
 #include "cascade/service_types.hpp"
-#include "cascade/object.hpp"
 
+#include <csignal>
 #include <derecho/conf/conf.hpp>
 #include <derecho/utils/logger.hpp>
 #include <dlfcn.h>
@@ -15,7 +16,36 @@
 
 using namespace derecho::cascade;
 
+void terminate() {
+    // wait for service to quit.
+    Service<VolatileCascadeStoreWithStringKey,
+            PersistentCascadeStoreWithStringKey,
+            TriggerCascadeNoStoreWithStringKey>::shutdown(false);
+    dbg_default_trace("shutdown service gracefully");
+    // you can do something here to parallel the destructing process.
+    Service<VolatileCascadeStoreWithStringKey,
+            PersistentCascadeStoreWithStringKey,
+            TriggerCascadeNoStoreWithStringKey>::wait();
+    dbg_default_trace("Finish shutdown.");
+}
+
+void signal_handler(int signum) {
+    dbg_default_trace("received interrupt signal {}", signum);
+
+    terminate();
+    exit(signum);
+}
+
 int main(int argc, char** argv) {
+    // check for signal_arg
+    bool use_signal = false;
+    for(int i = 0; i < argc; ++i) {
+        printf("Argument %d : %s\n", i, argv[i]);
+        if(strcmp(argv[i], "--signal") == 0) {
+            use_signal = true;
+        }
+    }
+
     // set proc name
     if(prctl(PR_SET_NAME, PROC_NAME, 0, 0, 0) != 0) {
         dbg_default_warn("Cannot set proc name to {}.", PROC_NAME);
@@ -47,18 +77,18 @@ int main(int argc, char** argv) {
                                                        meta_factory,
                                                        vcss_factory, pcss_factory, tcss_factory);
     dbg_default_trace("started service, waiting till it ends.");
-    std::cout << "Press Enter to Shutdown." << std::endl;
-    std::cin.get();
-    // wait for service to quit.
-    Service<VolatileCascadeStoreWithStringKey,
-            PersistentCascadeStoreWithStringKey,
-            TriggerCascadeNoStoreWithStringKey>::shutdown(false);
-    dbg_default_trace("shutdown service gracefully");
-    // you can do something here to parallel the destructing process.
-    Service<VolatileCascadeStoreWithStringKey,
-            PersistentCascadeStoreWithStringKey,
-            TriggerCascadeNoStoreWithStringKey>::wait();
-    dbg_default_trace("Finish shutdown.");
+
+    if(use_signal) {
+        printf("Send SIGINT (Ctrl+C) to Shutdown.\n");
+        signal(SIGINT, signal_handler);
+        while(true) {
+            sleep(60);
+        }
+    } else {
+        printf("Press Enter to Shutdown.\n");
+        std::cin.get();
+        terminate();
+    }
 
     return 0;
 }

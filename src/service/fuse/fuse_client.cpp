@@ -278,7 +278,7 @@ int main(int argc, char** argv) {
 
         // log_current_dir(opts.foreground);
 
-        /* Block until ctrl+c or fuserount -u */
+        /* Block until ctrl+c or fusermount -u */
         if(opts.singlethread) {
             ret = fuse_session_loop(se);
         } else {

@@ -16,7 +16,7 @@ the cascade service is configured and started, in the client node, running
 `../../fuse/cascade_fuse_client [directory_to_mount]` will mount cascade file
 systsem to the dedicated directory.
 
-Once fuse applicatino is mounted to the directory, you can access the K/V object
+Once fuse application is mounted to the directory, you can access the K/V object
 stored in cascade using linux shell command. The structured of the mounted file
 system is as following
 
@@ -26,21 +26,21 @@ system is as following
 |-- PersistentCascadeStoreWithStringKey
 |   |-- subgroup-0
 |       |-- shard-0
-|   	|-- .cascade
+|       |-- .cascade
 |           |-- key-0
 |       ...
 |-- VolatileCascadeStoreWithStringKey
 |   |-- subgroup-0
 |       |-- shard-0
-|   	|-- .cascade
+|       |-- .cascade
 |       ...
 |-- TriggerCascadeStoreWithStringKey
 |-- ObjectPools
 |   |-- objectpoolpathname-a
-|   	|-- a1
-|	    |-- objectpool object 0
-|	    ...
-|	    |-- .cascade
+|       |-- a1
+|           |-- objectpool object 0
+|           ...
+|           |-- .cascade
 |   |-- .cascade
 |-- .cascade
 ```
@@ -48,11 +48,11 @@ system is as following
 Support READ commands:
 
 ```
-cd [dir]		open directory
-ls [dir]		list directory
-ls -a			list directory with attributes
-cat [file]		read file
-cat .cascade		read directory metadata information
+cd [dir]        open directory
+ls [dir]        list directory
+ls -a           list directory with attributes
+cat [file]      read file
+cat .cascade    read directory metadata information
 ```
 
 Limitation:
