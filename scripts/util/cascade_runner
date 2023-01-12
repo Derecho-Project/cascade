@@ -8,7 +8,7 @@ HELP_STRING="A helper script to set up a local cascade instance
 Usage: $SCRIPT_NAME [options]
   -h            Print this message and exit.
   -d    D       CFG directory location (defaults to cfg).
-  -n    N       Sets a range from 0..N-1 for range commands commands.
+  -n    N       Sets a range from 0..N-1 for range commands.
 
   -u    K       update key in range.
   -v    V       update value in range.
@@ -18,9 +18,11 @@ Usage: $SCRIPT_NAME [options]
   -r            Remove old logs in range.
   -s            Start server nodes in range.
   -f    D       directory to mount (requires -c flag to start and -k to end).
+  -F    D       directory to mount (runs in foreground).
   -c    I       Start client node at folder cfg/nI."
 
 CFG_DIR="$SCRIPT_DIR/cfg"
+FUSE_FOREGROUND=false
 FUSE_DIR=""
 HELP=false
 KILL=false
@@ -80,7 +82,7 @@ foreach() {
 }
 
 main() {
-  while getopts 'hd:n:f:krsc:u:v:' opt; do
+  while getopts 'hd:n:f:F:krsc:u:v:' opt; do
     case "$opt" in
     h) HELP=true ;;
     d) CFG_DIR="$OPTARG" ;;
@@ -89,6 +91,10 @@ main() {
       check_num "$NODES"
       ;;
     f) FUSE_DIR="$OPTARG" ;;
+    F)
+      FUSE_DIR="$OPTARG"
+      FUSE_FOREGROUND=true
+      ;;
     k) KILL=true ;;
     r) CLEAN=true ;;
     s) SERVERS=true ;;
@@ -116,7 +122,12 @@ main() {
 
       echo "fuse client mounting at $MOUNT"
       mkdir -p "$MOUNT"
-      "$FUSE_COMMAND" -s -f "$MOUNT" &>"$LOG_FILE" &
+
+      if [[ "$FUSE_FOREGROUND" = true ]]; then
+        "$FUSE_COMMAND" -s -f "$MOUNT"
+      else
+        "$FUSE_COMMAND" -s -f "$MOUNT" &>"$LOG_FILE" &
+      fi
 
       cd - &>/dev/null
       exit
@@ -166,12 +177,7 @@ main() {
   if [[ ! "$CLIENT" -eq "-1" ]]; then
     DIR="$CFG_DIR/n$CLIENT"
 
-    if [[ -n "$FUSE_DIR" ]]; then
-      mkdir -p "$MOUNT"
-
-      cd "$DIR"
-      "$FUSE_COMMAND" -s -f "$MOUNT" &>"$LOG_FILE" &
-    else
+    if [[ -z "$FUSE_DIR" ]]; then
       cd "$DIR"
       "$CLIENT_COMMAND"
     fi
