@@ -18,6 +18,8 @@
  * fuse_client mounts the cascade service as a file system. This allows users to access cascade data with normal POSIX
  * filesystem API.
  *
+ * TODO document data path for object pool
+ *
  * The data in cascade is organized this way:
  * <mount-point>/<site-name>/<subgroup-type>/<subgroup-index>/<shard-index>/<key>
  * "mount-point" is where the cascade data is mounted.
@@ -32,13 +34,22 @@
 using namespace derecho::cascade;
 using FuseClientContextType = FuseClientContext<VolatileCascadeStoreWithStringKey, PersistentCascadeStoreWithStringKey, TriggerCascadeNoStoreWithStringKey>;
 
-#define FCC(p) static_cast<FuseClientContextType*>(p)
-#define FCC_REQ(req) FCC(fuse_req_userdata(req))
+// #define FCC(p) static_cast<FuseClientContextType*>(p)
+// #define fcc(req) FCC(fuse_req_userdata(req))
+
+static FuseClientContextType* fcc(fuse_req_t req) {
+    return static_cast<FuseClientContextType*>(fuse_req_userdata(req));
+}
 
 static void fs_init(void* userdata, struct fuse_conn_info* conn) {
     dbg_default_trace("entering {}.", __func__);
+    auto fcc = static_cast<FuseClientContextType*>(userdata);
+    // TODO ? where is truncating handled in open syscall?
+    int can_trunc = conn->capable & FUSE_CAP_ATOMIC_O_TRUNC;
+    dbg_default_info("can trunc: {}", can_trunc);
+
     if(derecho::hasCustomizedConfKey(CONF_LAYOUT_JSON_LAYOUT)) {
-        FCC(userdata)->initialize(json::parse(derecho::getConfString(CONF_LAYOUT_JSON_LAYOUT)));
+        fcc->initialize(json::parse(derecho::getConfString(CONF_LAYOUT_JSON_LAYOUT)));
     } else if(derecho::hasCustomizedConfKey(CONF_LAYOUT_JSON_LAYOUT_FILE)) {
         nlohmann::json layout_array;
         std::ifstream json_file(derecho::getAbsoluteFilePath(derecho::getConfString(CONF_LAYOUT_JSON_LAYOUT_FILE)));
@@ -47,7 +58,7 @@ static void fs_init(void* userdata, struct fuse_conn_info* conn) {
             throw derecho::derecho_exception("Cannot load json configuration from file.");
         }
         json_file >> layout_array;
-        FCC(userdata)->initialize(layout_array);
+        fcc->initialize(layout_array);
     }
     dbg_default_trace("leaving {}.", __func__);
 }
@@ -57,22 +68,46 @@ static void fs_destroy(void* userdata) {
     dbg_default_trace("leaving {}.", __func__);
 }
 
+static int do_lookup(fuse_req_t req, fuse_ino_t parent, const char* name,
+                     struct fuse_entry_param* e) {
+    // TODO: make this more efficient by implement a dedicated call in FCC.
+    auto name_to_ino = fcc(req)->get_dir_entries(parent);
+    if(name_to_ino.find(name) == name_to_ino.end()) {
+        return ENOENT;
+    }
+    // TODO: change timeout settings.
+    e->ino = name_to_ino.at(name);
+    e->attr_timeout = 10000.0;
+    e->entry_timeout = 10000.0;
+    e->attr.st_ino = e->ino;
+    fcc(req)->fill_stbuf_by_ino(e->attr);
+
+    return 0;
+}
+
 static void fs_lookup(fuse_req_t req, fuse_ino_t parent, const char* name) {
     dbg_default_trace("entering {}.", __func__);
     struct fuse_entry_param e;
-    // TODO: make this more efficient by implement a dedicated call in FCC.
-    auto name_to_ino = FCC_REQ(req)->get_dir_entries(parent);
-    if(name_to_ino.find(name) == name_to_ino.end()) {
-        fuse_reply_err(req, ENOENT);
+
+    int err = do_lookup(req, parent, name, &e);
+    if(err) {
+        fuse_reply_err(req, err);
     } else {
-        // TODO: change timeout settings.
-        e.ino = name_to_ino.at(name);
-        e.attr_timeout = 10000.0;
-        e.entry_timeout = 10000.0;
-        e.attr.st_ino = e.ino;
-        FCC_REQ(req)->fill_stbuf_by_ino(e.attr);
         fuse_reply_entry(req, &e);
     }
+
+    // auto name_to_ino = fcc(req)->get_dir_entries(parent);
+    // if(name_to_ino.find(name) == name_to_ino.end()) {
+    //     fuse_reply_err(req, ENOENT);
+    // } else {
+    //     // TODO: change timeout settings.
+    //     e.ino = name_to_ino.at(name);
+    //     e.attr_timeout = 10000.0;
+    //     e.entry_timeout = 10000.0;
+    //     e.attr.st_ino = e.ino;
+    //     fcc(req)->fill_stbuf_by_ino(e.attr);
+    //     fuse_reply_entry(req, &e);
+    // }
 
     dbg_default_trace("leaving {}.", __func__);
 }
@@ -84,7 +119,7 @@ static void fs_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi
 
     std::memset(&stbuf, 0, sizeof(stbuf));
     stbuf.st_ino = ino;
-    FCC_REQ(req)->fill_stbuf_by_ino(stbuf);
+    fcc(req)->fill_stbuf_by_ino(stbuf);
 
     fuse_reply_attr(req, &stbuf, 10000.0);
     dbg_default_trace("leaving {}.", __func__);
@@ -103,7 +138,7 @@ static void dirbuf_add(fuse_req_t req, struct dirbuf* b, const char* name, fuse_
     b->p = (char*)realloc(b->p, b->size);
     std::memset(&stbuf, 0, sizeof(stbuf));
     stbuf.st_ino = ino;
-    FCC_REQ(req)->fill_stbuf_by_ino(stbuf);  // additional effect
+    fcc(req)->fill_stbuf_by_ino(stbuf);  // additional effect
     fuse_add_direntry(req, b->p + oldsize, b->size - oldsize, name, &stbuf, b->size);
 }
 
@@ -112,7 +147,7 @@ static int reply_buf_limited(fuse_req_t req, const char* buf, size_t bufsize,
     if(static_cast<size_t>(off) < bufsize)
         return fuse_reply_buf(req, buf + off, std::min(bufsize - off, maxsize));
     else
-        return fuse_reply_buf(req, NULL, 0);
+        return fuse_reply_buf(req, nullptr, 0);
 }
 
 static void fs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info* fi) {
@@ -121,7 +156,7 @@ static void fs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, s
     std::memset(&b, 0, sizeof(b));
     dirbuf_add(req, &b, ".", 1);
     dirbuf_add(req, &b, "..", 1);
-    for(auto kv : FCC_REQ(req)->get_dir_entries(ino)) {
+    for(auto kv : fcc(req)->get_dir_entries(ino)) {
         dirbuf_add(req, &b, kv.first.c_str(), kv.second);
     }
     reply_buf_limited(req, b.p, b.size, off, size);
@@ -132,10 +167,10 @@ static void fs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, s
 static void fs_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
     dbg_default_trace("entering {}.", __func__);
     int err;
-    if((fi->flags & O_ACCMODE) != O_RDONLY && !FCC_REQ(req)->is_writable(ino)) {
+    if((fi->flags & O_ACCMODE) != O_RDONLY && !fcc(req)->is_writable(ino)) {
         // allow write for key nodes
         fuse_reply_err(req, EACCES);
-    } else if((err = FCC_REQ(req)->open_file(ino, fi)) != 0) {
+    } else if((err = fcc(req)->open_file(ino, fi)) != 0) {
         fuse_reply_err(req, err);
     } else {
         dbg_default_debug("fi({:x})->fh={:x}", reinterpret_cast<uint64_t>(fi), fi->fh);
@@ -147,15 +182,22 @@ static void fs_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
 static void fs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info* fi) {
     dbg_default_trace("entering {}.", __func__);
 
-    FileBytes* pfb = reinterpret_cast<FileBytes*>(fi->fh);
-    reply_buf_limited(req, reinterpret_cast<char*>(pfb->bytes), pfb->size, off, size);
+    // TODO `file_bytes.bytes` might be freed in reply buf once fs_read ends. may need to go back to storing in `fi`
+    FileBytes file_bytes;
+    int res = fcc(req)->read_file(ino, size, off, fi, &file_bytes);
+    if(res == 0) {
+        reply_buf_limited(req, reinterpret_cast<char*>(file_bytes.bytes.data()), file_bytes.bytes.size(), off, size);
+    } else {
+        // TODO handle error
+        fuse_reply_err(req, 1);
+    }
 
     dbg_default_trace("leaving {}.", __func__);
 }
 
 static void fs_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
     dbg_default_trace("entering {}.", __func__);
-    FCC_REQ(req)->close_file(ino, fi);
+    fcc(req)->close_file(ino, fi);
     fuse_reply_err(req, 0);
     dbg_default_trace("leaving {}.", __func__);
 }
@@ -165,7 +207,7 @@ static void fs_write(fuse_req_t req, fuse_ino_t ino, const char* buf, size_t siz
     dbg_default_trace("entering {}.", __func__);
 
     // TODO write_buf instead?... use fi??
-    ssize_t res = FCC_REQ(req)->write_file(ino, buf, size, off, fi);
+    ssize_t res = fcc(req)->write_file(ino, buf, size, off, fi);
     if(res < 0) {
         fuse_reply_err(req, -res);
     } else {
@@ -175,28 +217,99 @@ static void fs_write(fuse_req_t req, fuse_ino_t ino, const char* buf, size_t siz
     dbg_default_trace("leaving {}.", __func__);
 }
 
+static void fs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat* attr,
+                       int valid, struct fuse_file_info* fi) {
+    dbg_default_trace("setattr(ino={%u}, valid: {%o}).", ino, valid);
+
+    //     char procname[64];
+    //     struct lo_inode* inode = lo_inode(req, ino);
+    //     int ifd = inode->fd;
+    int res;
+
+    try {
+        if(!fi) {
+            errno = EACCES;
+            throw 1;
+        }
+        if(valid & FUSE_SET_ATTR_SIZE) {
+            dbg_default_trace("attr_size(length={})", (unsigned long)attr->st_size);
+
+            if(!fcc(req)->is_writable(ino)) {
+                errno = EACCES;
+                throw 1;
+            }
+            res = fcc(req)->truncate(ino, attr->st_size, fi);
+
+            if(res == -1) {
+                errno = EACCES;
+                throw 1;
+            }
+        }
+        // if(valid & FUSE_SET_ATTR_MODE) {}
+        // if(valid & (FUSE_SET_ATTR_UID | FUSE_SET_ATTR_GID)) {}
+        // if(valid & (FUSE_SET_ATTR_ATIME | FUSE_SET_ATTR_MTIME)) {}
+        return fs_getattr(req, ino, fi);
+    } catch(int& ex) {
+        int saverr = errno;
+        fuse_reply_err(req, saverr);
+    }
+}
+
+static void fs_create(fuse_req_t req, fuse_ino_t parent, const char* name,
+                      mode_t mode, struct fuse_file_info* fi) {
+    struct fuse_entry_param e;
+    int err;
+
+    dbg_default_info("fs create: {}", name);
+    // TODO fi fields like direct_io and keep_cache
+
+    err = fcc(req)->open_at(parent, name, mode, fi);
+    if(err) {
+        return (void)fuse_reply_err(req, err);
+    }
+
+    err = do_lookup(req, parent, name, &e);
+    if(err)
+        fuse_reply_err(req, err);
+    else
+        fuse_reply_create(req, &e, fi);
+}
+
+static void fs_mknod(fuse_req_t req, fuse_ino_t parent, const char* name,
+                     mode_t mode, dev_t rdev) {
+    dbg_default_info("fs mknod: {}", name);
+    fuse_reply_err(req, 1);
+}
+
+static void fs_mkdir(fuse_req_t req, fuse_ino_t parent, const char* name,
+                     mode_t mode) {
+    dbg_default_info("fs mkdir: {}", name);
+    fuse_reply_err(req, 1);
+}
+
 static const struct fuse_lowlevel_ops fs_ops = {
         .init = fs_init,
         .destroy = fs_destroy,
         .lookup = fs_lookup,
-        .forget = NULL,
+        .forget = nullptr,
         .getattr = fs_getattr,
-        .setattr = NULL,
-        .readlink = NULL,
-        .mknod = NULL,
-        .mkdir = NULL,
-        .unlink = NULL,
-        .rmdir = NULL,
-        .symlink = NULL,
-        .rename = NULL,
-        .link = NULL,
+        .setattr = fs_setattr,
+        .readlink = nullptr,
+        .mknod = fs_mknod,
+        .mkdir = fs_mkdir,
+        .unlink = nullptr,
+        .rmdir = nullptr,
+        .symlink = nullptr,
+        .rename = nullptr,
+        .link = nullptr,
         .open = fs_open,
         .read = fs_read,
         .write = fs_write,
         .release = fs_release,
-        .fsync = NULL,
-        .opendir = NULL,
+        .fsync = nullptr,
+        .opendir = nullptr,
         .readdir = fs_readdir,
+        .create = fs_create,
 };
 
 /**
@@ -230,6 +343,7 @@ void prepare_derecho_conf_file() {
 int main(int argc, char** argv) {
     prepare_derecho_conf_file();
 
+    // TODO extra args like cache level / specifying timeout
     struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
     struct fuse_session* se = nullptr;
     struct fuse_cmdline_opts opts;

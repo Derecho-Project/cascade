@@ -18,6 +18,7 @@
 #include <mutex>
 #include <string>
 #include <time.h>
+#include <vector>
 
 #include <unistd.h>
 
@@ -47,20 +48,27 @@ typedef enum {
 
 class FileBytes {
 public:
-    size_t size;
-    uint8_t* bytes;
-    FileBytes() : size(0), bytes(nullptr) {}
-    FileBytes(size_t s) : size(s) {
-        bytes = nullptr;
-        if(s > 0) {
-            bytes = (uint8_t*)malloc(s);
-        }
-    }
-    virtual ~FileBytes() {
-        if(bytes) {
-            free(bytes);
-        }
-    }
+    // TODO use Blob instead???
+    std::vector<uint8_t> bytes;
+
+    // static FileBytes* from_fh(uint64_t fh) {
+    //     return reinterpret_cast<FileBytes*>(fh);
+    // }
+    // public:
+    //     size_t size;
+    //     uint8_t* bytes;
+    //     FileBytes() : size(0), bytes(nullptr) {}
+    //     FileBytes(size_t s) : size(s) {
+    //         bytes = nullptr;
+    //         if(s > 0) {
+    //             bytes = (uint8_t*)malloc(s);
+    //         }
+    //     }
+    //     virtual ~FileBytes() {
+    //         if(bytes) {
+    //             free(bytes);
+    //         }
+    //     }
 };
 
 class FuseClientINode {
@@ -89,6 +97,10 @@ public:
         return sizeof(*this);
     }
 
+    virtual uint64_t open_at(const char* name, mode_t mode, struct fuse_file_info* fi) {
+        return 0;
+    }
+
     virtual uint64_t read_file(FileBytes* fb) {
         (void)fb;
         return 0;
@@ -100,6 +112,10 @@ public:
         (void)off;
         (void)fi;
 
+        return -1;
+    }
+
+    virtual uint64_t truncate(size_t size) {
         return -1;
     }
 
@@ -119,9 +135,46 @@ public:
         }
     }
 
-    virtual void write_helper(const char* buf, size_t size, off_t off,
-                              struct fuse_file_info* fi, FileBytes* file_bytes) {
-        bool appending = false;
+private:
+    // Helper functions for check_update()
+    virtual void update_contents() {
+        return;
+    }
+};
+
+class FuseDataINode : public FuseClientINode {
+public:
+    FileBytes cached_data;
+    persistent::version_t version;
+    uint64_t timestamp_us;
+    persistent::version_t previous_version;
+    // previous version by key, INVALID_VERSION for the first value of the key.
+    persistent::version_t previous_version_by_key;
+
+    ServiceClientAPI& capi;
+
+    FuseDataINode(ServiceClientAPI& capi) : cached_data(FileBytes()), capi(capi) {
+    }
+
+    virtual uint64_t get_file_size() override {
+        check_update();
+        return cached_data.bytes.size();
+    }
+
+    virtual uint64_t read_file(FileBytes* file_bytes) override {
+        dbg_default_trace("[{}]entering {}.", gettid(), __func__);
+
+        check_update();
+        file_bytes->bytes = cached_data.bytes;
+
+        dbg_default_trace("[{}]leaving {}.", gettid(), __func__);
+        return 0;
+    }
+
+    virtual uint64_t write_file(const char* buf, size_t size, off_t off,
+                                struct fuse_file_info* fi) {
+        dbg_default_trace("[{}]entering {}.", gettid(), __func__);
+        update_contents();
 
         if(fi) {
             std::stringstream ss;
@@ -134,34 +187,50 @@ public:
             }
             if(fi->flags & O_APPEND) {
                 dbg_default_info("appending");
-                appending = true;
-            } else {
-                dbg_default_info("not appending, resizing TODO ?? ");
+                // TODO faster write ??
             }
-            if(fi->flags & O_TRUNC) {
+            if(fi->flags & O_TRUNC) {  // TODO handled in open not here
                 dbg_default_info("truncating");
             }
         }
-        size_t next_size = std::max(file_bytes->size, off + size);
 
-        if(!appending) {
-            next_size = off + size;  // remove extra old content
-        }
-
+        size_t next_size = std::max(cached_data.bytes.size(), off + size);
+        // if(!appending) { // TODO truncating happens elsewhere
+        //     next_size = off + size;  // remove extra old content
+        // }
         dbg_default_info("writing. off: {}, buf_size: {},  next_size: {}.", off, size, next_size);
         dbg_default_info("writing content: {}.", std::quoted(reinterpret_cast<const char*>(buf)));
-        FileBytes next_bytes(next_size);
-        memcpy(next_bytes.bytes, file_bytes->bytes, next_size);
-        memcpy(next_bytes.bytes + off, buf, size);
 
-        dbg_default_info("next file: {}.", std::quoted(reinterpret_cast<const char*>(next_bytes.bytes)));
-        write_contents(next_bytes.bytes, next_size);
+        FileBytes contents = cached_data;
+        contents.bytes.resize(next_size);
+        memcpy(contents.bytes.data() + off, buf, size);
+        // FileBytes next_bytes(next_size);
+        // memcpy(next_bytes.bytes, file_bytes->bytes, next_size);
+        // memcpy(next_bytes.bytes + off, buf, size);
 
-        return;
+        dbg_default_info("next file: {}.", std::quoted(reinterpret_cast<const char*>(contents.bytes.data())));
+        write_contents(contents.bytes.data(), next_size);
+
+        update_contents();  // TODO race conditions ... ??
+        dbg_default_trace("[{}]leaving {}.", gettid(), __func__);
+        return 0;
+    }
+
+    virtual uint64_t truncate(size_t size) {
+        dbg_default_trace("[{}]entering {}.", gettid(), __func__);
+        update_contents();
+
+        dbg_default_info("truncating to {}.", size);
+        FileBytes contents = cached_data;
+        contents.bytes.resize(size);
+        write_contents(contents.bytes.data(), size);
+
+        update_contents();  // TODO race conditions ... ??
+        dbg_default_trace("[{}]leaving {}.", gettid(), __func__);
+        return 0;
     }
 
 private:
-    // Helper functions for check_update()
     virtual void update_contents() {
         return;
     }
@@ -250,7 +319,7 @@ class RootMetaINode : public FuseClientINode {
     std::string contents;
 
 public:
-    RootMetaINode(ServiceClientAPI& _capi) : capi(_capi) {
+    RootMetaINode(ServiceClientAPI& capi) : capi(capi) {
         this->update_interval = 2;
         this->last_update_sec = 0;
         this->type = INodeType::META;
@@ -283,8 +352,9 @@ private:
 
     virtual uint64_t read_file(FileBytes* file_bytes) override {
         this->check_update();
-        file_bytes->size = contents.size();
-        file_bytes->bytes = reinterpret_cast<uint8_t*>(strdup(contents.c_str()));
+        file_bytes->bytes.assign(contents.begin(), contents.end());
+        // file_bytes->size = contents.size();
+        // file_bytes->bytes = reinterpret_cast<uint8_t*>(strdup(contents.c_str()));
         return 0;
     }
 };
@@ -308,7 +378,7 @@ public:
     ServiceClientAPI& capi;
     std::map<typename CascadeType::KeyType, fuse_ino_t> key_to_ino;
 
-    ShardINode(uint32_t shidx, fuse_ino_t pino, ServiceClientAPI& _capi) : shard_index(shidx), capi(_capi) {
+    ShardINode(uint32_t shidx, fuse_ino_t pino, ServiceClientAPI& capi) : shard_index(shidx), capi(capi) {
         this->type = INodeType::SHARD;
         this->display_name = "shard-" + std::to_string(shidx);
         this->parent = pino;
@@ -349,7 +419,7 @@ public:
     ServiceClientAPI& capi;
     std::map<TriggerCascadeNoStoreWithStringKey::KeyType, fuse_ino_t> key_to_ino;
 
-    ShardINode(uint32_t shidx, fuse_ino_t pino, ServiceClientAPI& _capi) : shard_index(shidx), capi(_capi) {
+    ShardINode(uint32_t shidx, fuse_ino_t pino, ServiceClientAPI& capi) : shard_index(shidx), capi(capi) {
         this->type = INodeType::SHARD;
         this->display_name = "shard-" + std::to_string(shidx);
         this->parent = pino;
@@ -417,8 +487,8 @@ private:
     }
 
 public:
-    ShardMetaINode(const uint32_t _shard_index, const uint32_t _subgroup_index, ServiceClientAPI& _capi)
-            : shard_index(_shard_index), subgroup_index(_subgroup_index), capi(_capi) {
+    ShardMetaINode(const uint32_t shard_index, const uint32_t subgroup_index, ServiceClientAPI& capi)
+            : shard_index(shard_index), subgroup_index(subgroup_index), capi(capi) {
         this->update_interval = 2;
         this->last_update_sec = 0;
         this->type = INodeType::META;
@@ -432,26 +502,20 @@ public:
 
     virtual uint64_t read_file(FileBytes* file_bytes) override {
         check_update();
-        file_bytes->size = contents.size();
-        file_bytes->bytes = reinterpret_cast<uint8_t*>(strdup(contents.c_str()));
+        file_bytes->bytes.assign(contents.begin(), contents.end());
+        // file_bytes->size = contents.size();
+        // file_bytes->bytes = reinterpret_cast<uint8_t*>(strdup(contents.c_str()));
         return 0;
     }
 };
 
 template <typename CascadeType>
-class KeyINode : public FuseClientINode {
+class KeyINode : public FuseDataINode {
 public:
     typename CascadeType::KeyType key;
-    std::unique_ptr<FileBytes> file_bytes;
-    uint64_t file_size;
-    persistent::version_t version;
-    uint64_t timestamp_us;
-    persistent::version_t previous_version;
-    persistent::version_t previous_version_by_key;  // previous version by key, INVALID_VERSION for the first value of the key.
-    ServiceClientAPI& capi;
 
-    KeyINode(typename CascadeType::KeyType& k, fuse_ino_t pino, ServiceClientAPI& _capi)
-            : key(k), file_bytes(std::make_unique<FileBytes>()), capi(_capi) {
+    KeyINode(typename CascadeType::KeyType& k, fuse_ino_t pino, ServiceClientAPI& capi)
+            : FuseDataINode(capi), key(k) {
         dbg_default_trace("[{}]entering {}.", gettid(), __func__);
         this->update_interval = 2;
         this->last_update_sec = 0;
@@ -470,45 +534,12 @@ public:
         dbg_default_trace("[{}]leaving {}.", gettid(), __func__);
     }
 
-    virtual uint64_t read_file(FileBytes* _file_bytes) override {
-        dbg_default_trace("[{}]entering {}.", gettid(), __func__);
-        check_update();
-        _file_bytes->size = this->file_bytes.get()->size;
-        _file_bytes->bytes = static_cast<uint8_t*>(malloc(this->file_bytes.get()->size));
-        memcpy(_file_bytes->bytes, this->file_bytes.get()->bytes, this->file_bytes.get()->size);
-        dbg_default_trace("[{}]leaving {}.", gettid(), __func__);
-        return 0;
-    }
-
-    virtual uint64_t write_file(const char* buf, size_t size, off_t off, struct fuse_file_info* fi) override {
-        dbg_default_trace("[{}]entering {}.", gettid(), __func__);
-
-        check_update();
-
-        write_helper(buf, size, off, fi, this->file_bytes.get());
-
-        dbg_default_trace("[{}]leaving {}.", gettid(), __func__);
-
-        return 0;
-    }
-
-    virtual uint64_t get_file_size() override {
-        check_update();
-        return this->file_bytes.get()->size;
-    }
-
     KeyINode(KeyINode&& fci) {
         this->type = std::move(fci.type);
         this->display_name = std::move(fci.display_name);
         this->parent = std::move(fci.parent);
         this->key = std::move(fci.key);
         this->capi = std::move(fci.capi);
-    }
-
-    virtual ~KeyINode() {
-        dbg_default_info("[{}] entering {}.", gettid(), __func__);
-        file_bytes.reset(nullptr);
-        dbg_default_info("[{}] leaving {}.", gettid(), __func__);
     }
 
 private:
@@ -536,14 +567,19 @@ private:
                 this->previous_version_by_key = access_ptr->previous_version_by_key;
                 blob = access_ptr->blob;
             } else {
-                this->file_bytes.get()->size = mutils::bytes_size(reply);
-                this->file_bytes.get()->bytes = static_cast<uint8_t*>(malloc(this->file_bytes.get()->size));
-                reply.to_bytes(this->file_bytes.get()->bytes);
+                // this->file_bytes.get()->size = mutils::bytes_size(reply);
+                // this->file_bytes.get()->bytes = static_cast<uint8_t*>(malloc(this->file_bytes.get()->size));
+                // reply.to_bytes(this->file_bytes.get()->bytes);
+                this->cached_data.bytes.resize(mutils::bytes_size(reply));
+                reply.to_bytes(this->cached_data.bytes.data());
                 return;
             }
-            file_bytes.get()->size = blob.size;
-            file_bytes.get()->bytes = static_cast<uint8_t*>(malloc(file_bytes.get()->size));
-            memcpy(file_bytes.get()->bytes, blob.bytes, file_bytes.get()->size);
+            // file_bytes.get()->size = blob.size;
+            // file_bytes.get()->bytes = static_cast<uint8_t*>(malloc(file_bytes.get()->size));
+            // memcpy(file_bytes.get()->bytes, blob.bytes, file_bytes.get()->size);
+            this->cached_data.bytes.resize(blob.size);
+            memcpy(this->cached_data.bytes.data(), blob.bytes, blob.size);
+            return;
             return;
         }
     }
@@ -557,7 +593,7 @@ private:
         // TODO
         obj.previous_version = INVALID_VERSION;         // this->previous_version;
         obj.previous_version_by_key = INVALID_VERSION;  // this->previous_version_by_key;
-        obj.blob = Blob(content, size);
+        obj.blob = Blob(content, size, true);           // TODO safe to emplace?
 
         dbg_default_debug("raw put");
         derecho::rpc::QueryResults<std::tuple<persistent::version_t, uint64_t>> result
@@ -568,8 +604,6 @@ private:
             dbg_default_debug("node({}) replied with version:{},ts_us:{}",
                               reply_future.first, std::get<0>(reply), std::get<1>(reply));
         }
-
-        update_contents();  // TODO race conditions ... ??
     }
 };
 
@@ -646,8 +680,8 @@ private:
     }
 
 public:
-    ObjectPoolMetaINode(const std::string _cur_pathname, ServiceClientAPI& _capi)
-            : cur_pathname(_cur_pathname), capi(_capi) {
+    ObjectPoolMetaINode(const std::string cur_pathname, ServiceClientAPI& capi)
+            : cur_pathname(cur_pathname), capi(capi) {
         this->update_interval = 2;
         this->last_update_sec = 0;
         this->type = INodeType::META;
@@ -670,8 +704,9 @@ public:
 
     virtual uint64_t read_file(FileBytes* file_bytes) override {
         check_update();
-        file_bytes->size = contents.size();
-        file_bytes->bytes = reinterpret_cast<uint8_t*>(strdup(contents.c_str()));
+        file_bytes->bytes.assign(contents.begin(), contents.end());
+        // file_bytes->size = contents.size();
+        // file_bytes->bytes = reinterpret_cast<uint8_t*>(strdup(contents.c_str()));
         return 0;
     }
 };
@@ -684,7 +719,7 @@ public:
     std::set<std::string> key_children;
     std::set<std::string> objp_children;
 
-    ObjectPoolPathINode(fuse_ino_t pino, ServiceClientAPI& _capi) : capi(_capi) {
+    ObjectPoolPathINode(fuse_ino_t pino, ServiceClientAPI& capi) : capi(capi) {
         this->update_interval = 10;
         this->last_update_sec = 0;
         this->type = INodeType::OBJECTPOOL_PATH;
@@ -694,8 +729,8 @@ public:
         this->children.emplace_back(std::make_unique<ObjectPoolMetaINode>(cur_pathname, capi));
     }
 
-    ObjectPoolPathINode(std::string _cur_pathname, fuse_ino_t pino, ServiceClientAPI& _capi)
-            : capi(_capi), cur_pathname(_cur_pathname) {
+    ObjectPoolPathINode(std::string cur_pathname, fuse_ino_t pino, ServiceClientAPI& capi)
+            : capi(capi), cur_pathname(cur_pathname) {
         this->update_interval = 10;
         this->last_update_sec = 10;
         this->type = INodeType::OBJECTPOOL_PATH;
@@ -830,6 +865,7 @@ public:
                 ++it;
             }
         }
+        return;
     }
 
     virtual std::map<std::string, fuse_ino_t> get_dir_entries() override {
@@ -837,6 +873,32 @@ public:
         check_update();
         dbg_default_trace("[{}]leaving {}.", gettid(), __func__);
         return FuseClientINode::get_dir_entries();
+    }
+
+    virtual uint64_t open_at(const char* name, mode_t mode, struct fuse_file_info* fi) {
+        dbg_default_info("object pool open at");
+        update_contents();
+        if(!this->is_object_pool) {
+            return 1;
+        }
+
+        ObjectWithStringKey obj;
+        obj.key = cur_pathname + "/" + name;  // TODO replace with std path
+        obj.previous_version = CURRENT_VERSION;
+        obj.previous_version_by_key = CURRENT_VERSION;
+        obj.blob = Blob();
+
+        dbg_default_debug("object pool put");
+        derecho::rpc::QueryResults<std::tuple<persistent::version_t, uint64_t>> result = capi.put(obj);
+
+        for(auto& reply_future : result.get()) {
+            auto reply = reply_future.second.get();
+            dbg_default_debug("node({}) replied with version:{},ts_us:{}",
+                              reply_future.first, std::get<0>(reply), std::get<1>(reply));
+        }
+
+        update_contents();
+        return 0;
     }
 
 private:
@@ -848,7 +910,7 @@ private:
 
 class ObjectPoolRootINode : public ObjectPoolPathINode {
 public:
-    ObjectPoolRootINode(ServiceClientAPI& _capi, fuse_ino_t pino = FUSE_ROOT_ID) : ObjectPoolPathINode(pino, _capi) {
+    ObjectPoolRootINode(ServiceClientAPI& capi, fuse_ino_t pino = FUSE_ROOT_ID) : ObjectPoolPathINode(pino, capi) {
         this->display_name = "ObjectPools";
         this->parent = pino;
     }
@@ -870,18 +932,12 @@ private:
     }
 };
 
-class ObjectPoolKeyINode : public FuseClientINode {
+class ObjectPoolKeyINode : public FuseDataINode {
 public:
     std::string key;
-    std::unique_ptr<FileBytes> file_bytes;
-    persistent::version_t version;
-    uint64_t timestamp_us;
-    persistent::version_t previous_version;
-    persistent::version_t previous_version_by_key;  // previous version by key, INVALID_VERSION for the first value of the key.
-    ServiceClientAPI& capi;
 
-    ObjectPoolKeyINode(std::string k, fuse_ino_t pino, ServiceClientAPI& _capi)
-            : key(k), file_bytes(std::make_unique<FileBytes>()), capi(_capi) {
+    ObjectPoolKeyINode(std::string k, fuse_ino_t pino, ServiceClientAPI& capi)
+            : FuseDataINode(capi), key(k) {
         dbg_default_trace("[{}]entering {}.", gettid(), __func__);
         this->update_interval = 2;
         this->last_update_sec = 0;
@@ -890,40 +946,6 @@ public:
         this->parent = pino;
         this->type = INodeType::KEY;
         dbg_default_trace("[{}]leaving {}.", gettid(), __func__);
-    }
-
-    virtual uint64_t read_file(FileBytes* _file_bytes) override {
-        dbg_default_debug("-- READ FILE of key:[{}], [{}]entering {}.", this->key, gettid(), __func__);
-        check_update();
-        _file_bytes->size = this->file_bytes.get()->size;
-        _file_bytes->bytes = static_cast<uint8_t*>(malloc(this->file_bytes.get()->size));
-        memcpy(_file_bytes->bytes, this->file_bytes.get()->bytes, this->file_bytes.get()->size);
-        dbg_default_debug("[{}]leaving {}.", gettid(), __func__);
-        return 0;
-    }
-
-    virtual uint64_t write_file(const char* buf, size_t size, off_t off, struct fuse_file_info* fi) override {
-        dbg_default_trace("[{}]entering {}.", gettid(), __func__);
-
-        check_update();
-
-        write_helper(buf, size, off, fi, this->file_bytes.get());
-
-        dbg_default_trace("[{}]leaving {}.", gettid(), __func__);
-
-        return 0;
-    }
-
-    virtual uint64_t get_file_size() override {
-        dbg_default_debug("----GET FILE SIZE key is [{}].", this->key);
-        check_update();
-        return this->file_bytes.get()->size;
-    }
-
-    virtual ~ObjectPoolKeyINode() {
-        dbg_default_info("[{}] entering {}.", gettid(), __func__);
-        file_bytes.reset(nullptr);
-        dbg_default_info("[{}] leaving {}.", gettid(), __func__);
     }
 
 private:
@@ -939,9 +961,11 @@ private:
             this->previous_version = access_ptr->previous_version;
             this->previous_version_by_key = access_ptr->previous_version_by_key;
             blob = access_ptr->blob;
-            this->file_bytes.get()->size = blob.size;
-            this->file_bytes.get()->bytes = static_cast<uint8_t*>(malloc(blob.size));
-            memcpy(this->file_bytes.get()->bytes, blob.bytes, blob.size);
+            // this->file_bytes.get()->size = blob.size;
+            // this->file_bytes.get()->bytes = static_cast<uint8_t*>(malloc(blob.size));
+            // memcpy(this->file_bytes.get()->bytes, blob.bytes, blob.size);
+            this->cached_data.bytes.resize(blob.size);
+            memcpy(this->cached_data.bytes.data(), blob.bytes, blob.size);
             return;
         }
         dbg_default_trace("\n \n ----OBJP keyInode update content [{}] leaving  {}.", gettid(), __func__);
@@ -952,7 +976,7 @@ private:
         obj.key = this->key;
         obj.previous_version = INVALID_VERSION;
         obj.previous_version_by_key = INVALID_VERSION;
-        obj.blob = Blob(content, size);
+        obj.blob = Blob(content, size, true);  // TODO safe to emplace?
 
         dbg_default_debug("object pool put");
         derecho::rpc::QueryResults<std::tuple<persistent::version_t, uint64_t>> result = capi.put(obj);
@@ -962,8 +986,6 @@ private:
             dbg_default_debug("node({}) replied with version:{},ts_us:{}",
                               reply_future.first, std::get<0>(reply), std::get<1>(reply));
         }
-
-        update_contents();  // TODO race conditions ... ??
     }
 };
 
@@ -971,7 +993,7 @@ class MetadataServiceRootINode : public FuseClientINode {
     ServiceClientAPI& capi;
 
 public:
-    MetadataServiceRootINode(ServiceClientAPI& _capi) : capi(_capi) {
+    MetadataServiceRootINode(ServiceClientAPI& capi) : capi(capi) {
         this->type = INodeType::METADATA_SERVICE;
         this->display_name = "MetadataService";
         this->parent = FUSE_ROOT_ID;
@@ -993,7 +1015,7 @@ class DataPathLogicRootINode : public FuseClientINode {
     ServiceClientAPI& capi;
 
 public:
-    DataPathLogicRootINode(ServiceClientAPI& _capi, fuse_ino_t pino) : capi(_capi) {
+    DataPathLogicRootINode(ServiceClientAPI& capi, fuse_ino_t pino) : capi(capi) {
         this->type = INodeType::DATAPATH_LOGIC;
         this->display_name = "DataPathLogic";
         this->parent = FUSE_ROOT_ID;
@@ -1014,11 +1036,11 @@ class DLLINode : public FuseClientINode {
 public:
     std::string file_name;  // DLL id?
     ServiceClientAPI& capi;
-    DLLINode(std::string& _filename, fuse_ino_t pino, ServiceClientAPI& _capi)
-            : file_name(_filename), capi(_capi) {
+    DLLINode(std::string& file_name, fuse_ino_t pino, ServiceClientAPI& capi)
+            : file_name(file_name), capi(capi) {
         dbg_default_trace("[{}]entering {}.", gettid(), __func__);
         this->type = INodeType::DLL;
-        this->display_name = std::string("dllfile") + _filename;
+        this->display_name = std::string("dllfile") + file_name;
         this->parent = pino;
         dbg_default_trace("[{}]leaving {}.", gettid(), __func__);
     }
@@ -1148,10 +1170,10 @@ public:
         double timeout_sec = 1.0;  // TO_FOREVER;
         // 1 - common attributes
         stbuf.st_dev = FUSE_CLIENT_DEV_ID;
-        stbuf.st_nlink = 1;
+        stbuf.st_nlink = 1;  // TODO set property
         stbuf.st_uid = getuid();
         stbuf.st_gid = getgid();
-        stbuf.st_atim = this->init_timestamp;
+        stbuf.st_atim = this->init_timestamp;  // TODO set properly
         stbuf.st_mtim = this->init_timestamp;
         stbuf.st_ctim = this->init_timestamp;
         // 2 - special attributes
@@ -1234,12 +1256,27 @@ public:
         return pfci->type == INodeType::KEY;
     }
 
+    int open_at(fuse_ino_t parent, const char* name, mode_t mode, struct fuse_file_info* fi) {
+        FuseClientINode* pfci = reinterpret_cast<FuseClientINode*>(parent);
+
+        return pfci->open_at(name, mode, fi);
+    }
+
+    int read_file(fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info* fi, FileBytes* file_bytes) {
+        FuseClientINode* pfci = reinterpret_cast<FuseClientINode*>(ino);
+
+        size_t result = pfci->read_file(file_bytes);  // TODO only read necessary?
+
+        return result;  // wrong number container size
+    }
+
     int write_file(fuse_ino_t ino, const char* buf, size_t size, off_t off, struct fuse_file_info* fi) {
         dbg_default_trace("[{}]entering {} with ino={:x}.", gettid(), __func__, ino);
 
         if(!is_writable(ino)) {
             return -EACCES;
         }
+
         FuseClientINode* pfci = reinterpret_cast<FuseClientINode*>(ino);
         pfci->write_file(buf, size, off, fi);
         // TODO errors??
@@ -1247,6 +1284,17 @@ public:
 
         dbg_default_trace("[{}]leaving {}.", gettid(), __func__);
         return result;
+    }
+
+    int truncate(fuse_ino_t ino, size_t size, struct fuse_file_info* fi) {
+        // TODO use errno ?
+        FuseClientINode* pfci = reinterpret_cast<FuseClientINode*>(ino);
+
+        if(!is_writable(ino)) {
+            return -1;
+        }
+
+        return pfci->truncate(size);
     }
 
     /**
@@ -1258,12 +1306,27 @@ public:
     int open_file(fuse_ino_t ino, struct fuse_file_info* fi) {
         dbg_default_trace("[{}]entering {} with ino={:x}.", gettid(), __func__, ino);
         FuseClientINode* pfci = reinterpret_cast<FuseClientINode*>(ino);
+
+        if(fi->flags & O_CREAT) {
+            dbg_default_info("open: create flag");
+        }
+        // TODO handle truncate
+
+        if(fi->flags & O_TRUNC) {
+            dbg_default_info("open: trunc flag");
+            pfci->truncate(0);
+        }
+        if(fi->flags & O_LARGEFILE) {
+            dbg_default_info("open: large file flag");  // TODO !!
+        }
+
         if(pfci->type != INodeType::KEY && pfci->type != INodeType::META) {
             return EISDIR;
         }
-        FileBytes* fb = new FileBytes();
-        pfci->read_file(fb);
-        fi->fh = reinterpret_cast<uint64_t>(fb);
+        // TODO cleaner to not set fh to something non file handle like ??
+        // FileBytes* fb = new FileBytes();
+        // pfci->read_file(fb);
+        // fi->fh = reinterpret_cast<uint64_t>(fb);
         dbg_default_trace("[{}]leaving {}.", gettid(), __func__);
         return 0;
     }
@@ -1276,10 +1339,11 @@ public:
      */
     int close_file(fuse_ino_t ino, struct fuse_file_info* fi) {
         dbg_default_trace("[{}]entering {} with ino={:x}.", gettid(), __func__, ino);
-        void* pfb = reinterpret_cast<void*>(fi->fh);
-        if(pfb != nullptr) {
-            delete static_cast<FileBytes*>(pfb);
-        }
+        // TODO no longer need to delete?
+        // void* pfb = reinterpret_cast<void*>(fi->fh);
+        // if(pfb != nullptr) {
+        //     delete static_cast<FileBytes*>(pfb);
+        // }
         return 0;
         dbg_default_trace("[{}]leaving {}.", gettid(), __func__);
     }

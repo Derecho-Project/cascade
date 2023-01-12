@@ -2,7 +2,6 @@
 
 set -euo pipefail
 
-SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 SCRIPT_NAME=$(basename "${BASH_SOURCE[0]}")
 HELP_STRING="A helper script to set up a local cascade instance
 Usage: $SCRIPT_NAME [options]
@@ -21,7 +20,7 @@ Usage: $SCRIPT_NAME [options]
   -F    D       directory to mount (runs in foreground).
   -c    I       Start client node at folder cfg/nI."
 
-CFG_DIR="$SCRIPT_DIR/cfg"
+CFG_DIR="$PWD/cfg"
 FUSE_FOREGROUND=false
 FUSE_DIR=""
 HELP=false
