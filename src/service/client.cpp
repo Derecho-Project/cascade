@@ -28,6 +28,7 @@ void print_subgroup_member(ServiceClientAPI& capi, uint32_t subgroup_index) {
             std::cout << nid << ",";
         }
         std::cout << "]" << std::endl;
+        shard_index ++;
     }
 }
 
@@ -42,6 +43,7 @@ void print_subgroup_member(ServiceClientAPI& capi, const std::string& op) {
         }
         std::cout << "]" << std::endl;
     }
+    shard_index++;
 }
 
 template <typename SubgroupType>
