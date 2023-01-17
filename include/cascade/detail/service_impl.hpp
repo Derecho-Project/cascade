@@ -1676,13 +1676,14 @@ template <typename... CascadeTypes>
 template <typename SubgroupType>
 derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::create_object_pool(
         const std::string& pathname, const uint32_t subgroup_index,
-        const sharding_policy_t sharding_policy, const std::unordered_map<std::string,uint32_t>& object_locations) {
+        const sharding_policy_t sharding_policy, const std::unordered_map<std::string,uint32_t>& object_locations,
+        const std::string& affinity_set_regex) {
     uint32_t subgroup_type_index = ObjectPoolMetadata<CascadeTypes...>::template get_subgroup_type_index<SubgroupType>();
     if (subgroup_type_index == ObjectPoolMetadata<CascadeTypes...>::invalid_subgroup_type_index) {
         dbg_default_crit("Create object pool failed because of invalid SubgroupType:{}", typeid(SubgroupType).name());
         throw derecho::derecho_exception(std::string("Create object pool failed because SubgroupType is invalid:")+typeid(SubgroupType).name());
     }
-    ObjectPoolMetadata<CascadeTypes...> opm(pathname,subgroup_type_index,subgroup_index,sharding_policy,object_locations,false);
+    ObjectPoolMetadata<CascadeTypes...> opm(pathname,subgroup_type_index,subgroup_index,sharding_policy,object_locations,affinity_set_regex,false);
     // clear local cache entry.
     std::shared_lock<std::shared_mutex> rlck(object_pool_metadata_cache_mutex);
     if (object_pool_metadata_cache.find(pathname)==object_pool_metadata_cache.end()) {

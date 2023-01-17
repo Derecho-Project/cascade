@@ -1285,13 +1285,17 @@ namespace cascade {
          * @param  subgroup_index   Index of the subgroup
          * @param  sharding_policy  The default sharding policy for this object pool
          * @param  object_locations The set of special object locations.
+         * @param  affinity_set_regex
+         *                          The affinity set regex.
          *
          * @return a future to the version and timestamp of the put operation.
          */
         template <typename SubgroupType>
         derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> create_object_pool(
                 const std::string& pathname, const uint32_t subgroup_index,
-                const sharding_policy_t sharding_policy = HASH, const std::unordered_map<std::string,uint32_t>& object_locations = {});
+                const sharding_policy_t sharding_policy = HASH, 
+                const std::unordered_map<std::string,uint32_t>& object_locations = {},
+                const std::string& affinity_set_regex = "");
 
         /**
          * ObjectPoolManagement API: remote object pool
