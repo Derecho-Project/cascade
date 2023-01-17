@@ -219,7 +219,7 @@ JNIEXPORT jobject JNICALL Java_io_cascade_Client_getMemberSelectionPolicy(JNIEnv
     on_service_type(service_type, policy = capi->get_member_selection_policy, subgroup_index, shard_index);
 
     std::string java_policy_str;
-    switch (std::get<0>(policy))
+    switch (static_cast<int>(std::get<0>(policy)))
     {
     case derecho::cascade::ShardMemberSelectionPolicy::FirstMember:
         java_policy_str = "FirstMember";
