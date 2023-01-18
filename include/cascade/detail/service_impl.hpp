@@ -400,7 +400,7 @@ ServiceClient<CascadeTypes...>::ObjectPoolMetadataCacheEntry::ObjectPoolMetadata
         const ObjectPoolMetadata<CascadeTypes...>& _opm): opm(_opm) {
     if (opm.affinity_set_regex.size() > 0) {
         hs_compile_error_t* compile_err;
-        if (hs_compile(opm.affinity_set_regex.c_str(), HS_FLAG_DOTALL, HS_MODE_BLOCK, NULL, &database,
+        if (hs_compile(opm.affinity_set_regex.c_str(), HS_FLAG_DOTALL|HS_FLAG_SOM_LEFTMOST, HS_MODE_BLOCK, NULL, &database,
                        &compile_err) != HS_SUCCESS) {
             hs_free_compile_error(compile_err);
             dbg_default_error("Compilation of affinity set regex:" + opm.affinity_set_regex + " failed with message:" +
@@ -435,26 +435,23 @@ inline std::string ServiceClient<CascadeTypes...>::ObjectPoolMetadataCacheEntry:
             }
         }
 
-        std::string match;
-
         struct hs_scan_ctxt {
-            std::string* p_match;
-            const std::string* p_key_string;
+            unsigned long long from = 0;
+            unsigned long long to = 0;
         } ctxt;
 
-        ctxt.p_match = &match;
-        ctxt.p_key_string = &key_string;
-
-        if (hs_scan(database, key_string.c_str(), key_string.size(), 0, scratch,
-                    [](unsigned int /*id*/, unsigned long long from,
-                             unsigned long long to, unsigned int /*flags*/,
-                             void* ctxt)->int {
-                        struct hs_scan_ctxt* p_hs_ctxt = static_cast<struct hs_scan_ctxt*>(ctxt);
-                        *(p_hs_ctxt->p_match) = p_hs_ctxt->p_key_string->substr(from,(to-from));
-                        return 1; // we only match the first one.
-                    },
-                    &ctxt) == HS_SUCCESS) {
-            return match;
+        hs_scan(database, key_string.c_str(), key_string.size(), HS_FLAG_SOM_LEFTMOST, scratch,
+                [](unsigned int /*id*/, unsigned long long from,
+                   unsigned long long to, unsigned int /*flags*/,
+                   void* ctxt)->int {
+                    struct hs_scan_ctxt* p_hs_ctxt = static_cast<struct hs_scan_ctxt*>(ctxt);
+                    p_hs_ctxt->from = from;
+                    p_hs_ctxt->to = to;
+                    return 0; // do the longest match
+                },
+                &ctxt);
+        if (ctxt.to > ctxt.from) {
+            return key_string.substr(ctxt.from,(ctxt.to-ctxt.from));
         }
     }
 
@@ -602,6 +599,7 @@ template <typename... CascadeTypes>
 template <typename ObjectType>
 derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::put(
         const ObjectType& value) {
+
     // STEP 1 - get key
     if constexpr (!std::is_base_of_v<ICascadeObject<std::string,ObjectType>,ObjectType>) {
         throw derecho::derecho_exception(std::string("ServiceClient<>::put() only support object of type ICascadeObject<std::string,ObjectType>,but we get ") + typeid(ObjectType).name());
@@ -1844,7 +1842,7 @@ std::pair<ObjectPoolMetadata<CascadeTypes...>,std::string> ServiceClient<Cascade
     auto opm = this->internal_find_object_pool(object_pool_pathname,rlck);
 
     std::string affinity_set = "";
-    if (!opm.is_valid() || opm.is_null() || opm.deleted) {
+    if (opm.is_valid() && !opm.is_null() && !opm.deleted) {
         affinity_set = object_pool_metadata_cache.at(opm.pathname).to_affinity_set(key);
     }
     
