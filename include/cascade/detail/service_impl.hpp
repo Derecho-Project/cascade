@@ -382,19 +382,87 @@ template <typename KeyType>
 std::tuple<uint32_t,uint32_t,uint32_t> ServiceClient<CascadeTypes...>::key_to_shard(
         const KeyType& key,
         bool check_object_location) {
-    std::string object_pool_pathname = get_pathname<KeyType>(key);
-    if (object_pool_pathname.empty()) {
-        std::string exp_msg("Key:");
-        throw derecho::derecho_exception(std::string("Key:") + key + " does not belong to any object pool.");
+
+    auto pair = find_object_pool_and_affinity_set_by_key(key);
+
+    auto& opm = std::get<0>(pair);
+    if (!opm.is_valid() || opm.is_null() || opm.deleted) {
+        throw derecho::derecho_exception("Failed to identify the object_pool from key:" + key);
+    }
+    auto& affinity_set = std::get<1>(pair);
+
+    return std::tuple<uint32_t,uint32_t,uint32_t>{opm.subgroup_type_index,opm.subgroup_index,
+        opm.key_to_shard_index(key,affinity_set,get_number_of_shards(opm.subgroup_type_index,opm.subgroup_index),check_object_location)};
+}
+
+template <typename... CascadeTypes>
+ServiceClient<CascadeTypes...>::ObjectPoolMetadataCacheEntry::ObjectPoolMetadataCacheEntry(
+        const ObjectPoolMetadata<CascadeTypes...>& _opm): opm(_opm) {
+    if (opm.affinity_set_regex.size() > 0) {
+        hs_compile_error_t* compile_err;
+        if (hs_compile(opm.affinity_set_regex.c_str(), HS_FLAG_DOTALL, HS_MODE_BLOCK, NULL, &database,
+                       &compile_err) != HS_SUCCESS) {
+            hs_free_compile_error(compile_err);
+            dbg_default_error("Compilation of affinity set regex:" + opm.affinity_set_regex + " failed with message:" +
+                    compile_err->message);
+            throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) + 
+                    ": compilation of affinity_set_regex:" + 
+                    opm.affinity_set_regex + 
+                    " failed with message:" +
+                    compile_err->message);
+        }
+    }
+}
+
+template <typename... CascadeTypes>
+ServiceClient<CascadeTypes...>::ObjectPoolMetadataCacheEntry::~ObjectPoolMetadataCacheEntry() {
+    if (this->database != nullptr) {
+        hs_free_database(database);
+        this->database == nullptr;
+    }
+}
+
+template <typename... CascadeTypes>
+inline std::string ServiceClient<CascadeTypes...>::ObjectPoolMetadataCacheEntry::to_affinity_set(
+        const std::string& key_string) {
+    if (key_string.size() > 0 && this->opm.affinity_set_regex.size() > 0) {
+        if (scratch == nullptr) {
+            if (hs_alloc_scratch(database, &scratch) != HS_SUCCESS) {
+                hs_free_database(database);
+                dbg_default_error("failed to allocate hyperscan scratch space.");
+                throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) +
+                        " failed to allocate hyperscan scratch space.");
+            }
+        }
+
+        std::string match;
+
+        struct hs_scan_ctxt {
+            std::string* p_match;
+            const std::string* p_key_string;
+        } ctxt;
+
+        ctxt.p_match = &match;
+        ctxt.p_key_string = &key_string;
+
+        if (hs_scan(database, key_string.c_str(), key_string.size(), 0, scratch,
+                    [](unsigned int /*id*/, unsigned long long from,
+                             unsigned long long to, unsigned int /*flags*/,
+                             void* ctxt)->int {
+                        struct hs_scan_ctxt* p_hs_ctxt = static_cast<struct hs_scan_ctxt*>(ctxt);
+                        *(p_hs_ctxt->p_match) = p_hs_ctxt->p_key_string->substr(from,(to-from));
+                        return 1; // we only match the first one.
+                    },
+                    &ctxt) == HS_SUCCESS) {
+            return match;
+        }
     }
 
-    auto opm = find_object_pool(object_pool_pathname);
-    if (!opm.is_valid() || opm.is_null() || opm.deleted) {
-        throw derecho::derecho_exception("Failed to find object_pool:" + object_pool_pathname);
-    }
-    return std::tuple<uint32_t,uint32_t,uint32_t>{opm.subgroup_type_index,opm.subgroup_index,
-        opm.key_to_shard_index(key,get_number_of_shards(opm.subgroup_type_index,opm.subgroup_index),check_object_location)};
+    return key_string;
 }
+
+template <typename... CascadeTypes>
+thread_local hs_scratch_t* ServiceClient<CascadeTypes...>::ObjectPoolMetadataCacheEntry::scratch = nullptr;
 
 template <typename... CascadeTypes>
 template <typename SubgroupType,typename KeyTypeForHashing>
@@ -1651,7 +1719,7 @@ auto ServiceClient<CascadeTypes...>::list_keys_by_time(const uint64_t& ts_us, co
 
 template <typename... CascadeTypes>
 void ServiceClient<CascadeTypes...>::refresh_object_pool_metadata_cache() {
-    std::unordered_map<std::string,ObjectPoolMetadata<CascadeTypes...>> refreshed_metadata;
+    std::unordered_map<std::string,ObjectPoolMetadataCacheEntry> refreshed_metadata;
     uint32_t num_shards = this->template get_number_of_shards<CascadeMetadataService<CascadeTypes...>>(METADATA_SERVICE_SUBGROUP_INDEX);
     for(uint32_t shard=0;shard<num_shards;shard++) {
         auto results = this->template list_keys<CascadeMetadataService<CascadeTypes...>>(CURRENT_VERSION,true,METADATA_SERVICE_SUBGROUP_INDEX,shard);
@@ -1660,7 +1728,7 @@ void ServiceClient<CascadeTypes...>::refresh_object_pool_metadata_cache() {
                 // we only read the stable version.
                 auto opm_result = this->template get<CascadeMetadataService<CascadeTypes...>>(key,CURRENT_VERSION,true,METADATA_SERVICE_SUBGROUP_INDEX,shard);
                 for (auto& opm_reply:opm_result.get()) { // only once
-                    refreshed_metadata[key] = opm_reply.second.get();
+                    refreshed_metadata.emplace(key,opm_reply.second.get());
                     break;
                 }
             }
@@ -1669,7 +1737,7 @@ void ServiceClient<CascadeTypes...>::refresh_object_pool_metadata_cache() {
     }
 
     std::unique_lock<std::shared_mutex> wlck(object_pool_metadata_cache_mutex);
-    this->object_pool_metadata_cache = refreshed_metadata;
+    this->object_pool_metadata_cache = std::move(refreshed_metadata);
 }
 
 template <typename... CascadeTypes>
@@ -1731,15 +1799,15 @@ derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceCl
 }
 
 template <typename... CascadeTypes>
-ObjectPoolMetadata<CascadeTypes...> ServiceClient<CascadeTypes...>::find_object_pool(const std::string& pathname) {
-    std::shared_lock<std::shared_mutex> rlck(object_pool_metadata_cache_mutex);
-    
+ObjectPoolMetadata<CascadeTypes...> ServiceClient<CascadeTypes...>::internal_find_object_pool(
+        const std::string& pathname,
+        std::shared_lock<std::shared_mutex>& rlck) {
     auto components = str_tokenizer(pathname);
     std::string prefix;
     for (const auto& comp: components) {
         prefix = prefix + PATH_SEPARATOR + comp;
         if (object_pool_metadata_cache.find(prefix) != object_pool_metadata_cache.end()) {
-            return object_pool_metadata_cache.at(prefix);
+            return object_pool_metadata_cache.at(prefix).opm;
         }
     }
     rlck.unlock();
@@ -1751,10 +1819,36 @@ ObjectPoolMetadata<CascadeTypes...> ServiceClient<CascadeTypes...>::find_object_
     for (const auto& comp: components) {
         prefix = prefix + PATH_SEPARATOR + comp;
         if (object_pool_metadata_cache.find(prefix) != object_pool_metadata_cache.end()) {
-            return object_pool_metadata_cache.at(prefix);
+            return object_pool_metadata_cache.at(prefix).opm;
         }
     }
     return ObjectPoolMetadata<CascadeTypes...>::IV;
+}
+
+template <typename... CascadeTypes>
+ObjectPoolMetadata<CascadeTypes...> ServiceClient<CascadeTypes...>::find_object_pool(const std::string& pathname) {
+    std::shared_lock<std::shared_mutex> rlck(object_pool_metadata_cache_mutex);
+    return this->internal_find_object_pool(pathname,rlck);
+}
+
+template <typename... CascadeTypes>
+template <typename KeyType>
+std::pair<ObjectPoolMetadata<CascadeTypes...>,std::string> ServiceClient<CascadeTypes...>::find_object_pool_and_affinity_set_by_key(
+        const KeyType& key) {
+    std::string object_pool_pathname = get_pathname(key);
+    if (object_pool_pathname.empty()) {
+        throw derecho::derecho_exception(std::string("Key:") + key + " does not belong to any object pool.");
+    }
+
+    std::shared_lock<std::shared_mutex> rlck(object_pool_metadata_cache_mutex);
+    auto opm = this->internal_find_object_pool(object_pool_pathname,rlck);
+
+    std::string affinity_set = "";
+    if (!opm.is_valid() || opm.is_null() || opm.deleted) {
+        affinity_set = object_pool_metadata_cache.at(opm.pathname).to_affinity_set(key);
+    }
+    
+    return {opm,affinity_set};
 }
 
 template <typename... CascadeTypes>

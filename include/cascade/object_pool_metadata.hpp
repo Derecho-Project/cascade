@@ -274,13 +274,14 @@ public:
      *
      * @tparam KeyType type of the key.
      * @param  key
+     * @param  affinity_set
      * @param  num_shards
      * @param  check_object_locations - By default, we check the object location maps. In most cases, we can accelerate
      *                                  process by disabling it by setting it to false.
      * @return shard index.
      */
     template<typename KeyType>
-    inline uint32_t key_to_shard_index(const KeyType& key, uint32_t num_shards, bool check_object_locations = true) const {
+    inline uint32_t key_to_shard_index(const KeyType& key, const KeyType& affinity_set, uint32_t num_shards, bool check_object_locations = true) const {
         if constexpr (std::is_convertible_v<KeyType,std::string>) {
             if (check_object_locations) {
                 if (this->object_locations.find(key) != object_locations.end()) {
@@ -290,7 +291,11 @@ public:
             uint32_t shard_index = 0;
             switch (sharding_policy) {
             case HASH:
-                shard_index = std::hash<std::string>{}(key) % num_shards;
+                if (static_cast<std::string>(affinity_set).length() > 0) {
+                    shard_index = std::hash<std::string>{}(affinity_set) % num_shards;
+                } else {
+                    shard_index = std::hash<std::string>{}(key) % num_shards;
+                }
                 break;
             default:
                 throw derecho::derecho_exception(std::string("Unknown sharding_policy:") + std::to_string(sharding_policy));

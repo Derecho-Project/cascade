@@ -459,10 +459,41 @@ namespace cascade {
         /**
          * 'object_pool_info_cache' is a local cache for object pool metadata. This cache is used to accelerate the
          * object access process. If an object pool does not exists, it will be loaded from metadata service.
+         *
+         * Each entry of the object_pool_info_cache is an object of type ObjectPoolMetadataCacheEntry. Such an object
+         * caches an object pool metadata object (opm) along with the affinity set regex processing data structures.
          */
+        class ObjectPoolMetadataCacheEntry {
+        public:
+            ObjectPoolMetadata<CascadeTypes...> opm;
+            /**
+             * The constructor
+             * @param _opm object pool metadata
+             */
+            ObjectPoolMetadataCacheEntry(const ObjectPoolMetadata<CascadeTypes...>& _opm);
+
+            /**
+             * The destructor
+             */
+            virtual ~ObjectPoolMetadataCacheEntry();
+
+            /**
+             * Convert a key string to corresponding affinity set string.
+             * @param key_string
+             *
+             * @return affinity set string
+             */
+            inline std::string to_affinity_set(const std::string& key_string);
+        private:
+            /* the database storing compiled regex */
+            hs_database_t*                      database;
+            /* the scratch for the regex */
+            thread_local static hs_scratch_t*   scratch;
+        };
+
         std::unordered_map<
             std::string,
-            ObjectPoolMetadata<CascadeTypes...>> object_pool_metadata_cache;
+            ObjectPoolMetadataCacheEntry> object_pool_metadata_cache;
         mutable std::shared_mutex object_pool_metadata_cache_mutex;
 
         /**
@@ -1305,7 +1336,18 @@ namespace cascade {
          * @return a future to the version and timestamp of the put operation.
          */
         derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> remove_object_pool(const std::string& pathname);
-
+    private:
+        /**
+         * ObjectPoolManagement API: find object pool
+         *
+         * @param  pathname         Object pool pathname
+         * @param  rlck             shared lock, which needs to be hold.
+         *
+         * @return the object pool metadata
+         */
+        ObjectPoolMetadata<CascadeTypes...> internal_find_object_pool(const std::string& pathname,
+                                                                      std::shared_lock<std::shared_mutex>& rlck);
+    public:
         /**
          * ObjectPoolManagement API: find object pool
          *
@@ -1314,6 +1356,17 @@ namespace cascade {
          * @return the object pool metadata
          */
         ObjectPoolMetadata<CascadeTypes...> find_object_pool(const std::string& pathname);
+
+        /**
+         * ObjectPoolManagement API: find object pool and affinity_set from key
+         *
+         * @param  key              The key of an object.
+         *
+         * @return the object pool metadata along with the affinity set string
+         */
+        template <typename KeyType>
+        std::pair<ObjectPoolMetadata<CascadeTypes...>,std::string> 
+            find_object_pool_and_affinity_set_by_key(const KeyType& key);
 
         /**
          * ObjectPoolManagement API: list all the object pools by pathnames
