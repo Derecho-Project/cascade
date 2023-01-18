@@ -418,7 +418,7 @@ template <typename... CascadeTypes>
 ServiceClient<CascadeTypes...>::ObjectPoolMetadataCacheEntry::~ObjectPoolMetadataCacheEntry() {
     if (this->database != nullptr) {
         hs_free_database(database);
-        this->database == nullptr;
+        this->database = nullptr;
     }
 }
 
@@ -1835,7 +1835,7 @@ template <typename... CascadeTypes>
 template <typename KeyType>
 std::pair<ObjectPoolMetadata<CascadeTypes...>,std::string> ServiceClient<CascadeTypes...>::find_object_pool_and_affinity_set_by_key(
         const KeyType& key) {
-    std::string object_pool_pathname = get_pathname(key);
+    std::string object_pool_pathname = get_pathname<KeyType>(key);
     if (object_pool_pathname.empty()) {
         throw derecho::derecho_exception(std::string("Key:") + key + " does not belong to any object pool.");
     }

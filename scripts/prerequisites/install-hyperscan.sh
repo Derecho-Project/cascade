@@ -12,7 +12,7 @@ echo "Using INSTALL_PREFIX=${INSTALL_PREFIX}"
 cd ${WORKPATH}
 git clone https://github.com/songweijia/hyperscan.git
 cd hyperscan
-git checkout 837992d79c49bc9bce04b19acc3d1275d96b5fd5
+git checkout 5a95f964c99d09420166933936d4476c990e25e8
 mkdir build
 cd build
 cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} ..
