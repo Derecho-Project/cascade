@@ -396,6 +396,7 @@ inline std::ostream& operator<<(std::ostream& out, const ObjectPoolMetadata<Casc
             "\tsubgroup_index:" << std::to_string(opm.subgroup_index) << "\n" <<
             "\tsharding_policy:" << std::to_string(opm.sharding_policy) <<"\n" <<
             "\tobject_locations:[hidden]" << "\n" <<
+            "\taffinity_set_regex:" << opm.affinity_set_regex << "\n" <<
             "\tis_deleted:" << std::to_string(opm.deleted) <<
             std::endl;
     }

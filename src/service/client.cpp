@@ -285,8 +285,14 @@ void op_put_file_and_forget(ServiceClientAPI& capi, const std::string& key, cons
 }
 
 template <typename SubgroupType>
-void create_object_pool(ServiceClientAPI& capi, const std::string& id, uint32_t subgroup_index) {
-    auto result = capi.template create_object_pool<SubgroupType>(id,subgroup_index);
+void create_object_pool(ServiceClientAPI& capi, const std::string& id, uint32_t subgroup_index,
+                        const std::string& affinity_set_regex) {
+    auto result = capi.template create_object_pool<SubgroupType>(
+            id,
+            subgroup_index,
+            sharding_policy_type::HASH,
+            {},
+            affinity_set_regex);
     check_put_and_remove_result(result);
     std::cout << "create_object_pool is done." << std::endl;
 } 
@@ -912,13 +918,17 @@ std::vector<command_entry_t> commands =
     {
         "create_object_pool",
         "Create an object pool",
-        "create_object_pool <path> <type> <subgroup_index>\n"
+        "create_object_pool <path> <type> <subgroup_index> [affinity_set_regex]\n"
             "type := " SUBGROUP_TYPE_LIST,
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             CHECK_FORMAT(cmd_tokens,4);
             std::string opath = cmd_tokens[1];
             uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3],nullptr,0));
-            on_subgroup_type(cmd_tokens[2],create_object_pool,capi,opath,subgroup_index);
+            std::string affinity_set_regex;
+            if (cmd_tokens.size() >= 5) {
+                affinity_set_regex = cmd_tokens[4];
+            }
+            on_subgroup_type(cmd_tokens[2],create_object_pool,capi,opath,subgroup_index,affinity_set_regex);
             return true;
         }
     },
