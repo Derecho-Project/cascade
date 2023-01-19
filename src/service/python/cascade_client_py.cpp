@@ -363,11 +363,13 @@ auto multi_list_keys(ServiceClientAPI& capi, uint32_t subgroup_index = 0, uint32
  * @param   capi
  * @param   object_pool_pathname
  * @param   subgroup_index
+ * @param   affinity_set_regex, default to empty string
  * @return  QueryResultsStore that handles the return type
 */
 template <typename SubgroupType>
-auto create_object_pool(ServiceClientAPI& capi, const std::string& object_pool_pathname, uint32_t subgroup_index) {
-    derecho::rpc::QueryResults<std::tuple<persistent::version_t, uint64_t>> result = capi.template create_object_pool<SubgroupType>(object_pool_pathname, subgroup_index);
+auto create_object_pool(ServiceClientAPI& capi, const std::string& object_pool_pathname, uint32_t subgroup_index, const std::string& affinity_set_regex="") {
+    derecho::rpc::QueryResults<std::tuple<persistent::version_t, uint64_t>> result = 
+        capi.template create_object_pool<SubgroupType>(object_pool_pathname, subgroup_index, sharding_policy_t::HASH, {}, affinity_set_regex);
     QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>* s = new QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>(std::move(result), bundle_f);
     return py::cast(s);
 }
@@ -407,6 +409,7 @@ auto get_object_pool(ServiceClientAPI& capi, const std::string& object_pool_path
         object_locations[py::str(kv.first)] = kv.second;
     }
     opm["object_locations"] = object_locations;
+    opm["affinity_set_regex"] = py::str(copm.affinity_set_regex);
     opm["deleted"] = py::bool_(copm.deleted);
     return opm;
 }
@@ -1050,8 +1053,16 @@ PYBIND11_MODULE(member_client, m) {
             )
             .def(
                     "create_object_pool", 
-                    [](ServiceClientAPI_PythonWrapper& capi, const std::string& object_pool_pathname, const std::string& service_type, uint32_t subgroup_index) {
-                        on_all_subgroup_type(service_type, return create_object_pool, capi.ref, object_pool_pathname, subgroup_index);
+                    [](ServiceClientAPI_PythonWrapper&  capi, 
+                       const std::string&               object_pool_pathname,
+                       const std::string&               service_type,
+                       uint32_t                         subgroup_index,
+                       py::kwargs                       kwargs) {
+                        std::string affinity_set_regex = "";
+                        if (kwargs.contains("affinity_set_regex")) {
+                            affinity_set_regex = kwargs["affinity_set_regex"].cast<std::string>();
+                        }
+                        on_all_subgroup_type(service_type, return create_object_pool, capi.ref, object_pool_pathname, subgroup_index, affinity_set_regex);
                         return py::cast(NULL);
                     },
                     "Create an Object Pool. \n"
@@ -1061,6 +1072,8 @@ PYBIND11_MODULE(member_client, m) {
                     "\t         PersistentCascadeStoreWithStringKey | \n"
                     "\t         TriggerCascadeNoStoreWithStringKey \n"
                     "\t@arg2    subgroup_index \n"
+                    "\t** Optional keyword argument: ** \n"
+                    "\t@argX    affinity_set_regex \n"
                     "\t@return  a future of the (version,timestamp)"
             )
             .def(
