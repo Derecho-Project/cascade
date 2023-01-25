@@ -19,6 +19,7 @@
 #include <utility>
 #include <derecho/conf/conf.hpp>
 #include "cascade.hpp"
+#include "utils.hpp"
 #include "object_pool_metadata.hpp"
 #include "user_defined_logic_manager.hpp"
 #include "data_flow_graph.hpp"
@@ -43,9 +44,9 @@ namespace cascade {
     using Factory = std::function<std::unique_ptr<CascadeType>(persistent::PersistentRegistry*, subgroup_id_t subgroup_id, ICascadeContext*)>;
 
     /* Cascade Metadata Service type*/
-	template<typename...CascadeTypes>
-	using CascadeMetadataService = PersistentCascadeStore<
-    	std::remove_cv_t<std::remove_reference_t<decltype(std::declval<ObjectPoolMetadata<CascadeTypes...>>().get_key_ref())>>,
+    template<typename...CascadeTypes>
+    using CascadeMetadataService = PersistentCascadeStore<
+        std::remove_cv_t<std::remove_reference_t<decltype(std::declval<ObjectPoolMetadata<CascadeTypes...>>().get_key_ref())>>,
         ObjectPoolMetadata<CascadeTypes...>,
         &ObjectPoolMetadata<CascadeTypes...>::IK,
         &ObjectPoolMetadata<CascadeTypes...>::IV,
@@ -90,7 +91,7 @@ namespace cascade {
      *
      * !!! IMPORTANT NOTES ON "ACTION" DESIGN !!!
      * Action carries the key string, version, prefix handler (ocdpo_raw_ptr), and the object value so that the prefix
-     * handler have all the information to process in the worker thread. It is important to avoid unnecessary copies
+     * handler has all the information to process in the worker thread. It is important to avoid unnecessary copies
      * because the object value is big sometime (for example, a high resolution video clip). Currently, we copied the
      * value data into a new allocated memory buffer pointed by a unique pointer in the critical data path because the
      * value in critical data path is in Derecho's managed RDMA buffer, which will not last beyond the lifetime of the
@@ -111,7 +112,8 @@ namespace cascade {
      *
      */
 #define ACTION_BUFFER_ENTRY_SIZE    (256)
-#define ACTION_BUFFER_SIZE          (1024)
+#define ACTION_BUFFER_SIZE          (8192)
+// #define ACTION_BUFFER_SIZE          (1024)
     struct Action {
         node_id_t                       sender;
         std::string                     key_string;
@@ -312,6 +314,7 @@ namespace cascade {
         Random,         // use a random member in the shard for each operations(put/remove/get/get_by_time).
         FixedRandom,    // use a random member and stick to that for the following operations.
         RoundRobin,     // use a member in round-robin order.
+        KeyHashing,     // use the key's hashing 
         UserSpecified,  // user specify which member to contact.
         InvalidPolicy = -1
     };
@@ -456,22 +459,55 @@ namespace cascade {
         /**
          * 'object_pool_info_cache' is a local cache for object pool metadata. This cache is used to accelerate the
          * object access process. If an object pool does not exists, it will be loaded from metadata service.
+         *
+         * Each entry of the object_pool_info_cache is an object of type ObjectPoolMetadataCacheEntry. Such an object
+         * caches an object pool metadata object (opm) along with the affinity set regex processing data structures.
          */
+        class ObjectPoolMetadataCacheEntry {
+        public:
+            ObjectPoolMetadata<CascadeTypes...> opm;
+            /**
+             * The constructor
+             * @param _opm object pool metadata
+             */
+            ObjectPoolMetadataCacheEntry(const ObjectPoolMetadata<CascadeTypes...>& _opm);
+
+            /**
+             * The destructor
+             */
+            virtual ~ObjectPoolMetadataCacheEntry();
+
+            /**
+             * Convert a key string to corresponding affinity set string.
+             * @param key_string
+             *
+             * @return affinity set string
+             */
+            inline std::string to_affinity_set(const std::string& key_string);
+        private:
+            /* the database storing compiled regex */
+            hs_database_t*                      database;
+            /* the scratch for the regex */
+            thread_local static hs_scratch_t*   scratch;
+        };
+
         std::unordered_map<
             std::string,
-            ObjectPoolMetadata<CascadeTypes...>> object_pool_metadata_cache;
+            ObjectPoolMetadataCacheEntry> object_pool_metadata_cache;
         mutable std::shared_mutex object_pool_metadata_cache_mutex;
 
         /**
          * Pick a member by a given a policy.
          * @param subgroup_index
          * @param shard_index
-         * @param retry - if true, refresh the member_cache.
+         * @param key_for_hashing   - only for KeyHashing policy, ignored otherwise.
+         * @param retry             - if true, refresh the member_cache.
          */
-        template <typename SubgroupType>
+        template <typename SubgroupType, typename KeyTypeForHashing>
         node_id_t pick_member_by_policy(uint32_t subgroup_index,
-                                                 uint32_t shard_index,
-                                                 bool retry = false);
+                                        uint32_t shard_index,
+                                        const KeyTypeForHashing& key_for_hashing,
+                                        bool retry = false);
 
         /**
          * Refresh(or fill) a member cache entry.
@@ -519,10 +555,11 @@ namespace cascade {
 
         /**
          * Derecho group helpers: They derive the API in derecho::ExternalClient.
-         * - get_my_id          return my local node id.
-         * - get_members        returns all members in the top-level Derecho group.
-         * - get_shard_members  returns the members in a shard specified by subgroup id(or subgroup type/index pair) and
-         *   shard index.
+         * - get_my_id                  return my local node id.
+         * - get_members                returns all members in the top-level Derecho group.
+         * - get_subgroup_members       returns a vector of vectors of node ids: [[node ids in shard 0],[node ids in shard 1],...]
+         * - get_shard_members          returns the members in a shard specified by subgroup id(or subgroup type/index pair) and
+         *                              shard index.
          * - get_number_of_subgroups    returns the number of subgroups of a given type
          * - get_number_of_shards       returns the number of shards of a given subgroup
          * During view change, the Client might experience failure if the member is gone. In such a case, the client needs
@@ -533,7 +570,29 @@ namespace cascade {
         std::vector<node_id_t> get_members() const;
 
         template <typename SubgroupType>
+        std::vector<std::vector<node_id_t>> get_subgroup_members(uint32_t subgroup_index) const;
+    protected:
+        template <typename FirstType,typename SecondType, typename...RestTypes>
+        std::vector<std::vector<node_id_t>> type_recursive_get_subgroup_members(uint32_t type_index, uint32_t subgroup_index) const;
+        template <typename LastType>
+        std::vector<std::vector<node_id_t>> type_recursive_get_subgroup_members(uint32_t type_index, uint32_t subgroup_index) const;
+    public:
+        std::vector<std::vector<node_id_t>> get_subgroup_members(const std::string& object_pool_pathname);
+
+        template <typename SubgroupType>
         std::vector<node_id_t> get_shard_members(uint32_t subgroup_index,uint32_t shard_index) const;
+    protected:
+        template <typename FirstType,typename SecondType, typename...RestTypes>
+        std::vector<node_id_t> type_recursive_get_shard_members(uint32_t type_index,
+                uint32_t subgroup_index, uint32_t shard_index) const;
+        template <typename LastType>
+        std::vector<node_id_t> type_recursive_get_shard_members(uint32_t type_index,
+                uint32_t subgroup_index, uint32_t shard_index) const;
+    public:
+        std::vector<node_id_t> get_shard_members(const std::string& object_pool_pathname,uint32_t shard_index);
+
+        template <typename SubgroupType>
+        uint32_t get_number_of_subgroups() const;
 
         template <typename SubgroupType>
         uint32_t get_number_of_shards(uint32_t subgroup_index) const;
@@ -551,6 +610,12 @@ namespace cascade {
          * @param subgroup_index        - the subgroup index in the given type.
          */
         uint32_t get_number_of_shards(uint32_t subgroup_type_index, uint32_t subgroup_index) const;
+
+        /**
+         * This get_number_of_shards(), pick subgroup using object pool pathname.
+         * @param object_pool_pathname  - the object pool name
+         */
+        uint32_t get_number_of_shards(const std::string& object_pool_pathname);
 
         /**
          * Member selection policy control API.
@@ -1251,13 +1316,17 @@ namespace cascade {
          * @param  subgroup_index   Index of the subgroup
          * @param  sharding_policy  The default sharding policy for this object pool
          * @param  object_locations The set of special object locations.
+         * @param  affinity_set_regex
+         *                          The affinity set regex.
          *
          * @return a future to the version and timestamp of the put operation.
          */
         template <typename SubgroupType>
         derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> create_object_pool(
                 const std::string& pathname, const uint32_t subgroup_index,
-                const sharding_policy_t sharding_policy = HASH, const std::unordered_map<std::string,uint32_t>& object_locations = {});
+                const sharding_policy_t sharding_policy = HASH, 
+                const std::unordered_map<std::string,uint32_t>& object_locations = {},
+                const std::string& affinity_set_regex = "");
 
         /**
          * ObjectPoolManagement API: remote object pool
@@ -1267,7 +1336,18 @@ namespace cascade {
          * @return a future to the version and timestamp of the put operation.
          */
         derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> remove_object_pool(const std::string& pathname);
-
+    private:
+        /**
+         * ObjectPoolManagement API: find object pool
+         *
+         * @param  pathname         Object pool pathname
+         * @param  rlck             shared lock, which needs to be hold.
+         *
+         * @return the object pool metadata
+         */
+        ObjectPoolMetadata<CascadeTypes...> internal_find_object_pool(const std::string& pathname,
+                                                                      std::shared_lock<std::shared_mutex>& rlck);
+    public:
         /**
          * ObjectPoolManagement API: find object pool
          *
@@ -1276,6 +1356,17 @@ namespace cascade {
          * @return the object pool metadata
          */
         ObjectPoolMetadata<CascadeTypes...> find_object_pool(const std::string& pathname);
+
+        /**
+         * ObjectPoolManagement API: find object pool and affinity_set from key
+         *
+         * @param  key              The key of an object.
+         *
+         * @return the object pool metadata along with the affinity set string
+         */
+        template <typename KeyType>
+        std::pair<ObjectPoolMetadata<CascadeTypes...>,std::string> 
+            find_object_pool_and_affinity_set_by_key(const KeyType& key);
 
         /**
          * ObjectPoolManagement API: list all the object pools by pathnames
@@ -1381,13 +1472,13 @@ namespace cascade {
 
 #ifdef ENABLE_EVALUATION
         /**
-         * Dump the timestamp log entries into a file on each of the nodes in a subgroup.
+         * Dump the timestamp log entries into a file on each of the nodes in a shard.
          *
          * @param filename         - the output filename
          * @param subgroup_index   - the subgroup index
          * @param shard_index      - the shard index
          *
-         * @return a vector of query results.
+         * @return query results
          */
         template <typename SubgroupType>
         derecho::rpc::QueryResults<void> dump_timestamp(const std::string& filename, const uint32_t subgroup_index, const uint32_t shard_index);
@@ -1395,13 +1486,28 @@ namespace cascade {
         /**
          * The object store version:
          *
-         * @param filename             -   the filename version
-         * @param object_pool_pathname -   the object pool version
+         * @param filename             -   the filename
+         * @param object_pool_pathname -   the object pool pathname
+         */
+        void dump_timestamp(const std::string& filename, const std::string& object_pool_pathname);
+
+        /**
+         * Dump the timestamp log entries into a file on each of the nodes in a subgroup.
          *
-         * @return query results
+         * @param filename         - the output filename
+         * @param subgroup_index   - the subgroup index
          */
         template <typename SubgroupType>
-        std::vector<std::unique_ptr<derecho::rpc::QueryResults<void>>> dump_timestamp(const std::string& filename, const std::string& object_pool_pathname);
+        void dump_timestamp(const uint32_t subgroup_index, const std::string& filename);
+
+    protected:
+        template <typename FirstType, typename SecondType, typename... RestTypes>
+        void type_recursive_dump(uint32_t type_index, uint32_t subgroup_index, const std::string& filename);
+        
+        template <typename LastType>
+        void type_recursive_dump(uint32_t type_index, uint32_t subgroup_index, const std::string& filename);
+
+    public:
 #ifdef DUMP_TIMESTAMP_WORKAROUND
         /**
          * Dump the timestamp log entries into a file on a specific node.

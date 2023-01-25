@@ -1,4 +1,5 @@
 #pragma once
+#include <cascade/config.h>
 #include "../service.hpp"
 #include "../service_types.hpp"
 #include <unordered_set>
@@ -75,6 +76,22 @@ void release(ICascadeContext* ctxt);
  * Please derive your own ocdpo from DefaultOffCriticalDataPathObserver, and override the virtual methods defined in
  * IDefaultOffCriticalDataPathObserver
  */
+using emit_func_t = std::function<void(const std::string&,
+                                       persistent::version_t version,
+                                       uint64_t              timestamp_us,
+                                       persistent::version_t previous_version,
+                                       persistent::version_t previous_version_by_key,
+#ifdef ENABLE_EVALUATION
+                                       uint64_t message_id,
+#endif
+                                       const Blob&)>;
+
+#ifdef ENABLE_EVALUATION
+#define EMIT_NO_VERSION_AND_TIMESTAMP   persistent::INVALID_VERSION,0,persistent::INVALID_VERSION,persistent::INVALID_VERSION,0
+#else
+#define EMIT_NO_VERSION_AND_TIMESTAMP   persistent::INVALID_VERSION,0,persistent::INVALID_VERSION,persistent::INVALID_VERSION
+#endif
+
 class IDefaultOffCriticalDataPathObserver {
 public:
     /** 
@@ -83,7 +100,7 @@ public:
      * @param object_pool_pathname  The object pool pathname
      * @param key_string            The key inside the object pool's domain
      * @param object                The immutable object live in the temporary buffer shared by multiple worker threads.
-     * @param emit                  Output of the result
+     * @param emit                  A function to emit the output results.
      * @param typed_ctxt            The typed context pointer to get access of extra Cascade service
      * @param worker_id             The off critical data path worker id.
      */
@@ -92,7 +109,7 @@ public:
             const std::string&              object_pool_pathname,
             const std::string&              key_string,
             const ObjectWithStringKey&      object,
-            const std::function<void(const std::string&, const Blob&)>& emit,
+            const emit_func_t&              emit,
             DefaultCascadeContextType*      typed_ctxt,
             uint32_t                        worker_id) = 0;
 };

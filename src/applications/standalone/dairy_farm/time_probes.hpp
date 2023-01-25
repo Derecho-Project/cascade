@@ -2,6 +2,7 @@
 #include <cascade/cascade.hpp>
 
 #ifdef ENABLE_EVALUATION
+#define #define TLT_DAIRYFARMDEMO(x)                (20000 + (x))
 #define TLT_CLIENT_SENT         TLT_DAIRYFARMDEMO(0)
 #define TLT_FRONTEND_TRIGGERED  TLT_DAIRYFARMDEMO(1)
 #define TLT_FRONTEND_PREDICTED  TLT_DAIRYFARMDEMO(2)

@@ -39,12 +39,16 @@ namespace py = pybind11;
         print_red("unknown subgroup type:" + x);              \
     }
 
+/**
+ * The following names have to match ShardMemberSelectionPolicy defined in include/cascade/service.hpp
+ */
 static const char* policy_names[] = {
         "FirstMember",
         "LastMember",
         "Random",
         "FixedRandom",
         "RoundRobin",
+        "KeyHashing",
         "UserSpecified",
         nullptr};
 
@@ -359,11 +363,13 @@ auto multi_list_keys(ServiceClientAPI& capi, uint32_t subgroup_index = 0, uint32
  * @param   capi
  * @param   object_pool_pathname
  * @param   subgroup_index
+ * @param   affinity_set_regex, default to empty string
  * @return  QueryResultsStore that handles the return type
 */
 template <typename SubgroupType>
-auto create_object_pool(ServiceClientAPI& capi, const std::string& object_pool_pathname, uint32_t subgroup_index) {
-    derecho::rpc::QueryResults<std::tuple<persistent::version_t, uint64_t>> result = capi.template create_object_pool<SubgroupType>(object_pool_pathname, subgroup_index);
+auto create_object_pool(ServiceClientAPI& capi, const std::string& object_pool_pathname, uint32_t subgroup_index, const std::string& affinity_set_regex="") {
+    derecho::rpc::QueryResults<std::tuple<persistent::version_t, uint64_t>> result = 
+        capi.template create_object_pool<SubgroupType>(object_pool_pathname, subgroup_index, sharding_policy_t::HASH, {}, affinity_set_regex);
     QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>* s = new QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>(std::move(result), bundle_f);
     return py::cast(s);
 }
@@ -403,6 +409,7 @@ auto get_object_pool(ServiceClientAPI& capi, const std::string& object_pool_path
         object_locations[py::str(kv.first)] = kv.second;
     }
     opm["object_locations"] = object_locations;
+    opm["affinity_set_regex"] = py::str(copm.affinity_set_regex);
     opm["deleted"] = py::bool_(copm.deleted);
     return opm;
 }
@@ -443,12 +450,43 @@ PYBIND11_MODULE(member_client, m) {
                     }
                 )
             .def(
+                    "get_my_id",
+                    [](ServiceClientAPI_PythonWrapper& capi) {
+                        return static_cast<int64_t>(capi.ref.get_my_id());
+                    },
+                    "Get my node id. \n"
+                    "\t@return my node id."
+                ) 
+            .def(
                     "get_members",
                     [](ServiceClientAPI_PythonWrapper& capi) {
                         return capi.ref.get_members();
                     },
                     "Get all members in the current derecho group.\n"
                     "\r@return  a list of node ids"
+                )
+            .def(
+                    "get_subgroup_members",
+                    [](ServiceClientAPI_PythonWrapper& capi, std::string service_type, uint32_t subgroup_index) {
+                        std::vector<std::vector<node_id_t>> members;
+                        on_all_subgroup_type(service_type, members = capi.ref.template get_subgroup_members, subgroup_index);
+                        return members;
+                    },
+                    "Get members of a subgroup.\n"
+                    "\t@arg0    service_type    VolatileCascadeStoreWithStringKey | \n"
+                    "\t                         PersistentCascadeStoreWithStringKey | \n"
+                    "\t                         TriggerCascadeNoStoreWithStringKey \n"
+                    "\t@arg1    subgroup_index  \n"
+                    "\t@return  a list of shard members, which is a list of node ids"
+                )
+            .def(
+                    "get_subgroup_members_by_object_pool",
+                    [](ServiceClientAPI_PythonWrapper& capi, const std::string& object_pool_pathname){
+                        return capi.ref.get_subgroup_members(object_pool_pathname);
+                    },
+                    "Get members of a subgroup by object pool.\n"
+                    "\t@arg0    object_pool_pathname \n"
+                    "\t@return  a list of shard members, which is a list of node ids"
                 )
             .def(
                     "get_shard_members", 
@@ -464,6 +502,43 @@ PYBIND11_MODULE(member_client, m) {
                     "\t@arg1    subgroup_index  \n"
                     "\t@arg2    shard_index     \n"
                     "\t@return  a list of node ids"
+                )
+            .def(
+                    "get_shard_members_by_object_pool",
+                    [](ServiceClientAPI_PythonWrapper& capi, const std::string& object_pool_pathname, uint32_t shard_index){
+                        return capi.ref.get_shard_members(object_pool_pathname,shard_index);
+                    },
+                    "Get members of a shard.\n"
+                    "\t@arg0    object_pool_pathname \n"
+                    "\t@arg1    shard_index     \n"
+                    "\t@return  a list of node ids"
+                )
+            .def(
+                    "get_number_of_subgroups",
+                    [](ServiceClientAPI_PythonWrapper& capi, std::string service_type) {
+                        uint32_t nsubgroups;
+                        on_all_subgroup_type(service_type, nsubgroups = capi.ref.template get_number_of_subgroups);
+                        return nsubgroups;
+                    },
+                    "Get number of subgroups of a subgroup type.\n"
+                    "\t@arg0    service_type    VolatileCascadeStoreWithStringKey | \n"
+                    "\t                         PersistentCascadeStoreWithStringKey | \n"
+                    "\t                         TriggerCascadeNoStoreWithStringKey \n"
+                    "\t@arg1    subgroup_index"
+                )
+            .def(
+                    "get_number_of_shards",
+                    [](ServiceClientAPI_PythonWrapper& capi, std::string service_type, uint32_t subgroup_index) {
+                        uint32_t nshard;
+                        on_all_subgroup_type(service_type, nshard = capi.ref.template get_number_of_shards, subgroup_index);
+                        return nshard;
+                    },
+                    "Get number of shards in a subgroup.\n"
+                    "\t@arg0    service_type    VolatileCascadeStoreWithStringKey | \n"
+                    "\t                         PersistentCascadeStoreWithStringKey | \n"
+                    "\t                         TriggerCascadeNoStoreWithStringKey \n"
+                    "\t@arg1    subgroup_index  \n"
+                    "\t@return  the number of shards in the subgroup."
                 )
             .def(
                     "set_member_selection_policy",
@@ -482,6 +557,7 @@ PYBIND11_MODULE(member_client, m) {
                     "\t                         Random | \n",
                     "\t                         FixedRandom | \n",
                     "\t                         RoundRobin | \n",
+                    "\t                         KeyHashing | \n",
                     "\t                         UserSpecified \n",
                     "\t@arg4    usernode        The node id for 'UserSpecified' policy"
                 )
@@ -507,6 +583,9 @@ PYBIND11_MODULE(member_client, m) {
                                 break;
                             case ShardMemberSelectionPolicy::RoundRobin:
                                 pol = "RoundRobin";
+                                break;
+                            case ShardMemberSelectionPolicy::KeyHashing:
+                                pol = "KeyHashing";
                                 break;
                             case ShardMemberSelectionPolicy::UserSpecified:
                                 pol = "UserSpecified";
@@ -974,8 +1053,16 @@ PYBIND11_MODULE(member_client, m) {
             )
             .def(
                     "create_object_pool", 
-                    [](ServiceClientAPI_PythonWrapper& capi, const std::string& object_pool_pathname, const std::string& service_type, uint32_t subgroup_index) {
-                        on_all_subgroup_type(service_type, return create_object_pool, capi.ref, object_pool_pathname, subgroup_index);
+                    [](ServiceClientAPI_PythonWrapper&  capi, 
+                       const std::string&               object_pool_pathname,
+                       const std::string&               service_type,
+                       uint32_t                         subgroup_index,
+                       py::kwargs                       kwargs) {
+                        std::string affinity_set_regex = "";
+                        if (kwargs.contains("affinity_set_regex")) {
+                            affinity_set_regex = kwargs["affinity_set_regex"].cast<std::string>();
+                        }
+                        on_all_subgroup_type(service_type, return create_object_pool, capi.ref, object_pool_pathname, subgroup_index, affinity_set_regex);
                         return py::cast(NULL);
                     },
                     "Create an Object Pool. \n"
@@ -985,6 +1072,8 @@ PYBIND11_MODULE(member_client, m) {
                     "\t         PersistentCascadeStoreWithStringKey | \n"
                     "\t         TriggerCascadeNoStoreWithStringKey \n"
                     "\t@arg2    subgroup_index \n"
+                    "\t** Optional keyword argument: ** \n"
+                    "\t@argX    affinity_set_regex \n"
                     "\t@return  a future of the (version,timestamp)"
             )
             .def(
@@ -1041,4 +1130,55 @@ PYBIND11_MODULE(member_client, m) {
                     return qrs.get_result();
                     },
                     "Get result from QueryResultsStore for std::vector<std::string>");
+#ifdef ENABLE_EVALUATION
+    /* TimeLogger facility */
+    class TimestampLogger_PythonWrapper {
+    public:
+        TimestampLogger_PythonWrapper() {}
+    };
+    py::class_<TimestampLogger_PythonWrapper>(m, "TimestampLogger")
+        .def(py::init(), "TimestampLogger API to log timestamps.")
+        .def(
+                "__repr__",
+                [](const TimestampLogger& tl) {
+                    return "TimestampLogger for logging timestamps.";
+                }
+            )
+        .def(
+                "log", [](TimestampLogger_PythonWrapper&, uint64_t tag, uint64_t node_id, uint64_t msg_id, uint64_t ts_ns, uint64_t extra) {
+                    TimestampLogger::log(tag,node_id,msg_id,ts_ns,extra);
+                },
+                "Log given timestamp. \n"
+                "\t@arg0    tag, an uint64_t number defined in <include>/cascade/utils.hpp.\n"
+                "\t@arg1    node_id, the id of local node.\n"
+                "\t@arg2    msg_id, the message id of this log.\n"
+                "\t@arg3    ts_ns, the timestamp in nano seconds.\n"
+                "\t@arg4    extra, the extra information you want to add."
+            )
+        .def(
+                "log", [](TimestampLogger_PythonWrapper&, uint64_t tag, uint64_t node_id, uint64_t msg_id, uint64_t extra) {
+                    uint64_t ts_ns = get_time_ns();
+                    TimestampLogger::log(tag,node_id,msg_id,ts_ns,extra);
+                },
+                "Log current timestamp. \n"
+                "\t@arg0    tag, an uint64_t number defined in <include>/cascade/utils.hpp.\n"
+                "\t@arg1    node_id, the id of local node.\n"
+                "\t@arg2    msg_id, the message id of this log.\n"
+                "\t@arg3    extra, the extra information you want to add."
+            )
+        .def(
+                "flush", [](TimestampLogger_PythonWrapper&, const std::string& filename, bool clear) {
+                    TimestampLogger::flush(filename,clear);
+                },
+                "Flush timestamp log to file. \n"
+                "\t@arg0    filename, the filename\n"
+                "\t@arg1    clear, if True, the timestamp log in memory will be cleared. otherwise, we keep it."
+            )
+        .def(
+                "clear", [](TimestampLogger_PythonWrapper&) {
+                    TimestampLogger::clear();
+                },
+                "Clear timestamp log. \n"
+            );
+#endif // ENABLE_EVALUATION
 }

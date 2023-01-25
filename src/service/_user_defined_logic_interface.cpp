@@ -21,12 +21,21 @@ void DefaultOffCriticalDataPathObserver::operator() (
     std::string key_string = full_key_string.substr(prefix_length);
 
     // call typed handler
+    dbg_default_trace("DefaultOffCriticalDataPathObserver: calling typed handler for key={}...", full_key_string);
     this->ocdpo_handler(
             sender,
             object_pool_pathname,
             key_string,
             *object_ptr,
-            [&](const std::string& key, const Blob& blob) {
+            [&](const std::string&    key,
+                persistent::version_t version,
+                uint64_t              timestamp_us,
+                persistent::version_t previous_version,
+                persistent::version_t previous_version_by_key,
+#ifdef ENABLE_EVALUATION
+                uint64_t              message_id,
+#endif
+                const Blob& blob) {
                 for (const auto& okv: outputs) {
                     std::string prefix = okv.first;
                     while (!prefix.empty() && prefix.back() == PATH_SEPARATOR) prefix.pop_back();
@@ -34,12 +43,12 @@ void DefaultOffCriticalDataPathObserver::operator() (
                     // emplace constructor to avoid copy:
                     ObjectWithStringKey obj_to_send(
 #ifdef ENABLE_EVALUATION
-                            0,
+                            message_id,
 #endif
-                            INVALID_VERSION,
-                            0ull,
-                            INVALID_VERSION,
-                            INVALID_VERSION,
+                            version,
+                            timestamp_us,
+                            previous_version,
+                            previous_version_by_key,
                             new_key,
                             blob,
                             true);
@@ -52,6 +61,7 @@ void DefaultOffCriticalDataPathObserver::operator() (
             },
             typed_ctxt,
             worker_id);
+    dbg_default_trace("DefaultOffCriticalDataPathObserver: calling typed handler for key={}...done", full_key_string);
 }
 
 }

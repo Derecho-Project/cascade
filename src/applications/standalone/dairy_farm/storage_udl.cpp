@@ -32,7 +32,7 @@ class DairyFarmStorageOCDPO: public OffCriticalDataPathObserver {
         auto* typed_ctxt = dynamic_cast<DefaultCascadeContextType*>(ctxt);
 #ifdef ENABLE_EVALUATION
         if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
-            global_timestamp_logger.log(TLT_STORAGE_TRIGGERED,
+            TimestampLogger::log(TLT_STORAGE_TRIGGERED,
                                         typed_ctxt->get_service_client_ref().get_my_id(),
                                         reinterpret_cast<const ObjectWithStringKey*>(value_ptr)->get_message_id(),
                                         get_walltime());

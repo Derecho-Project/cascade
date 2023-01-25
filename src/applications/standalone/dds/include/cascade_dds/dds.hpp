@@ -3,6 +3,7 @@
 #include <derecho/mutils-serialization/SerializationSupport.hpp>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <vector>
 #include <unordered_map>
 #include <shared_mutex>
@@ -177,6 +178,10 @@ public:
         INVALID_TYPE,
         SUBSCRIBE,
         UNSUBSCRIBE,
+#ifdef USE_DDS_TIMESTAMP_LOG
+        FLUSH_TIMESTAMP_TRIGGER, // trigger a flush timestamp operation (in trigger)
+        FLUSH_TIMESTAMP_ORDERED // really flush timestamp
+#endif
     };
     /* Command type */
     CommandType command_type;
@@ -197,6 +202,14 @@ public:
         case UNSUBSCRIBE:
             command_name = "unsubscribe";
             break;
+#ifdef USE_DDS_TIMESTAMP_LOG
+        case FLUSH_TIMESTAMP_TRIGGER:
+            command_name = "flush_timestamp_trigger";
+            break;
+        case FLUSH_TIMESTAMP_ORDERED:
+            command_name = "flush_timestamp_ordered";
+            break;
+#endif
         default:
             command_name = "invalid";
         }
@@ -219,7 +232,11 @@ public:
      * publish a message
      * @message the message to publish to the topic
      */
-    virtual void send(const MessageType& message) = 0;
+    virtual void send(const MessageType& message
+#ifdef ENABLE_EVALUATION
+            ,uint64_t message_id = 0
+#endif
+            ) = 0;
 };
 
 /**
@@ -251,6 +268,9 @@ private:
     ServiceClientAPI&                       capi;
     std::unique_ptr<DDSSubscriberRegistry>  subscriber_registry;
     std::unique_ptr<DDSMetadataClient>      metadata_service;
+#ifdef USE_DDS_TIMESTAMP_LOG
+    std::string                             control_plane_suffix;
+#endif
 
 public:
     /**
@@ -287,6 +307,14 @@ public:
      */
     template <typename MessageType>
     void unsubscribe(const std::unique_ptr<DDSSubscriber<MessageType>>& subscriber);
+
+#ifdef USE_DDS_TIMESTAMP_LOG
+    /**
+     * flush the timestamp of a topic
+     * @param topic                 topic name
+     */
+    void flush_timestamp(const std::string& topic);
+#endif
 
     /**
      * destructor
