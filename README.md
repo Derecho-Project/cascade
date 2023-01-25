@@ -28,6 +28,7 @@ Cascade is a C++17 cloud application framework powered by optimized RDMA data pa
 - [Lohmann's json parser](https://github.com/nlohmann) v3.2.0 or newer
 - Readline library v7.0 or newer. On Ubuntu, use `apt install libreadline-dev` to install it.
 - RPC library [rpclib](https://github.com/rpclib/rpclib). For convenience, install it with [this script](scripts/prerequisites/install-rpclib.sh).
+- Intel's regulation expression library [Hyperscan](https://github.com/intel/hyperscan). For convenience, install it with [this script](scripts/prerequisites/install-hyperscan.sh).
 - [libfuse](https://github.com/libfuse) v3.9.3 or newer (Optional for file system API)
 - [boolinq](https://github.com/k06a/boolinq) or newer (Optional for LINQ API)
 - Python 3.5 or newer and [pybind11](https://github.com/pybind/pybind11) (Optional for Python API)
@@ -48,7 +49,7 @@ Cascade is a C++17 cloud application framework powered by optimized RDMA data pa
 ```
 Please note that the cmake script will check whether the python3 environment (along with pybind11) is available or not. If python environment is not detected, the building process will disable python support quietly. If your `pybind11` is not installed in a standard place, which is very common if `pybind11` is install by `pip3`, you can use `-Dpybind11_DIR=` option for cmake to specify the location of pybind11 as following:
 ```
-cmake -Dpybind11_DIR=/usr/local/lib/python3.8/dist-packages/pybind11/share/cmake/pybind11 ..
+cmake -Dpybind11_DIR=`pybind11-config --cmakedir` ..
 ```
 
 3) Install Cascade

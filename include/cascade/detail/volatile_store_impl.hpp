@@ -98,6 +98,7 @@ double VolatileCascadeStore<KT, VT, IK, IV>::perf_put(const uint32_t max_payload
 template <typename KT, typename VT, KT* IK, VT* IV>
 std::tuple<persistent::version_t, uint64_t> VolatileCascadeStore<KT, VT, IK, IV>::remove(const KT& key) const {
     debug_enter_func_with_args("key={}", key);
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_REMOVE_START, group, *IV);
     derecho::Replicated<VolatileCascadeStore>& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_remove)>(key);
     auto& replies = results.get();
@@ -106,6 +107,7 @@ std::tuple<persistent::version_t, uint64_t> VolatileCascadeStore<KT, VT, IK, IV>
     for(auto& reply_pair : replies) {
         ret = reply_pair.second.get();
     }
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_REMOVE_END, group, *IV);
     debug_leave_func_with_value("version=0x{:x},timestamp={}", std::get<0>(ret), std::get<1>(ret));
     return ret;
 }
@@ -118,6 +120,7 @@ const VT VolatileCascadeStore<KT, VT, IK, IV>::get(const KT& key, const persiste
         debug_leave_func_with_value("Cannot support versioned get, ver=0x{:x}", ver);
         return *IV;
     }
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_GET_START, group, *IV);
 
     // copy data out
     persistent::version_t v1, v2;
@@ -148,12 +151,14 @@ const VT VolatileCascadeStore<KT, VT, IK, IV>::get(const KT& key, const persiste
         // busy sleep
         std::this_thread::yield();
     } while(v1 != v2);
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_GET_END, group, *IV);
     return copied_out;
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
 const VT VolatileCascadeStore<KT, VT, IK, IV>::multi_get(const KT& key) const {
     debug_enter_func_with_args("key={}", key);
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_MULTI_GET_START, group, *IV);
 
     derecho::Replicated<VolatileCascadeStore>& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_get)>(key);
@@ -163,6 +168,7 @@ const VT VolatileCascadeStore<KT, VT, IK, IV>::multi_get(const KT& key) const {
         reply_pair.second.wait();
     }
     debug_leave_func();
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_MULTI_GET_END, group, *IV);
     return replies.begin()->second.get();
 }
 
@@ -178,6 +184,8 @@ const VT VolatileCascadeStore<KT, VT, IK, IV>::get_by_time(const KT& key, const 
 template <typename KT, typename VT, KT* IK, VT* IV>
 std::vector<KT> VolatileCascadeStore<KT, VT, IK, IV>::multi_list_keys(const std::string& prefix) const {
     debug_enter_func_with_args("prefix={}", prefix);
+
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_MULTI_LIST_KEYS_START, group, *IV);
     derecho::Replicated<VolatileCascadeStore>& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_list_keys)>(prefix);
     auto& replies = results.get();
@@ -186,6 +194,8 @@ std::vector<KT> VolatileCascadeStore<KT, VT, IK, IV>::multi_list_keys(const std:
     for(auto& reply_pair : replies) {
         ret = reply_pair.second.get();
     }
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_MULTI_LIST_KEYS_END, group, *IV);
+
     debug_leave_func();
     return ret;
 }
@@ -197,7 +207,40 @@ std::vector<KT> VolatileCascadeStore<KT, VT, IK, IV>::list_keys(const std::strin
         return {};
     }
 
-    return multi_list_keys(prefix);
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_LIST_KEYS_START, group, *IV);
+    // copy key list out
+    std::vector<KT> key_list;
+    persistent::version_t v1, v2;
+    static thread_local VT copied_out;
+    do {
+        // This only for TSO memory reordering.
+        v2 = this->lockless_v2.load(std::memory_order_relaxed);
+        // compiler reordering barrier
+#ifdef __GNUC__
+        asm volatile("" ::
+                             : "memory");
+#else
+#error Lockless support is currently for GCC only
+#endif
+        for(auto kv : this->kv_map) {
+            if(get_pathname<KT>(kv.first).find(prefix) == 0) {
+                key_list.push_back(kv.first);
+            }
+        }
+        // compiler reordering barrier
+#ifdef __GNUC__
+        asm volatile("" ::
+                             : "memory");
+#else
+#error Lockless support is currently for GCC only
+#endif
+        v1 = this->lockless_v1.load(std::memory_order_relaxed);
+        // busy sleep
+        std::this_thread::yield();
+    } while(v1 != v2);
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_LIST_KEYS_END, group, *IV);
+
+    return key_list;
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
@@ -211,6 +254,8 @@ std::vector<KT> VolatileCascadeStore<KT, VT, IK, IV>::list_keys_by_time(const st
 template <typename KT, typename VT, KT* IK, VT* IV>
 uint64_t VolatileCascadeStore<KT, VT, IK, IV>::multi_get_size(const KT& key) const {
     debug_enter_func_with_args("key={}", key);
+
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_MULTI_GET_SIZE_START, group, *IV);
     derecho::Replicated<VolatileCascadeStore>& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_get_size)>(key);
     auto& replies = results.get();
@@ -218,8 +263,11 @@ uint64_t VolatileCascadeStore<KT, VT, IK, IV>::multi_get_size(const KT& key) con
     // for (auto& reply_pair : replies) {
     //     ret = reply_pair.second.get();
     // }
+    uint64_t ret = replies.begin()->second.get();
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_MULTI_GET_SIZE_END, group, *IV);
     debug_leave_func();
-    return replies.begin()->second.get();
+
+    return ret;
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
@@ -232,6 +280,7 @@ uint64_t VolatileCascadeStore<KT, VT, IK, IV>::get_size(const KT& key, const per
     debug_leave_func();
 
     // copy data out
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_GET_SIZE_START, group, *IV);
     persistent::version_t v1, v2;
     uint64_t size = 0ull;
     do {
@@ -258,6 +307,7 @@ uint64_t VolatileCascadeStore<KT, VT, IK, IV>::get_size(const KT& key, const per
         // busy sleep
         std::this_thread::yield();
     } while(v1 != v2);
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_GET_SIZE_END, group, *IV);
     return size;
 }
 
@@ -272,13 +322,28 @@ uint64_t VolatileCascadeStore<KT, VT, IK, IV>::get_size_by_time(const KT&, const
 
 template <typename KT, typename VT, KT* IK, VT* IV>
 std::vector<KT> VolatileCascadeStore<KT, VT, IK, IV>::ordered_list_keys(const std::string& prefix) {
-    std::vector<KT> key_list;
     debug_enter_func();
+
+#ifdef ENABLE_EVALUATION
+    std::tuple<persistent::version_t, uint64_t> version_and_timestamp = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
+#endif
+
+#if __cplusplus > 201703L
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_LIST_KEYS_START,group,*IV,std::get<0>(version_and_timestamp));
+#else
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_LIST_KEYS_START,group,*IV,std::get<0>(version_and_timestamp));
+#endif
+    std::vector<KT> key_list;
     for(auto kv : this->kv_map) {
         if(get_pathname<KT>(kv.first).find(prefix) == 0) {
             key_list.push_back(kv.first);
         }
     }
+#if __cplusplus > 201703L
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_LIST_KEYS_END,group,*IV,std::get<0>(version_and_timestamp));
+#else
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_LIST_KEYS_END,group,*IV,std::get<0>(version_and_timestamp));
+#endif
 
     debug_leave_func();
     return key_list;
@@ -290,9 +355,21 @@ std::tuple<persistent::version_t, uint64_t> VolatileCascadeStore<KT, VT, IK, IV>
 
     std::tuple<persistent::version_t, uint64_t> version_and_timestamp = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
 
+#if __cplusplus > 201703L
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_PUT_START,group,value,std::get<0>(version_and_timestamp));
+#else
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_PUT_START,group,value,std::get<0>(version_and_timestamp));
+#endif
+
     if(this->internal_ordered_put(value) == false) {
         version_and_timestamp = {persistent::INVALID_VERSION, 0};
     }
+
+#if __cplusplus > 201703L
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_PUT_END,group,value,std::get<0>(version_and_timestamp));
+#else
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_PUT_END,group,value,std::get<0>(version_and_timestamp));
+#endif
 
     debug_leave_func_with_value("version=0x{:x},timestamp={}", std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp));
 
@@ -302,9 +379,20 @@ std::tuple<persistent::version_t, uint64_t> VolatileCascadeStore<KT, VT, IK, IV>
 template <typename KT, typename VT, KT* IK, VT* IV>
 void VolatileCascadeStore<KT, VT, IK, IV>::ordered_put_and_forget(const VT& value) {
     debug_enter_func_with_args("key={}", value.get_key_ref());
-    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_PUT_AND_FORGET_START, group, value);
+#ifdef ENABLE_EVALUATION
+    std::tuple<persistent::version_t, uint64_t> version_and_timestamp = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
+#endif
+#if __cplusplus > 201703L
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_PUT_AND_FORGET_START,group,value,std::get<0>(version_and_timestamp));
+#else
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_PUT_AND_FORGET_START,group,value,std::get<0>(version_and_timestamp));
+#endif
     internal_ordered_put(value);
-    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_PUT_AND_FORGET_END, group, value);
+#if __cplusplus > 201703L
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_PUT_AND_FORGET_END,group,value,std::get<0>(version_and_timestamp));
+#else
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_PUT_AND_FORGET_END,group,value,std::get<0>(version_and_timestamp));
+#endif
     debug_leave_func();
 }
 
@@ -389,6 +477,12 @@ std::tuple<persistent::version_t, uint64_t> VolatileCascadeStore<KT, VT, IK, IV>
 
     std::tuple<persistent::version_t, uint64_t> version_and_timestamp = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
 
+#if __cplusplus > 201703L
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_REMOVE_START,group,*IV,std::get<0>(version_and_timestamp));
+#else
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_REMOVE_START,group,*IV,std::get<0>(version_and_timestamp));
+#endif
+
     if(this->kv_map.find(key) == this->kv_map.end()) {
         debug_leave_func_with_value("version=0x{:x},timestamp={}", std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp));
         return version_and_timestamp;
@@ -443,6 +537,12 @@ std::tuple<persistent::version_t, uint64_t> VolatileCascadeStore<KT, VT, IK, IV>
                 key, value, cascade_context_ptr);
     }
 
+#if __cplusplus > 201703L
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_REMOVE_END,group,*IV,std::get<0>(version_and_timestamp));
+#else
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_REMOVE_END,group,*IV,std::get<0>(version_and_timestamp));
+#endif
+
     debug_leave_func_with_value("version=0x{:x},timestamp={}", std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp));
 
     return version_and_timestamp;
@@ -451,11 +551,30 @@ std::tuple<persistent::version_t, uint64_t> VolatileCascadeStore<KT, VT, IK, IV>
 template <typename KT, typename VT, KT* IK, VT* IV>
 const VT VolatileCascadeStore<KT, VT, IK, IV>::ordered_get(const KT& key) {
     debug_enter_func_with_args("key={}", key);
+#ifdef ENABLE_EVALUATION
+    std::tuple<persistent::version_t, uint64_t> version_and_timestamp = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
+#endif
+
+#if __cplusplus > 201703L
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_GET_START,group,*IV,std::get<0>(version_and_timestamp));
+#else
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_GET_START,group,*IV,std::get<0>(version_and_timestamp));
+#endif
 
     if(this->kv_map.find(key) != this->kv_map.end()) {
         debug_leave_func_with_value("key={}", key);
+#if __cplusplus > 201703L
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_GET_END,group,*IV,std::get<0>(version_and_timestamp));
+#else
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_GET_END,group,*IV,std::get<0>(version_and_timestamp));
+#endif
         return this->kv_map.at(key);
     } else {
+#if __cplusplus > 201703L
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_GET_END,group,*IV,std::get<0>(version_and_timestamp));
+#else
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_GET_END,group,*IV,std::get<0>(version_and_timestamp));
+#endif
         debug_leave_func();
         return *IV;
     }
@@ -465,9 +584,29 @@ template <typename KT, typename VT, KT* IK, VT* IV>
 uint64_t VolatileCascadeStore<KT, VT, IK, IV>::ordered_get_size(const KT& key) {
     debug_enter_func_with_args("key={}", key);
 
+#ifdef ENABLE_EVALUATION
+    std::tuple<persistent::version_t, uint64_t> version_and_timestamp = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
+#endif
+
+#if __cplusplus > 201703L
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_GET_SIZE_START,group,*IV,std::get<0>(version_and_timestamp));
+#else
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_GET_SIZE_START,group,*IV,std::get<0>(version_and_timestamp));
+#endif
+
     if(this->kv_map.find(key) != this->kv_map.end()) {
+#if __cplusplus > 201703L
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_GET_SIZE_END,group,*IV,std::get<0>(version_and_timestamp));
+#else
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_GET_SIZE_END,group,*IV,std::get<0>(version_and_timestamp));
+#endif
         return mutils::bytes_size(this->kv_map.at(key));
     } else {
+#if __cplusplus > 201703L
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_GET_SIZE_END,group,*IV,std::get<0>(version_and_timestamp));
+#else
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_GET_SIZE_END,group,*IV,std::get<0>(version_and_timestamp));
+#endif
         debug_leave_func();
         return 0;
     }
@@ -477,6 +616,7 @@ template <typename KT, typename VT, KT* IK, VT* IV>
 void VolatileCascadeStore<KT, VT, IK, IV>::trigger_put(const VT& value) const {
     debug_enter_func_with_args("key={}", value.get_key_ref());
 
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_TRIGGER_PUT_START, group, value);
     if(cascade_watcher_ptr) {
         (*cascade_watcher_ptr)(
                 this->subgroup_index,
@@ -484,6 +624,7 @@ void VolatileCascadeStore<KT, VT, IK, IV>::trigger_put(const VT& value) const {
                 group->get_rpc_caller_id(),
                 value.get_key_ref(), value, cascade_context_ptr, true);
     }
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_TRIGGER_PUT_END, group, value);
 
     debug_leave_func();
 }
@@ -506,14 +647,14 @@ void VolatileCascadeStore<KT, VT, IK, IV>::dump_timestamp_log(const std::string&
 template <typename KT, typename VT, KT* IK, VT* IV>
 void VolatileCascadeStore<KT, VT, IK, IV>::ordered_dump_timestamp_log(const std::string& filename) {
     debug_enter_func_with_args("filename={}", filename);
-    global_timestamp_logger.flush(filename);
+    TimestampLogger::flush(filename);
     debug_leave_func();
 }
 #ifdef DUMP_TIMESTAMP_WORKAROUND
 template <typename KT, typename VT, KT* IK, VT* IV>
 void VolatileCascadeStore<KT, VT, IK, IV>::dump_timestamp_log_workaround(const std::string& filename) const {
     debug_enter_func_with_args("filename={}", filename);
-    global_timestamp_logger.flush(filename);
+    TimestampLogger::flush(filename);
     debug_leave_func();
 }
 #endif

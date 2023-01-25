@@ -70,7 +70,7 @@ void make_workload(uint32_t payload_size, const KT& key_prefix, std::vector<VT>&
 // C++ 20
 #define LOG_TIMESTAMP_BY_TAG(t, g, v, ...)                                                      \
     if constexpr(std::is_base_of<IHasMessageID, std::decay_t<decltype(v)>>::value) {            \
-        global_timestamp_logger.log(t,                                                          \
+        TimestampLogger::log(t,                                                                  \
                                     g->get_my_id(),                                             \
                                     dynamic_cast<const IHasMessageID*>(&(v))->get_message_id(), \
                                     get_walltime()                                              \
@@ -80,7 +80,7 @@ void make_workload(uint32_t payload_size, const KT& key_prefix, std::vector<VT>&
 // C++ 17
 #define LOG_TIMESTAMP_BY_TAG(t, g, v)                                                           \
     if constexpr(std::is_base_of<IHasMessageID, std::decay_t<decltype(v)>>::value) {            \
-        global_timestamp_logger.log(t,                                                          \
+        TimestampLogger::log(t,                                                                  \
                                     g->get_my_id(),                                             \
                                     dynamic_cast<const IHasMessageID*>(&(v))->get_message_id(), \
                                     get_walltime());                                            \
@@ -88,7 +88,7 @@ void make_workload(uint32_t payload_size, const KT& key_prefix, std::vector<VT>&
 
 #define LOG_TIMESTAMP_BY_TAG_EXTRA(t, g, v, e)                                                  \
     if constexpr(std::is_base_of<IHasMessageID, std::decay_t<decltype(v)>>::value) {            \
-        global_timestamp_logger.log(t,                                                          \
+        TimestampLogger::log(t,                                                                  \
                                     g->get_my_id(),                                             \
                                     dynamic_cast<const IHasMessageID*>(&(v))->get_message_id(), \
                                     get_walltime(), e);                                         \
@@ -108,7 +108,7 @@ void make_workload(uint32_t payload_size, const KT& key_prefix, std::vector<VT>&
 #endif  // ENABLE_EVALUATION
 
 template <typename KeyType>
-std::string get_pathname(const std::enable_if_t<std::is_convertible<KeyType, std::string>::value, std::string>& key) {
+std::string get_pathname(const std::enable_if_t<std::is_convertible<KeyType, std::string>::value, KeyType>& key) {
     const std::string* pstr = dynamic_cast<const std::string*>(&key);
     size_t pos = pstr->rfind(PATH_SEPARATOR);
     if(pos != std::string::npos) {

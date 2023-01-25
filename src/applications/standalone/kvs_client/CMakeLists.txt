@@ -18,7 +18,7 @@ add_executable(kvs_client kvs_client.cpp)
 set_target_properties(kvs_client PROPERTIES
     INTERFACE_INCLUDE_DIRECTORIES ${cascade_INCLUDE_DIRS}
 )
-target_link_libraries(kvs_client derecho::cascade)
+target_link_libraries(kvs_client derecho::cascade pthread)
 add_custom_command(TARGET kvs_client POST_BUILD
     COMMAND ln -sf ${CMAKE_CURRENT_SOURCE_DIR}/kvs_client.py
         ${CMAKE_CURRENT_BINARY_DIR}/kvs_client.py

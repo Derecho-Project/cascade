@@ -263,10 +263,7 @@ bool PerfTestClient::perf_put(PutType               put_type,
     ret = check_rpc_futures(std::move(futures));
 
     // 3 - flush server timestamps
-    auto qrs = capi.template dump_timestamp<SubgroupType>(output_filename,object_pool_pathname);
-    for (auto& qr: qrs) {
-        qr->get();
-    }
+    capi.template dump_timestamp(output_filename,object_pool_pathname);
 
     debug_leave_func();
     return ret;

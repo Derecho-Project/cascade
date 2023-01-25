@@ -1,5 +1,4 @@
 #include <cascade/config.h>
-#ifdef ENABLE_EVALUATION
 #include "perftest.hpp"
 #include <derecho/conf/conf.hpp>
 #include <derecho/core/detail/rpc_utils.hpp>
@@ -13,6 +12,10 @@
 namespace derecho {
 namespace cascade {
 
+
+#ifdef ENABLE_EVALUATION
+#define TLT_READY_TO_SEND       (11000)
+#define TLT_EC_SENT             (12000)
 /////////////////////////////////////////////////////
 // PerfTestClient/PerfTestServer implementation    //
 /////////////////////////////////////////////////////
@@ -127,7 +130,7 @@ bool PerfTestServer::eval_put(uint64_t max_operation_per_second,
             } else {
                 throw derecho_exception{"Evaluation requests an object to support IHasMessageID interface."};
             }
-            global_timestamp_logger.log(TLT_READY_TO_SEND,this->capi.get_my_id(),message_id,get_walltime());
+            TimestampLogger::log(TLT_READY_TO_SEND,this->capi.get_my_id(),message_id,get_walltime());
             if (subgroup_index == INVALID_SUBGROUP_INDEX ||
                 shard_index == INVALID_SHARD_INDEX) {
                 future_appender(this->capi.put(objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS)));
@@ -137,7 +140,7 @@ bool PerfTestServer::eval_put(uint64_t max_operation_per_second,
                     future_appender,
                     this->capi.template put, objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS), subgroup_index, shard_index);
             }
-            global_timestamp_logger.log(TLT_EC_SENT,this->capi.get_my_id(),message_id,get_walltime());
+            TimestampLogger::log(TLT_EC_SENT,this->capi.get_my_id(),message_id,get_walltime());
             message_id ++;
         }
         // wait for all pending futures.
@@ -173,7 +176,7 @@ bool PerfTestServer::eval_put_and_forget(uint64_t max_operation_per_second,
             throw derecho_exception{"Evaluation requests an object to support IHasMessageID interface."};
         }
         // log time.
-        global_timestamp_logger.log(TLT_READY_TO_SEND,this->capi.get_my_id(),message_id,get_walltime());
+        TimestampLogger::log(TLT_READY_TO_SEND,this->capi.get_my_id(),message_id,get_walltime());
         // send it
         if (subgroup_index == INVALID_SUBGROUP_INDEX || shard_index == INVALID_SHARD_INDEX) {
             this->capi.put_and_forget(objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS));
@@ -182,7 +185,7 @@ bool PerfTestServer::eval_put_and_forget(uint64_t max_operation_per_second,
                     this->capi.template put_and_forget, objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS), subgroup_index, shard_index);
         }
         // log time.
-        global_timestamp_logger.log(TLT_EC_SENT,this->capi.get_my_id(),message_id,get_walltime());
+        TimestampLogger::log(TLT_EC_SENT,this->capi.get_my_id(),message_id,get_walltime());
         message_id ++;
     }
     return true;
@@ -216,14 +219,14 @@ bool PerfTestServer::eval_trigger_put(uint64_t max_operation_per_second,
             throw derecho_exception{"Evaluation requests an object to support IHasMessageID interface."};
         }
         // log time.
-        global_timestamp_logger.log(TLT_READY_TO_SEND,this->capi.get_my_id(),message_id,get_walltime());
+        TimestampLogger::log(TLT_READY_TO_SEND,this->capi.get_my_id(),message_id,get_walltime());
         if (subgroup_index == INVALID_SUBGROUP_INDEX || shard_index == INVALID_SHARD_INDEX) {
             this->capi.trigger_put(objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS));
         } else {
             on_subgroup_type_index(std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
                     this->capi.template trigger_put, objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS), subgroup_index, shard_index);
         }
-        global_timestamp_logger.log(TLT_EC_SENT,this->capi.get_my_id(),message_id,get_walltime());
+        TimestampLogger::log(TLT_EC_SENT,this->capi.get_my_id(),message_id,get_walltime());
         message_id ++;
     }
     
@@ -275,7 +278,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
             usleep(sleep_us);
         }
         if (this->eval_put(max_operation_per_second,duration_secs,subgroup_type_index,subgroup_index,shard_index)) {
-            global_timestamp_logger.flush(output_filename);
+            TimestampLogger::flush(output_filename);
             return true;
         } else {
             return false;
@@ -321,7 +324,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
             usleep(sleep_us);
         }
         if (this->eval_put_and_forget(max_operation_per_second,duration_secs,subgroup_type_index,subgroup_index,shard_index)) {
-            global_timestamp_logger.flush(output_filename);
+            TimestampLogger::flush(output_filename);
             return true;
         } else {
             return false;
@@ -367,7 +370,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         }
         // STEP 3 - start experiment and log
         if (this->eval_trigger_put(max_operation_per_second,duration_secs,subgroup_type_index,subgroup_index,shard_index)) {
-            global_timestamp_logger.flush(output_filename);
+            TimestampLogger::flush(output_filename);
             return true;
         } else {
             return false;
@@ -417,7 +420,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         }
         // STEP 3 - start experiment and log
         if (this->eval_put(max_operation_per_second,duration_secs,object_pool.subgroup_type_index)) {
-            global_timestamp_logger.flush(output_filename);
+            TimestampLogger::flush(output_filename);
             return true;
         } else {
             return false;
@@ -466,7 +469,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         }
         // STEP 3 - start experiment and log
         if (this->eval_put_and_forget(max_operation_per_second,duration_secs,object_pool.subgroup_type_index)) {
-            global_timestamp_logger.flush(output_filename);
+            TimestampLogger::flush(output_filename);
             return true;
         } else {
             return false;
@@ -515,7 +518,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         }
         // STEP 3 - start experiment and log
         if (this->eval_trigger_put(max_operation_per_second,duration_secs,object_pool.subgroup_type_index)) {
-            global_timestamp_logger.flush(output_filename);
+            TimestampLogger::flush(output_filename);
             return true;
         } else {
             return false;

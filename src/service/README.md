@@ -75,6 +75,16 @@ group_layout =
 ```
 
 # To Run the Cascade Service Example
+___IMPORTANT: Please check if memory overcommitment kernel option is enabled in your linux kernel.___
+```
+# sysctl -n vm.overcommit_memory
+```
+___If the result is 0, please enable it before running this example.___
+```
+# sysctl -w vm.overcommit_memory=1
+```
+___Please note that Root privilege is required. And if you are running in a docker environment with out root privilege, you have to do this on the host kernel.___
+
 Once cascade is built, you will find seven folders named `n0` to `n6` in `<build_dir>/src/service/cfg/`. Each of them contains a configuration file to run a demo service node with localhost IP and RDMA API layer over TCP/IP. In the folder, start the node by calling:
 ```
 # ../../cascade_server
