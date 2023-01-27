@@ -1,5 +1,5 @@
 #pragma once
-
+#include <cascade/config.h>
 #include <string>
 #include <sstream>
 #include <unordered_map>
@@ -131,8 +131,10 @@ public:
         // The optional shard dispatcher configuration
         // shard_dispatchers
         std::vector<VertexShardDispatcher> shard_dispatchers;
+#ifdef HAS_STATEFUL_UDL_SUPPORT
         // stateful
         std::vector<Statefulness> stateful;
+#endif
         // hooks
         std::vector<VertexHook> hooks;
         // The optional initialization string for each UUID
@@ -145,11 +147,13 @@ public:
             std::ostringstream out;
             out << typeid(*this).name() << ":" << pathname << ", "
                 << " {\n";
-            for (int i=0;i<uuids.size();i++) {
+            for (uint32_t i=0;i<uuids.size();i++) {
                 out << "\t{\n";
                 out << "\t\tuuid:" << uuids[i] << "\n";
                 out << "\t\tdispatcher:" << shard_dispatchers[i] << "\n";
+#ifdef HAS_STATEFUL_UDL_SUPPORT
                 out << "\t\tstateful:" << stateful[i] << "\n";
+#endif
                 out << "\t\thook:" << hooks[i] << "\n";
                 out << "\t\tconfiguration:" << configurations[i] << "\n";
                 out << "\t\tedges:" << "\n";

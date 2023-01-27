@@ -1609,10 +1609,9 @@ namespace cascade {
      * 2 - a prefix registry.
      * 3 - a bounded Action buffer.
      */
-    using prefix_entry_t =
-                std::vector<
-                    std::tuple<
+    using prefix_ocdpo_info_t = std::tuple<
                         std::string,                                  // udl_id
+                        std::string,                                  // config string
                         DataFlowGraph::VertexShardDispatcher,         // shard dispatcher
 #ifdef HAS_STATEFUL_UDL_SUPPORT
                         DataFlowGraph::Statefulness,                  // is stateful/stateless/singlethreaded
@@ -1620,8 +1619,25 @@ namespace cascade {
                         DataFlowGraph::VertexHook,                    // hook
                         std::shared_ptr<OffCriticalDataPathObserver>, // ocdpo
                         std::unordered_map<std::string,bool>          // output map{prefix->bool}
-                    >
-                >;
+                    >;
+
+    struct PrefixOCDPOInfoHash {
+        inline size_t operator() (const prefix_ocdpo_info_t& info) const {
+            return std::hash<std::string>{}(std::get<0>(info) + std::get<1>(info));
+        }
+    };
+
+    struct PrefixOCDPOInfoCompare {
+        inline bool operator() (const prefix_ocdpo_info_t& l, const prefix_ocdpo_info_t& r) const {
+            return (std::get<0>(l) == std::get<0>(r)) && (std::get<1>(l) == std::get<1>(r));
+        }
+    };
+
+    using prefix_ocdpo_info_set_t = std::unordered_set<prefix_ocdpo_info_t,PrefixOCDPOInfoHash,PrefixOCDPOInfoCompare>;
+    using prefix_entry_t = std::unordered_map<
+                                std::string, // dfg_id
+                                prefix_ocdpo_info_set_t
+                           >;
     using match_results_t = std::unordered_map<std::string,prefix_entry_t>;
     template <typename... CascadeTypes>
     class CascadeContext: public ICascadeContext {
@@ -1745,35 +1761,37 @@ namespace cascade {
          */
 
         /**
-         * Register a set of prefixes
+         * Register a ocdpo of a given application designated by dfg uuid to a set of prefixes
          *
+         * @param dfg_uuid              - the dfg uuid
          * @param prefixes              - the prefixes set
          * @param user_defined_logic_hook
          *                              - the hook for this ocdpo
          * @param shard_dispatcher      - the shard dispatcher
          * @param user_defined_logic_id - the UDL id, presumably an UUID string
+         * @param user_defined_logic_config
+         *                              - the UDL configuration.
          * @param ocdpo_ptr             - the data path observer
          * @param outputs               - the outputs are a map from another prefix to put type (true for trigger put,
          *                                false for put).
          */
-        virtual void register_prefixes(const std::unordered_set<std::string>& prefixes,
+        virtual void register_prefixes(const std::string& dfg_uuid,
+                                       const std::unordered_set<std::string>& prefixes,
                                        const DataFlowGraph::VertexShardDispatcher shard_dispatcher,
 #ifdef HAS_STATEFUL_UDL_SUPPORT
                                        const DataFlowGraph::Statefulness stateful,
 #endif
                                        const DataFlowGraph::VertexHook hook,
                                        const std::string& user_defined_logic_id,
+                                       const std::string& user_defined_logic_config,
                                        const std::shared_ptr<OffCriticalDataPathObserver>& ocdpo_ptr,
                                        const std::unordered_map<std::string,bool>& outputs);
         /**
-         * Unregister a set of prefixes
+         * Unregister all prefixes of an application
          *
-         * @param prefixes              - the prefixes set
-         * @param user_defined_logic_id - the UDL id, presumably an UUID string
-         * @param ocdpo_ptr             - the data path observer
+         * @param dfg_uuid              - the uuid of the dfg
          */
-        virtual void unregister_prefixes(const std::unordered_set<std::string>& prefixes,
-                                         const std::string& user_defined_logic_id);
+        virtual void unregister_prefixes(const std::string& dfg_uuid);
         /**
          * Get the prefix handlers registered for a prefix
          *
@@ -1782,6 +1800,7 @@ namespace cascade {
          * @return the unordered map of observers registered to this prefix.
          */
         virtual match_results_t get_prefix_handlers(const std::string& prefix);
+
         /**
          * post an action to the Context for processing.
          *
