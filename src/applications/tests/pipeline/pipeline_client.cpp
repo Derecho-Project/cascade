@@ -30,8 +30,8 @@ static std::set<std::string> collect_dfgs_object_pools() {
     for (const auto& dfg: DataFlowGraph::get_data_flow_graphs()) {
         for (const auto& v: dfg.vertices) {
             object_pools.emplace(v.first);
-            for (const auto& ekv: v.second.edges) {
-                for (const auto& tkv: ekv.second) {
+            for (const auto& per_ocdpo_edges: v.second.edges) {
+                for (const auto& tkv: per_ocdpo_edges) {
                     object_pools.emplace(tkv.first);
                 }
             }

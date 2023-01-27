@@ -12,6 +12,7 @@ DataFlowGraph::DataFlowGraph():id(""),description("uninitialized DFG") {}
 DataFlowGraph::DataFlowGraph(const json& dfg_conf):
     id(dfg_conf[DFG_JSON_ID]),
     description(dfg_conf[DFG_JSON_DESCRIPTION]) {
+    /* vertex iterator */
     for(auto it=dfg_conf[DFG_JSON_GRAPH].cbegin();it!=dfg_conf[DFG_JSON_GRAPH].cend();it++) {
         DataFlowGraphVertex dfgv;
         dfgv.pathname = (*it)[DFG_JSON_PATHNAME];
@@ -19,14 +20,19 @@ DataFlowGraph::DataFlowGraph(const json& dfg_conf):
         if(dfgv.pathname.back() != PATH_SEPARATOR) {
             dfgv.pathname = dfgv.pathname + PATH_SEPARATOR;
         }
+        /* UDL iterator */
         for(size_t i=0;i<(*it)[DFG_JSON_UDL_LIST].size();i++) {
+            // udl uuid
             std::string udl_uuid = (*it)[DFG_JSON_UDL_LIST].at(i);
+            dfgv.uuids.emplace_back(udl_uuid);
+
             // shard dispatchers
             dfgv.shard_dispatchers.emplace_back(DataFlowGraph::VertexShardDispatcher::ONE);
             if (it->contains(DFG_JSON_SHARD_DISPATCHER_LIST)) {
                 dfgv.shard_dispatchers[i] = ((*it)[DFG_JSON_SHARD_DISPATCHER_LIST].at(i).get<std::string>() == "all")?
                     DataFlowGraph::VertexShardDispatcher::ALL : DataFlowGraph::VertexShardDispatcher::ONE;
             }
+
             // stateful
             dfgv.stateful.emplace_back(DataFlowGraph::Statefulness::STATEFUL);
             if (it->contains(DFG_JSON_UDL_STATEFUL_LIST)) {
@@ -36,6 +42,7 @@ DataFlowGraph::DataFlowGraph(const json& dfg_conf):
                     dfgv.stateful[i] = DataFlowGraph::Statefulness::SINGLETHREADED;
                 }
             }
+
             // hooks
             dfgv.hooks.emplace_back(DataFlowGraph::VertexHook::BOTH);
             if (it->contains(DFG_JSON_UDL_HOOK_LIST)) {
@@ -45,12 +52,14 @@ DataFlowGraph::DataFlowGraph(const json& dfg_conf):
                     dfgv.hooks[i] = DataFlowGraph::VertexHook::ORDERED_PUT;
                 }
             }
+
             // configurations
             if (it->contains(DFG_JSON_UDL_CONFIG_LIST)) {
                 dfgv.configurations.emplace_back((*it)[DFG_JSON_UDL_CONFIG_LIST].at(i));
             } else {
                 dfgv.configurations.emplace_back(json{});
             }
+
             // edges
             std::map<std::string,std::string> dest = 
                 (*it)[DFG_JSON_DESTINATIONS].at(i).get<std::map<std::string,std::string>>();

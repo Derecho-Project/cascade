@@ -2194,8 +2194,9 @@ void CascadeContext<CascadeTypes...>::construct() {
     auto dfgs = DataFlowGraph::get_data_flow_graphs();
     for (auto& dfg:dfgs) {
         for (auto& vertex:dfg.vertices) {
-            for (int i=0; i<vertex.uuids.size(); i++) {
+            for (uint32_t i=0; i<vertex.second.uuids.size(); i++) {
                 register_prefixes(
+                    dfg.id,
                     {vertex.second.pathname},
                     vertex.second.shard_dispatchers[i],
 #ifdef HAS_STATEFUL_UDL_SUPPORT
@@ -2203,9 +2204,10 @@ void CascadeContext<CascadeTypes...>::construct() {
 #endif
                     vertex.second.hooks[i],
                     vertex.second.uuids[i],
+                    vertex.second.configurations[i].dump(),
                     user_defined_logic_manager->get_observer(
-                        vertex.second.uuid[i],
-                        vertex.second.configuration[i]),
+                        vertex.second.uuids[i],
+                        vertex.second.configurations[i]),
                     vertex.second.edges[i]);
             }
         }
@@ -2474,6 +2476,7 @@ ServiceClient<CascadeTypes...>& CascadeContext<CascadeTypes...>::get_service_cli
 
 template <typename... CascadeTypes>
 void CascadeContext<CascadeTypes...>::register_prefixes(
+        const std::string& dfg_uuid,
         const std::unordered_set<std::string>& prefixes,
         const DataFlowGraph::VertexShardDispatcher shard_dispatcher,
 #ifdef HAS_STATEFUL_UDL_SUPPORT
@@ -2481,14 +2484,19 @@ void CascadeContext<CascadeTypes...>::register_prefixes(
 #endif
         const DataFlowGraph::VertexHook hook,
         const std::string& user_defined_logic_id,
+        const std::string& user_defined_logic_config,
         const std::shared_ptr<OffCriticalDataPathObserver>& ocdpo_ptr,
         const std::unordered_map<std::string,bool>& outputs) {
     for (const auto& prefix:prefixes) {
         prefix_registry_ptr->atomically_modify(prefix,
 #ifdef HAS_STATEFUL_UDL_SUPPORT
-            [&prefix,&shard_dispatcher,&stateful,&hook,&user_defined_logic_id,&ocdpo_ptr,&outputs](const std::shared_ptr<prefix_entry_t>& entry){
+            [&dfg_uuid,&prefix,&shard_dispatcher,&stateful,
+             &hook,&user_defined_logic_id,&user_defined_logic_config,
+             &ocdpo_ptr,&outputs] (const std::shared_ptr<prefix_entry_t>& entry){
 #else
-            [&prefix,&shard_dispatcher,&hook,&user_defined_logic_id,&ocdpo_ptr,&outputs](const std::shared_ptr<prefix_entry_t>& entry){
+            [&dfg_uuid,&prefix,&shard_dispatcher,
+             &hook,&user_defined_logic_id,&user_defined_logic_config,
+             &ocdpo_ptr,&outputs] (const std::shared_ptr<prefix_entry_t>& entry){
 #endif
                 std::shared_ptr<prefix_entry_t> new_entry;
                 if (entry) {
@@ -2496,40 +2504,39 @@ void CascadeContext<CascadeTypes...>::register_prefixes(
                 } else {
                     new_entry = std::make_shared<prefix_entry_t>(prefix_entry_t{});
                 }
-                if (new_entry->find(user_defined_logic_id) == new_entry->end()) {
-#ifdef HAS_STATEFUL_UDL_SUPPORT
-                    new_entry->emplace(user_defined_logic_id,std::tuple{shard_dispatcher,stateful,hook,ocdpo_ptr,outputs});
-#else
-                    new_entry->emplace(user_defined_logic_id,std::tuple{shard_dispatcher,hook,ocdpo_ptr,outputs});
-#endif
-                } else {
-#ifdef HAS_STATEFUL_UDL_SUPPORT
-                    std::get<4>(new_entry->at(user_defined_logic_id)).insert(outputs.cbegin(),outputs.cend());
-#else
-                    std::get<3>(new_entry->at(user_defined_logic_id)).insert(outputs.cbegin(),outputs.cend());
-#endif
+
+                // find application
+                if (new_entry->find(dfg_uuid) == new_entry->end()) {
+                    new_entry->emplace(dfg_uuid,prefix_ocdpo_info_set_t{});
                 }
+                // create prefix_ocdpo_info_t
+                prefix_ocdpo_info_t ocdpo_info{
+                    user_defined_logic_id,
+                    user_defined_logic_config,
+                    shard_dispatcher,
+#ifdef HAS_STATEFUL_UDL_SUPPORT
+                    stateful,
+#endif
+                    hook,ocdpo_ptr,outputs};
+
+                // insert it to new_entry
+                (*new_entry)[dfg_uuid].erase(ocdpo_info);
+                (*new_entry)[dfg_uuid].emplace(ocdpo_info);
+
                 return new_entry;
             },true);
     }
 }
 
 template <typename... CascadeTypes>
-void CascadeContext<CascadeTypes...>::unregister_prefixes(const std::unordered_set<std::string>& prefixes,
-                                                          const std::string& user_defined_logic_id) {
-    for (const auto& prefix:prefixes) {
-        prefix_registry_ptr->atomically_modify(prefix,
-            [&prefix,&user_defined_logic_id](const std::shared_ptr<prefix_entry_t>& entry){
-                if (entry) {
-                    std::shared_ptr<prefix_entry_t> new_value = std::make_shared<prefix_entry_t>(*entry);
-                    new_value->erase(user_defined_logic_id);
-                    return new_value;
-                } else {
-                    return entry;
+void CascadeContext<CascadeTypes...>::unregister_prefixes(const std::string& dfg_uuid) {
+    prefix_registry_ptr->atomically_traverse(
+            [&dfg_uuid](const std::shared_ptr<prefix_entry_t>& entry) {
+                if (entry->find(dfg_uuid) != entry->cend()) {
+                    entry->erase(dfg_uuid);
                 }
-            }
-        );
-    }
+                return entry;
+            });
 }
 
 /* Note: On the same hardware, copying a shared_ptr spends ~7.4ns, and copying a raw pointer spends ~1.8 ns*/
