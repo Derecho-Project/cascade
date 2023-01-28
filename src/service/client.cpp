@@ -740,14 +740,18 @@ ssize_t find_command(const std::vector<command_entry_t>& command_list, const std
     return pos;
 }
 
+void print_help(const std::string& cmd);
+
 bool shell_is_active = true;
 #define SUBGROUP_TYPE_LIST "VCSS|PCSS|TCSS"
 #define SHARD_MEMBER_SELECTION_POLICY_LIST "FirstMember|LastMember|Random|FixedRandom|RoundRobin|KeyHashing|UserSpecified"
-#define CHECK_FORMAT(tks, argc)                                               \
-    if(tks.size() < argc) {                                                   \
-        print_red("Invalid command format. Please try help " + tks[0] + "."); \
-        return false;                                                         \
+#define CHECK_FORMAT(tks, argc)               \
+    if(tks.size() < argc) {                   \
+        print_red("Invalid command format."); \
+        print_help(tks[0]);                   \
+        return false;                         \
     }
+
 std::vector<command_entry_t> commands = {
         {"General Commands", "", "", command_handler_t()},
         {"help",
@@ -1568,6 +1572,15 @@ std::vector<command_entry_t> commands = {
 #endif
 };
 
+void print_help(const std::string& cmd) {
+    ssize_t command_index = find_command(commands, cmd);
+    if(command_index < 0) {
+        print_red("unknown command:'" + cmd + "'.");
+    } else {
+        print_red(commands.at(command_index).help);
+    }
+}
+
 inline void do_command(ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
     try {
         ssize_t command_index = find_command(commands, cmd_tokens[0]);
@@ -1590,7 +1603,9 @@ inline void do_command(ServiceClientAPI& capi, const std::vector<std::string>& c
 void interactive_test(ServiceClientAPI& capi) {
     // loop
     while(shell_is_active) {
-        char* malloced_cmd = readline("cmd> ");
+        char* malloced_cmd = readline("\033[1;36m"
+                                      "cmd> "
+                                      "\033[0m");
         std::string cmdline(malloced_cmd);
         free(malloced_cmd);
         if(cmdline == "") continue;

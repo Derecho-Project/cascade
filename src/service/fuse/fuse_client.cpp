@@ -44,9 +44,7 @@ static FuseClientContextType* fcc(fuse_req_t req) {
 static void fs_init(void* userdata, struct fuse_conn_info* conn) {
     dbg_default_trace("entering {}.", __func__);
     auto fcc = static_cast<FuseClientContextType*>(userdata);
-    // TODO ? where is truncating handled in open syscall?
-    int can_trunc = conn->capable & FUSE_CAP_ATOMIC_O_TRUNC;
-    dbg_default_info("can trunc: {}", can_trunc);
+    // TODO look through conn->capable options
 
     if(derecho::hasCustomizedConfKey(CONF_LAYOUT_JSON_LAYOUT)) {
         fcc->initialize(json::parse(derecho::getConfString(CONF_LAYOUT_JSON_LAYOUT)));
@@ -114,7 +112,7 @@ static void fs_lookup(fuse_req_t req, fuse_ino_t parent, const char* name) {
 
 static void fs_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
     dbg_default_trace("entering {}.", __func__);
-    struct stat stbuf;
+    struct stat stbuf;  // TODO memory leak?
     (void)fi;
 
     std::memset(&stbuf, 0, sizeof(stbuf));

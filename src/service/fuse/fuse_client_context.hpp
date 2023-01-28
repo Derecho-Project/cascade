@@ -126,6 +126,7 @@ public:
     void check_update() {
         struct timespec now;
         clock_gettime(CLOCK_REALTIME, &now);
+        // TODO why double if ???
         if(now.tv_sec > (last_update_sec + update_interval)) {
             clock_gettime(CLOCK_REALTIME, &now);
             if(now.tv_sec > (last_update_sec + update_interval)) {
@@ -144,7 +145,7 @@ private:
 
 class FuseDataINode : public FuseClientINode {
 public:
-    FileBytes cached_data;
+    FileBytes cached_data;  // TODO not necessary / bad idea since very expensive??
     persistent::version_t version;
     uint64_t timestamp_us;
     persistent::version_t previous_version;
@@ -165,6 +166,7 @@ public:
         dbg_default_trace("[{}]entering {}.", gettid(), __func__);
 
         check_update();
+        // TODO necessary copy??
         file_bytes->bytes = cached_data.bytes;
 
         dbg_default_trace("[{}]leaving {}.", gettid(), __func__);
@@ -174,7 +176,7 @@ public:
     virtual uint64_t write_file(const char* buf, size_t size, off_t off,
                                 struct fuse_file_info* fi) {
         dbg_default_trace("[{}]entering {}.", gettid(), __func__);
-        update_contents();
+        check_update();
 
         if(fi) {
             std::stringstream ss;
@@ -218,7 +220,7 @@ public:
 
     virtual uint64_t truncate(size_t size) {
         dbg_default_trace("[{}]entering {}.", gettid(), __func__);
-        update_contents();
+        check_update();
 
         dbg_default_info("truncating to {}.", size);
         FileBytes contents = cached_data;
@@ -1309,12 +1311,13 @@ public:
 
         if(fi->flags & O_CREAT) {
             dbg_default_info("open: create flag");
+            // TODO get parent inode and create
         }
         // TODO handle truncate
 
         if(fi->flags & O_TRUNC) {
             dbg_default_info("open: trunc flag");
-            pfci->truncate(0);
+            pfci->truncate(0);  // TODO cache (do finally on close file)
         }
         if(fi->flags & O_LARGEFILE) {
             dbg_default_info("open: large file flag");  // TODO !!

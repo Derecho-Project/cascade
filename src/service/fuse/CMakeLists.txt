@@ -13,6 +13,16 @@ if (${HAS_FUSE})
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     )
 
+    add_executable(fuse_client_hl fuse_client_hl.cpp)
+    target_include_directories(fuse_client_hl PRIVATE
+        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
+    )
+    target_link_libraries(fuse_client_hl cascade readline fuse3 fuse_client_signals)
+    set_target_properties(fuse_client_hl PROPERTIES OUTPUT_NAME cascade_fuse_client_hl)
+
     add_executable(fuse_client fuse_client.cpp)
     target_include_directories(fuse_client PRIVATE
         $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
