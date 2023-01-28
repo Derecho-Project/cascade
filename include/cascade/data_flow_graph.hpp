@@ -143,25 +143,26 @@ public:
         // vertices pool1, pool2, and pool3. The input data is processed by the corresponding UDL.
         std::vector<std::unordered_map<std::string,bool>> edges;
         // to string
-        inline std::string to_string() const {
+        inline std::string to_string(const std::string& indent="") const {
             std::ostringstream out;
-            out << typeid(*this).name() << ":" << pathname << ", "
+            out << indent << typeid(*this).name() << ":" << pathname << ", "
                 << " {\n";
             for (uint32_t i=0;i<uuids.size();i++) {
-                out << "\t{\n";
-                out << "\t\tuuid:" << uuids[i] << "\n";
-                out << "\t\tdispatcher:" << shard_dispatchers[i] << "\n";
+                out << indent << "\t{\n";
+                out << indent << "\t\tuuid:" << uuids[i] << "\n";
+                out << indent << "\t\tdispatcher:" << shard_dispatchers[i] << "\n";
 #ifdef HAS_STATEFUL_UDL_SUPPORT
-                out << "\t\tstateful:" << stateful[i] << "\n";
+                out << indent << "\t\tstateful:" << stateful[i] << "\n";
 #endif
-                out << "\t\thook:" << hooks[i] << "\n";
-                out << "\t\tconfiguration:" << configurations[i] << "\n";
-                out << "\t\tedges:" << "\n";
+                out << indent << "\t\thook:" << hooks[i] << "\n";
+                out << indent << "\t\tconfiguration:" << configurations[i] << "\n";
+                out << indent << "\t\tedges:" << "\n";
                 for (auto& pool:edges[i]) {
-                    out << "\t\t\t-" << (pool.second?'*':'-') << "->" << pool.first << "\n";
+                    out << indent << "\t\t\t-" << (pool.second?'*':'-') << "->" << pool.first << "\n";
                 }
+                out << indent << "\t}\n";
             }
-            out << "}";
+            out << indent << "}";
             return out.str();
         }
     };
