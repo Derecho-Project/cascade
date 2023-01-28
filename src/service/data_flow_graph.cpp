@@ -89,10 +89,10 @@ DataFlowGraph::DataFlowGraph(DataFlowGraph&& other):
 
 void DataFlowGraph::dump() const {
     std::cout << "DFG: {\n"
-              << "id: " << id << "\n"
-              << "description: " << description << "\n";
+              << "\t" << "id: " << id << "\n"
+              << "\t" << "description: " << description << "\n";
     for (auto& kv:vertices) {
-        std::cout << kv.second.to_string() << std::endl;
+        std::cout << kv.second.to_string("\t") << std::endl;
     }
     std::cout << "}" << std::endl;
 }
