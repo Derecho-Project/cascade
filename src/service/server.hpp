@@ -74,26 +74,21 @@ class CascadeServiceCDPO : public CriticalDataPathObserver<CascadeType> {
                             // each oi is a 6/7-tuple of 
                             // (0)udl_id, (1)config_string, (2)shard dispatcher, [(3)stateful], (4)hook, (5)ocdpo, and (6)outputs;
 #ifdef HAS_STATEFUL_UDL_SUPPORT
-                            if((std::get<4>(*oiit) == DataFlowGraph::VertexHook::ORDERED_PUT && is_trigger) || 
-                               (std::get<4>(*oiit) == DataFlowGraph::VertexHook::TRIGGER_PUT && !is_trigger)) {
+                            DataFlowGraph::VertexHook hook = std::get<4>(*oiit);
 #else
-                            if((std::get<3>(*oiit) == DataFlowGraph::VertexHook::ORDERED_PUT && is_trigger) || 
-                               (std::get<3>(*oiit) == DataFlowGraph::VertexHook::TRIGGER_PUT && !is_trigger)) {
+                            DataFlowGraph::VertexHook hook = std::get<3>(*oiit);
 #endif
+                            if((hook != DataFlowGraph::VertexHook::BOTH) && (
+                                (hook == DataFlowGraph::VertexHook::ORDERED_PUT && is_trigger) || 
+                                (hook == DataFlowGraph::VertexHook::TRIGGER_PUT && !is_trigger))) {
                                 // not my hook, skip it.
                                 oiit = dfg_ocdpos.second.erase(oiit);
-#ifdef HAS_STATEFUL_UDL_SUPPORT
-                            } else if((std::get<4>(*oiit) != DataFlowGraph::VertexHook::ORDERED_PUT) && is_trigger) {
-#else
-                            } else if((std::get<3>(*oiit) != DataFlowGraph::VertexHook::ORDERED_PUT) && is_trigger) {
-#endif
+                            } else if (is_trigger) {
                                 new_actions = true;
                                 oiit++;
                             } else {
-                                // HERE:
-                                // 1) trigger must be false
-                                // 2) std::get<3/4>(*oiit) is either ORDERED_PUT or BOTH
-                                // so, do we do the following test:
+                                // matched ordered put data path
+                                // test dispatcher:
                                 switch(std::get<2>(*oiit)) {
                                     case DataFlowGraph::VertexShardDispatcher::ONE:
                                         if(icare) {
@@ -108,6 +103,7 @@ class CascadeServiceCDPO : public CriticalDataPathObserver<CascadeType> {
                                         oiit++;
                                         break;
                                     default:
+                                        // unknown dispatcher.
                                         oiit = dfg_ocdpos.second.erase(oiit);
                                         break;
                                 }
