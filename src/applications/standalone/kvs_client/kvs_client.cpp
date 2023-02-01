@@ -28,7 +28,7 @@ int main(int argc, char** argv) {
     std::cout << "- " << OBJECT_FOLDER <<" folder is created." << std::endl;
 
     std::cout << "3) List all folders a.k.a. object pools:" << std::endl;
-    for (auto& op: capi.list_object_pools(true)) {
+    for (auto& op: capi.list_object_pools(true,true)) {
         std::cout << "\t" << op << std::endl;
     }
 
