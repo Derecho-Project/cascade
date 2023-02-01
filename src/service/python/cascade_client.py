@@ -712,6 +712,24 @@ class CascadeClientShell(cmd.Cmd):
             res = self.capi.get_object_pool(args[0])
             print(bcolors.OK + f"{res}" + bcolors.RESET)
 
+    def do_remove_object_pool(self, arg):
+        '''
+        remove_object_pool <pathname>
+        ==================
+        remove an object pool
+        '''
+        self.check_capi()
+        args = arg.split()
+        if len(args) < 1:
+            print(bcolors.FAIL + 'At least one argument is required.' + bcolors.RESET)
+        else:
+            res = self.capi.remove_object_pool(args[0])
+            if res:
+                ver = res.get_result()
+                print(bcolors.OK + f"{ver}" + bcolors.RESET)
+            else:
+                print(bcolors.FAIL + "Something went wrong, remove_object_pool returns null." + bcolors.RESET)
+
     def do_timestamp_logger(self, arg):
         '''
         timestamp_logger <command> ...

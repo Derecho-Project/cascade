@@ -1371,11 +1371,12 @@ namespace cascade {
         /**
          * ObjectPoolManagement API: list all the object pools by pathnames
          *
+         * @param include_deleted   show deleted pools with an exclaimation point(!).
          * @param refresh           false for cached object ids, true for refreshed ids.
          *
          * @return the pool ids.
          */
-        std::vector<std::string> list_object_pools(bool refresh = false);
+        std::vector<std::string> list_object_pools(bool include_deleted, bool refresh = false);
 
         /**
          * Register an notification handler to a subgroup. If such a handler has been registered, it will be replaced

@@ -1785,7 +1785,10 @@ derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceCl
         object_pool_metadata_cache.erase(pathname);
         wlck.unlock();
     }
-    if (opm.is_valid() && !opm.is_null() && !opm.deleted) {
+    if (opm.is_valid() && !opm.is_null()) {
+        if (opm.deleted) {
+            throw derecho::derecho_exception(std::string("object pool:")+pathname+" has been deleted already.");
+        }
         opm.deleted = true;
         opm.set_previous_version(CURRENT_VERSION,opm.version); // only check previous_version_by_key
         return this->template put<CascadeMetadataService<CascadeTypes...>>(opm,METADATA_SERVICE_SUBGROUP_INDEX,metadata_service_shard_index);
@@ -1850,7 +1853,7 @@ std::pair<ObjectPoolMetadata<CascadeTypes...>,std::string> ServiceClient<Cascade
 }
 
 template <typename... CascadeTypes>
-std::vector<std::string> ServiceClient<CascadeTypes...>::list_object_pools(bool refresh) {
+std::vector<std::string> ServiceClient<CascadeTypes...>::list_object_pools(bool include_deleted, bool refresh) {
     if (refresh) {
         this->refresh_object_pool_metadata_cache();
     }
@@ -1858,7 +1861,13 @@ std::vector<std::string> ServiceClient<CascadeTypes...>::list_object_pools(bool 
     std::vector<std::string> ret;
     std::shared_lock rlck(this->object_pool_metadata_cache_mutex);
     for (auto& op:this->object_pool_metadata_cache) {
-        ret.emplace_back(op.first);
+        if (op.second.opm.deleted) {
+            if (include_deleted) {
+                ret.emplace_back(op.first+"(!)");
+            }
+        } else {
+            ret.emplace_back(op.first);
+        }
     }
 
     return ret;

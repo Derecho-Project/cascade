@@ -909,7 +909,7 @@ std::vector<command_entry_t> commands =
         "list_object_pools",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             std::cout << "refreshed object pools:" << std::endl;
-            for (std::string& opath: capi.list_object_pools(true)) {
+            for (std::string& opath: capi.list_object_pools(true,true)) {
                 std::cout << "\t" << opath << std::endl;
             }
             return true;
