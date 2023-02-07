@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
-    <AssemblyName>CascadeClientCSharp</AssemblyName>
+    <TargetFramework>net6.0</TargetFramework>
+    <AssemblyName>CascadeClientCS</AssemblyName>
     <OutputType>Exe</OutputType>
     <OutputPath>.</OutputPath>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
