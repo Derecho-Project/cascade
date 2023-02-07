@@ -113,6 +113,23 @@ void PrefixRegistry<T, separator>::atomically_modify(const std::string& prefix, 
 }
 
 template <typename T, char separator>
+void PrefixRegistry<T, separator>::atomically_traverse(const std::function<std::shared_ptr<T>(const std::shared_ptr<T>& value)>& modifier) {
+    std::lock_guard<std::mutex> lck(prefix_tree_mutex);
+    TreeNode* ptn = &prefix_tree;
+    traverse(ptn,modifier);
+}
+
+template <typename T, char separator>
+void PrefixRegistry<T, separator>::traverse(TreeNode* ptn, const std::function<std::shared_ptr<T>(const std::shared_ptr<T>& value)>& modifier) {
+    for (auto& child:ptn->children) {
+        // child first
+        traverse(child.second.get(),modifier);
+    }
+    // modify
+    ptn->value = modifier(ptn->value);
+}
+
+template <typename T, char separator>
 bool PrefixRegistry<T, separator>::is_registered(const std::string& prefix) {
     const auto ptr = get_tree_node_const(str_tokenizer(prefix,true,separator));
     return ((ptr!=nullptr) && ptr->value);

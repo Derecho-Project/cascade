@@ -93,12 +93,12 @@ public:
   
     // Helper function for get_dir_entries() and read_file()
     void check_update(){
-  	struct timespec now;
+        struct timespec now;
         clock_gettime(CLOCK_REALTIME, &now);
         if (now.tv_sec > (last_update_sec + update_interval)){
             clock_gettime(CLOCK_REALTIME, &now);
             if (now.tv_sec > (last_update_sec + update_interval)){
-	        last_update_sec = now.tv_sec;
+            last_update_sec = now.tv_sec;
                 update_contents();
             }
         }
@@ -173,7 +173,7 @@ public:
         this->display_name = group_layout["type_alias"];
         uint32_t sidx=0;
         for (auto subgroup_it:group_layout[CONF_LAYOUT]) {
-	  
+      
             children.emplace_back(std::make_unique<SubgroupINode<CascadeType>>(sidx,reinterpret_cast<fuse_ino_t>(this)));
             size_t num_shards = subgroup_it[MIN_NODES_BY_SHARD].size();
             for (uint32_t shidx = 0; shidx < num_shards; shidx ++) {
@@ -201,7 +201,7 @@ public:
 
     virtual uint64_t get_file_size() override {
         dbg_default_trace("[{}]entering {}.",gettid(),__func__);
-	check_update();
+    check_update();
         return contents.size();
     }
 
@@ -215,7 +215,7 @@ private:
         }
         contents += "\n";
         
-        auto objectpools = capi.list_object_pools(true);
+        auto objectpools = capi.list_object_pools(false,true);
         contents += "number of objectpool in cascade service: " + std::to_string(objectpools.size()) + ".\nObjectpool paths: ";
         for (auto& objectpool_path : objectpools) {
             contents += objectpool_path + ",";
@@ -271,17 +271,17 @@ public:
             std::unique_lock wlck(this->children_mutex);
             for (auto& key: reply) {
                 if (key_to_ino.find(key) == key_to_ino.end()) {
-		    this->children.emplace_back(std::make_unique<KeyINode<CascadeType>>(key,reinterpret_cast<fuse_ino_t>(this),capi));
-		    // To solve the issue of '/' in display name , which will cause: reading directory '.': input/output error
-		     // TODO: if there are better replacement of /, instead of -
-		    key =  std::string("key-") + key;
-		    std::replace( key.begin(), key.end(), '/', '-');
+            this->children.emplace_back(std::make_unique<KeyINode<CascadeType>>(key,reinterpret_cast<fuse_ino_t>(this),capi));
+            // To solve the issue of '/' in display name , which will cause: reading directory '.': input/output error
+             // TODO: if there are better replacement of /, instead of -
+            key =  std::string("key-") + key;
+            std::replace( key.begin(), key.end(), '/', '-');
                     key_to_ino[key] = reinterpret_cast<fuse_ino_t>(this->children.back().get());
                 }
             }
         }
         dbg_default_trace("[{}]leaving {}.",gettid(),__func__);
-	return FuseClientINode::get_dir_entries();
+    return FuseClientINode::get_dir_entries();
     }
 };
   
@@ -357,7 +357,7 @@ private:
             contents += "Unknown\n";
             break;
         }
-	dbg_default_trace("[{}]leaving {}.",gettid(),__func__);
+    dbg_default_trace("[{}]leaving {}.",gettid(),__func__);
     }
 public:
     ShardMetaINode (const uint32_t _shard_index, const uint32_t _subgroup_index, ServiceClientAPI& _capi) :
@@ -365,7 +365,7 @@ public:
         subgroup_index(_subgroup_index),
         capi (_capi) {
         this->update_interval = 2;
-	this->last_update_sec = 0;
+    this->last_update_sec = 0;
         this->type = INodeType::META;
         this->display_name = META_FILE_NAME;
     }
@@ -401,7 +401,7 @@ public:
       file_bytes(std::make_unique<FileBytes>()),
       capi(_capi){
         dbg_default_trace("[{}]entering {}.", gettid(), __func__);
-	this->update_interval = 2;
+    this->update_interval = 2;
         this->last_update_sec = 0;
         this->type = INodeType::KEY;
         if constexpr (std::is_same<std::remove_cv_t<typename CascadeType::KeyType>, char*>::value ||
@@ -415,16 +415,16 @@ public:
         }
         // '/' in display name, will cause: reading directory '.': input/output error
         std::replace( this->display_name.begin(), this->display_name.end(), '/', '\\'); 
-	this->parent = pino;
+    this->parent = pino;
         dbg_default_trace("[{}]leaving {}.", gettid(), __func__);
     }
 
     virtual uint64_t read_file(FileBytes* _file_bytes) override {
         dbg_default_trace("[{}]entering {}.", gettid(), __func__);
         check_update();
-	_file_bytes->size = this->file_bytes.get()->size;
-	_file_bytes->bytes = static_cast<uint8_t*>(malloc(this->file_bytes.get()->size));
-	memcpy(_file_bytes->bytes,this->file_bytes.get()->bytes, this->file_bytes.get()->size);
+    _file_bytes->size = this->file_bytes.get()->size;
+    _file_bytes->bytes = static_cast<uint8_t*>(malloc(this->file_bytes.get()->size));
+    memcpy(_file_bytes->bytes,this->file_bytes.get()->bytes, this->file_bytes.get()->size);
         dbg_default_trace("[{}]leaving {}.", gettid(), __func__);
         return 0;
     }
@@ -444,7 +444,7 @@ public:
 
     virtual ~KeyINode() {
         dbg_default_info("[{}] entering {}.", gettid(), __func__);
-	file_bytes.reset(nullptr);
+    file_bytes.reset(nullptr);
         dbg_default_info("[{}] leaving {}.", gettid(), __func__);
     }
 private:
@@ -452,36 +452,36 @@ private:
         ShardINode<CascadeType> *pino_shard = reinterpret_cast<ShardINode<CascadeType>*>(this->parent);
         SubgroupINode<CascadeType> *pino_subgroup = reinterpret_cast<SubgroupINode<CascadeType>*>(pino_shard->parent);
         auto result = capi.template get<CascadeType>(
-						     key,CURRENT_VERSION,true,pino_subgroup->subgroup_index,pino_shard->shard_index);
-	Blob blob;
+                             key,CURRENT_VERSION,true,pino_subgroup->subgroup_index,pino_shard->shard_index);
+    Blob blob;
         for(auto& reply_future:result.get()){
-	    auto reply = reply_future.second.get();
-	    dbg_default_trace("------ KEY INODE reply {}.", reply);
-	    if(std::is_base_of<typename CascadeType::ObjectType, ObjectWithStringKey>::value){
-	      ObjectWithStringKey *access_ptr = reinterpret_cast<ObjectWithStringKey*>(&reply);
-	      this->version = access_ptr->version;
-	      this->timestamp_us = access_ptr->timestamp_us;
-	      this->previous_version = access_ptr->previous_version;
-	      this->previous_version_by_key = access_ptr->previous_version_by_key;
-	      blob = access_ptr->blob;
-	    }else if(std::is_base_of<typename CascadeType::ObjectType, ObjectWithUInt64Key>::value){
-	      ObjectWithUInt64Key *access_ptr = reinterpret_cast<ObjectWithUInt64Key*>(&reply);
-	      this->version = access_ptr->version;
-	      this->timestamp_us = access_ptr->timestamp_us;
-	      this->previous_version = access_ptr->previous_version;
-	      this->previous_version_by_key = access_ptr->previous_version_by_key;
-	      blob = access_ptr->blob;
-	    }
-	    else{
-	      this->file_bytes.get()->size = mutils::bytes_size(reply);
-	      this->file_bytes.get()->bytes = static_cast<uint8_t*>(malloc(this->file_bytes.get()->size));
-	      reply.to_bytes(this->file_bytes.get()->bytes);
-	      return;
-      	    }
-	    file_bytes.get()->size = blob.size;
-	    file_bytes.get()->bytes = static_cast<uint8_t*>(malloc(file_bytes.get()->size));
-	    memcpy(file_bytes.get()->bytes, blob.bytes, file_bytes.get()->size);
-	    return;
+        auto reply = reply_future.second.get();
+        dbg_default_trace("------ KEY INODE reply {}.", reply);
+        if(std::is_base_of<typename CascadeType::ObjectType, ObjectWithStringKey>::value){
+          ObjectWithStringKey *access_ptr = reinterpret_cast<ObjectWithStringKey*>(&reply);
+          this->version = access_ptr->version;
+          this->timestamp_us = access_ptr->timestamp_us;
+          this->previous_version = access_ptr->previous_version;
+          this->previous_version_by_key = access_ptr->previous_version_by_key;
+          blob = access_ptr->blob;
+        }else if(std::is_base_of<typename CascadeType::ObjectType, ObjectWithUInt64Key>::value){
+          ObjectWithUInt64Key *access_ptr = reinterpret_cast<ObjectWithUInt64Key*>(&reply);
+          this->version = access_ptr->version;
+          this->timestamp_us = access_ptr->timestamp_us;
+          this->previous_version = access_ptr->previous_version;
+          this->previous_version_by_key = access_ptr->previous_version_by_key;
+          blob = access_ptr->blob;
+        }
+        else{
+          this->file_bytes.get()->size = mutils::bytes_size(reply);
+          this->file_bytes.get()->bytes = static_cast<uint8_t*>(malloc(this->file_bytes.get()->size));
+          reply.to_bytes(this->file_bytes.get()->bytes);
+          return;
+              }
+        file_bytes.get()->size = blob.size;
+        file_bytes.get()->bytes = static_cast<uint8_t*>(malloc(file_bytes.get()->size));
+        memcpy(file_bytes.get()->bytes, blob.bytes, file_bytes.get()->size);
+        return;
         }
     }
 };
@@ -504,27 +504,27 @@ private:
 
   virtual void update_contents () override{
         this->contents = "Current Directory Pathname: ";
-	this->contents += (cur_pathname=="") ? "objectPoolRoot" : cur_pathname;
-	this->contents += "\n";
-	this->objp_collection.clear();
-	this->contents += "contains the below object pools in its subdirs:\n";
-	std::string objp_contents;
-	// Check the objectPools under cur_pathname directory
-	size_t cur_len = cur_pathname.length();
-	for (std::string pathname : capi.list_object_pools(true)) {
-	  if(cur_pathname.length() == 0 || (pathname.length() > cur_len - 1 && (pathname.substr(0,cur_len) == cur_pathname) )){
-	    if(pathname.length() == cur_len){
-	      this->objp_collection.emplace_back(pathname);
-	      this->contents += " " + pathname + ",\n";
-	      this->is_object_pool = true;
-	      this->objectPool_contents( objp_contents);
-	    }else if(pathname[cur_len] == '/'){
-	      this->objp_collection.emplace_back(pathname);
-	      this->contents +=  " " + pathname + ",\n";
-	    }
-	  }
-	}
-	this->contents += objp_contents;
+    this->contents += (cur_pathname=="") ? "objectPoolRoot" : cur_pathname;
+    this->contents += "\n";
+    this->objp_collection.clear();
+    this->contents += "contains the below object pools in its subdirs:\n";
+    std::string objp_contents;
+    // Check the objectPools under cur_pathname directory
+    size_t cur_len = cur_pathname.length();
+    for (std::string pathname : capi.list_object_pools(false,true)) {
+      if(cur_pathname.length() == 0 || (pathname.length() > cur_len - 1 && (pathname.substr(0,cur_len) == cur_pathname) )){
+        if(pathname.length() == cur_len){
+          this->objp_collection.emplace_back(pathname);
+          this->contents += " " + pathname + ",\n";
+          this->is_object_pool = true;
+          this->objectPool_contents( objp_contents);
+        }else if(pathname[cur_len] == '/'){
+          this->objp_collection.emplace_back(pathname);
+          this->contents +=  " " + pathname + ",\n";
+        }
+      }
+    }
+    this->contents += objp_contents;
     }
   
     /**
@@ -532,18 +532,18 @@ private:
      */
   void objectPool_contents ( std::string& objp_contents) {
         auto op_metadata = capi.find_object_pool(this->cur_pathname);
-	objp_contents += "Current Object Pool Pathname: ";
-	objp_contents += cur_pathname + "\n";
+    objp_contents += "Current Object Pool Pathname: ";
+    objp_contents += cur_pathname + "\n";
         this->deleted = op_metadata.deleted;
-	objp_contents += "- is deleted: ";
-	objp_contents += this->deleted? "true": "false";
-	objp_contents += "\n";
+    objp_contents += "- is deleted: ";
+    objp_contents += this->deleted? "true": "false";
+    objp_contents += "\n";
         this->subgroup_type_index = op_metadata.subgroup_type_index;
-	objp_contents += "- subgroup type index: ";
-	objp_contents += std::to_string(this->subgroup_type_index) + "\n";
+    objp_contents += "- subgroup type index: ";
+    objp_contents += std::to_string(this->subgroup_type_index) + "\n";
         this->subgroup_index = op_metadata.subgroup_index;
-	objp_contents += "- subgroup index: ";
-	objp_contents += std::to_string(this->subgroup_index) + "\n";
+    objp_contents += "- subgroup index: ";
+    objp_contents += std::to_string(this->subgroup_index) + "\n";
         auto policy = op_metadata.sharding_policy;
         objp_contents += "- sharding policy: ";
         switch(policy) {
@@ -571,7 +571,7 @@ public:
    void add_objp(std::string new_objp_pathname){
      for(auto &pathname : objp_collection){
        if(pathname == new_objp_pathname){
-	 return;
+     return;
        }
      }
      objp_collection.emplace_back(new_objp_pathname);
@@ -606,9 +606,9 @@ public:
       this->last_update_sec = 0;
         this->type = INodeType::OBJECTPOOL_PATH;
         this->parent = pino;
-	this->is_object_pool = false;
-	this->cur_pathname = "";
-	this->children.emplace_back(std::make_unique<ObjectPoolMetaINode>(cur_pathname, capi));
+    this->is_object_pool = false;
+    this->cur_pathname = "";
+    this->children.emplace_back(std::make_unique<ObjectPoolMetaINode>(cur_pathname, capi));
     }
 
   ObjectPoolPathINode (std::string _cur_pathname,fuse_ino_t pino, ServiceClientAPI& _capi) :
@@ -617,12 +617,12 @@ public:
         this->update_interval = 10;
         this->last_update_sec = 10;
         this->type = INodeType::OBJECTPOOL_PATH;
-	std::size_t pos = cur_pathname.find_last_of('/');
+    std::size_t pos = cur_pathname.find_last_of('/');
         this->display_name = cur_pathname.substr(pos + 1);
         this->parent = pino;
-	this->is_object_pool = false;
-	//this->objp_collection.emplace_back(objp_pathname);
-	this->children.emplace_back(std::make_unique<ObjectPoolMetaINode>(cur_pathname, capi));
+    this->is_object_pool = false;
+    //this->objp_collection.emplace_back(objp_pathname);
+    this->children.emplace_back(std::make_unique<ObjectPoolMetaINode>(cur_pathname, capi));
     }
 
     /** Helper function: 
@@ -631,13 +631,13 @@ public:
      *   e.g. if cur_pathname is "/a", for object_pool_pathname "/a/b/c" this function returns "/a/b"
      */
     std::string get_next_level_pathname(std::string &object_pool_pathname){
-      	size_t cur_len = cur_pathname.length();
-	std::string remain_pathname = object_pool_pathname.substr(cur_len);
+          size_t cur_len = cur_pathname.length();
+    std::string remain_pathname = object_pool_pathname.substr(cur_len);
         auto start_pos = remain_pathname.find("/");
         if (start_pos == std::string::npos){
             return "";
         }
-	// get the next level of directory pathname.
+    // get the next level of directory pathname.
         auto end_pos = remain_pathname.substr(start_pos + 1).find("/");
         std::string next_level_pathname;
         if (end_pos == std::string::npos){
@@ -645,7 +645,7 @@ public:
         }else{
             next_level_pathname = cur_pathname + remain_pathname.substr(start_pos , end_pos + 1);
         }
-	return next_level_pathname;
+    return next_level_pathname;
      }
 
      /** Construct the next level objectPoolINodes, starting from remain pathname
@@ -656,99 +656,99 @@ public:
         // check path_name
        std::string next_level_pathname = get_next_level_pathname(object_pool_pathname);
        if(next_level_pathname.length() == 0){
-	 return;
+     return;
        }
-	// Check if this objectPoolPathInode with the same pathname exists
-	// case 1: If this level pathname directory exists
+    // Check if this objectPoolPathInode with the same pathname exists
+    // case 1: If this level pathname directory exists
         for(auto& inode : this->children){
             if (inode->type == INodeType::OBJECTPOOL_PATH){
-	      if(static_cast<ObjectPoolPathINode*>(inode.get())->cur_pathname == next_level_pathname){
+          if(static_cast<ObjectPoolPathINode*>(inode.get())->cur_pathname == next_level_pathname){
                 return;
                }
-            }	   
+            }       
         }
-	// case2: If this level ObjectPoolPathInode doesn't exists, create one
+    // case2: If this level ObjectPoolPathInode doesn't exists, create one
         // std::unique_lock wlck(this->children_mutex);
         this->children.emplace_back(std::make_unique<ObjectPoolPathINode>(next_level_pathname,reinterpret_cast<fuse_ino_t>(this),capi));
-	objp_children.insert(cur_pathname);
+    objp_children.insert(cur_pathname);
     }
 
   
     void update_objpINodes(){
         size_t cur_len = cur_pathname.length();
-	std::vector<std::string> reply = capi.list_object_pools(true);
-	std::vector<std::string> valid_subdirs;
+    std::vector<std::string> reply = capi.list_object_pools(false,true);
+    std::vector<std::string> valid_subdirs;
         // Check if need to add new ObjectPoolPathINode to children inodes
         for (std::string &object_pool : reply) {
           if(object_pool.length() < cur_len){
-	    continue;
-	  }
-	  if(object_pool == cur_pathname){
-	    this->is_object_pool = true;
-	    continue;
-	  }
-	  bool is_subdir = cur_pathname.length() == 0 || (object_pool.substr(0,cur_len) == cur_pathname &&  object_pool[cur_len] == '/') ;
-	  if(!is_subdir){
-	    continue;
-	  }
-	  std::string next_level_pathname(get_next_level_pathname(object_pool));
-	  valid_subdirs.emplace_back(next_level_pathname);
-	  if( objp_children.find(next_level_pathname) == objp_children.end()  ){
-	      construct_nextlevel_objectpool_path(object_pool);
-	  }
+        continue;
+      }
+      if(object_pool == cur_pathname){
+        this->is_object_pool = true;
+        continue;
+      }
+      bool is_subdir = cur_pathname.length() == 0 || (object_pool.substr(0,cur_len) == cur_pathname &&  object_pool[cur_len] == '/') ;
+      if(!is_subdir){
+        continue;
+      }
+      std::string next_level_pathname(get_next_level_pathname(object_pool));
+      valid_subdirs.emplace_back(next_level_pathname);
+      if( objp_children.find(next_level_pathname) == objp_children.end()  ){
+          construct_nextlevel_objectpool_path(object_pool);
+      }
         }
-	// Check if need to remove existing ObjectPoolPathINode from children inodes
-	if(std::find(reply.begin(), reply.end(), this->cur_pathname) == reply.end()){
-	  this->is_object_pool = false;
-	}
+    // Check if need to remove existing ObjectPoolPathINode from children inodes
+    if(std::find(reply.begin(), reply.end(), this->cur_pathname) == reply.end()){
+      this->is_object_pool = false;
+    }
         auto it = this->children.begin();
         while(it != this->children.end()){
-	   std::string name = cur_pathname + "/" + (*it)->display_name;
+       std::string name = cur_pathname + "/" + (*it)->display_name;
            if ((*it)->type == INodeType::OBJECTPOOL_PATH && (std::find(valid_subdirs.begin(),valid_subdirs.end(), name ) == valid_subdirs.end())){
-	       objp_children.erase(objp_children.find(name));
-	       it = this->children.erase(it);
+           objp_children.erase(objp_children.find(name));
+           it = this->children.erase(it);
            }else{
-	       ++it;
-	   }
+           ++it;
+       }
         } 
     }
     
      void update_keyINodes(){
          // case1. if object pool of cur_pathname donesn't exists anymore, remove all the keyINode from children
          if(!this->is_object_pool){
-	   auto it = this->children.begin();
+       auto it = this->children.begin();
            while(it != this->children.end()){
               if ((*it)->type == INodeType::KEY){
-	        it = this->children.erase(it);
+            it = this->children.erase(it);
               }else{
-	        ++it;
-	      }
+            ++it;
+          }
            }
-	   return;
-	 }
-	 // case2. if cur_pathname is a valid object pool, refetch keys in this object pool
-	 persistent::version_t version = CURRENT_VERSION;
-	 std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<std::string>>>> future_result = capi.list_keys(version, true, cur_pathname);
-	 std::vector<std::string> reply = capi.wait_list_keys<std::string>(future_result);
-	 // Check if need to add new keyINode to children inodes
-	 for (auto& key: reply) {
-	   if(key_children.find(key) == key_children.end() ){
-	        this->children.emplace_back(std::make_unique<ObjectPoolKeyINode>(key,reinterpret_cast<fuse_ino_t>(this),capi));
-	        key_children.insert(key);
-	    }  
-	  }
-	 // Check if need to remove existing keyINode from children inodes
-	 auto it = this->children.begin();
-	 while(it != this->children.end()){
-	   std::string name = cur_pathname + "/" + (*it)->display_name;
+       return;
+     }
+     // case2. if cur_pathname is a valid object pool, refetch keys in this object pool
+     persistent::version_t version = CURRENT_VERSION;
+     std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<std::string>>>> future_result = capi.list_keys(version, true, cur_pathname);
+     std::vector<std::string> reply = capi.wait_list_keys<std::string>(future_result);
+     // Check if need to add new keyINode to children inodes
+     for (auto& key: reply) {
+       if(key_children.find(key) == key_children.end() ){
+            this->children.emplace_back(std::make_unique<ObjectPoolKeyINode>(key,reinterpret_cast<fuse_ino_t>(this),capi));
+            key_children.insert(key);
+        }  
+      }
+     // Check if need to remove existing keyINode from children inodes
+     auto it = this->children.begin();
+     while(it != this->children.end()){
+       std::string name = cur_pathname + "/" + (*it)->display_name;
            if ((*it)->type == INodeType::KEY && (std::find(reply.begin(),reply.end(), name ) == reply.end())){
-		   key_children.erase(key_children.find(name));
-	           it = this->children.erase(it);
-	       
+           key_children.erase(key_children.find(name));
+               it = this->children.erase(it);
+           
            }else{
-	       ++it;
-	   }
-	 } 
+           ++it;
+       }
+     } 
      }
 
 
@@ -810,16 +810,16 @@ public:
         std::size_t pos = k.find_last_of('/');
         this->display_name = k.substr(pos + 1);
         this->parent = pino;
-	this->type = INodeType::KEY;
+    this->type = INodeType::KEY;
         dbg_default_trace("[{}]leaving {}.", gettid(), __func__);
     }
 
     virtual uint64_t read_file(FileBytes* _file_bytes) override {
       dbg_default_debug("-- READ FILE of key:[{}], [{}]entering {}.",this->key ,gettid(), __func__);
-	check_update();
-	_file_bytes->size = this->file_bytes.get()->size;
-	_file_bytes->bytes = static_cast<uint8_t*>(malloc(this->file_bytes.get()->size));
-	memcpy(_file_bytes->bytes,this->file_bytes.get()->bytes, this->file_bytes.get()->size);
+    check_update();
+    _file_bytes->size = this->file_bytes.get()->size;
+    _file_bytes->bytes = static_cast<uint8_t*>(malloc(this->file_bytes.get()->size));
+    memcpy(_file_bytes->bytes,this->file_bytes.get()->bytes, this->file_bytes.get()->size);
         dbg_default_debug("[{}]leaving {}.", gettid(), __func__);
         return 0;
     }
@@ -832,7 +832,7 @@ public:
 
     virtual ~ObjectPoolKeyINode() {
         dbg_default_info("[{}] entering {}.", gettid(), __func__);
-	file_bytes.reset(nullptr);
+    file_bytes.reset(nullptr);
         dbg_default_info("[{}] leaving {}.", gettid(), __func__);
     }
 private:
@@ -842,18 +842,18 @@ private:
         auto result = capi.get<std::string>(key,CURRENT_VERSION,true);
         for (auto& reply_future:result.get()) {
             auto reply = reply_future.second.get();
-	    ObjectWithStringKey *access_ptr = reinterpret_cast<ObjectWithStringKey*>(&reply);
-	   this->version = access_ptr->version;
-	   this->timestamp_us = access_ptr->timestamp_us;
-	   this->previous_version = access_ptr->previous_version;
-	   this->previous_version_by_key = access_ptr->previous_version_by_key;
-	   blob = access_ptr->blob;
-	   this->file_bytes.get()->size = blob.size;
-	   this->file_bytes.get()->bytes = static_cast<uint8_t*>(malloc(blob.size));
-	   memcpy(this->file_bytes.get()->bytes, blob.bytes, blob.size);
-	   return;
+        ObjectWithStringKey *access_ptr = reinterpret_cast<ObjectWithStringKey*>(&reply);
+       this->version = access_ptr->version;
+       this->timestamp_us = access_ptr->timestamp_us;
+       this->previous_version = access_ptr->previous_version;
+       this->previous_version_by_key = access_ptr->previous_version_by_key;
+       blob = access_ptr->blob;
+       this->file_bytes.get()->size = blob.size;
+       this->file_bytes.get()->bytes = static_cast<uint8_t*>(malloc(blob.size));
+       memcpy(this->file_bytes.get()->bytes, blob.bytes, blob.size);
+       return;
         }
-	dbg_default_trace("\n \n ----OBJP keyInode update content [{}] leaving  {}.", gettid(), __func__);
+    dbg_default_trace("\n \n ----OBJP keyInode update content [{}] leaving  {}.", gettid(), __func__);
     }
 };
 
@@ -960,7 +960,7 @@ private:
     struct timespec init_timestamp;
 
     /** The real cascade client talking to cascade servers. */
-    ServiceClientAPI capi;
+    ServiceClientAPI& capi;
 
     /** The inodes are stored in \a inodes. */
     mutils::KindMap<_CascadeTypeINode,CascadeTypes...> inodes;
@@ -996,6 +996,7 @@ private:
 
 public:
     FuseClientContext() :
+        capi(ServiceClientAPI::get_service_client()),
         metadata_inode(capi),
         objectpool_inode(capi),
         admin_metadata_inode(capi){}
@@ -1082,13 +1083,13 @@ public:
                 stbuf.st_blocks = (stbuf.st_size+FUSE_CLIENT_BLK_SIZE-1)/FUSE_CLIENT_BLK_SIZE;
                 stbuf.st_blksize = FUSE_CLIENT_BLK_SIZE;
                 break;
-	     case INodeType::KEY:
-	        stbuf.st_mode = S_IFREG| 0444;
+         case INodeType::KEY:
+            stbuf.st_mode = S_IFREG| 0444;
                 stbuf.st_size = pfci->get_file_size();
                 stbuf.st_blocks = (stbuf.st_size + FUSE_CLIENT_BLK_SIZE - 1)/FUSE_CLIENT_BLK_SIZE;
                 stbuf.st_blksize = FUSE_CLIENT_BLK_SIZE;
                 break;
-	     case INodeType::META:
+         case INodeType::META:
                 stbuf.st_mode = S_IFREG| 0444;
                 stbuf.st_size = pfci->get_file_size();
                 stbuf.st_blocks = (stbuf.st_size + FUSE_CLIENT_BLK_SIZE - 1)/FUSE_CLIENT_BLK_SIZE;

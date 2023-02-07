@@ -3,9 +3,10 @@
 #include "cascade_notification_message.hpp"
 #include "data_flow_graph.hpp"
 #include "detail/prefix_registry.hpp"
-#include "persistence_observer.hpp"
 #include "object_pool_metadata.hpp"
+#include "persistence_observer.hpp"
 #include "user_defined_logic_manager.hpp"
+#include "utils.hpp"
 
 #include <derecho/conf/conf.hpp>
 #include <derecho/core/notification.hpp>
@@ -28,6 +29,7 @@
 #include <unordered_set>
 #include <utility>
 
+
 /**
  * The cascade service templates
  *
@@ -47,9 +49,9 @@ namespace cascade {
     using Factory = std::function<std::unique_ptr<CascadeType>(persistent::PersistentRegistry*, subgroup_id_t subgroup_id, ICascadeContext*)>;
 
     /* Cascade Metadata Service type*/
-	template<typename...CascadeTypes>
-	using CascadeMetadataService = PersistentCascadeStore<
-    	std::remove_cv_t<std::remove_reference_t<decltype(std::declval<ObjectPoolMetadata<CascadeTypes...>>().get_key_ref())>>,
+    template<typename...CascadeTypes>
+    using CascadeMetadataService = PersistentCascadeStore<
+        std::remove_cv_t<std::remove_reference_t<decltype(std::declval<ObjectPoolMetadata<CascadeTypes...>>().get_key_ref())>>,
         ObjectPoolMetadata<CascadeTypes...>,
         &ObjectPoolMetadata<CascadeTypes...>::IK,
         &ObjectPoolMetadata<CascadeTypes...>::IV,
@@ -94,7 +96,7 @@ namespace cascade {
      *
      * !!! IMPORTANT NOTES ON "ACTION" DESIGN !!!
      * Action carries the key string, version, prefix handler (ocdpo_raw_ptr), and the object value so that the prefix
-     * handler have all the information to process in the worker thread. It is important to avoid unnecessary copies
+     * handler has all the information to process in the worker thread. It is important to avoid unnecessary copies
      * because the object value is big sometime (for example, a high resolution video clip). Currently, we copied the
      * value data into a new allocated memory buffer pointed by a unique pointer in the critical data path because the
      * value in critical data path is in Derecho's managed RDMA buffer, which will not last beyond the lifetime of the
@@ -115,7 +117,8 @@ namespace cascade {
      *
      */
 #define ACTION_BUFFER_ENTRY_SIZE    (256)
-#define ACTION_BUFFER_SIZE          (1024)
+#define ACTION_BUFFER_SIZE          (8192)
+// #define ACTION_BUFFER_SIZE          (1024)
     struct Action {
         node_id_t                       sender;
         std::string                     key_string;
@@ -201,10 +204,11 @@ namespace cascade {
      */
     template <typename... CascadeTypes>
     class Service {
-    public:
         /**
          * Constructor
          * The constructor will load the configuration, start the service thread.
+         * Constructor is hidden for singleton.
+         *
          * @param dsms deserialization managers
          * @param metadata_service_factory
          * @param factories: subgroup factories.
@@ -212,6 +216,12 @@ namespace cascade {
         Service(const std::vector<DeserializationContext*>& dsms,
                 derecho::cascade::Factory<CascadeMetadataService<CascadeTypes...>> metadata_service_factory,
                 derecho::cascade::Factory<CascadeTypes>... factories);
+
+    public:
+        /**
+         * The virtual Service destructor.
+         */
+        virtual ~Service();
         /**
          * The workhorse
          */
@@ -318,6 +328,7 @@ namespace cascade {
         Random,         // use a random member in the shard for each operations(put/remove/get/get_by_time).
         FixedRandom,    // use a random member and stick to that for the following operations.
         RoundRobin,     // use a member in round-robin order.
+        KeyHashing,     // use the key's hashing
         UserSpecified,  // user specify which member to contact.
         InvalidPolicy = -1
     };
@@ -460,22 +471,55 @@ namespace cascade {
         /**
          * 'object_pool_info_cache' is a local cache for object pool metadata. This cache is used to accelerate the
          * object access process. If an object pool does not exists, it will be loaded from metadata service.
+         *
+         * Each entry of the object_pool_info_cache is an object of type ObjectPoolMetadataCacheEntry. Such an object
+         * caches an object pool metadata object (opm) along with the affinity set regex processing data structures.
          */
+        class ObjectPoolMetadataCacheEntry {
+        public:
+            ObjectPoolMetadata<CascadeTypes...> opm;
+            /**
+             * The constructor
+             * @param _opm object pool metadata
+             */
+            ObjectPoolMetadataCacheEntry(const ObjectPoolMetadata<CascadeTypes...>& _opm);
+
+            /**
+             * The destructor
+             */
+            virtual ~ObjectPoolMetadataCacheEntry();
+
+            /**
+             * Convert a key string to corresponding affinity set string.
+             * @param key_string
+             *
+             * @return affinity set string
+             */
+            inline std::string to_affinity_set(const std::string& key_string);
+        private:
+            /* the database storing compiled regex */
+            hs_database_t*                      database;
+            /* the scratch for the regex */
+            thread_local static hs_scratch_t*   scratch;
+        };
+
         std::unordered_map<
             std::string,
-            ObjectPoolMetadata<CascadeTypes...>> object_pool_metadata_cache;
+            ObjectPoolMetadataCacheEntry> object_pool_metadata_cache;
         mutable std::shared_mutex object_pool_metadata_cache_mutex;
 
         /**
          * Pick a member by a given a policy.
          * @param subgroup_index
          * @param shard_index
-         * @param retry - if true, refresh the member_cache.
+         * @param key_for_hashing   - only for KeyHashing policy, ignored otherwise.
+         * @param retry             - if true, refresh the member_cache.
          */
-        template <typename SubgroupType>
+        template <typename SubgroupType, typename KeyTypeForHashing>
         node_id_t pick_member_by_policy(uint32_t subgroup_index,
-                                                 uint32_t shard_index,
-                                                 bool retry = false);
+                                        uint32_t shard_index,
+                                        const KeyTypeForHashing& key_for_hashing,
+                                        bool retry = false);
 
         /**
          * Refresh(or fill) a member cache entry.
@@ -505,6 +549,7 @@ namespace cascade {
     public:
         /**
          * The Constructor
+         * We prevent calling the constructor explicitely, because the ServiceClient is a singleton.
          * @param _group_ptr The caller can pass a pointer pointing to a derecho group object. If the pointer is
          *                   valid, the implementation will reply on the group object instead of creating an external
          *                   client to communicate with group members.
@@ -529,10 +574,11 @@ namespace cascade {
 
         /**
          * Derecho group helpers: They derive the API in derecho::ExternalClient.
-         * - get_my_id          return my local node id.
-         * - get_members        returns all members in the top-level Derecho group.
-         * - get_shard_members  returns the members in a shard specified by subgroup id(or subgroup type/index pair) and
-         *   shard index.
+         * - get_my_id                  return my local node id.
+         * - get_members                returns all members in the top-level Derecho group.
+         * - get_subgroup_members       returns a vector of vectors of node ids: [[node ids in shard 0],[node ids in shard 1],...]
+         * - get_shard_members          returns the members in a shard specified by subgroup id(or subgroup type/index pair) and
+         *                              shard index.
          * - get_number_of_subgroups    returns the number of subgroups of a given type
          * - get_number_of_shards       returns the number of shards of a given subgroup
          * During view change, the Client might experience failure if the member is gone. In such a case, the client needs
@@ -543,7 +589,29 @@ namespace cascade {
         std::vector<node_id_t> get_members() const;
 
         template <typename SubgroupType>
+        std::vector<std::vector<node_id_t>> get_subgroup_members(uint32_t subgroup_index) const;
+    protected:
+        template <typename FirstType,typename SecondType, typename...RestTypes>
+        std::vector<std::vector<node_id_t>> type_recursive_get_subgroup_members(uint32_t type_index, uint32_t subgroup_index) const;
+        template <typename LastType>
+        std::vector<std::vector<node_id_t>> type_recursive_get_subgroup_members(uint32_t type_index, uint32_t subgroup_index) const;
+    public:
+        std::vector<std::vector<node_id_t>> get_subgroup_members(const std::string& object_pool_pathname);
+
+        template <typename SubgroupType>
         std::vector<node_id_t> get_shard_members(uint32_t subgroup_index,uint32_t shard_index) const;
+    protected:
+        template <typename FirstType,typename SecondType, typename...RestTypes>
+        std::vector<node_id_t> type_recursive_get_shard_members(uint32_t type_index,
+                uint32_t subgroup_index, uint32_t shard_index) const;
+        template <typename LastType>
+        std::vector<node_id_t> type_recursive_get_shard_members(uint32_t type_index,
+                uint32_t subgroup_index, uint32_t shard_index) const;
+    public:
+        std::vector<node_id_t> get_shard_members(const std::string& object_pool_pathname,uint32_t shard_index);
+
+        template <typename SubgroupType>
+        uint32_t get_number_of_subgroups() const;
 
         template<typename SubgroupType>
         uint32_t get_number_of_subgroups() const;
@@ -564,6 +632,12 @@ namespace cascade {
          * @param subgroup_index        - the subgroup index in the given type.
          */
         uint32_t get_number_of_shards(uint32_t subgroup_type_index, uint32_t subgroup_index) const;
+
+        /**
+         * This get_number_of_shards(), pick subgroup using object pool pathname.
+         * @param object_pool_pathname  - the object pool name
+         */
+        uint32_t get_number_of_shards(const std::string& object_pool_pathname);
 
         /**
          * Member selection policy control API.
@@ -849,7 +923,6 @@ namespace cascade {
                 uint32_t subgroup_index,
                 uint32_t shard_index);
     public:
-
         /**
          * object pool version
          */
@@ -1475,13 +1548,17 @@ namespace cascade {
          * @param  subgroup_index   Index of the subgroup
          * @param  sharding_policy  The default sharding policy for this object pool
          * @param  object_locations The set of special object locations.
+         * @param  affinity_set_regex
+         *                          The affinity set regex.
          *
          * @return a future to the version, previous_version, previous_version_by_key, and timestamp of the put operation.
          */
         template <typename SubgroupType>
         derecho::rpc::QueryResults<std::tuple<persistent::version_t,persistent::version_t,persistent::version_t,uint64_t>> create_object_pool(
                 const std::string& pathname, const uint32_t subgroup_index,
-                const sharding_policy_t sharding_policy = HASH, const std::unordered_map<std::string,uint32_t>& object_locations = {});
+                const sharding_policy_t sharding_policy = HASH,
+                const std::unordered_map<std::string,uint32_t>& object_locations = {},
+                const std::string& affinity_set_regex = "");
 
         /**
          * ObjectPoolManagement API: remote object pool
@@ -1491,7 +1568,18 @@ namespace cascade {
          * @return a future to the version, previous_version, previous_version_by_key, and timestamp of the put operation.
          */
         derecho::rpc::QueryResults<std::tuple<persistent::version_t,persistent::version_t,persistent::version_t,uint64_t>> remove_object_pool(const std::string& pathname);
-
+    private:
+        /**
+         * ObjectPoolManagement API: find object pool
+         *
+         * @param  pathname         Object pool pathname
+         * @param  rlck             shared lock, which needs to be hold.
+         *
+         * @return the object pool metadata
+         */
+        ObjectPoolMetadata<CascadeTypes...> internal_find_object_pool(const std::string& pathname,
+                                                                      std::shared_lock<std::shared_mutex>& rlck);
+    public:
         /**
          * ObjectPoolManagement API: find object pool
          *
@@ -1502,13 +1590,25 @@ namespace cascade {
         ObjectPoolMetadata<CascadeTypes...> find_object_pool(const std::string& pathname);
 
         /**
+         * ObjectPoolManagement API: find object pool and affinity_set from key
+         *
+         * @param  key              The key of an object.
+         *
+         * @return the object pool metadata along with the affinity set string
+         */
+        template <typename KeyType>
+        std::pair<ObjectPoolMetadata<CascadeTypes...>,std::string>
+            find_object_pool_and_affinity_set_by_key(const KeyType& key);
+
+        /**
          * ObjectPoolManagement API: list all the object pools by pathnames
          *
+         * @param include_deleted   show deleted pools with an exclaimation point(!).
          * @param refresh           false for cached object ids, true for refreshed ids.
          *
          * @return the pool ids.
          */
-        std::vector<std::string> list_object_pools(bool refresh = false);
+        std::vector<std::string> list_object_pools(bool include_deleted, bool refresh = false);
 
         /**
          * Register an notification handler to a subgroup. If such a handler has been registered, it will be replaced
@@ -1621,13 +1721,13 @@ namespace cascade {
 
 #ifdef ENABLE_EVALUATION
         /**
-         * Dump the timestamp log entries into a file on each of the nodes in a subgroup.
+         * Dump the timestamp log entries into a file on each of the nodes in a shard.
          *
          * @param filename         - the output filename
          * @param subgroup_index   - the subgroup index
          * @param shard_index      - the shard index
          *
-         * @return a vector of query results.
+         * @return query results
          */
         template <typename SubgroupType>
         derecho::rpc::QueryResults<void> dump_timestamp(const std::string& filename, const uint32_t subgroup_index, const uint32_t shard_index);
@@ -1635,13 +1735,28 @@ namespace cascade {
         /**
          * The object store version:
          *
-         * @param filename             -   the filename version
-         * @param object_pool_pathname -   the object pool version
+         * @param filename             -   the filename
+         * @param object_pool_pathname -   the object pool pathname
+         */
+        void dump_timestamp(const std::string& filename, const std::string& object_pool_pathname);
+
+        /**
+         * Dump the timestamp log entries into a file on each of the nodes in a subgroup.
          *
-         * @return query results
+         * @param filename         - the output filename
+         * @param subgroup_index   - the subgroup index
          */
         template <typename SubgroupType>
-        std::vector<std::unique_ptr<derecho::rpc::QueryResults<void>>> dump_timestamp(const std::string& filename, const std::string& object_pool_pathname);
+        void dump_timestamp(const uint32_t subgroup_index, const std::string& filename);
+
+    protected:
+        template <typename FirstType, typename SecondType, typename... RestTypes>
+        void type_recursive_dump(uint32_t type_index, uint32_t subgroup_index, const std::string& filename);
+
+        template <typename LastType>
+        void type_recursive_dump(uint32_t type_index, uint32_t subgroup_index, const std::string& filename);
+
+    public:
 #ifdef DUMP_TIMESTAMP_WORKAROUND
         /**
          * Dump the timestamp log entries into a file on a specific node.
@@ -1681,7 +1796,26 @@ namespace cascade {
          */
         template <typename SubgroupType>
         inline static uint32_t get_subgroup_type_index();
-    };
+
+        /* singleton */
+    private:
+        static std::unique_ptr<ServiceClient> service_client_singleton_ptr;
+        static std::mutex                     singleton_mutex;
+    public:
+        /**
+         * Initialize the service_client_single_ptr singleton with a cascade service. This can only be called once
+         * before any get_service_client() is called.
+         * @param _group_ptr The caller can pass a pointer pointing to a derecho group object. If the pointer is
+         *                   valid, the implementation will reply on the group object instead of creating an external
+         *                   client to communicate with group members.
+         */
+        static void initialize(derecho::Group<CascadeMetadataService<CascadeTypes...>, CascadeTypes...>* _group_ptr);
+
+        /**
+         * Get the singleton ServiceClient API. If it does not exists, initialize it as an external client.
+         */
+        static ServiceClient& get_service_client();
+    }; // ServiceClient
 
 
     /**
@@ -1724,10 +1858,9 @@ namespace cascade {
      * 2 - a prefix registry.
      * 3 - a bounded Action buffer.
      */
-    using prefix_entry_t =
-                std::unordered_map<
-                    std::string, // udl_id
-                    std::tuple<
+    using prefix_ocdpo_info_t = std::tuple<
+                        std::string,                                  // udl_id
+                        std::string,                                  // config string
                         DataFlowGraph::VertexShardDispatcher,         // shard dispatcher
 #ifdef HAS_STATEFUL_UDL_SUPPORT
                         DataFlowGraph::Statefulness,                  // is stateful/stateless/singlethreaded
@@ -1735,8 +1868,25 @@ namespace cascade {
                         DataFlowGraph::VertexHook,                    // hook
                         std::shared_ptr<OffCriticalDataPathObserver>, // ocdpo
                         std::unordered_map<std::string,bool>          // output map{prefix->bool}
-                    >
-                >;
+                    >;
+
+    struct PrefixOCDPOInfoHash {
+        inline size_t operator() (const prefix_ocdpo_info_t& info) const {
+            return std::hash<std::string>{}(std::get<0>(info) + std::get<1>(info));
+        }
+    };
+
+    struct PrefixOCDPOInfoCompare {
+        inline bool operator() (const prefix_ocdpo_info_t& l, const prefix_ocdpo_info_t& r) const {
+            return (std::get<0>(l) == std::get<0>(r)) && (std::get<1>(l) == std::get<1>(r));
+        }
+    };
+
+    using prefix_ocdpo_info_set_t = std::unordered_set<prefix_ocdpo_info_t,PrefixOCDPOInfoHash,PrefixOCDPOInfoCompare>;
+    using prefix_entry_t = std::unordered_map<
+                                std::string, // dfg_id
+                                prefix_ocdpo_info_set_t
+                           >;
     using match_results_t = std::unordered_map<std::string,prefix_entry_t>;
     template <typename... CascadeTypes>
     class CascadeContext: public ICascadeContext {
@@ -1781,8 +1931,6 @@ namespace cascade {
         std::thread              single_threaded_workhorse_for_multicast;
         std::thread              single_threaded_workhorse_for_p2p;
 #endif//HAS_STATEFUL_UDL_SUPPORT
-        /** the service client: off critical data path logic use it to send data to a next tier. */
-        std::unique_ptr<ServiceClient<CascadeTypes...>> service_client;
         /** The persistence observer: lets CascadeStore objects register actions to fire when their data finishes persisting */
         std::unique_ptr<PersistenceObserver> persistence_observer;
         /**
@@ -1809,12 +1957,12 @@ namespace cascade {
          * global/static variables: CascadeContext relies on the global configuration from derecho implementation, which is
          * generally initialized with commandline parameters in main(). If we initialize the CascadeContext singleton in its
          * constructor, which happens before main(), it might miss extra configuration from commandline. Therefore,
-         * CascadeContext singleton needs to be initialized in main() by calling CascadeContext::initialize(). Moreover, it
+         * CascadeContext singleton needs to be initialized in main() by calling CascadeContext::construct(). Moreover, it
          * needs the off critical data path handler from main();
          *
          * @param group_ptr                         The group handle
          */
-        void construct(derecho::Group<CascadeMetadataService<CascadeTypes...>, CascadeTypes...>* group_ptr);
+        void construct();
         /**
          * get the reference to encapsulated service client handle.
          * The reference is valid only after construct() is called.
@@ -1875,35 +2023,37 @@ namespace cascade {
          */
 
         /**
-         * Register a set of prefixes
+         * Register a ocdpo of a given application designated by dfg uuid to a set of prefixes
          *
+         * @param dfg_uuid              - the dfg uuid
          * @param prefixes              - the prefixes set
          * @param user_defined_logic_hook
          *                              - the hook for this ocdpo
          * @param shard_dispatcher      - the shard dispatcher
          * @param user_defined_logic_id - the UDL id, presumably an UUID string
+         * @param user_defined_logic_config
+         *                              - the UDL configuration.
          * @param ocdpo_ptr             - the data path observer
          * @param outputs               - the outputs are a map from another prefix to put type (true for trigger put,
          *                                false for put).
          */
-        virtual void register_prefixes(const std::unordered_set<std::string>& prefixes,
+        virtual void register_prefixes(const std::string& dfg_uuid,
+                                       const std::unordered_set<std::string>& prefixes,
                                        const DataFlowGraph::VertexShardDispatcher shard_dispatcher,
 #ifdef HAS_STATEFUL_UDL_SUPPORT
                                        const DataFlowGraph::Statefulness stateful,
 #endif
                                        const DataFlowGraph::VertexHook hook,
                                        const std::string& user_defined_logic_id,
+                                       const std::string& user_defined_logic_config,
                                        const std::shared_ptr<OffCriticalDataPathObserver>& ocdpo_ptr,
                                        const std::unordered_map<std::string,bool>& outputs);
         /**
-         * Unregister a set of prefixes
+         * Unregister all prefixes of an application
          *
-         * @param prefixes              - the prefixes set
-         * @param user_defined_logic_id - the UDL id, presumably an UUID string
-         * @param ocdpo_ptr             - the data path observer
+         * @param dfg_uuid              - the uuid of the dfg
          */
-        virtual void unregister_prefixes(const std::unordered_set<std::string>& prefixes,
-                                         const std::string& user_defined_logic_id);
+        virtual void unregister_prefixes(const std::string& dfg_uuid);
         /**
          * Get the prefix handlers registered for a prefix
          *
@@ -1912,6 +2062,7 @@ namespace cascade {
          * @return the unordered map of observers registered to this prefix.
          */
         virtual match_results_t get_prefix_handlers(const std::string& prefix);
+
         /**
          * post an action to the Context for processing.
          *
@@ -1940,7 +2091,7 @@ namespace cascade {
          * Destructor
          */
         virtual ~CascadeContext();
-    };
+    };//CascadeContext
 } // cascade
 } // derecho
 

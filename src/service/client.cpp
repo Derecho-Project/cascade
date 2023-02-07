@@ -19,6 +19,36 @@ using persistent::INVALID_VERSION;
 #define PROC_NAME   "cascade_client"
 
 template <typename SubgroupType>
+void print_subgroup_member(ServiceClientAPI& capi, uint32_t subgroup_index) {
+    std::cout << "Subgroup (Type=" << std::type_index(typeid(SubgroupType)).name() << ","
+              << "subgroup_index=" << subgroup_index << ")" << std::endl;
+    auto members = capi.template get_subgroup_members<SubgroupType>(subgroup_index);
+    uint32_t shard_index = 0;
+    for (const auto& shard: members) {
+        std::cout << "shard-" << shard_index << " = [";
+        for (const auto& nid: shard) {
+            std::cout << nid << ",";
+        }
+        std::cout << "]" << std::endl;
+        shard_index ++;
+    }
+}
+
+void print_subgroup_member(ServiceClientAPI& capi, const std::string& op) {
+    std::cout << "Object Pool=" << op << std::endl;
+    auto members = capi.get_subgroup_members(op);
+    uint32_t shard_index = 0;
+    for (const auto& shard: members) {
+        std::cout << "shard-" << shard_index << " = [";
+        for (const auto& nid: shard) {
+            std::cout << nid << ",";
+        }
+        std::cout << "]" << std::endl;
+    }
+    shard_index++;
+}
+
+template <typename SubgroupType>
 void print_shard_member(ServiceClientAPI& capi, uint32_t subgroup_index, uint32_t shard_index) {
     std::cout << "Subgroup (Type=" << std::type_index(typeid(SubgroupType)).name() << ","
               << "subgroup_index=" << subgroup_index << ","
@@ -29,6 +59,17 @@ void print_shard_member(ServiceClientAPI& capi, uint32_t subgroup_index, uint32_
     }
     std::cout << "]" << std::endl;
 }
+
+void print_shard_member(ServiceClientAPI& capi, const std::string& op, uint32_t shard_index) {
+    std::cout << "Object Pool=" << op << ",\n"
+              << "shard_index=" << shard_index << ",\nmember list=[";
+    auto members = capi.get_shard_members(op,shard_index);
+    for (auto nid : members) {
+        std::cout << nid << ",";
+    }
+    std::cout << "]" << std::endl;
+}
+
 
 /** disabled
 void print_shard_member(ServiceClientAPI& capi, derecho::subgroup_id_t subgroup_id, uint32_t shard_index) {
@@ -42,12 +83,17 @@ void print_shard_member(ServiceClientAPI& capi, derecho::subgroup_id_t subgroup_
 }
 **/
 
+/**
+ * IMPORTANT: the order of the policy_name has to match ShardMemberSelectionPolicy
+ * defined in include/cascade/service.hpp
+ */
 static const char* policy_names[] = {
     "FirstMember",
     "LastMember",
     "Random",
     "FixedRandom",
     "RoundRobin",
+    "KeyHashing",
     "UserSpecified",
     nullptr
 };
@@ -245,8 +291,14 @@ void op_put_file_and_forget(ServiceClientAPI& capi, const std::string& key, cons
 }
 
 template <typename SubgroupType>
-void create_object_pool(ServiceClientAPI& capi, const std::string& id, uint32_t subgroup_index) {
-    auto result = capi.template create_object_pool<SubgroupType>(id,subgroup_index);
+void create_object_pool(ServiceClientAPI& capi, const std::string& id, uint32_t subgroup_index,
+                        const std::string& affinity_set_regex) {
+    auto result = capi.template create_object_pool<SubgroupType>(
+            id,
+            subgroup_index,
+            sharding_policy_type::HASH,
+            {},
+            affinity_set_regex);
     check_put_and_remove_result(result);
     std::cout << "create_object_pool is done." << std::endl;
 }
@@ -663,7 +715,7 @@ bool dump_timestamp(ServiceClientAPI &capi,
                                subgroup_index,shard_index,filename);
     auto result = capi.template dump_timestamp<SubgroupType>(filename,subgroup_index,shard_index);
     result.get();
-    global_timestamp_logger.flush(filename);
+    TimestampLogger::flush(filename);
     debug_leave_func();
     return true;
 }
@@ -705,7 +757,7 @@ ssize_t find_command(const std::vector<command_entry_t>& command_list, const std
 
 bool shell_is_active = true;
 #define SUBGROUP_TYPE_LIST "VCSS|PCSS|SCSS|TCSS"
-#define SHARD_MEMBER_SELECTION_POLICY_LIST "FirstMember|LastMember|Random|FixedRandom|RoundRobin|UserSpecified"
+#define SHARD_MEMBER_SELECTION_POLICY_LIST "FirstMember|LastMember|Random|FixedRandom|RoundRobin|KeyHashing|UserSpecified"
 #define CHECK_FORMAT(tks,argc) \
             if (tks.size() < argc) { \
                 print_red("Invalid command format. Please try help " + tks[0] + "."); \
@@ -762,6 +814,31 @@ std::vector<command_entry_t> commands =
         }
     },
     {
+        "list_subgroup_members",
+        "List the nodes in a subgroup specified by type and subgroup index.",
+        "list_subgroup_members <type> [subgroup index(default:0)]\n"
+            "type := " SUBGROUP_TYPE_LIST,
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+            uint32_t subgroup_index = 0;
+            CHECK_FORMAT(cmd_tokens,2);
+            if (cmd_tokens.size() >= 3) {
+                subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[2],nullptr,0));
+            }
+            on_subgroup_type(cmd_tokens[1],print_subgroup_member,capi,subgroup_index);
+            return true;
+        }
+    },
+    {
+        "op_list_subgroup_members",
+        "List the subgroup members by object pool name.",
+        "op_list_subgroup_members <object pool pathname>",
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+            CHECK_FORMAT(cmd_tokens,2);
+            print_subgroup_member(capi,cmd_tokens[1]);
+            return true;
+        }
+    },
+    {
         "list_shard_members",
         "List the IDs in a shard specified by type, subgroup index, and shard index.",
         "list_shard_members <type> [subgroup index(default:0)] [shard index(default:0)]\n"
@@ -780,10 +857,24 @@ std::vector<command_entry_t> commands =
         }
     },
     {
+        "op_list_shard_members",
+        "List the shard members by object pool name.",
+        "op_list_shard_members <object pool pathname> [shard index(default:0)]",
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+            uint32_t shard_index = 0;
+            CHECK_FORMAT(cmd_tokens,2);
+            if (cmd_tokens.size() >= 3) {
+                shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[2],nullptr,0));
+            }
+            print_shard_member(capi,cmd_tokens[1],shard_index);
+            return true;
+        }
+    },
+    {
         "set_member_selection_policy",
         "Set the policy for choosing among a set of server members.",
         "set_member_selection_policy <type> <subgroup_index> <shard_index> <policy> [user specified node id]\n"
-            "type := " SUBGROUP_TYPE_LIST
+            "type := " SUBGROUP_TYPE_LIST "\n"
             "policy := " SHARD_MEMBER_SELECTION_POLICY_LIST,
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             CHECK_FORMAT(cmd_tokens,5);
@@ -824,7 +915,7 @@ std::vector<command_entry_t> commands =
         "list_object_pools",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             std::cout << "refreshed object pools:" << std::endl;
-            for (std::string& opath: capi.list_object_pools(true)) {
+            for (std::string& opath: capi.list_object_pools(true,true)) {
                 std::cout << "\t" << opath << std::endl;
             }
             return true;
@@ -833,13 +924,17 @@ std::vector<command_entry_t> commands =
     {
         "create_object_pool",
         "Create an object pool",
-        "create_object_pool <path> <type> <subgroup_index>\n"
+        "create_object_pool <path> <type> <subgroup_index> [affinity_set_regex]\n"
             "type := " SUBGROUP_TYPE_LIST,
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             CHECK_FORMAT(cmd_tokens,4);
             std::string opath = cmd_tokens[1];
             uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3],nullptr,0));
-            on_subgroup_type(cmd_tokens[2],create_object_pool,capi,opath,subgroup_index);
+            std::string affinity_set_regex;
+            if (cmd_tokens.size() >= 5) {
+                affinity_set_regex = cmd_tokens[4];
+            }
+            on_subgroup_type(cmd_tokens[2],create_object_pool,capi,opath,subgroup_index,affinity_set_regex);
             return true;
         }
     },
@@ -1671,6 +1766,18 @@ std::vector<command_entry_t> commands =
             return true;
         }
     },
+    {
+        "op_dump_timestamp",
+        "Dump timestamps for a given object pool. Each node will write its timestamps to the given file.",
+        "op_dump_timestamp <object_pool> <filename>\n"
+            "filename := timestamp log filename",
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+            CHECK_FORMAT(cmd_tokens,3);
+            capi.dump_timestamp(cmd_tokens[2],cmd_tokens[1]);
+            TimestampLogger::flush(cmd_tokens[2]);
+            return true;
+        }
+    },
 #endif
 };
 
@@ -1720,7 +1827,7 @@ int main(int argc,char** argv) {
     if( prctl(PR_SET_NAME, PROC_NAME, 0, 0, 0) != 0 ) {
         dbg_default_debug("Failed to set proc name to {}.",PROC_NAME);
     }
-    ServiceClientAPI capi;
+    auto& capi = ServiceClientAPI::get_service_client();
 #ifdef ENABLE_EVALUATION
     // start working thread.
     PerfTestServer pts(capi);

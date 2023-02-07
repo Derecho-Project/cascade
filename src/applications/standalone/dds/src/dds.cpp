@@ -89,19 +89,18 @@ std::string Topic::get_full_path() const {
 }
 
 DDSMetadataClient::DDSMetadataClient(
-        const std::shared_ptr<ServiceClientAPI>& _capi,
         const std::string& _metadata_pathname) : 
-    capi(_capi),
+    capi(ServiceClientAPI::get_service_client()),
     metadata_pathname(_metadata_pathname){}
 
 void DDSMetadataClient::refresh_topics() {
-    auto topic_keys_future = capi->list_keys(CURRENT_VERSION,true,metadata_pathname);
-    auto topic_keys = capi->wait_list_keys(topic_keys_future);
+    auto topic_keys_future = capi.list_keys(CURRENT_VERSION,true,metadata_pathname);
+    auto topic_keys = capi.wait_list_keys(topic_keys_future);
 
     std::unordered_map<std::string,Topic> topics_map;
 
     for (const auto& topic_key: topic_keys) {
-        auto res = capi->get(topic_key);
+        auto res = capi.get(topic_key);
         for (auto& reply_future : res.get()) {
             auto reply = reply_future.second.get();
             // skip the deleted objects.
@@ -122,9 +121,8 @@ void DDSMetadataClient::refresh_topics() {
 DDSMetadataClient::~DDSMetadataClient() {}
 
 std::unique_ptr<DDSMetadataClient> DDSMetadataClient::create(
-        const std::shared_ptr<ServiceClientAPI>& capi, 
         std::shared_ptr<DDSConfig> dds_config) {
-    return std::make_unique<DDSMetadataClient>(capi,dds_config->get_metadata_pathname());
+    return std::make_unique<DDSMetadataClient>(dds_config->get_metadata_pathname());
 }
 
 Topic DDSMetadataClient::get_topic(const std::string& topic_name,bool refresh) {
@@ -161,7 +159,7 @@ void DDSMetadataClient::create_topic(const Topic& topic) {
     Blob blob(stack_buffer,size,true);
     ObjectWithStringKey topic_object(metadata_pathname+PATH_SEPARATOR+topic.name,blob);
     dbg_default_trace("create topic:{}", topic.name);
-    auto result = capi->put(topic_object);
+    auto result = capi.put(topic_object);
     for (auto& reply_future: result.get() ) {
         auto reply = reply_future.second.get();
         dbg_default_trace("Node {} replied with (v:0x{:x},t:{}us)", reply_future.first, 
@@ -182,7 +180,7 @@ void DDSMetadataClient::remove_topic(const std::string& topic_name) {
 
     std::lock_guard<std::shared_mutex> wlock(topics_shared_mutex);
     dbg_default_trace("remove topic:{}",topic_name);
-    auto result = capi->remove(metadata_pathname+PATH_SEPARATOR+topic_name);
+    auto result = capi.remove(metadata_pathname+PATH_SEPARATOR+topic_name);
     for (auto& reply_future: result.get() ) {
         auto reply = reply_future.second.get();
         dbg_default_trace("Node {} replied with (v:0x{:x},t:{}us)", reply_future.first, 
@@ -282,29 +280,45 @@ SubscriberCore::~SubscriberCore() {
 DDSSubscriberRegistry::DDSSubscriberRegistry(const std::string& _control_plane_suffix) :
     control_plane_suffix(_control_plane_suffix) {}
 
-void DDSSubscriberRegistry::_topic_control(std::shared_ptr<ServiceClientAPI>& capi, const Topic& topic_info, DDSCommand::CommandType command_type) {
+void DDSSubscriberRegistry::_topic_control(ServiceClientAPI& capi, const Topic& topic_info, DDSCommand::CommandType command_type) {
         DDSCommand command(command_type,topic_info.name);
         std::size_t buffer_size = mutils::bytes_size(command);
         uint8_t stack_buffer[buffer_size];
         mutils::to_bytes(command,stack_buffer);
         ObjectWithStringKey object(topic_info.pathname + PATH_SEPARATOR + control_plane_suffix,Blob(stack_buffer,buffer_size,true));
-        capi->trigger_put(object);
+        capi.trigger_put(object);
         dbg_default_trace("Sent DDS command:{} to service, command key={}", command.to_string(), object.get_key_ref());
     }
 
-DDSClient::DDSClient(const std::shared_ptr<ServiceClientAPI>& _capi,
+DDSClient::DDSClient(
         const std::shared_ptr<DDSConfig>& _dds_config):
-        capi(_capi) {
+#ifdef USE_DDS_TIMESTAMP_LOG
+        control_plane_suffix(_dds_config->get_control_plane_suffix()),
+#endif
+        capi(ServiceClientAPI::get_service_client()) {
     subscriber_registry = std::make_unique<DDSSubscriberRegistry>(_dds_config->get_control_plane_suffix());
-    metadata_service = std::make_unique<DDSMetadataClient>(_capi,_dds_config->get_metadata_pathname());
+    metadata_service = std::make_unique<DDSMetadataClient>(_dds_config->get_metadata_pathname());
 }
+
+#ifdef USE_DDS_TIMESTAMP_LOG
+void DDSClient::flush_timestamp(const std::string& topic) {
+    auto topic_info = metadata_service->get_topic(topic);
+    DDSCommand command(DDSCommand::CommandType::FLUSH_TIMESTAMP_TRIGGER,topic_info.name);
+    std::size_t buffer_size = mutils::bytes_size(command);
+    uint8_t stack_buffer[buffer_size];
+    mutils::to_bytes(command,stack_buffer);
+    ObjectWithStringKey object(topic_info.pathname + PATH_SEPARATOR + control_plane_suffix,Blob(stack_buffer,buffer_size,true));
+    capi.trigger_put(object);
+    dbg_default_trace("Sent DDS command:{} to service, command key={}", command.to_string(), object.get_key_ref());
+}
+#endif
 
 DDSClient::~DDSClient() {
     // nothing to release manually
 }
 
-std::unique_ptr<DDSClient> DDSClient::create(const std::shared_ptr<ServiceClientAPI>& capi, const std::shared_ptr<DDSConfig>& dds_config) {
-    return std::make_unique<DDSClient>(capi, dds_config);
+std::unique_ptr<DDSClient> DDSClient::create(const std::shared_ptr<DDSConfig>& dds_config) {
+    return std::make_unique<DDSClient>(dds_config);
 }
 
 }

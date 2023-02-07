@@ -86,6 +86,11 @@ public:
             const nlohmann::json& udl_config = nlohmann::json{}) = 0;
 
     /**
+     * A virtual destructor: we need this because the default destructor is not virtual.
+     */
+    virtual ~UserDefinedLogicManager();
+
+    /**
      * Factory
      *
      * @return the created data path logical manager

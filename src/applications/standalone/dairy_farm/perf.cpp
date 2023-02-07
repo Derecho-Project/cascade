@@ -89,7 +89,7 @@ static int do_server(int argc, char** argv) {
     // 1 - load frames to prepare the workload
     auto frames = load_frames(frame_path);
     ::rpc::server rpc_server(localhost,port);
-    ServiceClientAPI capi;
+    auto& capi = ServiceClientAPI::get_service_client();
     // 2 - create rpclib server, waiting for execution
     rpc_server.bind("perf",[&frames,&capi,payload_size](
         const std::string& pathname,
@@ -130,7 +130,7 @@ static int do_server(int argc, char** argv) {
             dbg_default_trace("Sending frame:{}, message_id:{}",object_index,frames.at(object_index).get_message_id());
             capi.trigger_put(frames.at(object_index));
 #ifdef ENABLE_EVALUATION
-            global_timestamp_logger.log(TLT_DAIRYFARMDEMO(0),capi.get_my_id(),frames.at(object_index).get_message_id(),get_walltime());
+            TimestampLogger::log(TLT_DAIRYFARMDEMO(0),capi.get_my_id(),frames.at(object_index).get_message_id(),get_walltime());
 #endif
             dbg_default_trace("Sent frame:{}, message_id{}",object_index,frames.at(object_index).get_message_id());
         }
@@ -141,7 +141,7 @@ static int do_server(int argc, char** argv) {
     rpc_server.bind("flush_timestamp_log", [&capi](const std::string& output_filename,bool flush_server) {
         dbg_default_trace("flush request received with filename:{}, flush_server:{}",
                 output_filename, flush_server);
-        global_timestamp_logger.flush(output_filename);
+        TimestampLogger::flush(output_filename);
 
         if (flush_server) {
             // collect the object pools

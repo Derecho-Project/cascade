@@ -56,8 +56,12 @@ static bool run_pingpong_latency(
 
     std::condition_variable finish_cv;
     std::mutex finish_mtx;
+#ifdef USE_DDS_TIMESTAMP_LOG
     std::vector<std::tuple<uint32_t,uint64_t,uint64_t>> ts_log;
     ts_log.reserve(count);
+#else
+    uint32_t received = 0;
+#endif
 
     // create a publisher
     auto publisher = client.template create_publisher<Blob>(st.name);
@@ -66,17 +70,29 @@ static bool run_pingpong_latency(
     auto subscriber = client.subscribe(rt.name,
             std::unordered_map<std::string,message_handler_t<Blob>>{{
                 std::string("default"),
+#ifdef USE_DDS_TIMESTAMP_LOG
                 [count,&publisher,&ts_log,&finish_mtx,&finish_cv,is_passive](const Blob& msg)->void {
+#else
+                [count,&publisher,&received,&finish_mtx,&finish_cv,is_passive](const Blob& msg)->void {
+#endif
                     const message_header_t* header = reinterpret_cast<const message_header_t*>(msg.bytes);
+#ifdef USE_DDS_TIMESTAMP_LOG
                     // ts_log.emplace_back(std::tuple{msg.seqno,msg.sending_ts_us,get_walltime()/1000});
                     ts_log.emplace_back(std::tuple{header->seqno,header->sending_ts_us,get_walltime()/1000});
+#else
+                    received ++;
+#endif
                     // echo
                     if (is_passive) {
                         header->sending_ts_us = get_walltime()/1000;
                         publisher->send(msg);
                     }
                     // end of test
+#ifdef USE_DDS_TIMESTAMP_LOG
                     if(ts_log.size() == count) {
+#else
+                    if(received == count) {
+#endif
                         std::lock_guard lck(finish_mtx);
                         finish_cv.notify_one();
                     }
@@ -123,13 +139,18 @@ static bool run_pingpong_latency(
 
     // waiting for the end of test
     std::unique_lock<std::mutex> lck(finish_mtx);
+#ifdef USE_DDS_TIMESTAMP_LOG
     finish_cv.wait(lck,[&ts_log,count](){return (ts_log.size() == count);});
+#else
+    finish_cv.wait(lck,[&received,count](){return (received == count);});
+#endif
     lck.unlock();
 
     // unsubscribe
     client.unsubscribe(subscriber);
 
-    // flush to file
+#ifdef USE_DDS_TIMESTAMP_LOG
+    // flush end-to-end timestamp to file
     std::ofstream ofile(rt.name + ".log");
     ofile << "# topic:" << rt.name << std::endl;
     ofile << "# seqno send_ts_us recv_ts_us" << std::endl;
@@ -139,11 +160,15 @@ static bool run_pingpong_latency(
               << std::get<2>(tp) << std::endl;
     }
     ofile.close();
+#else
+    //flush local timestamp
+    TimestampLogger::flush(rt.name + ".log");
+#endif
     return true;
 }
 
 /**
- * throughput test. 
+ * perftest: controlled latency and throughput test. 
  * There are two possible modes: pub/sub. In pub mode, the tester will publish a series of
  * messages to the specified topic; In sub mode, the tester will wait on the give topic for specified number of
  * messages. A log file <topic>.<pub|sub>.log will be generated.
@@ -155,7 +180,7 @@ static bool run_pingpong_latency(
  * @param count             The total number of messages to publish
  * @param rate_mps          Message rate at number of messages per second, only relavent to the subscriber.
  */
-static bool run_throughput(
+static bool run_perftest(
         DDSMetadataClient& metadata_client,
         DDSClient& client,
         const std::string& topic,
@@ -206,29 +231,49 @@ static bool run_throughput(
             }
             header->seqno = i;
             header->sending_ts_us = get_walltime()/1000;
-            publisher->send(message);
+            publisher->send(message,static_cast<uint64_t>(header->seqno));
             if (next_us != 0) {
                 next_us += interval_us;
             } else {
                 next_us = now_us + interval_us;
             }
         }
+#if !defined(USE_DDS_TIMESTAMP_LOG)
+        TimestampLogger::flush(topic+".publisher.log",true);
+#endif
 
     } else {
         // seqno --> timestamp_us
+#ifdef USE_DDS_TIMESTAMP_LOG
         std::vector<std::tuple<uint32_t,uint64_t,uint64_t>> ts_log;
+#else
+        uint64_t received = 0;
+#endif
         // create the subscriber
         std::condition_variable finish_cv;
         std::mutex finish_mtx;
         auto subscriber = client.subscribe(t.name,
                 std::unordered_map<std::string,message_handler_t<Blob>>{{
                     std::string("default"),
+#ifdef USE_DDS_TIMESTAMP_LOG
                     [count,&ts_log,&finish_mtx,&finish_cv](const Blob& msg)->void {
+#else
+                    [count,&received,&finish_mtx,&finish_cv](const Blob& msg)->void {
+#endif
                         const message_header_t* header = reinterpret_cast<const message_header_t*>(msg.bytes);
+#ifdef USE_DDS_TIMESTAMP_LOG
                         // ts_log.emplace_back(std::tuple{msg.seqno,msg.sending_ts_us,get_walltime()/1000});
                         ts_log.emplace_back(std::tuple{header->seqno,header->sending_ts_us,get_walltime()/1000});
+#else
+                        TimestampLogger::log(TLT_DDS_SUBSCRIBER_CALLED,-1,0,get_time_ns(),received);
+                        received ++;
+#endif
                         // end of test
+#ifdef USE_DDS_TIMESTAMP_LOG
                         if(ts_log.size() == count) {
+#else
+                        if(received == count) {
+#endif
                             std::lock_guard lck(finish_mtx);
                             finish_cv.notify_one();
                         }
@@ -236,9 +281,14 @@ static bool run_throughput(
                 }});
 
         std::unique_lock<std::mutex> lck(finish_mtx);
+#ifdef USE_DDS_TIMESTAMP_LOG
         finish_cv.wait(lck,[&ts_log,&count]{return (ts_log.size()==count);});
+#else
+        finish_cv.wait(lck,[&received,&count]{return (received==count);});
+#endif
 
         // flush to file
+#ifdef USE_DDS_TIMESTAMP_LOG
         std::ofstream ofile(topic+".log");
         ofile << "# topic:" << t.name << std::endl;
         ofile << "# seqno send_ts_us recv_ts_us" << std::endl;
@@ -248,6 +298,9 @@ static bool run_throughput(
                   << std::get<2>(tp) << std::endl;
         }
         ofile.close();
+#else
+        TimestampLogger::flush(topic+".subscriber.log",true);
+#endif
     }
 
     return true;
@@ -525,9 +578,9 @@ std::vector<command_entry_t> commands = {
         }
     },
     {
-        "throughput",
-        "Perform throughput performance test",
-        "throughput <pub|sub> <topic> [count] [rate_mps]\n"
+        "perftest",
+        "Performance test for end-to-end latency/throughput",
+        "perftest <pub|sub> <topic> [count] [rate_mps]\n"
             "\trate_mps - target sending rate at message per second, default to 100 mps\n"
             "\tcount    - the total number of messages to send, default to 1000 mps",
         [](DDSMetadataClient& metadata_client,DDSClient& client,const std::vector<std::string>& cmd_tokens) {
@@ -542,9 +595,22 @@ std::vector<command_entry_t> commands = {
             if (cmd_tokens.size() >= 5) {
                 rate_mps = std::stoul(cmd_tokens[4]);
             }
-            return run_throughput(metadata_client,client,topic,pub_mode,count,rate_mps);
+            return run_perftest(metadata_client,client,topic,pub_mode,count,rate_mps);
         }
     },
+#ifdef USE_DDS_TIMESTAMP_LOG
+    {
+        "flush_timestamp",
+        "Flush and clear the timestamp logger for a topic",
+        "flush_timestamp <topic>",
+        [](DDSMetadataClient& metadata_client,DDSClient& client,const std::vector<std::string>& cmd_tokens) {
+            CHECK_FORMAT(cmd_tokens,1);
+            std::string topic = cmd_tokens[1];
+            client.flush_timestamp(topic);
+            return true;
+        }
+    },
+#endif
 };
 
 static void do_command(
@@ -571,10 +637,9 @@ static void do_command(
 
 int main(int argc, char** argv) {
     std::cout << "Cascade DDS Client" << std::endl;
-    std::shared_ptr<ServiceClientAPI> capi = std::make_shared<ServiceClientAPI>();
     auto dds_config = DDSConfig::get();
-    auto metadata_client = DDSMetadataClient::create(capi,dds_config);
-    auto client = DDSClient::create(capi,dds_config);
+    auto metadata_client = DDSMetadataClient::create(dds_config);
+    auto client = DDSClient::create(dds_config);
 
     // shell mode
     if (argc == 1) {

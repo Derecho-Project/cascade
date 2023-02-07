@@ -110,10 +110,11 @@ add_library(cascade SHARED
 #    $<TARGET_OBJECTS:utils>)
 
 target_link_libraries(cascade
-    derecho::derecho
+    derecho
     spdlog::spdlog
     ${mutils_LIBRARIES}
-    OpenSSL::Crypto)
+    OpenSSL::Crypto
+    hs)
 set_target_properties(cascade PROPERTIES
     SOVERSION ${cascade_VERSION}
     VERSION ${cascade_build_VERSION}

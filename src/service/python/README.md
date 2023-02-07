@@ -19,7 +19,7 @@ Cascade service supports data access with Python. If you didn't see `<build_path
 Python 3.8.10 (default, Nov 26 2021, 20:14:08) 
 [GCC 9.3.0] on linux
 Type "help", "copyright", "credits" or "license" for more information.
->>> from derecho.cascade.client import ServiceClientAPI
+>>> from derecho.cascade.external_client import ServiceClientAPI
 >>> dir(ServiceClientAPI)
 ['CASCADE_SUBGROUP_TYPES', 'CURRENT_VERSION', '__class__', '__delattr__', '__dir__', '__doc__', '__eq__', '__format__', '__ge__', '__getattribute__', '__gt__', '__hash__', '__init__', '__init_subclass__', '__le__', '__lt__', '__module__', '__ne__', '__new__', '__reduce__', '__reduce_ex__', '__repr__', '__setattr__', '__sizeof__', '__str__', '__subclasshook__', 'create_object_pool', 'get', 'get_member_selection_policy', 'get_members', 'get_object_pool', 'get_shard_members', 'list_object_pools', 'put', 'remove', 'set_member_selection_policy']
 ```

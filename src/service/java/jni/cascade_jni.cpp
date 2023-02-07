@@ -1,3 +1,4 @@
+#include <cascade/config.h>
 #include <cascade/object.hpp>
 #include <cascade/service_client_api.hpp>
 #include <memory>
@@ -55,7 +56,7 @@ typedef enum {
 JNIEXPORT jlong JNICALL Java_io_cascade_Client_createClient(JNIEnv *env, jobject obj)
 {
     // create the service client API
-    derecho::cascade::ServiceClientAPI *capi = new derecho::cascade::ServiceClientAPI();
+    derecho::cascade::ServiceClientAPI *capi = &derecho::cascade::ServiceClientAPI::get_service_client();
     // send the memory address back as a handle
     return reinterpret_cast<jlong>(capi);
 }
@@ -218,7 +219,7 @@ JNIEXPORT jobject JNICALL Java_io_cascade_Client_getMemberSelectionPolicy(JNIEnv
     on_service_type(service_type, policy = capi->get_member_selection_policy, subgroup_index, shard_index);
 
     std::string java_policy_str;
-    switch (std::get<0>(policy))
+    switch (static_cast<int>(std::get<0>(policy)))
     {
     case derecho::cascade::ShardMemberSelectionPolicy::FirstMember:
         java_policy_str = "FirstMember";

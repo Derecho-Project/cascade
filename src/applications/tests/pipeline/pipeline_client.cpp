@@ -3,6 +3,7 @@
 #include <cascade/service_client_api.hpp>
 #include <cascade/service_types.hpp>
 #include <sys/prctl.h>
+#include "pipeline_common.hpp"
 
 using namespace derecho::cascade;
 
@@ -29,8 +30,8 @@ static std::set<std::string> collect_dfgs_object_pools() {
     for (const auto& dfg: DataFlowGraph::get_data_flow_graphs()) {
         for (const auto& v: dfg.vertices) {
             object_pools.emplace(v.first);
-            for (const auto& ekv: v.second.edges) {
-                for (const auto& tkv: ekv.second) {
+            for (const auto& per_ocdpo_edges: v.second.edges) {
+                for (const auto& tkv: per_ocdpo_edges) {
                     object_pools.emplace(tkv.first);
                 }
             }
@@ -83,7 +84,7 @@ int main(int argc, char** argv) {
     if (prctl(PR_SET_NAME, PROC_NAME, 0, 0, 0) != 0) {
         dbg_default_debug("Failed to set proc name to {},", PROC_NAME);
     }
-    ServiceClientAPI capi;
+    auto& capi = ServiceClientAPI::get_service_client();
 
     if (argc != 6) {
         std::cout << "Usage:" << argv[0] << " <trigger_put|put_and_forget> <object pool pathname> <member selection policy> <max rate> <duration in sec>" << std::endl;
@@ -116,7 +117,7 @@ int main(int argc, char** argv) {
             next_ns = now_ns + interval_ns;
 #ifdef ENABLE_EVALUATION
             objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS).set_message_id(msg_id);
-            global_timestamp_logger.log(TLT_READY_TO_SEND,my_node_id,msg_id,get_walltime());
+            TimestampLogger::log(TLT_READY_TO_SEND,my_node_id,msg_id,get_walltime());
             objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS).set_message_id(msg_id);
 #endif
             if (trigger) {
@@ -125,7 +126,7 @@ int main(int argc, char** argv) {
                 capi.put_and_forget(objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS));
             }
 #ifdef ENABLE_EVALUATION
-            global_timestamp_logger.log(TLT_EC_SENT,my_node_id,msg_id,get_walltime());
+            TimestampLogger::log(TLT_EC_SENT,my_node_id,msg_id,get_walltime());
             msg_id ++;
 #endif
         } else {
@@ -142,7 +143,7 @@ int main(int argc, char** argv) {
     for(auto& subgroup_pair: collect_subgroups(capi)) {
         dump_subgroup_timestamp(capi,"pipeline.log",std::get<0>(subgroup_pair),std::get<1>(subgroup_pair));
     }
-    global_timestamp_logger.flush("pipeline.log"); 
+    TimestampLogger::flush("pipeline.log"); 
 #endif
     return 0;
 }

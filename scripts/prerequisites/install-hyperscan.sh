@@ -10,11 +10,11 @@ fi
 echo "Using INSTALL_PREFIX=${INSTALL_PREFIX}"
 
 cd ${WORKPATH}
-git clone https://github.com/rpclib/rpclib.git
-cd rpclib
-git checkout tags/v2.3.0
+git clone https://github.com/songweijia/hyperscan.git
+cd hyperscan
+git checkout 5a95f964c99d09420166933936d4476c990e25e8
 mkdir build
 cd build
-cmake -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} ..
+cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} ..
 make -j `nproc`
 make install

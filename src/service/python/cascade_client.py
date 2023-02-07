@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 import cmd, sys
 import logging
-from derecho.cascade.client import ServiceClientAPI
+from derecho.cascade.external_client import ServiceClientAPI
+from derecho.cascade.external_client import TimestampLogger
 
 class bcolors:
     OK = '\033[92m' #GREEN
@@ -34,30 +35,72 @@ class CascadeClientShell(cmd.Cmd):
 
     def do_list_members(self, arg):
         '''
-        list_members [subgroup_type [subgroup_index [shard_index]]]
+        list_members
         ============
-        List the member nodes in the Cascade service.
+        List the member nodes in the service by subgroup_type, subgroup, or shard.
 
+        ** optional keyword arguments **
         subgroup_type:  the subgroup type, could be either of the following:
                         VolatileCascadeStoreWithStringKey
                         PersistentCascadeStoreWithStringKey
                         TriggerCascadeNoStoreWithStringKey
-        subgroup_index: the subgroup index
+        subgroup_index: the subgroup index, default to 0 if subgroup_type is specified
         shard_index:    the shard index
+        object_pool_pathname:
+                        the object pool name
+                        Please note that you should either specify object_pool_pathname or 
+                        a (subgroup_type,subgroup_index) pair.
         '''
         self.check_capi()
+        subgroup_type = None
+        subgroup_index = None
+        shard_index = None
+        object_pool_pathname = None
         args = arg.split()
-        if len(args) > 0:
-            subgroup_type = args[0]
-            subgroup_index = 0
-            shard_index = 0
-            if len(args) > 1:
-                subgroup_index = int(args[1],0)
-            if len(args) > 2:
-                shard_index = int(args[2],0)
-            print("Nodes in shard (%s:%d:%d):%s" % (subgroup_type,subgroup_index,shard_index,str(self.capi.get_shard_members(subgroup_type,subgroup_index,shard_index))))
-        else:
+        argpos = 0
+        while argpos < len(args):
+            extra_option = args[argpos].split('=')
+            if len(extra_option) != 2:
+                print(bcolors.FAIL + "Unknown argument:" + args[2] + bcolors.RESET)
+                return
+            elif extra_option[0] == 'subgroup_type':
+                subgroup_type = extra_option[1]
+            elif extra_option[0] == 'subgroup_index':
+                subgroup_index = int(extra_option[1],0)
+            elif extra_option[0] == 'shard_index':
+                shard_index = int(extra_option[1],0)
+            elif extra_option[0] == 'object_pool_pathname':
+                object_pool_pathname = extra_option[1]
+            argpos = argpos + 1
+        if object_pool_pathname is None and subgroup_type is None and subgroup_index is None:
+            # list all nodes
             print("Nodes in Cascade service:%s" % str(self.capi.get_members()))
+            return
+
+        if object_pool_pathname is not None and (subgroup_type is not None or subgroup_index is not None):
+            print("Either object_pool_pathname or (subgroup_type,subgroup_index) pair can be specified")
+            return
+
+        if object_pool_pathname is None:
+            # specified by subgroup_type and subgroup_index
+            if subgroup_index is None:
+                # list all subgroups
+                for subgroup_index in range(self.capi.get_number_of_subgroups(subgroup_type)):
+                    print(f"Nodes in subgroup ({subgroup_type}:{subgroup_index}):{str(self.capi.get_subgroup_members(subgroup_type,subgroup_index))}")
+            elif shard_index is None:
+                # list subgroup members
+                print(f"Nodes in subgroup ({subgroup_type}:{subgroup_index}):{str(self.capi.get_subgroup_members(subgroup_type,subgroup_index))}")
+            else:
+                # list shard members:
+                print("Nodes in shard (%s:%d:%d):%s" % (subgroup_type,subgroup_index,shard_index,str(self.capi.get_shard_members(subgroup_type,subgroup_index,shard_index))))
+        else:
+            # specified by object pool
+            if shard_index is None:
+                # list subgroup members
+                print(f"Nodes in object pool {object_pool_pathname}:{self.capi.get_subgroup_members_by_object_pool(object_pool_pathname)}")
+            else:
+                # list shard members
+                print(f"Node in shard-{shard_index} of object pool {object_pool_pathname}:{self.capi.get_shard_members_by_object_pool(object_pool_pathname,shard_index)}")
 
     def do_set_member_selection_policy(self, arg):
         '''
@@ -77,6 +120,7 @@ class CascadeClientShell(cmd.Cmd):
                         Random
                         FixedRandom
                         RoundRobin
+                        KeyHashing
                         UserSpecified
         node_id:        if policy is 'UserSpecified', you need to specify the corresponding node id.
         '''
@@ -611,7 +655,7 @@ class CascadeClientShell(cmd.Cmd):
 
     def do_create_object_pool(self, arg):
         '''
-        create_object_pool <pathname> <subgroup_type> <subgroup_index>
+        create_object_pool <pathname> <subgroup_type> <subgroup_index> [affinity_set_regex]
         ==================
         Create an object pool
 
@@ -621,6 +665,10 @@ class CascadeClientShell(cmd.Cmd):
                         PersistentCascadeStoreWithStringKey
                         TriggerCascadeNoStoreWithStringKey
         subgroup_index: the subgroup index
+        affinity_set_regex:
+                        affinity_set_regex, please follow hyperscan's syntax.
+                        Please see http://github.com/intel/hyperscan and
+                        https://intel.github.io/hyperscan/dev-reference/compilation.html
 
         '''
         self.check_capi()
@@ -629,7 +677,10 @@ class CascadeClientShell(cmd.Cmd):
             print(bcolors.FAIL + 'At least three arguments are required.' + bcolors.RESET)
         else:
             subgroup_index = int(args[2],0)
-            res = self.capi.create_object_pool(args[0],args[1],subgroup_index)
+            affinity_set_regex = ""
+            if len(args) >= 4:
+                affinity_set_regex=args[3]
+            res = self.capi.create_object_pool(args[0],args[1],subgroup_index,affinity_set_regex=affinity_set_regex)
             if res:
                 ver = res.get_result()
                 print(bcolors.OK + f"{ver}" + bcolors.RESET)
@@ -660,6 +711,73 @@ class CascadeClientShell(cmd.Cmd):
         else:
             res = self.capi.get_object_pool(args[0])
             print(bcolors.OK + f"{res}" + bcolors.RESET)
+
+    def do_remove_object_pool(self, arg):
+        '''
+        remove_object_pool <pathname>
+        ==================
+        remove an object pool
+        '''
+        self.check_capi()
+        args = arg.split()
+        if len(args) < 1:
+            print(bcolors.FAIL + 'At least one argument is required.' + bcolors.RESET)
+        else:
+            res = self.capi.remove_object_pool(args[0])
+            if res:
+                ver = res.get_result()
+                print(bcolors.OK + f"{ver}" + bcolors.RESET)
+            else:
+                print(bcolors.FAIL + "Something went wrong, remove_object_pool returns null." + bcolors.RESET)
+
+    def do_timestamp_logger(self, arg):
+        '''
+        timestamp_logger <command> ...
+        ================
+        Test timestamp_logger function
+
+        command:        could be either 'log', 'clear', and 'flush'.
+
+        case 'log':
+        timestamp_logger log <tag> <msg_id> <extra>
+        , where
+        tag:            the event tag, as listed in include/cascade/utils.hpp
+        msg_id:         an integer for message id, given by the user.
+        extra:          an extra integer as a memo space, its value is up to the user. It will appear as the last
+                        components of the timestamp log.
+
+        case 'clear':
+        timestamp_logger clear
+
+        case 'flush':
+        timestamp_logger flush <filename>
+        , where
+        filename:       the log filename.
+        '''
+        self.check_capi()
+        args = arg.split()
+        if len(args) < 1:
+            print(bcolors.FAIL + 'At least one argument is required.' + bcolors.RESET)
+            return;
+        cmd = args[0]
+        tl = TimestampLogger()
+        if cmd == 'log':
+            if len(args) < 4:
+                print(bcolors.FAIL + 'Please provide tag, message id, AND extra arguments.' + bcolors.RESET)
+                return
+            tag = int(args[1])
+            msg_id = int(args[2])
+            extra = int(args[3])
+            tl.log(int(tag),self.capi.get_my_id(),msg_id,extra)
+        elif cmd == 'clear':
+            tl.clear()
+        elif cmd == 'flush':
+            if len(args) < 2:
+                print(bcolors.FAIL + 'No filename is given.' + bcolors.RESET)
+                return
+            tl.flush(args[1],True)
+        else:
+            print(bcolors.FAIL + f"Unknown timestamp_logger command: {cmd}." + bcolors.RESET)
 
     # end of CascadeClientShell definition
 

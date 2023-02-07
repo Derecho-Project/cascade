@@ -38,7 +38,7 @@ add_custom_command(TARGET udl_signature POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/udl_signature.hpp ${CMAKE_BINARY_DIR}/include/cascade/detail/udl_signature.hpp
 )
 
-add_library(service OBJECT service.cpp data_flow_graph.cpp user_defined_logic_interface.cpp)
+add_library(service OBJECT service.cpp data_flow_graph.cpp _user_defined_logic_interface.cpp)
 target_include_directories(service PRIVATE
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
@@ -53,7 +53,7 @@ target_include_directories(server PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
 )
-target_link_libraries(server cascade dl)
+target_link_libraries(server cascade dl pthread)
 set_target_properties(server PROPERTIES OUTPUT_NAME cascade_server)
 add_custom_command(TARGET server POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/cfg
@@ -85,7 +85,7 @@ target_include_directories(client PRIVATE
 target_include_directories(client PUBLIC
     $<BUILD_INTERFACE:${Readline_INCLUDE_DIRS}>
 )
-target_link_libraries(client cascade ${Readline_LIBRARIES})
+target_link_libraries(client cascade ${Readline_LIBRARIES} pthread)
 if(ENABLE_EVALUATION)
     target_link_libraries(client rpclib::rpc)
 endif()

@@ -79,6 +79,21 @@ public:
      */
     void atomically_modify(const std::string& prefix, const std::function<std::shared_ptr<T>(const std::shared_ptr<T>& value)>& modifier, bool create = false);
     /**
+     * Atomically modify with traversing
+     *
+     * @param modifier  - the modifier lambda
+     */
+    void atomically_traverse(const std::function<std::shared_ptr<T>(const std::shared_ptr<T>& value)>& modifier);
+    /**
+     * modify with traversing, assuming lock has been applied.
+     *
+     * @param ptn       - pointer to the root tree node
+     * @param modifier  - the modifier lambda
+     */
+private:
+    void traverse(TreeNode* ptn, const std::function<std::shared_ptr<T>(const std::shared_ptr<T>& value)>& modifier);
+public:
+    /**
      * Test if a prefix has already been registered or not.
      *
      * @param prefix - the prefix

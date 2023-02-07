@@ -250,7 +250,7 @@ private:
         auto* typed_ctxt = dynamic_cast<DefaultCascadeContextType*>(ctxt);
 #ifdef ENABLE_EVALUATION
         if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
-            global_timestamp_logger.log(TLT_COMPUTE_TRIGGERED,
+            TimestampLogger::log(TLT_COMPUTE_TRIGGERED,
                                         typed_ctxt->get_service_client_ref().get_my_id(),
                                         reinterpret_cast<const ObjectWithStringKey*>(value_ptr)->get_message_id(),
                                         get_walltime());
@@ -287,7 +287,7 @@ private:
         }
 #ifdef ENABLE_EVALUATION
         if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
-            global_timestamp_logger.log(TLT_COMPUTE_INFERRED,
+            TimestampLogger::log(TLT_COMPUTE_INFERRED,
                                         typed_ctxt->get_service_client_ref().get_my_id(),
                                         vcss_value->get_message_id(),
                                         get_walltime());
@@ -338,7 +338,7 @@ private:
 
 #ifdef ENABLE_EVALUATION
         if (std::is_base_of<IHasMessageID,ObjectWithStringKey>::value) {
-            global_timestamp_logger.log(TLT_COMPUTE_FORWARDED,
+            TimestampLogger::log(TLT_COMPUTE_FORWARDED,
                                         typed_ctxt->get_service_client_ref().get_my_id(),
                                         reinterpret_cast<const ObjectWithStringKey*>(value_ptr)->get_message_id(),
                                         get_walltime());

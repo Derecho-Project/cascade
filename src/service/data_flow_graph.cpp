@@ -15,6 +15,7 @@ DataFlowGraph::DataFlowGraph():id(""),description("uninitialized DFG") {}
 DataFlowGraph::DataFlowGraph(const json& dfg_conf):
     id(dfg_conf[DFG_JSON_ID]),
     description(dfg_conf[DFG_JSON_DESCRIPTION]) {
+    /* vertex iterator */
     for(auto it=dfg_conf[DFG_JSON_GRAPH].cbegin();it!=dfg_conf[DFG_JSON_GRAPH].cend();it++) {
         DataFlowGraphVertex dfgv;
         dfgv.pathname = (*it)[DFG_JSON_PATHNAME];
@@ -22,53 +23,58 @@ DataFlowGraph::DataFlowGraph(const json& dfg_conf):
         if(dfgv.pathname.back() != PATH_SEPARATOR) {
             dfgv.pathname = dfgv.pathname + PATH_SEPARATOR;
         }
+        /* UDL iterator */
         for(size_t i=0;i<(*it)[DFG_JSON_UDL_LIST].size();i++) {
+            // udl uuid
             std::string udl_uuid = (*it)[DFG_JSON_UDL_LIST].at(i);
+            dfgv.uuids.emplace_back(udl_uuid);
+
             // shard dispatchers
-            dfgv.shard_dispatchers[udl_uuid] = DataFlowGraph::VertexShardDispatcher::ONE;
+            dfgv.shard_dispatchers.emplace_back(DataFlowGraph::VertexShardDispatcher::ONE);
             if (it->contains(DFG_JSON_SHARD_DISPATCHER_LIST)) {
-                dfgv.shard_dispatchers[udl_uuid] = ((*it)[DFG_JSON_SHARD_DISPATCHER_LIST].at(i).get<std::string>() == "all")?
+                dfgv.shard_dispatchers[i] = ((*it)[DFG_JSON_SHARD_DISPATCHER_LIST].at(i).get<std::string>() == "all")?
                     DataFlowGraph::VertexShardDispatcher::ALL : DataFlowGraph::VertexShardDispatcher::ONE;
             }
+
             // stateful
-            dfgv.stateful[udl_uuid] = DataFlowGraph::Statefulness::STATEFUL;
+            dfgv.stateful.emplace_back(DataFlowGraph::Statefulness::STATEFUL);
             if (it->contains(DFG_JSON_UDL_STATEFUL_LIST)) {
                 if ((*it)[DFG_JSON_UDL_STATEFUL_LIST].at(i).get<std::string>() == "stateless") {
-                    dfgv.stateful[udl_uuid] = DataFlowGraph::Statefulness::STATEFUL;
+                    dfgv.stateful[i] = DataFlowGraph::Statefulness::STATELESS;
                 } else if ((*it)[DFG_JSON_UDL_STATEFUL_LIST].at(i).get<std::string>() == "singlethreaded") {
-                    dfgv.stateful[udl_uuid] = DataFlowGraph::Statefulness::SINGLETHREADED;
+                    dfgv.stateful[i] = DataFlowGraph::Statefulness::SINGLETHREADED;
                 }
             }
+
             // hooks
-            dfgv.hooks[udl_uuid] = DataFlowGraph::VertexHook::BOTH;
+            dfgv.hooks.emplace_back(DataFlowGraph::VertexHook::BOTH);
             if (it->contains(DFG_JSON_UDL_HOOK_LIST)) {
                 if ((*it)[DFG_JSON_UDL_HOOK_LIST].at(i).get<std::string>() == "trigger") {
-                    dfgv.hooks[udl_uuid] = DataFlowGraph::VertexHook::TRIGGER_PUT;
+                    dfgv.hooks[i] = DataFlowGraph::VertexHook::TRIGGER_PUT;
                 } else if ((*it)[DFG_JSON_UDL_HOOK_LIST].at(i).get<std::string>() == "ordered") {
-                    dfgv.hooks[udl_uuid] = DataFlowGraph::VertexHook::ORDERED_PUT;
+                    dfgv.hooks[i] = DataFlowGraph::VertexHook::ORDERED_PUT;
                 }
             }
+
             // configurations
             if (it->contains(DFG_JSON_UDL_CONFIG_LIST)) {
-                dfgv.configurations.emplace(udl_uuid,(*it)[DFG_JSON_UDL_CONFIG_LIST].at(i));
+                dfgv.configurations.emplace_back((*it)[DFG_JSON_UDL_CONFIG_LIST].at(i));
             } else {
-                dfgv.configurations.emplace(udl_uuid,json{});
+                dfgv.configurations.emplace_back(json{});
             }
+
             // edges
             std::map<std::string,std::string> dest =
                 (*it)[DFG_JSON_DESTINATIONS].at(i).get<std::map<std::string,std::string>>();
 
-            if (dfgv.edges.find(udl_uuid) == dfgv.edges.end()) {
-                dfgv.edges.emplace(udl_uuid,std::unordered_map<std::string,bool>{});
-            }
+            dfgv.edges.emplace_back(std::unordered_map<std::string,bool>{});
             for(auto& kv:dest) {
                 if (kv.first.back() == PATH_SEPARATOR) {
-                    dfgv.edges[udl_uuid].emplace(kv.first,(kv.second==DFG_JSON_TRIGGER_PUT)?true:false);
+                    dfgv.edges[i].emplace(kv.first,(kv.second==DFG_JSON_TRIGGER_PUT)?true:false);
                 } else {
-                    dfgv.edges[udl_uuid].emplace(kv.first + PATH_SEPARATOR,(kv.second==DFG_JSON_TRIGGER_PUT)?true:false);
+                    dfgv.edges[i].emplace(kv.first + PATH_SEPARATOR,(kv.second==DFG_JSON_TRIGGER_PUT)?true:false);
                 }
             }
-
         }
         vertices.emplace(dfgv.pathname,dfgv);
     }
@@ -86,10 +92,10 @@ DataFlowGraph::DataFlowGraph(DataFlowGraph&& other):
 
 void DataFlowGraph::dump() const {
     std::cout << "DFG: {\n"
-              << "id: " << id << "\n"
-              << "description: " << description << "\n";
+              << "\t" << "id: " << id << "\n"
+              << "\t" << "description: " << description << "\n";
     for (auto& kv:vertices) {
-        std::cout << kv.second.to_string() << std::endl;
+        std::cout << kv.second.to_string("\t") << std::endl;
     }
     std::cout << "}" << std::endl;
 }

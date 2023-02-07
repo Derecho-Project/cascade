@@ -17,7 +17,7 @@ public:
             const std::string&              object_pool_pathname,
             const std::string&              key_string,
             const ObjectWithStringKey&      object,
-            const std::function<void(const std::string&, const Blob&)>& emit,
+            const emit_func_t&              emit,
             DefaultCascadeContextType*      typed_ctxt,
             uint32_t                        worker_id) = 0;
 };
