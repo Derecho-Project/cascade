@@ -15,7 +15,7 @@ Cascade is a C++17 cloud application framework powered by optimized RDMA data pa
   - Within C++, we have found it useful to combine Cascade with a language-integrated query library such as LINQ (we can support both cpplinq and boolinq).
   - Doing so permits the developer to treat collections of objects or object histories as sets of K/V tuples, describing "transformations" on the data much as we would in a database setting, and leaving the runtime to make scheduling and object placement decisions on our behalf.
   - [LINQ](https://docs.microsoft.com/en-us/dotnet/csharp/programming-guide/concepts/linq/) is closely related to models widely used in ML, such as the Spark concept of an RDD, or the Tensor Flow model for tensors and sets of tensors. Cascade is currently enabled with LINQ data retrieving C++ API.
-  - We do not plan to require use of LINQ, but we do think it lends itself to concise, elegant code. During summer 2022 we are extending the API to also support use from C\# via the .NET Core CLR (F# and C++/CLI should also be able to access these extensions).
+  - We do not plan to require use of LINQ, but we do think it lends itself to concise, elegant code.  During summer 2022 we are extending the API to also support use from C\# via the .NET Core CLR (F# and C++/CLI should also be able to access these extensions).
 - Cascade also supports a variety of remoting options.  Through them, Cascade's K/V API can be accessed from other popular high-level languages, notably Java and Python.
 - Cascade also offers a File system API that maps to its K/V API through [libfuse](https://github.com/libfuse/libfuse).
 
@@ -28,7 +28,7 @@ Cascade is a C++17 cloud application framework powered by optimized RDMA data pa
 - [Lohmann's json parser](https://github.com/nlohmann) v3.2.0 or newer
 - Readline library v7.0 or newer. On Ubuntu, use `apt install libreadline-dev` to install it.
 - RPC library [rpclib](https://github.com/rpclib/rpclib). For convenience, install it with [this script](scripts/prerequisites/install-rpclib.sh).
-- Intel's regulation expression library [Hyperscan](https://github.com/intel/hyperscan). For convenience, install it with [this script](scripts/prerequisites/install-hyperscan.sh). You need to install ragel compiler if you don't have it. On ubuntu, use `apt-get install ragel` to install it.
+- Intel's regular expression library [Hyperscan](https://github.com/intel/hyperscan). For convenience, install it with [this script](scripts/prerequisites/install-hyperscan.sh). You need to install ragel compiler if you don't have it. On ubuntu, use `apt-get install ragel` to install it.
 - [libfuse](https://github.com/libfuse) v3.9.3 or newer (Optional for file system API)
 - [boolinq](https://github.com/k06a/boolinq) or newer (Optional for LINQ API)
 - Python 3.5 or newer and [pybind11](https://github.com/pybind/pybind11) (Optional for Python API)
