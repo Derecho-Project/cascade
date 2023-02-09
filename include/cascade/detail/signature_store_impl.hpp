@@ -536,6 +536,7 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::trigger_put(const VT& value) con
 #ifdef ENABLE_EVALUATION
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void SignatureCascadeStore<KT, VT, IK, IV, ST>::dump_timestamp_log(const std::string& filename) const {
+    debug_enter_func_with_args("filename={}", filename);
     derecho::Replicated<SignatureCascadeStore>& subgroup_handle = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index);
     auto result = subgroup_handle.template ordered_send<RPC_NAME(ordered_dump_timestamp_log)>(filename);
     auto& replies = result.get();
@@ -543,18 +544,19 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::dump_timestamp_log(const std::st
         volatile uint32_t _ = r;
         _ = _;
     }
+    debug_leave_func();
     return;
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void SignatureCascadeStore<KT, VT, IK, IV, ST>::ordered_dump_timestamp_log(const std::string& filename) {
-    global_timestamp_logger.flush(filename);
+    TimestampLogger::flush(filename);
 }
 #ifdef DUMP_TIMESTAMP_WORKAROUND
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void SignatureCascadeStore<KT, VT, IK, IV, ST>::dump_timestamp_log_workaround(const std::string& filename) const {
     debug_enter_func_with_args("filename={}", filename);
-    global_timestamp_logger.flush(filename);
+    TimestampLogger::flush(filename);
     debug_leave_func();
 }
 #endif  // DUMP_TIMESTAMP_WORKAROUND

@@ -356,6 +356,10 @@ template <typename KT, typename VT, KT* IK, VT* IV>
 std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t> VolatileCascadeStore<KT, VT, IK, IV>::ordered_put(const VT& value) {
     debug_enter_func_with_args("key={}", value.get_key_ref());
 
+#ifdef ENABLE_EVALUATION
+    std::tuple<persistent::version_t, uint64_t> version_and_timestamp = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
+#endif
+
 #if __cplusplus > 201703L
     LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_PUT_START,group,value,std::get<0>(version_and_timestamp));
 #else
@@ -366,9 +370,9 @@ std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, 
         auto ret = internal_ordered_put(value);
 
 #if __cplusplus > 201703L
-        LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_PUT_END, group, value, std::get<0>(version_and_timestamp));
+        LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_PUT_END, group, value, std::get<0>(ret));
 #else
-        LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_PUT_END, group, value, std::get<0>(version_and_timestamp));
+        LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_PUT_END, group, value, std::get<0>(ret));
 #endif
 
         debug_leave_func_with_value("version=0x{:x},previous_version=0x{:x},pervious_version_by_key=0x{:x},timestamp={}",

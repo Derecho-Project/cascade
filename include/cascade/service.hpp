@@ -613,9 +613,6 @@ namespace cascade {
         template <typename SubgroupType>
         uint32_t get_number_of_subgroups() const;
 
-        template<typename SubgroupType>
-        uint32_t get_number_of_subgroups() const;
-
         template <typename SubgroupType>
         uint32_t get_number_of_shards(uint32_t subgroup_index) const;
 
