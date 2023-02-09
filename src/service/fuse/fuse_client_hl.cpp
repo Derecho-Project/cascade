@@ -1,3 +1,5 @@
+#define HAVE_SETXATTR
+
 #include <cascade/service_types.hpp>
 #include <derecho/conf/conf.hpp>
 #include <derecho/utils/logger.hpp>
@@ -12,10 +14,11 @@
 #include "fcc_hl.hpp"
 #include "fuse_client_signals.hpp"
 #include <fuse3/fuse_lowlevel.h>
+#ifdef HAVE_SETXATTR
+#include <sys/xattr.h>
+#endif
 
 using namespace derecho::cascade;
-
-#define HAVE_SETXATTR
 
 struct cli_options {
     const char* client_dir;
@@ -70,7 +73,7 @@ static int cascade_fs_getattr(const char* path, struct stat* stbuf,
         return -ENOENT;
     }
     memset(stbuf, 0, sizeof(struct stat));
-    return FSTree::get_stat(node, stbuf);
+    return fcc()->get_stat(node, stbuf);
 }
 
 // TODO :( invalid pointer dumped?? somehow cascade replys needs to be stored in a variable before
@@ -217,10 +220,7 @@ static int cascade_fs_mkdir(const char* path, mode_t mode) {
 }
 
 static int cascade_fs_unlink(const char* path) {
-    return -ENOTSUP;
-    // TODO somehow create_object_pool says succeed on op root path (even tho it fails)
-    // TODO handle capi errors
-    // TODO for some reason remove on cascade client seg faults
+    // return -ENOTSUP;
     auto node = fcc()->get(path);
     if(node == nullptr) {
         return -ENOENT;
@@ -231,9 +231,11 @@ static int cascade_fs_unlink(const char* path) {
     // TODO check open
 
     // remove
+    node->data.bytes.clear();
+
     // auto result = capi.remove(key);
-    node->parent->children.erase(node->label);
-    delete node;
+    // node->parent->children.erase(node->label);
+    // delete node;
 
     return 0;
 }
@@ -270,7 +272,7 @@ static int cascade_fs_truncate(const char* path, off_t size,
     if(node->data.flag & OP_DIR) {
         return -EINVAL;
     }
-    node->data.bytes.clear();
+    node->data.bytes.resize(size, 0);
     return fcc()->put(node);
 }
 
@@ -304,34 +306,60 @@ static int cascade_fs_utimens(const char*, const struct timespec tv[2], struct f
 #ifdef HAVE_SETXATTR
 static int cascade_fs_setxattr(const char* path, const char* name, const char* value,
                                size_t size, int flags) {
+    if(flags & XATTR_CREATE) {
+        return -EPERM;
+    }
+    dbg_info(DL, "{}, {}, {}", path, name, value);
     // TODO save into node data
-    return -ENOTSUP;
+    if(strcmp(path, ROOT) == 0) {
+        if(!fcc()->latest && strcmp(name, "user.cascade.version") == 0) {
+            fcc()->ver = strtoll(value, nullptr, 0);
+            // TODO
+            fcc()->update_object_pools();
+            return 0;
+        } else if(strcmp(name, "user.cascade.latest") == 0) {
+            fcc()->latest = strcmp(value, "1") == 0;
+            fcc()->update_object_pools();
+            return 0;
+        }
+    }
+    return -EPERM;
 }
 
 static int cascade_fs_getxattr(const char* path, const char* name, char* value,
                                size_t size) {
     // TODO need to first apt get-install attr
-    if(strcmp(name, "user.cascade.version") == 0) {
-        return set_buffer(value, size, "CURRENT_VERSION");
-    } else if(strcmp(name, "user.cascade.stable") == 0) {
-        return set_buffer(value, size, "0");
+    if(strcmp(path, ROOT) == 0) {
+        if(strcmp(name, "user.cascade.version") == 0) {
+            std::string v = std::to_string(fcc()->ver);
+            return set_buffer(value, size, v.c_str());
+        }
+        if(strcmp(name, "user.cascade.latest") == 0) {
+            return set_buffer(value, size, fcc()->latest ? "1" : "0");
+        }
     }
     return -ENODATA;
 }
 
 static int cascade_fs_listxattr(const char* path, char* list, size_t size) {
     // TODO lesson learned :(. returned 0 instead of length. check over all return types
-    // ^ 1hr+ bug
-    const char* names = "user.cascade.version\0"
-                        "user.cascade.stable\0";
-    // very weird behavior with \0 termination. strings and determining sizes did not work well
-    // ^ 2hr+ bug
-    return set_buffer(list, size, names, 41);
+    if(strcmp(path, ROOT) == 0) {
+        // ^ 1hr+ bug
+        const char names[] = "user.cascade.version\0"
+                             "user.cascade.latest\0";
+        // very weird behavior with \0 termination. strings and determining sizes did not work well
+        // ^ 2hr+ bug
+        return set_buffer(list, size, names, 41);
+    }
+    const char empty[] = "";
+    return set_buffer(list, size, empty, 0);
 }
 #endif
 
 // TODO create_object_pool, remove_object_pool, get_object_pool, op_remove
 // op_get size. maybe no need to cache data?
+// TODO version/#/... (mount)
+// maybe use attr
 
 static const struct fuse_operations cascade_fs_oper = {
         .getattr = cascade_fs_getattr,

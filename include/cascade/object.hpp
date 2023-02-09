@@ -211,7 +211,9 @@ public:
 };
 
 inline std::ostream& operator<<(std::ostream& out, const Blob& b) {
-    out << "[size:" << b.size << ", data:" << std::hex;
+    out << "[size:" << b.size;
+    // out << ", data:";
+    // out << std::quoted(reinterpret_cast<const char*>(b.bytes));
     // if(b.size > 0) {
     //     uint32_t i = 0;
     //     for(i = 0; i < 8 && i < b.size; i++) {
@@ -221,8 +223,7 @@ inline std::ostream& operator<<(std::ostream& out, const Blob& b) {
     //         out << "...";
     //     }
     // }
-    out << std::quoted(reinterpret_cast<const char*>(b.bytes));
-    out << std::dec << "]";
+    out << "]";
     return out;
 }
 
