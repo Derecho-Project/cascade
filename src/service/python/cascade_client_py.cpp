@@ -1097,10 +1097,10 @@ PYBIND11_MODULE(member_client, m) {
                     "remove_object_pool",
                     [](ServiceClientAPI_PythonWrapper& capi,
                        const std::string&              object_pool_pathname) {
-                        derecho::rpc::QueryResults<std::tuple<persistent::version_t, uint64_t>> result =
+                        derecho::rpc::QueryResults<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>> result =
                             capi.ref.remove_object_pool(object_pool_pathname);
-                        QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>* s =
-                            new QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>(std::move(result), bundle_f);
+                        QueryResultsStore<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>, std::vector<long>>* s =
+                            new QueryResultsStore<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>, std::vector<long>>(std::move(result), bundle_f);
                         return py::cast(s);
                     },
                     "Remove an Object Pool. \n"
