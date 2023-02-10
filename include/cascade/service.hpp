@@ -546,16 +546,16 @@ namespace cascade {
         std::tuple<uint32_t,uint32_t,uint32_t> key_to_shard(
                 const KeyType& key, bool check_object_location = true);
 
-    public:
         /**
          * The Constructor
-         * We prevent calling the constructor explicitely, because the ServiceClient is a singleton.
+         * We prevent calling the constructor explicitly, because the ServiceClient is a singleton.
          * @param _group_ptr The caller can pass a pointer pointing to a derecho group object. If the pointer is
          *                   valid, the implementation will reply on the group object instead of creating an external
          *                   client to communicate with group members.
          */
         ServiceClient(derecho::Group<CascadeMetadataService<CascadeTypes...>, CascadeTypes...>* _group_ptr=nullptr);
 
+    public:
         /**
          * Constructor to be used by an external client when the CascadeTypes have notification support enabled.
          * In this case, the external client object needs to be passed a zero-argument factory function for each
