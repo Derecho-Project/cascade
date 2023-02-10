@@ -113,12 +113,12 @@ template <typename... CascadeTypes>
 std::unique_ptr<Service<CascadeTypes...>> Service<CascadeTypes...>::service_ptr;
 
 template <typename... CascadeTypes>
-void Service<CascadeTypes...>::start(const std::vector<DeserializationContext*>& dsms, 
+void Service<CascadeTypes...>::start(const std::vector<DeserializationContext*>& dsms,
         derecho::cascade::Factory<CascadeMetadataService<CascadeTypes...>> metadata_factory,
         derecho::cascade::Factory<CascadeTypes>... factories) {
     if (!service_ptr) {
         service_ptr = std::unique_ptr<Service<CascadeTypes...>>(new Service<CascadeTypes...>(dsms, metadata_factory, factories...));
-    } 
+    }
 }
 
 template <typename... CascadeTypes>
@@ -158,11 +158,11 @@ ServiceClient<CascadeTypes...>::ServiceClient(derecho::Group<CascadeMetadataServ
     external_group_ptr(nullptr),
     group_ptr(_group_ptr) {
     if (group_ptr == nullptr) {
-        this->external_group_ptr = 
+        this->external_group_ptr =
             std::make_unique<derecho::ExternalGroupClient<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>>(
                     client_stub_factory<CascadeMetadataService<CascadeTypes...>>,
                     client_stub_factory<CascadeTypes>...);
-    } 
+    }
 }
 
 template <typename... CascadeTypes>
@@ -405,9 +405,9 @@ ServiceClient<CascadeTypes...>::ObjectPoolMetadataCacheEntry::ObjectPoolMetadata
             hs_free_compile_error(compile_err);
             dbg_default_error("Compilation of affinity set regex:" + opm.affinity_set_regex + " failed with message:" +
                     compile_err->message);
-            throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) + 
-                    ": compilation of affinity_set_regex:" + 
-                    opm.affinity_set_regex + 
+            throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) +
+                    ": compilation of affinity_set_regex:" +
+                    opm.affinity_set_regex +
                     " failed with message:" +
                     compile_err->message);
         }
@@ -533,7 +533,7 @@ node_id_t ServiceClient<CascadeTypes...>::pick_member_by_policy(uint32_t subgrou
 
 template <typename... CascadeTypes>
 template <typename SubgroupType>
-derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::put(
+derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::put(
         const typename SubgroupType::ObjectType& value,
         uint32_t subgroup_index,
         uint32_t shard_index) {
@@ -569,7 +569,7 @@ derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceCl
 
 template <typename... CascadeTypes>
 template <typename ObjectType, typename FirstType, typename SecondType, typename... RestTypes>
-derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::type_recursive_put(
+derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::type_recursive_put(
         uint32_t type_index,
         const ObjectType& value,
         uint32_t subgroup_index,
@@ -583,7 +583,7 @@ derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceCl
 
 template <typename... CascadeTypes>
 template <typename ObjectType, typename LastType>
-derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::type_recursive_put(
+derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::type_recursive_put(
         uint32_t type_index,
         const ObjectType& value,
         uint32_t subgroup_index,
@@ -597,7 +597,7 @@ derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceCl
 
 template <typename... CascadeTypes>
 template <typename ObjectType>
-derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::put(
+derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::put(
         const ObjectType& value) {
 
     // STEP 1 - get key
@@ -804,7 +804,7 @@ void ServiceClient<CascadeTypes...>::collective_trigger_put(
 
 template <typename... CascadeTypes>
 template <typename SubgroupType>
-derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::remove(
+derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::remove(
         const typename SubgroupType::KeyType& key,
         uint32_t subgroup_index,
         uint32_t shard_index) {
@@ -839,7 +839,7 @@ derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceCl
 
 template <typename... CascadeTypes>
 template <typename KeyType, typename FirstType, typename SecondType, typename... RestTypes>
-derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::type_recursive_remove(
+derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::type_recursive_remove(
         uint32_t type_index,
         const KeyType& key,
         uint32_t subgroup_index,
@@ -853,7 +853,7 @@ derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceCl
 
 template <typename... CascadeTypes>
 template <typename KeyType, typename LastType>
-derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::type_recursive_remove(
+derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::type_recursive_remove(
         uint32_t type_index,
         const KeyType& key,
         uint32_t subgroup_index,
@@ -867,7 +867,7 @@ derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceCl
 
 template <typename... CascadeTypes>
 template <typename KeyType>
-derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::remove(
+derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::remove(
         const KeyType& key) {
     // STEP 1 - get key
     if constexpr (!std::is_convertible_v<KeyType,std::string>) {
@@ -903,7 +903,7 @@ derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> ServiceClien
                 auto obj = subgroup_handle.get_ref().get(key,version,stable);
                 auto pending_results = std::make_shared<PendingResults<const typename SubgroupType::ObjectType>>();
                 pending_results->fulfill_map({node_id});
-                pending_results->set_value(node_id,obj);                     
+                pending_results->set_value(node_id,obj);
                 auto query_results = pending_results->get_future();
                 return std::move(*query_results);
             }
@@ -917,7 +917,7 @@ derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> ServiceClien
         // call as an external client (ExternalClientCaller).
         auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
         node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index,key);
-        return caller.template p2p_send<RPC_NAME(get)>(node_id,key,version,stable,false); 
+        return caller.template p2p_send<RPC_NAME(get)>(node_id,key,version,stable,false);
     }
 }
 
@@ -948,7 +948,7 @@ derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> ServiceClien
         // call as an external client (ExternalClientCaller).
         auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
         node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index,key);
-        return caller.template p2p_send<RPC_NAME(multi_get)>(node_id,key); 
+        return caller.template p2p_send<RPC_NAME(multi_get)>(node_id,key);
     }
 }
 
@@ -1235,7 +1235,7 @@ derecho::rpc::QueryResults<uint64_t> ServiceClient<CascadeTypes...>::multi_get_s
             }
             return subgroup_handle.template p2p_send<RPC_NAME(multi_get_size)>(node_id,key);
         } catch (derecho::invalid_subgroup_exception& ex) {
-            // do p2p multi_get_size as an external caller. 
+            // do p2p multi_get_size as an external caller.
             auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
             return subgroup_handle.template p2p_send<RPC_NAME(multi_get_size)>(node_id,key);
         }
@@ -1484,7 +1484,7 @@ auto ServiceClient<CascadeTypes...>::list_keys(
     return this->template type_recursive_list_keys<CascadeTypes...>(subgroup_type_index,version,stable,object_pool_pathname);
 }
 
-template <typename ReturnType>  
+template <typename ReturnType>
 inline ReturnType wait_for_future(derecho::rpc::QueryResults<ReturnType>& result){
     // iterate through ReplyMap
     for (auto& reply_future: result.get()) {
@@ -1666,7 +1666,7 @@ auto ServiceClient<CascadeTypes...>::type_recursive_list_keys_by_time(
 }
 
 template <typename... CascadeTypes>
-template <typename SubgroupType> 
+template <typename SubgroupType>
 std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>>>> ServiceClient<CascadeTypes...>::__list_keys_by_time(
         const uint64_t& ts_us,
         const bool stable,
@@ -1740,7 +1740,7 @@ void ServiceClient<CascadeTypes...>::refresh_object_pool_metadata_cache() {
 
 template <typename... CascadeTypes>
 template <typename SubgroupType>
-derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::create_object_pool(
+derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::create_object_pool(
         const std::string& pathname, const uint32_t subgroup_index,
         const sharding_policy_t sharding_policy, const std::unordered_map<std::string,uint32_t>& object_locations,
         const std::string& affinity_set_regex) {
@@ -1766,7 +1766,7 @@ derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceCl
 }
 
 template <typename... CascadeTypes>
-derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> ServiceClient<CascadeTypes...>::remove_object_pool(const std::string& pathname) {
+derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::remove_object_pool(const std::string& pathname) {
     // determine the shard index by hashing
     uint32_t metadata_service_shard_index = std::hash<std::string>{}(pathname) % this->template get_number_of_shards<CascadeMetadataService<CascadeTypes...>>(METADATA_SERVICE_SUBGROUP_INDEX);
 
@@ -1848,7 +1848,7 @@ std::pair<ObjectPoolMetadata<CascadeTypes...>,std::string> ServiceClient<Cascade
     if (opm.is_valid() && !opm.is_null() && !opm.deleted) {
         affinity_set = object_pool_metadata_cache.at(opm.pathname).to_affinity_set(key);
     }
-    
+
     return {opm,affinity_set};
 }
 
@@ -1888,7 +1888,7 @@ bool ServiceClient<CascadeTypes...>::register_notification_handler(
         const std::string& object_pool_pathname,
         const uint32_t subgroup_index) {
     if (!is_external_client()) {
-        throw derecho_exception(std::string(__PRETTY_FUNCTION__) + 
+        throw derecho_exception(std::string(__PRETTY_FUNCTION__) +
             "Cannot register notification handler because external_group_ptr is null.");
     }
 
@@ -1983,7 +1983,7 @@ void ServiceClient<CascadeTypes...>::notify(
     }
 
     auto& client_handle = group_ptr->template get_client_callback<SubgroupType>(subgroup_index);
-    
+
     //TODO: redesign to avoid memory copies.
     CascadeNotificationMessage cascade_notification_message(object_pool_pathname,msg);
     derecho::NotificationMessage derecho_notification_message(CASCADE_NOTIFICATION_MESSAGE_TYPE, mutils::bytes_size(cascade_notification_message));
@@ -2091,7 +2091,7 @@ void ServiceClient<CascadeTypes...>::dump_timestamp(const std::string& filename,
         throw derecho::derecho_exception("Failed to find object_pool:" + object_pool_pathname);
     }
 
-    this->template type_recursive_dump<CascadeTypes...>(opm.subgroup_type_index,opm.subgroup_index,filename); 
+    this->template type_recursive_dump<CascadeTypes...>(opm.subgroup_type_index,opm.subgroup_index,filename);
 }
 
 template <typename... CascadeTypes>
@@ -2424,7 +2424,7 @@ Action CascadeContext<CascadeTypes...>::action_queue::action_buffer_dequeue(std:
     return ret;
 }
 
-/* shutdown the action buffer */ 
+/* shutdown the action buffer */
 template <typename... CascadeTypes>
 void CascadeContext<CascadeTypes...>::action_queue::notify_all() {
     action_buffer_data_cv.notify_all();
