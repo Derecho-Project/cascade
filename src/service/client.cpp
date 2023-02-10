@@ -82,7 +82,7 @@ void print_shard_member(ServiceClientAPI& capi, derecho::subgroup_id_t subgroup_
 **/
 
 /**
- * IMPORTANT: the order of the policy_name has to match ShardMemberSelectionPolicy 
+ * IMPORTANT: the order of the policy_name has to match ShardMemberSelectionPolicy
  * defined in include/cascade/service.hpp
  */
 static const char* policy_names[] = {
@@ -197,7 +197,7 @@ void put(ServiceClientAPI& capi, const std::string& key, const std::string& valu
     obj.previous_version = pver;
     obj.previous_version_by_key = pver_bk;
     obj.blob = Blob(reinterpret_cast<const uint8_t*>(value.c_str()),value.length());
-    derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> result = capi.template put<SubgroupType>(obj, subgroup_index, shard_index);
+    derecho::rpc::QueryResults<derecho::cascade::version_tuple> result = capi.template put<SubgroupType>(obj, subgroup_index, shard_index);
     check_put_and_remove_result(result);
 }
 
@@ -225,7 +225,7 @@ void op_put(ServiceClientAPI& capi, const std::string& key, const std::string& v
     obj.previous_version = pver;
     obj.previous_version_by_key = pver_bk;
     obj.blob = Blob(reinterpret_cast<const uint8_t*>(value.c_str()),value.length());
-    derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> result = capi.put(obj);
+    derecho::rpc::QueryResults<derecho::cascade::version_tuple> result = capi.put(obj);
     check_put_and_remove_result(result);
 }
 
@@ -247,7 +247,7 @@ void op_put_file(ServiceClientAPI& capi, const std::string& key, const std::stri
     ObjectWithStringKey obj(key,message_generator,file_size);
     obj.previous_version = pver;
     obj.previous_version_by_key = pver_bk;
-    derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> result = capi.put(obj);
+    derecho::rpc::QueryResults<derecho::cascade::version_tuple> result = capi.put(obj);
     value_file.close();
     check_put_and_remove_result(result);
 }
@@ -295,7 +295,7 @@ void create_object_pool(ServiceClientAPI& capi, const std::string& id, uint32_t 
             affinity_set_regex);
     check_put_and_remove_result(result);
     std::cout << "create_object_pool is done." << std::endl;
-} 
+}
 
 template <typename SubgroupType>
 void trigger_put(ServiceClientAPI& capi, const std::string& key, const std::string& value, uint32_t subgroup_index, uint32_t shard_index) {
@@ -312,7 +312,7 @@ void trigger_put(ServiceClientAPI& capi, const std::string& key, const std::stri
     obj.blob = Blob(reinterpret_cast<const uint8_t*>(value.c_str()),value.length());
     derecho::rpc::QueryResults<void> result = capi.template trigger_put<SubgroupType>(obj, subgroup_index, shard_index);
     result.get();
-   
+
     std::cout << "trigger_put is done." << std::endl;
 }
 
@@ -323,7 +323,7 @@ void op_trigger_put(ServiceClientAPI& capi, const std::string& key, const std::s
     obj.blob = Blob(reinterpret_cast<const uint8_t*>(value.c_str()),value.length());
     derecho::rpc::QueryResults<void> result = capi.trigger_put(obj);
     result.get();
-   
+
     std::cout << "op_trigger_put is done." << std::endl;
 }
 
@@ -349,7 +349,7 @@ void collective_trigger_put(ServiceClientAPI& capi, const std::string& key, cons
         kv.second.get();
         std::cout << "Finish sending to node " << kv.first << std::endl;
     }
-   
+
     std::cout << "collective_trigger_put is done." << std::endl;
 
 }
@@ -357,10 +357,10 @@ void collective_trigger_put(ServiceClientAPI& capi, const std::string& key, cons
 template <typename SubgroupType>
 void remove(ServiceClientAPI& capi, const std::string& key, uint32_t subgroup_index, uint32_t shard_index) {
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> result = std::move(capi.template remove<SubgroupType>(static_cast<uint64_t>(std::stol(key,nullptr,0)), subgroup_index, shard_index));
+        derecho::rpc::QueryResults<derecho::cascade::version_tuple> result = std::move(capi.template remove<SubgroupType>(static_cast<uint64_t>(std::stol(key,nullptr,0)), subgroup_index, shard_index));
         check_put_and_remove_result(result);
     } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> result = std::move(capi.template remove<SubgroupType>(key, subgroup_index, shard_index));
+        derecho::rpc::QueryResults<derecho::cascade::version_tuple> result = std::move(capi.template remove<SubgroupType>(key, subgroup_index, shard_index));
         check_put_and_remove_result(result);
     } else {
         print_red(std::string("Unhandled KeyType:") + typeid(typename SubgroupType::KeyType).name());
@@ -601,7 +601,7 @@ void list_data_in_subgroup(ServiceClientAPI& capi, uint32_t subgroup_index, pers
     std::vector<typename SubgroupType::KeyType> keys;
     std::vector<CascadeShardLinq<SubgroupType, ServiceClientAPI>> shard_linq_list;
 
-    std::unordered_map<uint32_t, std::vector<typename SubgroupType::KeyType>> shardidx_to_keys; 
+    std::unordered_map<uint32_t, std::vector<typename SubgroupType::KeyType>> shardidx_to_keys;
 
     for (auto &obj : from_subgroup<SubgroupType, ServiceClientAPI>(shardidx_to_keys, shard_linq_list, capi, subgroup_index, version).toStdVector()) {
         std::cout << "Found:" << obj << std::endl;
@@ -757,7 +757,7 @@ bool shell_is_active = true;
                 print_red("Invalid command format. Please try help " + tks[0] + "."); \
                 return false; \
             }
-std::vector<command_entry_t> commands = 
+std::vector<command_entry_t> commands =
 {
     {
         "General Commands","","",command_handler_t()
@@ -1429,7 +1429,7 @@ std::vector<command_entry_t> commands =
             CHECK_FORMAT(cmd_tokens,5);
             uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3],nullptr,0));
             uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4],nullptr,0));
-  
+
             persistent::version_t version_start = INVALID_VERSION;
             persistent::version_t version_end = INVALID_VERSION;
             if (cmd_tokens.size() >= 6) {
@@ -1451,7 +1451,7 @@ std::vector<command_entry_t> commands =
             CHECK_FORMAT(cmd_tokens,5);
             uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3],nullptr,0));
             uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4],nullptr,0));
-  
+
             uint64_t start = 0;
             uint64_t end = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
             if (cmd_tokens.size() >= 6) {
@@ -1524,11 +1524,11 @@ std::vector<command_entry_t> commands =
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             CHECK_FORMAT(cmd_tokens,3);
             uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[2],nullptr,0));
-            
+
             bool ret = false;
             on_subgroup_type(cmd_tokens[1], ret = register_notification, capi, subgroup_index);
 
-            std::cout << "Notification Registered to Subgroup " << cmd_tokens[1] << ":" << subgroup_index 
+            std::cout << "Notification Registered to Subgroup " << cmd_tokens[1] << ":" << subgroup_index
                       << ". Old handler replaced?" << ret << std::endl;
             return true;
         }
@@ -1541,11 +1541,11 @@ std::vector<command_entry_t> commands =
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             CHECK_FORMAT(cmd_tokens,3);
             uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[2],nullptr,0));
-            
+
             bool ret = false;
             on_subgroup_type(cmd_tokens[1], ret = unregister_notification, capi, subgroup_index);
 
-            std::cout << "Notification Registered to Subgroup " << cmd_tokens[1] << ":" << subgroup_index 
+            std::cout << "Notification Registered to Subgroup " << cmd_tokens[1] << ":" << subgroup_index
                       << ". Old handler replaced?" << ret << std::endl;
             return true;
         }
@@ -1754,7 +1754,7 @@ int main(int argc,char** argv) {
 #ifdef ENABLE_EVALUATION
     // start working thread.
     PerfTestServer pts(capi);
-#endif 
+#endif
     if (argc == 1) {
         // by default, we use the interactive shell.
         interactive_test(capi);
