@@ -179,13 +179,6 @@ ServiceClient<CascadeTypes...>::ServiceClient(derecho::Group<CascadeMetadataServ
 }
 
 template <typename... CascadeTypes>
-ServiceClient<CascadeTypes...>::ServiceClient(derecho::NoArgFactory<CascadeTypes>... factories)
-        : external_group_ptr(std::make_unique<derecho::ExternalGroupClient<CascadeMetadataService<CascadeTypes...>, CascadeTypes...>>(
-                []() { return std::make_unique<CascadeMetadataService<CascadeTypes...>>(nullptr); },
-                factories...)),
-          group_ptr(nullptr) {}
-
-template <typename... CascadeTypes>
 bool ServiceClient<CascadeTypes...>::is_external_client() const {
     return (group_ptr == nullptr) && (external_group_ptr != nullptr);
 }

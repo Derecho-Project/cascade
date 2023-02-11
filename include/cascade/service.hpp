@@ -556,12 +556,6 @@ namespace cascade {
         ServiceClient(derecho::Group<CascadeMetadataService<CascadeTypes...>, CascadeTypes...>* _group_ptr=nullptr);
 
     public:
-        /**
-         * Constructor to be used by an external client when the CascadeTypes have notification support enabled.
-         * In this case, the external client object needs to be passed a zero-argument factory function for each
-         * CascadeType.
-         */
-        ServiceClient(derecho::NoArgFactory<CascadeTypes>... client_factories);
 
         /**
          * ServiceClient can be an external client or a cascade server. is_external_client() test this condition.
