@@ -203,7 +203,7 @@ void put(ServiceClientAPI& capi, const std::string& key, const std::string& valu
     obj.previous_version = pver;
     obj.previous_version_by_key = pver_bk;
     obj.blob = Blob(reinterpret_cast<const uint8_t*>(value.c_str()),value.length());
-    derecho::rpc::QueryResults<std::tuple<persistent::version_t,persistent::version_t,persistent::version_t,uint64_t>> result = capi.template put<SubgroupType>(obj, subgroup_index, shard_index);
+    derecho::rpc::QueryResults<derecho::cascade::version_tuple> result = capi.template put<SubgroupType>(obj, subgroup_index, shard_index);
     check_put_and_remove_result(result);
 }
 
@@ -231,7 +231,7 @@ void op_put(ServiceClientAPI& capi, const std::string& key, const std::string& v
     obj.previous_version = pver;
     obj.previous_version_by_key = pver_bk;
     obj.blob = Blob(reinterpret_cast<const uint8_t*>(value.c_str()),value.length());
-    derecho::rpc::QueryResults<std::tuple<persistent::version_t,persistent::version_t,persistent::version_t,uint64_t>> result = capi.put(obj);
+    derecho::rpc::QueryResults<derecho::cascade::version_tuple> result = capi.put(obj);
     check_put_and_remove_result(result);
 }
 
@@ -253,7 +253,7 @@ void op_put_file(ServiceClientAPI& capi, const std::string& key, const std::stri
     ObjectWithStringKey obj(key,message_generator,file_size);
     obj.previous_version = pver;
     obj.previous_version_by_key = pver_bk;
-    derecho::rpc::QueryResults<std::tuple<persistent::version_t,persistent::version_t,persistent::version_t,uint64_t>> result = capi.put(obj);
+    derecho::rpc::QueryResults<derecho::cascade::version_tuple> result = capi.put(obj);
     value_file.close();
     check_put_and_remove_result(result);
 }
@@ -363,10 +363,10 @@ void collective_trigger_put(ServiceClientAPI& capi, const std::string& key, cons
 template <typename SubgroupType>
 void remove(ServiceClientAPI& capi, const std::string& key, uint32_t subgroup_index, uint32_t shard_index) {
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t,persistent::version_t,persistent::version_t,uint64_t>> result = std::move(capi.template remove<SubgroupType>(static_cast<uint64_t>(std::stol(key,nullptr,0)), subgroup_index, shard_index));
+        derecho::rpc::QueryResults<derecho::cascade::version_tuple> result = std::move(capi.template remove<SubgroupType>(static_cast<uint64_t>(std::stol(key,nullptr,0)), subgroup_index, shard_index));
         check_put_and_remove_result(result);
     } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t,persistent::version_t,persistent::version_t,uint64_t>> result = std::move(capi.template remove<SubgroupType>(key, subgroup_index, shard_index));
+        derecho::rpc::QueryResults<derecho::cascade::version_tuple> result = std::move(capi.template remove<SubgroupType>(key, subgroup_index, shard_index));
         check_put_and_remove_result(result);
     } else {
         print_red(std::string("Unhandled KeyType:") + typeid(typename SubgroupType::KeyType).name());

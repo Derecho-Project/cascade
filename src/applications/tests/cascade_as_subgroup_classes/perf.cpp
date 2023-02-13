@@ -163,7 +163,7 @@ struct client_states {
     std::condition_variable idle_tx_slot_cv;
     std::mutex idle_tx_slot_mutex;
     // 4. future queue semaphore
-    std::list<derecho::rpc::QueryResults<std::tuple<persistent::version_t,persistent::version_t,persistent::version_t,uint64_t>>> future_queue;
+    std::list<derecho::rpc::QueryResults<derecho::cascade::version_tuple>> future_queue;
     std::condition_variable future_queue_cv;
     std::mutex future_queue_mutex;
     // 5. timestamps log for statistics
@@ -198,7 +198,7 @@ struct client_states {
         dbg_default_trace("poll results thread started.");
         size_t future_counter = 0;
         while(future_counter != this->num_messages) {
-            std::list<derecho::rpc::QueryResults<std::tuple<persistent::version_t,persistent::version_t,persistent::version_t,uint64_t>>> my_future_queue;
+            std::list<derecho::rpc::QueryResults<derecho::cascade::version_tuple>> my_future_queue;
             // wait for a future
             std::unique_lock<std::mutex> lck(this->future_queue_mutex);
             this->future_queue_cv.wait(lck, [this]() { return !this->future_queue.empty(); });
@@ -208,9 +208,9 @@ struct client_states {
             lck.unlock();
 
             // wait for all futures
-            for (auto& f : my_future_queue) {
-                derecho::rpc::QueryResults<std::tuple<persistent::version_t,persistent::version_t,persistent::version_t,uint64_t>>::ReplyMap& replies = f.get();
-                for (auto& reply_pair : replies) {
+            for(auto& f : my_future_queue) {
+                derecho::rpc::QueryResults<derecho::cascade::version_tuple>::ReplyMap& replies = f.get();
+                for(auto& reply_pair : replies) {
                     auto r = reply_pair.second.get();
                     dbg_default_trace("polled <{},{}> from {}.", std::get<0>(r), std::get<1>(r), reply_pair.first);
                 }
@@ -239,7 +239,7 @@ struct client_states {
     }
 
     // do_send
-    void do_send (uint64_t msg_cnt,const std::function<derecho::rpc::QueryResults<std::tuple<persistent::version_t,persistent::version_t,persistent::version_t,uint64_t>>()>& func) {
+    void do_send(uint64_t msg_cnt, const std::function<derecho::rpc::QueryResults<derecho::cascade::version_tuple>()>& func) {
         // wait for tx slot semaphore
         if(this->max_pending_ops > 0) {
             std::unique_lock<std::mutex> idle_tx_slot_lck(this->idle_tx_slot_mutex);

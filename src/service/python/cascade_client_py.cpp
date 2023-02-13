@@ -171,9 +171,9 @@ static void print_red(std::string msg) {
 */
 template <typename SubgroupType>
 auto put(ServiceClientAPI& capi, const typename SubgroupType::ObjectType& obj, uint32_t subgroup_index = UINT32_MAX, uint32_t shard_index = 0) {
-    derecho::rpc::QueryResults<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>> result = (subgroup_index == UINT32_MAX) ? capi.put(obj) : capi.template put<SubgroupType>(obj, subgroup_index, shard_index);
+    derecho::rpc::QueryResults<derecho::cascade::version_tuple> result = (subgroup_index == UINT32_MAX) ? capi.put(obj) : capi.template put<SubgroupType>(obj, subgroup_index, shard_index);
 
-    QueryResultsStore<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>, std::vector<long>>* s = new QueryResultsStore<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>, std::vector<long>>(std::move(result), bundle_f);
+    QueryResultsStore<derecho::cascade::version_tuple, std::vector<long>>* s = new QueryResultsStore<derecho::cascade::version_tuple, std::vector<long>>(std::move(result), bundle_f);
     return py::cast(s);
 }
 
@@ -228,13 +228,13 @@ void trigger_put(ServiceClientAPI& capi, const typename SubgroupType::ObjectType
 template <typename SubgroupType>
 auto remove(ServiceClientAPI& capi, std::string& key, uint32_t subgroup_index = UINT32_MAX, uint32_t shard_index = 0) {
     if constexpr(std::is_integral<typename SubgroupType::KeyType>::value) {
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>> result = std::move(capi.template remove<SubgroupType>(static_cast<uint64_t>(std::stol(key)), subgroup_index, shard_index));
-        QueryResultsStore<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>, std::vector<long>>* s = new QueryResultsStore<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>, std::vector<long>>(std::move(result), bundle_f);
+        derecho::rpc::QueryResults<derecho::cascade::version_tuple> result = std::move(capi.template remove<SubgroupType>(static_cast<uint64_t>(std::stol(key)), subgroup_index, shard_index));
+        QueryResultsStore<derecho::cascade::version_tuple, std::vector<long>>* s = new QueryResultsStore<derecho::cascade::version_tuple, std::vector<long>>(std::move(result), bundle_f);
         return py::cast(s);
 
     } else if constexpr(std::is_convertible<typename SubgroupType::KeyType, std::string>::value) {
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>> result = (subgroup_index == UINT32_MAX) ? capi.remove(key) : capi.template remove<SubgroupType>(key, subgroup_index, shard_index);
-        QueryResultsStore<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>, std::vector<long>>* s = new QueryResultsStore<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>, std::vector<long>>(std::move(result), bundle_f);
+        derecho::rpc::QueryResults<derecho::cascade::version_tuple> result = (subgroup_index == UINT32_MAX) ? capi.remove(key) : capi.template remove<SubgroupType>(key, subgroup_index, shard_index);
+        QueryResultsStore<derecho::cascade::version_tuple, std::vector<long>>* s = new QueryResultsStore<derecho::cascade::version_tuple, std::vector<long>>(std::move(result), bundle_f);
         return py::cast(s);
 
     } else {
@@ -370,9 +370,9 @@ auto multi_list_keys(ServiceClientAPI& capi, uint32_t subgroup_index = 0, uint32
 */
 template <typename SubgroupType>
 auto create_object_pool(ServiceClientAPI& capi, const std::string& object_pool_pathname, uint32_t subgroup_index, const std::string& affinity_set_regex="") {
-    derecho::rpc::QueryResults<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>> result =
+    derecho::rpc::QueryResults<derecho::cascade::version_tuple> result =
         capi.template create_object_pool<SubgroupType>(object_pool_pathname, subgroup_index, sharding_policy_t::HASH, {}, affinity_set_regex);
-    QueryResultsStore<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>, std::vector<long>>* s = new QueryResultsStore<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>, std::vector<long>>(std::move(result), bundle_f);
+    QueryResultsStore<derecho::cascade::version_tuple, std::vector<long>>* s = new QueryResultsStore<derecho::cascade::version_tuple, std::vector<long>>(std::move(result), bundle_f);
     return py::cast(s);
 }
 
@@ -658,7 +658,7 @@ PYBIND11_MODULE(member_client, m) {
                                 capi.ref.trigger_put(obj);
                             } else if (blocking) {
                                 auto result = capi.ref.put(obj);
-                                auto s = new QueryResultsStore<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>, std::vector<long>>(std::move(result), bundle_f);
+                                auto s = new QueryResultsStore<derecho::cascade::version_tuple, std::vector<long>>(std::move(result), bundle_f);
                                 return py::cast(s);
                             } else {
                                 capi.ref.put_and_forget(obj);
@@ -712,7 +712,7 @@ PYBIND11_MODULE(member_client, m) {
 
                         if (subgroup_type.empty()) {
                             auto result = capi.ref.remove(key);
-                            auto s = new QueryResultsStore<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>, std::vector<long>>(std::move(result), bundle_f);
+                            auto s = new QueryResultsStore<derecho::cascade::version_tuple, std::vector<long>>(std::move(result), bundle_f);
                             return py::cast(s);
                         } else {
                             on_all_subgroup_type(subgroup_type, return remove, capi.ref, key, subgroup_index, shard_index);
@@ -1097,19 +1097,19 @@ PYBIND11_MODULE(member_client, m) {
                     "remove_object_pool",
                     [](ServiceClientAPI_PythonWrapper& capi,
                        const std::string&              object_pool_pathname) {
-                        derecho::rpc::QueryResults<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>> result =
+                        derecho::rpc::QueryResults<derecho::cascade::version_tuple> result =
                             capi.ref.remove_object_pool(object_pool_pathname);
-                        QueryResultsStore<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>, std::vector<long>>* s =
-                            new QueryResultsStore<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>, std::vector<long>>(std::move(result), bundle_f);
+                        QueryResultsStore<derecho::cascade::version_tuple, std::vector<long>>* s =
+                            new QueryResultsStore<derecho::cascade::version_tuple, std::vector<long>>(std::move(result), bundle_f);
                         return py::cast(s);
                     },
                     "Remove an Object Pool. \n"
                     "\t@arg0    object pool pathname \n"
                     "\t@return  a future of the (version,timestamp)");
 
-    py::class_<QueryResultsStore<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>, std::vector<long>>>(m, "QueryResultsStoreVerTmeStmp")
+    py::class_<QueryResultsStore<derecho::cascade::version_tuple, std::vector<long>>>(m, "QueryResultsStoreVerTmeStmp")
             .def(
-                    "get_result", [](QueryResultsStore<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>, std::vector<long>>& qrs) {
+                    "get_result", [](QueryResultsStore<derecho::cascade::version_tuple, std::vector<long>>& qrs) {
                         return qrs.get_result();
                     },
                     "Get result from QueryResultsStore for version and timestamp");
