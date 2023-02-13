@@ -61,7 +61,7 @@ void op_put(ServiceClientAPI& capi, const std::string& key, const std::string& v
     obj.previous_version = pver;
     obj.previous_version_by_key = pver_bk;
     obj.blob = Blob(reinterpret_cast<const uint8_t*>(value.c_str()), value.length());
-    derecho::rpc::QueryResults<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>> result = capi.put(obj);
+    derecho::rpc::QueryResults<derecho::cascade::version_tuple> result = capi.put(obj);
     check_put_and_remove_result(result);
 }
 
@@ -408,8 +408,7 @@ bool ChainClientContext<CascadeTypes...>::put_with_signature(const std::vector<s
         subscribed_notification_keys.emplace(signature_key);
     }
     // Step 2: Put the object into the storage pool
-    derecho::rpc::QueryResults<std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>>
-            put_result = service_client.put(obj);
+    derecho::rpc::QueryResults<derecho::cascade::version_tuple> put_result = service_client.put(obj);
     auto put_reply = put_result.get().begin()->second.get();
     std::cout << "Node " << put_result.get().begin()->first << " finished putting the object, replied with version:"
               << std::hex << std::get<0>(put_reply) << std::dec << ", ts_us:" << std::get<1>(put_reply) << std::endl;

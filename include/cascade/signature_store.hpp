@@ -67,7 +67,7 @@ private:
     /** Cascade context (off-critical-path manager) */
     ICascadeContext* cascade_context_ptr;
 
-    std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t> internal_ordered_put(const VT& value);
+    version_tuple internal_ordered_put(const VT& value);
     /**
      * Sends an external client a notification indicating that the specified
      * hash object version has reached global persistence and been signed. This
@@ -163,12 +163,12 @@ public:
 #endif  // DUMP_TIMESTAMP_WORKAROUND
 #endif  // ENABLE_EVALUATION
     virtual void trigger_put(const VT& value) const override;
-    virtual std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t> put(const VT& value) const override;
+    virtual version_tuple put(const VT& value) const override;
     virtual void put_and_forget(const VT& value) const override;
 #ifdef ENABLE_EVALUATION
     virtual double perf_put(const uint32_t max_payload_size, const uint64_t duration_sec) const override;
 #endif  // ENABLE_EVALUATION
-    virtual std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t> remove(const KT& key) const override;
+    virtual version_tuple remove(const KT& key) const override;
     /**
      * Gets the object that stores a hash of the data object matching key "key" (i.e.
      * its key has the same suffix but a different object-pool prefix), at a specific
@@ -205,9 +205,9 @@ public:
     virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, const bool stable, bool exact = false) const override;
     virtual uint64_t multi_get_size(const KT& key) const override;
     virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us, const bool stable) const override;
-    virtual std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t> ordered_put(const VT& value) override;
+    virtual version_tuple ordered_put(const VT& value) override;
     virtual void ordered_put_and_forget(const VT& value) override;
-    virtual std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t> ordered_remove(const KT& key) override;
+    virtual version_tuple ordered_remove(const KT& key) override;
     virtual const VT ordered_get(const KT& key) override;
     virtual std::vector<KT> ordered_list_keys(const std::string& prefix) override;
     virtual uint64_t ordered_get_size(const KT& key) override;
