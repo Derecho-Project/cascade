@@ -131,6 +131,7 @@ struct FuseClientContext {
         // clock_gettime(CLOCK_REALTIME, &GLOBAL_INIT_TIMESTAMP);
 
         ver = 0;
+        max_ver = 0;
         latest = true;
 
         update_interval = 15;
@@ -291,7 +292,7 @@ struct FuseClientContext {
         for(auto& reply_future : result.get()) {
             auto reply = reply_future.second.get();
             if(latest) {
-                ver = std::max(ver, reply.version);
+                max_ver = std::max(max_ver, reply.version);
             }
             Blob blob = reply.blob;
             std::vector<uint8_t> bytes(blob.bytes, blob.bytes + blob.size);

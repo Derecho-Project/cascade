@@ -39,7 +39,7 @@ BASE_PATH="/root/workspace/cascade/build-Release/src"
 export PATH="$PATH:$BASE_PATH/service"
 export PATH="$PATH:$BASE_PATH/service/fuse"
 
-FUSE_COMMAND="cascade_fuse_client"
+FUSE_COMMAND="cascade_fuse_client_hl" # "cascade_fuse_client"
 CLIENT_COMMAND="cascade_client"
 SERVER_COMMAND="cascade_server"
 LOG_FILE="node_info.log"

@@ -333,9 +333,11 @@ static int cascade_fs_getxattr(const char* path, const char* name, char* value,
         if(strcmp(name, "user.cascade.version") == 0) {
             std::string v = std::to_string(fcc()->ver);
             return set_buffer(value, size, v.c_str());
-        }
-        if(strcmp(name, "user.cascade.latest") == 0) {
+        } else if(strcmp(name, "user.cascade.latest") == 0) {
             return set_buffer(value, size, fcc()->latest ? "1" : "0");
+        } else if(strcmp(name, "user.cascade.largest_known_version") == 0) {
+            std::string v = std::to_string(fcc()->max_ver);
+            return set_buffer(value, size, v.c_str());
         }
     }
     return -ENODATA;
@@ -345,11 +347,15 @@ static int cascade_fs_listxattr(const char* path, char* list, size_t size) {
     // TODO lesson learned :(. returned 0 instead of length. check over all return types
     if(strcmp(path, ROOT) == 0) {
         // ^ 1hr+ bug
-        const char names[] = "user.cascade.version\0"
-                             "user.cascade.latest\0";
+        const char names[] = "user.cascade.largest_known_version"
+                             "\0"
+                             "user.cascade.version"
+                             "\0"
+                             "user.cascade.latest"
+                             "\0";
         // very weird behavior with \0 termination. strings and determining sizes did not work well
         // ^ 2hr+ bug
-        return set_buffer(list, size, names, 41);
+        return set_buffer(list, size, names, sizeof(names) / sizeof(names[0]) - 1);
     }
     const char empty[] = "";
     return set_buffer(list, size, empty, 0);
