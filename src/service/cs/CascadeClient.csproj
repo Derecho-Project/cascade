@@ -1,9 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
-    <AssemblyName>CascadeClientCS</AssemblyName>
-    <OutputType>Exe</OutputType>
-    <OutputPath>.</OutputPath>
+    <AssemblyName>CascadeClient</AssemblyName>
+    <OutputType>Library</OutputType>
+    <OutputPath>../../../build-Release/src/service/cs/</OutputPath>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 </Project>

@@ -5,13 +5,13 @@ namespace Derecho.Cascade
 {
     public unsafe class CascadePInvoke
     {
-        [DllImport("libcascade_client_cs.so")]
+        [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so")]
         public static extern IntPtr get_service_client_ref();
 
-        [DllImport("libcascade_client_cs.so")]
+        [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so")]
         public static extern UInt32 get_subgroup_index_vcss(IntPtr capi);
 
-        [DllImport("libcascade_client_cs.so")]
+        [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so")]
         public static extern UInt32 get_my_id(IntPtr capi);
 
         public static void Main()
