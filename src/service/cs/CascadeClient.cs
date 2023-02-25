@@ -19,6 +19,13 @@ namespace Derecho.Cascade
             public UInt64 message_id;
         }
 
+        public static string[] LEGAL_CASCADE_SUBGROUP_TYPES = 
+        {
+            "VolatileCascadeStoreWithStringKey",
+            "PersistentCascadeStoreWithStringKey",
+            "TriggerCascadeNoStoreWithStringKey"
+        }
+
         [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so")]
         public static extern ObjectProperties invoke_get_result(IntPtr results);
 
