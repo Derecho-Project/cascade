@@ -109,7 +109,7 @@ static int cascade_fs_open(const char* path, struct fuse_file_info* fi) {
     // TODO check O_ACCMODE, also check if dir ??
     auto node = fcc()->get(path);
     if(fi->flags & O_CREAT && node == nullptr) {
-        node = fcc()->tree->add_op_key(path);
+        node = fcc()->add_op_key(path);
         if(node == nullptr) {
             return -ENOTSUP;
         }
@@ -117,7 +117,7 @@ static int cascade_fs_open(const char* path, struct fuse_file_info* fi) {
     if(node == nullptr) {
         return -ENOENT;
     }
-    if(node->data.flag & OP_DIR) {
+    if(node->data.flag & DIR_FLAG) {
         return -ENOTSUP;
     }
     if(fi->flags & O_TRUNC) {
@@ -141,7 +141,7 @@ static int cascade_fs_read(const char* path, char* buf, size_t size, off_t offse
     if(node == nullptr) {
         return -ENOENT;
     }
-    if(node->data.flag & OP_DIR) {  // TODO diff error
+    if(node->data.flag & DIR_FLAG) {  // TODO diff error
         return -EACCES;
     }
     auto& bytes = node->data.bytes;
@@ -167,7 +167,7 @@ static int cascade_fs_write(const char* path, const char* buf, size_t size,
     if(node == nullptr) {
         return -ENOENT;
     }
-    if(node->data.flag & OP_DIR) {  // TODO diff error
+    if(node->data.flag & DIR_FLAG) {  // TODO diff error
         return -ENOTSUP;
     }
     auto& bytes = node->data.bytes;
@@ -195,24 +195,30 @@ static int cascade_fs_release(const char* path, struct fuse_file_info* fi) {
     if(node == nullptr) {
         return -ENOENT;
     }
-    if(node->data.flag & OP_DIR) {
+    if(node->data.flag & DIR_FLAG) {
         return -ENOTSUP;
     }
-    return fcc()->put(node);
-    return 0;
+    return fcc()->put_to_capi(node);
 }
 
 static int cascade_fs_mkdir(const char* path, mode_t mode) {
     if(fcc()->get(path)) {
         return -EEXIST;
     }
-    auto op_root = fcc()->tree->object_pool_root(path);
+    auto op_root = fcc()->nearest_object_pool_root(path);
     if(op_root == nullptr) {
+        persistent::version_t ver = fcc()->is_snapshot(path);
+        if(ver != CURRENT_VERSION && ver <= fcc()->max_ver) {
+            dbg_info(DL, "{}", ver);
+
+            fcc()->add_snapshot(ver);
+            return 0;
+        }
         return -EACCES;
     }
-    auto res = fcc()->tree->add_op_key_dir(path);
+    auto res = fcc()->add_op_key_dir(path);
     if(res) {
-        fcc()->local_dirs.insert(path);
+        fcc()->local_latest_dirs.insert(path);
         // TODO err if nullptr
     }
 
@@ -225,7 +231,7 @@ static int cascade_fs_unlink(const char* path) {
     if(node == nullptr) {
         return -ENOENT;
     }
-    if(node->data.flag & OP_DIR) {
+    if(node->data.flag & DIR_FLAG) {
         return -EISDIR;
     }
     // TODO check open
@@ -245,10 +251,10 @@ static int cascade_fs_rmdir(const char* path) {
     if(node == nullptr) {
         return -ENOENT;
     }
-    if(!(node->data.flag & OP_DIR)) {
+    if(!(node->data.flag & DIR_FLAG)) {
         return -ENOTDIR;
     }
-    if(node->data.flag & (OP_PREFIX_DIR | OP_ROOT_DIR)) {
+    if((node->data.flag & KEY_DIR) == 0) {
         return -EACCES;
     }
     if(!node->children.empty()) {
@@ -256,7 +262,7 @@ static int cascade_fs_rmdir(const char* path) {
     }
 
     // remove
-    fcc()->local_dirs.erase(path);
+    fcc()->local_latest_dirs.erase(path);
     node->parent->children.erase(node->label);
     delete node;
 
@@ -269,11 +275,11 @@ static int cascade_fs_truncate(const char* path, off_t size,
     if(node == nullptr) {
         return -ENOENT;
     }
-    if(node->data.flag & OP_DIR) {
+    if(node->data.flag & DIR_FLAG) {
         return -EINVAL;
     }
     node->data.bytes.resize(size, 0);
-    return fcc()->put(node);
+    return fcc()->put_to_capi(node);
 }
 
 int set_buffer(char* dest, size_t size, const char* src, size_t len = 0) {
@@ -304,6 +310,8 @@ static int cascade_fs_utimens(const char*, const struct timespec tv[2], struct f
 }
 
 #ifdef HAVE_SETXATTR
+
+/*
 static int cascade_fs_setxattr(const char* path, const char* name, const char* value,
                                size_t size, int flags) {
     if(flags & XATTR_CREATE) {
@@ -311,7 +319,7 @@ static int cascade_fs_setxattr(const char* path, const char* name, const char* v
     }
     dbg_info(DL, "{}, {}, {}", path, name, value);
     // TODO save into node data
-    if(strcmp(path, ROOT) == 0) {
+    if(strcmp(path, fcc()->ROOT) == 0) {
         if(!fcc()->latest && strcmp(name, "user.cascade.version") == 0) {
             fcc()->ver = strtoll(value, nullptr, 0);
             // TODO
@@ -325,17 +333,13 @@ static int cascade_fs_setxattr(const char* path, const char* name, const char* v
     }
     return -EPERM;
 }
+*/
 
 static int cascade_fs_getxattr(const char* path, const char* name, char* value,
                                size_t size) {
     // TODO need to first apt get-install attr
-    if(strcmp(path, ROOT) == 0) {
-        if(strcmp(name, "user.cascade.version") == 0) {
-            std::string v = std::to_string(fcc()->ver);
-            return set_buffer(value, size, v.c_str());
-        } else if(strcmp(name, "user.cascade.latest") == 0) {
-            return set_buffer(value, size, fcc()->latest ? "1" : "0");
-        } else if(strcmp(name, "user.cascade.largest_known_version") == 0) {
+    if(strcmp(path, fcc()->ROOT.c_str()) == 0) {
+        if(strcmp(name, "user.cascade.largest_known_version") == 0) {
             std::string v = std::to_string(fcc()->max_ver);
             return set_buffer(value, size, v.c_str());
         }
@@ -345,14 +349,14 @@ static int cascade_fs_getxattr(const char* path, const char* name, char* value,
 
 static int cascade_fs_listxattr(const char* path, char* list, size_t size) {
     // TODO lesson learned :(. returned 0 instead of length. check over all return types
-    if(strcmp(path, ROOT) == 0) {
+    if(strcmp(path, fcc()->ROOT.c_str()) == 0) {
         // ^ 1hr+ bug
         const char names[] = "user.cascade.largest_known_version"
-                             "\0"
-                             "user.cascade.version"
-                             "\0"
-                             "user.cascade.latest"
                              "\0";
+        //  "user.cascade.version"
+        //  "\0"
+        //  "user.cascade.latest"
+        //  "\0";
         // very weird behavior with \0 termination. strings and determining sizes did not work well
         // ^ 2hr+ bug
         return set_buffer(list, size, names, sizeof(names) / sizeof(names[0]) - 1);
@@ -360,6 +364,7 @@ static int cascade_fs_listxattr(const char* path, char* list, size_t size) {
     const char empty[] = "";
     return set_buffer(list, size, empty, 0);
 }
+
 #endif
 
 // TODO create_object_pool, remove_object_pool, get_object_pool, op_remove
@@ -382,7 +387,7 @@ static const struct fuse_operations cascade_fs_oper = {
         // .flush = cascade_fs_flush,
         .release = cascade_fs_release,
 #ifdef HAVE_SETXATTR
-        .setxattr = cascade_fs_setxattr,
+        // .setxattr = cascade_fs_setxattr,
         .getxattr = cascade_fs_getxattr,
         .listxattr = cascade_fs_listxattr,
 #endif

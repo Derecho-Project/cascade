@@ -131,6 +131,7 @@ struct PathTree {
     }
 
     PathTree<T>* extract(const fs::path& path) {
+        // TODO use??
         PathTree<T>* cur = get(path);
         if(cur == nullptr || cur->parent == nullptr) {
             return nullptr;
