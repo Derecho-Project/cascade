@@ -1,5 +1,5 @@
 #pragma once
-
+#include <cascade/config.h>
 #include <string>
 #include <sstream>
 #include <unordered_map>
@@ -65,6 +65,7 @@ namespace cascade {
  * or just one of the members. Cascade will randomly pick one of the node using key hash and node's rank in the shard.
  * This option is only relevant to put operation and does not apply to trigger put operation. The default value is "one".
  * 3) The MANDATORY "user_defined_logic_list" attribute gives a list of UDLs that should be registered for this vertex.
+ * The UDL uuid can repeat because we allow a UDL to be configured differently (and behave differently).
  * 4) The OPTIONAL "user_defined_logic_stateful_list" atrribute defines that a UDL is registered as stateless, stateful,
  * or single-threaded. A stateful UDL has to always use the same thread to handle the same key; while a stateless UDL can
  * use different threads to handle the messgaes of the same key; which a single-threaded UDL will be handled by one
@@ -73,7 +74,7 @@ namespace cascade {
  * 5) The OPTIONAL "user_defined_logic_hook_list" attribute defines on which hook(s) the UDLs will be triggered. It can be
  * "trigger", "ordered", or  "both". "trigger" means the corresponding UDL is only triggered by trigger_put;
  * "ordered" means that the corresponding UDL is only triggered by ordered_put; "both" means the corresponding UDL is
- * triggered by both trigger_put and ordered_put.
+ * triggered by both trigger_put and ordered_put. The default setting is "both".
  * 6) The OPTIONAL "user_defined_logic_config_list" is for a list of the json configurations for all UDLs listed in
  * "user_Defined_logic_list".
  * 7) The "destinations" attribute lists the vertices where the output of UDLs should go. Each element of the 
@@ -125,54 +126,43 @@ public:
     // to its vertex structure.
     struct DataFlowGraphVertex {
         std::string pathname;
+        // user defined logics
+        std::vector<std::string> uuids;
         // The optional shard dispatcher configuration
-        // uuid->shard_dispatcher
-        std::unordered_map<std::string,VertexShardDispatcher> shard_dispatchers;
-        // uuid->stateful
-        std::unordered_map<std::string,Statefulness> stateful;
-        // uuid->hook
-        std::unordered_map<std::string,VertexHook> hooks;
+        // shard_dispatchers
+        std::vector<VertexShardDispatcher> shard_dispatchers;
+#ifdef HAS_STATEFUL_UDL_SUPPORT
+        // stateful
+        std::vector<Statefulness> stateful;
+#endif
+        // hooks
+        std::vector<VertexHook> hooks;
         // The optional initialization string for each UUID
-        std::unordered_map<std::string,json> configurations;
-        // The edges is a map from UDL uuid string to a vector of destiation vertex pathnames.
-        // An entry "udl_uuid->[pool1:true,pool2:false,pool3:false]" means three edges from the current vertex to three destination
-        // vertices pool1, pool2, and pool3. The input data is processed by UDL specified by udl_uuid.
-        std::unordered_map<std::string,std::unordered_map<std::string,bool>> edges;
+        std::vector<json> configurations;
+        // An entry "[pool1:true,pool2:false,pool3:false]" means three edges from the current vertex to three destination
+        // vertices pool1, pool2, and pool3. The input data is processed by the corresponding UDL.
+        std::vector<std::unordered_map<std::string,bool>> edges;
         // to string
-        inline std::string to_string() const {
+        inline std::string to_string(const std::string& indent="") const {
             std::ostringstream out;
-            out << typeid(*this).name() << ":" << pathname << ", "
+            out << indent << typeid(*this).name() << ":" << pathname << ", "
                 << " {\n";
-            for (auto& sd: shard_dispatchers) {
-                out << "\t-{udl:" << sd.first << "} uses shard dispatcher:" << sd.second << "\n";
-            }
-            for (auto& st: stateful) {
-                out << "\t-{udl:" << st.first << "} is ";
-                switch (st.second) {
-                case STATEFUL:
-                    out << "stateful";
-                    break;
-                case STATELESS:
-                    out << "stateless";
-                    break;
-                case SINGLETHREADED:
-                    out << "singlethreaded";
-                    break;
+            for (uint32_t i=0;i<uuids.size();i++) {
+                out << indent << "\t{\n";
+                out << indent << "\t\tuuid:" << uuids[i] << "\n";
+                out << indent << "\t\tdispatcher:" << shard_dispatchers[i] << "\n";
+#ifdef HAS_STATEFUL_UDL_SUPPORT
+                out << indent << "\t\tstateful:" << stateful[i] << "\n";
+#endif
+                out << indent << "\t\thook:" << hooks[i] << "\n";
+                out << indent << "\t\tconfiguration:" << configurations[i] << "\n";
+                out << indent << "\t\tedges:" << "\n";
+                for (auto& pool:edges[i]) {
+                    out << indent << "\t\t\t-" << (pool.second?'*':'-') << "->" << pool.first << "\n";
                 }
-                out << "\n";
+                out << indent << "\t}\n";
             }
-            for (auto& vk: hooks) {
-                out << "\t-{udl:" << vk.first << "} is registered on hook:" << vk.second << "\n";
-            }
-            for (auto& c: configurations) {
-                out << "\t-{udl:" << c.first << "} is configured with \"" << c.second << "\"\n";
-            }
-            for (auto& e:edges) {
-                for (auto& pool:e.second){
-                    out << "\t-[udl:" << e.first << "]-" << (pool.second?'*':'-') << "->" << pool.first <<"\n";
-                }
-            }
-            out << "}";
+            out << indent << "}";
             return out.str();
         }
     };
@@ -192,7 +182,6 @@ public:
      * Destructor
      */
     virtual ~DataFlowGraph();
-
     /**
      * Load the data flow graph from the default DFG configuration file, which contains a list of DFG jsons.
      */

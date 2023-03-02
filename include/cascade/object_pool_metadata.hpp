@@ -1,4 +1,5 @@
 #pragma once
+#include <hs/hs.h>
 #include "object.hpp"
 #include "utils.hpp"
 
@@ -21,6 +22,11 @@ using sharding_policy_t = enum sharding_policy_type {
  * - "/Aa/"
  * - "/Bb/Cc/"
  * Please note that an empty string "" is allowed to represent an invalid Metadata object.
+ *
+ * Important: Affinity Set Mechanism
+ * The affinity set is a mechanism that groups objects together. When we put/get an object, we use affinity set regex
+ * to match a string, which we called the 'affinity set' string; then we use this string as input of sharding policy.
+ * If no matching string is found, the original object key is used as the input of sharding policy.
  */
 template<typename... CascadeTypes>
 class ObjectPoolMetadata : public mutils::ByteRepresentable
@@ -45,6 +51,7 @@ public:
     uint32_t                                    subgroup_index; // index of the subgroup of type subgroup_type_order[subgroup_type_index]
     sharding_policy_t                           sharding_policy; // the default sharding policy
     std::unordered_map<std::string,uint32_t>    object_locations; // the list of shards where a corresponding key is stored.
+    std::string                                 affinity_set_regex; // the regex to extract the affinity set string
     bool                                        deleted; // is deleted
 
     // serialization support
@@ -61,6 +68,7 @@ public:
                                   subgroup_index,
                                   sharding_policy,
                                   object_locations,
+                                  affinity_set_regex,
                                   deleted);
 
     // constructor 0: default
@@ -77,6 +85,7 @@ public:
         subgroup_index(0),
         sharding_policy(HASH),
         object_locations(),
+        affinity_set_regex(""),
         deleted(false) {}
 
     // constructor 1:
@@ -93,6 +102,7 @@ public:
                        uint32_t _subgroup_index,
                        sharding_policy_t _sharding_policy,
                        const std::unordered_map<std::string,uint32_t>& _object_locations,
+                       const std::string& _affinity_set_regex,
                        bool _deleted):
 #ifdef ENABLE_EVALUATION
         message_id(_message_id),
@@ -106,6 +116,7 @@ public:
         subgroup_index(_subgroup_index),
         sharding_policy(_sharding_policy),
         object_locations(_object_locations),
+        affinity_set_regex(_affinity_set_regex),
         deleted(_deleted) {
             if (!check_pathname_format(_pathname)) {
                 throw derecho::derecho_exception("Invalid object pool pathname:" + _pathname);
@@ -117,6 +128,7 @@ public:
                        uint32_t _subgroup_index,
                        sharding_policy_t _sharding_policy,
                        const std::unordered_map<std::string,uint32_t>& _object_locations,
+                       const std::string& _affinity_set_regex,
                        bool _deleted):
 #ifdef ENABLE_EVALUATION
         message_id(0),
@@ -130,6 +142,7 @@ public:
         subgroup_index(_subgroup_index),
         sharding_policy(_sharding_policy),
         object_locations(_object_locations),
+        affinity_set_regex(_affinity_set_regex),
         deleted(_deleted) {
             if (!check_pathname_format(_pathname)) {
                 throw derecho::derecho_exception("Invalid object pool pathname:" + _pathname);
@@ -150,6 +163,7 @@ public:
         subgroup_index(other.subgroup_index),
         sharding_policy(other.sharding_policy),
         object_locations(other.object_locations),
+        affinity_set_regex(other.affinity_set_regex),
         deleted(other.deleted) {}
 
     // constructor 3: move constructor
@@ -166,6 +180,7 @@ public:
         subgroup_index(other.subgroup_index),
         sharding_policy(other.sharding_policy),
         object_locations(std::move(other.object_locations)),
+        affinity_set_regex(other.affinity_set_regex),
         deleted(other.deleted) {}
 
     void operator = (const ObjectPoolMetadata& other) {
@@ -181,6 +196,7 @@ public:
         this->subgroup_index = other.subgroup_index;
         this->sharding_policy = other.sharding_policy;
         this->object_locations = other.object_locations;
+        this->affinity_set_regex = other.affinity_set_regex;
         this->deleted = other.deleted;
     }
 
@@ -258,13 +274,14 @@ public:
      *
      * @tparam KeyType type of the key.
      * @param  key
+     * @param  affinity_set
      * @param  num_shards
      * @param  check_object_locations - By default, we check the object location maps. In most cases, we can accelerate
      *                                  process by disabling it by setting it to false.
      * @return shard index.
      */
     template<typename KeyType>
-    inline uint32_t key_to_shard_index(const KeyType& key, uint32_t num_shards, bool check_object_locations = true) const {
+    inline uint32_t key_to_shard_index(const KeyType& key, const KeyType& affinity_set, uint32_t num_shards, bool check_object_locations = true) const {
         if constexpr (std::is_convertible_v<KeyType,std::string>) {
             if (check_object_locations) {
                 if (this->object_locations.find(key) != object_locations.end()) {
@@ -274,7 +291,11 @@ public:
             uint32_t shard_index = 0;
             switch (sharding_policy) {
             case HASH:
-                shard_index = std::hash<std::string>{}(key) % num_shards;
+                if (static_cast<std::string>(affinity_set).length() > 0) {
+                    shard_index = std::hash<std::string>{}(affinity_set) % num_shards;
+                } else {
+                    shard_index = std::hash<std::string>{}(key) % num_shards;
+                }
                 break;
             default:
                 throw derecho::derecho_exception(std::string("Unknown sharding_policy:") + std::to_string(sharding_policy));
@@ -329,6 +350,7 @@ ObjectPoolMetadata<CascadeTypes...> ObjectPoolMetadata<CascadeTypes...>::IV(
         0,                           // subgroup_index
         HASH,                        // HASH
         {},                          // object_locations
+        "",                          // affinity set regex
         false);                      // deleted
 
 template<typename... CascadeTypes>
@@ -374,6 +396,7 @@ inline std::ostream& operator<<(std::ostream& out, const ObjectPoolMetadata<Casc
             "\tsubgroup_index:" << std::to_string(opm.subgroup_index) << "\n" <<
             "\tsharding_policy:" << std::to_string(opm.sharding_policy) <<"\n" <<
             "\tobject_locations:[hidden]" << "\n" <<
+            "\taffinity_set_regex:" << opm.affinity_set_regex << "\n" <<
             "\tis_deleted:" << std::to_string(opm.deleted) <<
             std::endl;
     }

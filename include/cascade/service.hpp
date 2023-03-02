@@ -314,7 +314,7 @@ namespace cascade {
         Random,         // use a random member in the shard for each operations(put/remove/get/get_by_time).
         FixedRandom,    // use a random member and stick to that for the following operations.
         RoundRobin,     // use a member in round-robin order.
-        KeyHashing,     // use the key's hashing 
+        KeyHashing,     // use the key's hashing
         UserSpecified,  // user specify which member to contact.
         InvalidPolicy = -1
     };
@@ -459,10 +459,41 @@ namespace cascade {
         /**
          * 'object_pool_info_cache' is a local cache for object pool metadata. This cache is used to accelerate the
          * object access process. If an object pool does not exists, it will be loaded from metadata service.
+         *
+         * Each entry of the object_pool_info_cache is an object of type ObjectPoolMetadataCacheEntry. Such an object
+         * caches an object pool metadata object (opm) along with the affinity set regex processing data structures.
          */
+        class ObjectPoolMetadataCacheEntry {
+        public:
+            ObjectPoolMetadata<CascadeTypes...> opm;
+            /**
+             * The constructor
+             * @param _opm object pool metadata
+             */
+            ObjectPoolMetadataCacheEntry(const ObjectPoolMetadata<CascadeTypes...>& _opm);
+
+            /**
+             * The destructor
+             */
+            virtual ~ObjectPoolMetadataCacheEntry();
+
+            /**
+             * Convert a key string to corresponding affinity set string.
+             * @param key_string
+             *
+             * @return affinity set string
+             */
+            inline std::string to_affinity_set(const std::string& key_string);
+        private:
+            /* the database storing compiled regex */
+            hs_database_t*                      database;
+            /* the scratch for the regex */
+            thread_local static hs_scratch_t*   scratch;
+        };
+
         std::unordered_map<
             std::string,
-            ObjectPoolMetadata<CascadeTypes...>> object_pool_metadata_cache;
+            ObjectPoolMetadataCacheEntry> object_pool_metadata_cache;
         mutable std::shared_mutex object_pool_metadata_cache_mutex;
 
         /**
@@ -503,16 +534,16 @@ namespace cascade {
         std::tuple<uint32_t,uint32_t,uint32_t> key_to_shard(
                 const KeyType& key, bool check_object_location = true);
 
-    public:
         /**
          * The Constructor
-         * We prevent calling the constructor explicitely, because the ServiceClient is a singleton.
+         * We prevent calling the constructor explicitly, because the ServiceClient is a singleton.
          * @param _group_ptr The caller can pass a pointer pointing to a derecho group object. If the pointer is
          *                   valid, the implementation will reply on the group object instead of creating an external
          *                   client to communicate with group members.
          */
         ServiceClient(derecho::Group<CascadeMetadataService<CascadeTypes...>, CascadeTypes...>* _group_ptr=nullptr);
 
+    public:
         /**
          * ServiceClient can be an external client or a cascade server. is_external_client() test this condition.
          * The external client implementation is based on ExternalGroupClient<> while the cascade node implementation is
@@ -624,7 +655,7 @@ namespace cascade {
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
          */
         template <typename SubgroupType>
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> put(const typename SubgroupType::ObjectType& object,
+        derecho::rpc::QueryResults<version_tuple> put(const typename SubgroupType::ObjectType& object,
                 uint32_t subgroup_index, uint32_t shard_index);
         /**
          * "type_recursive_put" is a helper function for internal use only.
@@ -638,14 +669,14 @@ namespace cascade {
          */
     protected:
         template <typename ObjectType, typename FirstType, typename SecondType, typename... RestTypes>
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> type_recursive_put(
+        derecho::rpc::QueryResults<version_tuple> type_recursive_put(
                 uint32_t type_index,
                 const ObjectType& object,
                 uint32_t subgroup_index,
                 uint32_t shard_index);
 
         template <typename ObjectType, typename LastType>
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> type_recursive_put(
+        derecho::rpc::QueryResults<version_tuple> type_recursive_put(
                 uint32_t type_index,
                 const ObjectType& object,
                 uint32_t subgroup_index,
@@ -658,7 +689,7 @@ namespace cascade {
          * @return a future to the version and timestamp of the put operation.
          */
         template <typename ObjectType>
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> put(const ObjectType& object);
+        derecho::rpc::QueryResults<version_tuple> put(const ObjectType& object);
 
         /**
          * "put_and_forget" writes an object to a given subgroup/shard, but no return value.
@@ -782,7 +813,7 @@ namespace cascade {
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
          */
         template <typename SubgroupType>
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> remove(const typename SubgroupType::KeyType& key,
+        derecho::rpc::QueryResults<version_tuple> remove(const typename SubgroupType::KeyType& key,
                 uint32_t subgroup_index, uint32_t shard_index);
 
         /**
@@ -797,14 +828,14 @@ namespace cascade {
          */
     protected:
         template <typename KeyType, typename FirstType, typename SecondType, typename... RestTypes>
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> type_recursive_remove(
+        derecho::rpc::QueryResults<version_tuple> type_recursive_remove(
                 uint32_t type_index,
                 const KeyType& key,
                 uint32_t subgroup_index,
                 uint32_t shard_index);
 
         template <typename KeyType, typename LastType>
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> type_recursive_remove(
+        derecho::rpc::QueryResults<version_tuple> type_recursive_remove(
                 uint32_t type_index,
                 const KeyType& key,
                 uint32_t subgroup_index,
@@ -814,7 +845,7 @@ namespace cascade {
          * object pool version
          */
         template <typename KeyType>
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> remove(const KeyType& key);
+        derecho::rpc::QueryResults<version_tuple> remove(const KeyType& key);
 
         /**
          * "get" retrieve the object of a given key
@@ -1285,13 +1316,17 @@ namespace cascade {
          * @param  subgroup_index   Index of the subgroup
          * @param  sharding_policy  The default sharding policy for this object pool
          * @param  object_locations The set of special object locations.
+         * @param  affinity_set_regex
+         *                          The affinity set regex.
          *
          * @return a future to the version and timestamp of the put operation.
          */
         template <typename SubgroupType>
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> create_object_pool(
+        derecho::rpc::QueryResults<version_tuple> create_object_pool(
                 const std::string& pathname, const uint32_t subgroup_index,
-                const sharding_policy_t sharding_policy = HASH, const std::unordered_map<std::string,uint32_t>& object_locations = {});
+                const sharding_policy_t sharding_policy = HASH,
+                const std::unordered_map<std::string,uint32_t>& object_locations = {},
+                const std::string& affinity_set_regex = "");
 
         /**
          * ObjectPoolManagement API: remote object pool
@@ -1300,8 +1335,19 @@ namespace cascade {
          *
          * @return a future to the version and timestamp of the put operation.
          */
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> remove_object_pool(const std::string& pathname);
-
+        derecho::rpc::QueryResults<version_tuple> remove_object_pool(const std::string& pathname);
+    private:
+        /**
+         * ObjectPoolManagement API: find object pool
+         *
+         * @param  pathname         Object pool pathname
+         * @param  rlck             shared lock, which needs to be hold.
+         *
+         * @return the object pool metadata
+         */
+        ObjectPoolMetadata<CascadeTypes...> internal_find_object_pool(const std::string& pathname,
+                                                                      std::shared_lock<std::shared_mutex>& rlck);
+    public:
         /**
          * ObjectPoolManagement API: find object pool
          *
@@ -1312,13 +1358,25 @@ namespace cascade {
         ObjectPoolMetadata<CascadeTypes...> find_object_pool(const std::string& pathname);
 
         /**
+         * ObjectPoolManagement API: find object pool and affinity_set from key
+         *
+         * @param  key              The key of an object.
+         *
+         * @return the object pool metadata along with the affinity set string
+         */
+        template <typename KeyType>
+        std::pair<ObjectPoolMetadata<CascadeTypes...>,std::string>
+            find_object_pool_and_affinity_set_by_key(const KeyType& key);
+
+        /**
          * ObjectPoolManagement API: list all the object pools by pathnames
          *
+         * @param include_deleted   show deleted pools with an exclaimation point(!).
          * @param refresh           false for cached object ids, true for refreshed ids.
          *
          * @return the pool ids.
          */
-        std::vector<std::string> list_object_pools(bool refresh = false);
+        std::vector<std::string> list_object_pools(bool include_deleted, bool refresh = false);
 
         /**
          * Register an notification handler to a subgroup. If such a handler has been registered, it will be replaced
@@ -1446,7 +1504,7 @@ namespace cascade {
     protected:
         template <typename FirstType, typename SecondType, typename... RestTypes>
         void type_recursive_dump(uint32_t type_index, uint32_t subgroup_index, const std::string& filename);
-        
+
         template <typename LastType>
         void type_recursive_dump(uint32_t type_index, uint32_t subgroup_index, const std::string& filename);
 
@@ -1552,10 +1610,9 @@ namespace cascade {
      * 2 - a prefix registry.
      * 3 - a bounded Action buffer.
      */
-    using prefix_entry_t =
-                std::unordered_map<
-                    std::string, // udl_id
-                    std::tuple<
+    using prefix_ocdpo_info_t = std::tuple<
+                        std::string,                                  // udl_id
+                        std::string,                                  // config string
                         DataFlowGraph::VertexShardDispatcher,         // shard dispatcher
 #ifdef HAS_STATEFUL_UDL_SUPPORT
                         DataFlowGraph::Statefulness,                  // is stateful/stateless/singlethreaded
@@ -1563,8 +1620,25 @@ namespace cascade {
                         DataFlowGraph::VertexHook,                    // hook
                         std::shared_ptr<OffCriticalDataPathObserver>, // ocdpo
                         std::unordered_map<std::string,bool>          // output map{prefix->bool}
-                    >
-                >;
+                    >;
+
+    struct PrefixOCDPOInfoHash {
+        inline size_t operator() (const prefix_ocdpo_info_t& info) const {
+            return std::hash<std::string>{}(std::get<0>(info) + std::get<1>(info));
+        }
+    };
+
+    struct PrefixOCDPOInfoCompare {
+        inline bool operator() (const prefix_ocdpo_info_t& l, const prefix_ocdpo_info_t& r) const {
+            return (std::get<0>(l) == std::get<0>(r)) && (std::get<1>(l) == std::get<1>(r));
+        }
+    };
+
+    using prefix_ocdpo_info_set_t = std::unordered_set<prefix_ocdpo_info_t,PrefixOCDPOInfoHash,PrefixOCDPOInfoCompare>;
+    using prefix_entry_t = std::unordered_map<
+                                std::string, // dfg_id
+                                prefix_ocdpo_info_set_t
+                           >;
     using match_results_t = std::unordered_map<std::string,prefix_entry_t>;
     template <typename... CascadeTypes>
     class CascadeContext: public ICascadeContext {
@@ -1688,35 +1762,37 @@ namespace cascade {
          */
 
         /**
-         * Register a set of prefixes
+         * Register a ocdpo of a given application designated by dfg uuid to a set of prefixes
          *
+         * @param dfg_uuid              - the dfg uuid
          * @param prefixes              - the prefixes set
          * @param user_defined_logic_hook
          *                              - the hook for this ocdpo
          * @param shard_dispatcher      - the shard dispatcher
          * @param user_defined_logic_id - the UDL id, presumably an UUID string
+         * @param user_defined_logic_config
+         *                              - the UDL configuration.
          * @param ocdpo_ptr             - the data path observer
          * @param outputs               - the outputs are a map from another prefix to put type (true for trigger put,
          *                                false for put).
          */
-        virtual void register_prefixes(const std::unordered_set<std::string>& prefixes,
+        virtual void register_prefixes(const std::string& dfg_uuid,
+                                       const std::unordered_set<std::string>& prefixes,
                                        const DataFlowGraph::VertexShardDispatcher shard_dispatcher,
 #ifdef HAS_STATEFUL_UDL_SUPPORT
                                        const DataFlowGraph::Statefulness stateful,
 #endif
                                        const DataFlowGraph::VertexHook hook,
                                        const std::string& user_defined_logic_id,
+                                       const std::string& user_defined_logic_config,
                                        const std::shared_ptr<OffCriticalDataPathObserver>& ocdpo_ptr,
                                        const std::unordered_map<std::string,bool>& outputs);
         /**
-         * Unregister a set of prefixes
+         * Unregister all prefixes of an application
          *
-         * @param prefixes              - the prefixes set
-         * @param user_defined_logic_id - the UDL id, presumably an UUID string
-         * @param ocdpo_ptr             - the data path observer
+         * @param dfg_uuid              - the uuid of the dfg
          */
-        virtual void unregister_prefixes(const std::unordered_set<std::string>& prefixes,
-                                         const std::string& user_defined_logic_id);
+        virtual void unregister_prefixes(const std::string& dfg_uuid);
         /**
          * Get the prefix handlers registered for a prefix
          *
@@ -1725,6 +1801,7 @@ namespace cascade {
          * @return the unordered map of observers registered to this prefix.
          */
         virtual match_results_t get_prefix_handlers(const std::string& prefix);
+
         /**
          * post an action to the Context for processing.
          *

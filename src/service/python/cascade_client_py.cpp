@@ -114,7 +114,7 @@ public:
 
     /**
         Return result for python side.
-        @return 
+        @return
     */
     std::optional<K> get_result() {
         for(auto& reply_future : result.get()) {
@@ -169,9 +169,9 @@ static void print_red(std::string msg) {
 */
 template <typename SubgroupType>
 auto put(ServiceClientAPI& capi, const typename SubgroupType::ObjectType& obj, uint32_t subgroup_index = UINT32_MAX, uint32_t shard_index = 0) {
-    derecho::rpc::QueryResults<std::tuple<persistent::version_t, uint64_t>> result = (subgroup_index == UINT32_MAX) ? capi.put(obj) : capi.template put<SubgroupType>(obj, subgroup_index, shard_index);
+    derecho::rpc::QueryResults<derecho::cascade::version_tuple> result = (subgroup_index == UINT32_MAX) ? capi.put(obj) : capi.template put<SubgroupType>(obj, subgroup_index, shard_index);
 
-    QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>* s = new QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>(std::move(result), bundle_f);
+    QueryResultsStore<derecho::cascade::version_tuple, std::vector<long>>* s = new QueryResultsStore<derecho::cascade::version_tuple, std::vector<long>>(std::move(result), bundle_f);
     return py::cast(s);
 }
 
@@ -219,20 +219,20 @@ void trigger_put(ServiceClientAPI& capi, const typename SubgroupType::ObjectType
 
     @param capi the service client API for this client.
     @param key key to remove value from
-    @param subgroup_index 
+    @param subgroup_index
     @param shard_index
     @return QueryResultsStore that handles the tuple of version and ts_us.
 */
 template <typename SubgroupType>
 auto remove(ServiceClientAPI& capi, std::string& key, uint32_t subgroup_index = UINT32_MAX, uint32_t shard_index = 0) {
     if constexpr(std::is_integral<typename SubgroupType::KeyType>::value) {
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t, uint64_t>> result = std::move(capi.template remove<SubgroupType>(static_cast<uint64_t>(std::stol(key)), subgroup_index, shard_index));
-        QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>* s = new QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>(std::move(result), bundle_f);
+        derecho::rpc::QueryResults<derecho::cascade::version_tuple> result = std::move(capi.template remove<SubgroupType>(static_cast<uint64_t>(std::stol(key)), subgroup_index, shard_index));
+        QueryResultsStore<derecho::cascade::version_tuple, std::vector<long>>* s = new QueryResultsStore<derecho::cascade::version_tuple, std::vector<long>>(std::move(result), bundle_f);
         return py::cast(s);
 
     } else if constexpr(std::is_convertible<typename SubgroupType::KeyType, std::string>::value) {
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t, uint64_t>> result = (subgroup_index == UINT32_MAX) ? capi.remove(key) : capi.template remove<SubgroupType>(key, subgroup_index, shard_index);
-        QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>* s = new QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>(std::move(result), bundle_f);
+        derecho::rpc::QueryResults<derecho::cascade::version_tuple> result = (subgroup_index == UINT32_MAX) ? capi.remove(key) : capi.template remove<SubgroupType>(key, subgroup_index, shard_index);
+        QueryResultsStore<derecho::cascade::version_tuple, std::vector<long>>* s = new QueryResultsStore<derecho::cascade::version_tuple, std::vector<long>>(std::move(result), bundle_f);
         return py::cast(s);
 
     } else {
@@ -253,7 +253,7 @@ auto remove(ServiceClientAPI& capi, std::string& key, uint32_t subgroup_index = 
     @param key key to remove value from
     @param ver version of the object you want to get.
     @param stable using stable get or not.
-    @param subgroup_index 
+    @param subgroup_index
     @param shard_index
     @return QueryResultsStore that handles the return type.
 */
@@ -269,7 +269,7 @@ auto get(ServiceClientAPI& capi, const std::string& key, persistent::version_t v
     Get objects from cascade store using multi_get.
     @param capi the service client API for this client.
     @param key key to remove value from
-    @param subgroup_index 
+    @param subgroup_index
     @param shard_index
     @return QueryResultsStore that handles the return type.
 */
@@ -286,7 +286,7 @@ auto multi_get(ServiceClientAPI& capi, const std::string& key, uint32_t subgroup
     @param key key to remove value from
     @param ver version of the object you want to get.
     @param stable using stable get or not.
-    @param subgroup_index 
+    @param subgroup_index
     @param shard_index
     @return QueryResultsStore that handles the return type.
 */
@@ -302,7 +302,7 @@ auto get_size(ServiceClientAPI& capi, const std::string& key, persistent::versio
     Get objects from cascade store using multi_get_size.
     @param capi the service client API for this client.
     @param key key to remove value from
-    @param subgroup_index 
+    @param subgroup_index
     @param shard_index
     @return QueryResultsStore that handles the return type.
 */
@@ -318,7 +318,7 @@ auto multi_get_size(ServiceClientAPI& capi, const std::string& key, uint32_t sub
     @param capi the service client API for this client.
     @param key key to remove value from
     @param ts_us timestamp of the object you want to get.
-    @param subgroup_index 
+    @param subgroup_index
     @param shard_index
     @return QueryResultsStore that handles the return type.
 */
@@ -363,12 +363,14 @@ auto multi_list_keys(ServiceClientAPI& capi, uint32_t subgroup_index = 0, uint32
  * @param   capi
  * @param   object_pool_pathname
  * @param   subgroup_index
+ * @param   affinity_set_regex, default to empty string
  * @return  QueryResultsStore that handles the return type
 */
 template <typename SubgroupType>
-auto create_object_pool(ServiceClientAPI& capi, const std::string& object_pool_pathname, uint32_t subgroup_index) {
-    derecho::rpc::QueryResults<std::tuple<persistent::version_t, uint64_t>> result = capi.template create_object_pool<SubgroupType>(object_pool_pathname, subgroup_index);
-    QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>* s = new QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>(std::move(result), bundle_f);
+auto create_object_pool(ServiceClientAPI& capi, const std::string& object_pool_pathname, uint32_t subgroup_index, const std::string& affinity_set_regex="") {
+    derecho::rpc::QueryResults<derecho::cascade::version_tuple> result =
+        capi.template create_object_pool<SubgroupType>(object_pool_pathname, subgroup_index, sharding_policy_t::HASH, {}, affinity_set_regex);
+    QueryResultsStore<derecho::cascade::version_tuple, std::vector<long>>* s = new QueryResultsStore<derecho::cascade::version_tuple, std::vector<long>>(std::move(result), bundle_f);
     return py::cast(s);
 }
 
@@ -379,7 +381,7 @@ auto create_object_pool(ServiceClientAPI& capi, const std::string& object_pool_p
  */
 auto list_object_pools(ServiceClientAPI& capi) {
     py::list ops;
-    for(std::string& opp : capi.list_object_pools(true)) {
+    for(std::string& opp : capi.list_object_pools(true,true)) {
         ops.append(opp);
     }
     return ops;
@@ -407,6 +409,7 @@ auto get_object_pool(ServiceClientAPI& capi, const std::string& object_pool_path
         object_locations[py::str(kv.first)] = kv.second;
     }
     opm["object_locations"] = object_locations;
+    opm["affinity_set_regex"] = py::str(copm.affinity_set_regex);
     opm["deleted"] = py::bool_(copm.deleted);
     return opm;
 }
@@ -453,7 +456,7 @@ PYBIND11_MODULE(member_client, m) {
                     },
                     "Get my node id. \n"
                     "\t@return my node id."
-                ) 
+                )
             .def(
                     "get_members",
                     [](ServiceClientAPI_PythonWrapper& capi) {
@@ -486,7 +489,7 @@ PYBIND11_MODULE(member_client, m) {
                     "\t@return  a list of shard members, which is a list of node ids"
                 )
             .def(
-                    "get_shard_members", 
+                    "get_shard_members",
                     [](ServiceClientAPI_PythonWrapper& capi, std::string service_type, uint32_t subgroup_index, uint32_t shard_index) {
                         std::vector<node_id_t> members;
                         on_all_subgroup_type(service_type, members = capi.ref.template get_shard_members, subgroup_index, shard_index);
@@ -653,7 +656,7 @@ PYBIND11_MODULE(member_client, m) {
                                 capi.ref.trigger_put(obj);
                             } else if (blocking) {
                                 auto result = capi.ref.put(obj);
-                                auto s = new QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>(std::move(result), bundle_f);
+                                auto s = new QueryResultsStore<derecho::cascade::version_tuple, std::vector<long>>(std::move(result), bundle_f);
                                 return py::cast(s);
                             } else {
                                 capi.ref.put_and_forget(obj);
@@ -707,7 +710,7 @@ PYBIND11_MODULE(member_client, m) {
 
                         if (subgroup_type.empty()) {
                             auto result = capi.ref.remove(key);
-                            auto s = new QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>(std::move(result), bundle_f);
+                            auto s = new QueryResultsStore<derecho::cascade::version_tuple, std::vector<long>>(std::move(result), bundle_f);
                             return py::cast(s);
                         } else {
                             on_all_subgroup_type(subgroup_type, return remove, capi.ref, key, subgroup_index, shard_index);
@@ -1049,9 +1052,17 @@ PYBIND11_MODULE(member_client, m) {
                     "\t@return  the list of keys."
             )
             .def(
-                    "create_object_pool", 
-                    [](ServiceClientAPI_PythonWrapper& capi, const std::string& object_pool_pathname, const std::string& service_type, uint32_t subgroup_index) {
-                        on_all_subgroup_type(service_type, return create_object_pool, capi.ref, object_pool_pathname, subgroup_index);
+                    "create_object_pool",
+                    [](ServiceClientAPI_PythonWrapper&  capi,
+                       const std::string&               object_pool_pathname,
+                       const std::string&               service_type,
+                       uint32_t                         subgroup_index,
+                       py::kwargs                       kwargs) {
+                        std::string affinity_set_regex = "";
+                        if (kwargs.contains("affinity_set_regex")) {
+                            affinity_set_regex = kwargs["affinity_set_regex"].cast<std::string>();
+                        }
+                        on_all_subgroup_type(service_type, return create_object_pool, capi.ref, object_pool_pathname, subgroup_index, affinity_set_regex);
                         return py::cast(NULL);
                     },
                     "Create an Object Pool. \n"
@@ -1061,6 +1072,8 @@ PYBIND11_MODULE(member_client, m) {
                     "\t         PersistentCascadeStoreWithStringKey | \n"
                     "\t         TriggerCascadeNoStoreWithStringKey \n"
                     "\t@arg2    subgroup_index \n"
+                    "\t** Optional keyword argument: ** \n"
+                    "\t@argX    affinity_set_regex \n"
                     "\t@return  a future of the (version,timestamp)"
             )
             .def(
@@ -1077,11 +1090,24 @@ PYBIND11_MODULE(member_client, m) {
                     },
                     "Get an object pool by pathname. \n"
                     "\t@arg0    object pool pathname \n"
-                    "\t@return  object pool details.");
-
-    py::class_<QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>>(m, "QueryResultsStoreVerTmeStmp")
+                    "\t@return  object pool details.")
             .def(
-                    "get_result", [](QueryResultsStore<std::tuple<persistent::version_t, uint64_t>, std::vector<long>>& qrs) {
+                    "remove_object_pool",
+                    [](ServiceClientAPI_PythonWrapper& capi,
+                       const std::string&              object_pool_pathname) {
+                        derecho::rpc::QueryResults<derecho::cascade::version_tuple> result =
+                            capi.ref.remove_object_pool(object_pool_pathname);
+                        QueryResultsStore<derecho::cascade::version_tuple, std::vector<long>>* s =
+                            new QueryResultsStore<derecho::cascade::version_tuple, std::vector<long>>(std::move(result), bundle_f);
+                        return py::cast(s);
+                    },
+                    "Remove an Object Pool. \n"
+                    "\t@arg0    object pool pathname \n"
+                    "\t@return  a future of the (version,timestamp)");
+
+    py::class_<QueryResultsStore<derecho::cascade::version_tuple, std::vector<long>>>(m, "QueryResultsStoreVerTmeStmp")
+            .def(
+                    "get_result", [](QueryResultsStore<derecho::cascade::version_tuple, std::vector<long>>& qrs) {
                         return qrs.get_result();
                     },
                     "Get result from QueryResultsStore for version and timestamp");

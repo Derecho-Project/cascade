@@ -536,12 +536,33 @@ public:
         dbg_default_trace("[{}]leaving {}.", gettid(), __func__);
     }
 
+    virtual uint64_t read_file(FileBytes* _file_bytes) override {
+        dbg_default_trace("[{}]entering {}.", gettid(), __func__);
+        check_update();
+        _file_bytes->size = this->file_bytes.get()->size;
+        _file_bytes->bytes = static_cast<uint8_t*>(malloc(this->file_bytes.get()->size));
+        memcpy(_file_bytes->bytes, this->file_bytes.get()->bytes, this->file_bytes.get()->size);
+        dbg_default_trace("[{}]leaving {}.", gettid(), __func__);
+        return 0;
+    }
+
+    virtual uint64_t get_file_size() override {
+        check_update();
+        return this->file_bytes.get()->size;
+    }
+
     KeyINode(KeyINode&& fci) {
         this->type = std::move(fci.type);
         this->display_name = std::move(fci.display_name);
         this->parent = std::move(fci.parent);
         this->key = std::move(fci.key);
         this->capi = std::move(fci.capi);
+    }
+
+    virtual ~KeyINode() {
+        dbg_default_info("[{}] entering {}.", gettid(), __func__);
+        file_bytes.reset(nullptr);
+        dbg_default_info("[{}] leaving {}.", gettid(), __func__);
     }
 
 private:
@@ -569,19 +590,14 @@ private:
                 this->previous_version_by_key = access_ptr->previous_version_by_key;
                 blob = access_ptr->blob;
             } else {
-                // this->file_bytes.get()->size = mutils::bytes_size(reply);
-                // this->file_bytes.get()->bytes = static_cast<uint8_t*>(malloc(this->file_bytes.get()->size));
-                // reply.to_bytes(this->file_bytes.get()->bytes);
-                this->cached_data.bytes.resize(mutils::bytes_size(reply));
-                reply.to_bytes(this->cached_data.bytes.data());
+                this->file_bytes.get()->size = mutils::bytes_size(reply);
+                this->file_bytes.get()->bytes = static_cast<uint8_t*>(malloc(this->file_bytes.get()->size));
+                reply.to_bytes(this->file_bytes.get()->bytes);
                 return;
             }
-            // file_bytes.get()->size = blob.size;
-            // file_bytes.get()->bytes = static_cast<uint8_t*>(malloc(file_bytes.get()->size));
-            // memcpy(file_bytes.get()->bytes, blob.bytes, file_bytes.get()->size);
-            this->cached_data.bytes.resize(blob.size);
-            memcpy(this->cached_data.bytes.data(), blob.bytes, blob.size);
-            return;
+            file_bytes.get()->size = blob.size;
+            file_bytes.get()->bytes = static_cast<uint8_t*>(malloc(file_bytes.get()->size));
+            memcpy(file_bytes.get()->bytes, blob.bytes, file_bytes.get()->size);
             return;
         }
     }
@@ -867,7 +883,6 @@ public:
                 ++it;
             }
         }
-        return;
     }
 
     virtual std::map<std::string, fuse_ino_t> get_dir_entries() override {
@@ -950,6 +965,28 @@ public:
         dbg_default_trace("[{}]leaving {}.", gettid(), __func__);
     }
 
+    virtual uint64_t read_file(FileBytes* _file_bytes) override {
+        dbg_default_debug("-- READ FILE of key:[{}], [{}]entering {}.", this->key, gettid(), __func__);
+        check_update();
+        _file_bytes->size = this->file_bytes.get()->size;
+        _file_bytes->bytes = static_cast<uint8_t*>(malloc(this->file_bytes.get()->size));
+        memcpy(_file_bytes->bytes, this->file_bytes.get()->bytes, this->file_bytes.get()->size);
+        dbg_default_debug("[{}]leaving {}.", gettid(), __func__);
+        return 0;
+    }
+
+    virtual uint64_t get_file_size() override {
+        dbg_default_debug("----GET FILE SIZE key is [{}].", this->key);
+        check_update();
+        return this->file_bytes.get()->size;
+    }
+
+    virtual ~ObjectPoolKeyINode() {
+        dbg_default_info("[{}] entering {}.", gettid(), __func__);
+        file_bytes.reset(nullptr);
+        dbg_default_info("[{}] leaving {}.", gettid(), __func__);
+    }
+
 private:
     virtual void update_contents() override {
         dbg_default_debug("\n \n ----OBJP keyInode key is:[{}] - update content [{}] entering {}.", this->key, gettid(), __func__);
@@ -963,11 +1000,9 @@ private:
             this->previous_version = access_ptr->previous_version;
             this->previous_version_by_key = access_ptr->previous_version_by_key;
             blob = access_ptr->blob;
-            // this->file_bytes.get()->size = blob.size;
-            // this->file_bytes.get()->bytes = static_cast<uint8_t*>(malloc(blob.size));
-            // memcpy(this->file_bytes.get()->bytes, blob.bytes, blob.size);
-            this->cached_data.bytes.resize(blob.size);
-            memcpy(this->cached_data.bytes.data(), blob.bytes, blob.size);
+            this->file_bytes.get()->size = blob.size;
+            this->file_bytes.get()->bytes = static_cast<uint8_t*>(malloc(blob.size));
+            memcpy(this->file_bytes.get()->bytes, blob.bytes, blob.size);
             return;
         }
         dbg_default_trace("\n \n ----OBJP keyInode update content [{}] leaving  {}.", gettid(), __func__);
@@ -1215,7 +1250,7 @@ public:
                     stbuf.st_blksize = FUSE_CLIENT_BLK_SIZE;
                     break;
                 case INodeType::KEY:
-                    stbuf.st_mode = S_IFREG | 0744;  // TODO set 0444 for unimplemented
+                    stbuf.st_mode = S_IFREG | 0444;
                     stbuf.st_size = pfci->get_file_size();
                     stbuf.st_blocks = (stbuf.st_size + FUSE_CLIENT_BLK_SIZE - 1) / FUSE_CLIENT_BLK_SIZE;
                     stbuf.st_blksize = FUSE_CLIENT_BLK_SIZE;

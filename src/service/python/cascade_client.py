@@ -655,7 +655,7 @@ class CascadeClientShell(cmd.Cmd):
 
     def do_create_object_pool(self, arg):
         '''
-        create_object_pool <pathname> <subgroup_type> <subgroup_index>
+        create_object_pool <pathname> <subgroup_type> <subgroup_index> [affinity_set_regex]
         ==================
         Create an object pool
 
@@ -665,6 +665,10 @@ class CascadeClientShell(cmd.Cmd):
                         PersistentCascadeStoreWithStringKey
                         TriggerCascadeNoStoreWithStringKey
         subgroup_index: the subgroup index
+        affinity_set_regex:
+                        affinity_set_regex, please follow hyperscan's syntax.
+                        Please see http://github.com/intel/hyperscan and
+                        https://intel.github.io/hyperscan/dev-reference/compilation.html
 
         '''
         self.check_capi()
@@ -673,7 +677,10 @@ class CascadeClientShell(cmd.Cmd):
             print(bcolors.FAIL + 'At least three arguments are required.' + bcolors.RESET)
         else:
             subgroup_index = int(args[2],0)
-            res = self.capi.create_object_pool(args[0],args[1],subgroup_index)
+            affinity_set_regex = ""
+            if len(args) >= 4:
+                affinity_set_regex=args[3]
+            res = self.capi.create_object_pool(args[0],args[1],subgroup_index,affinity_set_regex=affinity_set_regex)
             if res:
                 ver = res.get_result()
                 print(bcolors.OK + f"{ver}" + bcolors.RESET)
@@ -704,6 +711,24 @@ class CascadeClientShell(cmd.Cmd):
         else:
             res = self.capi.get_object_pool(args[0])
             print(bcolors.OK + f"{res}" + bcolors.RESET)
+
+    def do_remove_object_pool(self, arg):
+        '''
+        remove_object_pool <pathname>
+        ==================
+        remove an object pool
+        '''
+        self.check_capi()
+        args = arg.split()
+        if len(args) < 1:
+            print(bcolors.FAIL + 'At least one argument is required.' + bcolors.RESET)
+        else:
+            res = self.capi.remove_object_pool(args[0])
+            if res:
+                ver = res.get_result()
+                print(bcolors.OK + f"{ver}" + bcolors.RESET)
+            else:
+                print(bcolors.FAIL + "Something went wrong, remove_object_pool returns null." + bcolors.RESET)
 
     def do_timestamp_logger(self, arg):
         '''

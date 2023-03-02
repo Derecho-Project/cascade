@@ -1,7 +1,7 @@
 [
     {
         "id": "26639e22-9b3c-11eb-a237-0242ac110002",
-        "desc": "example DFG",
+        "desc": "example DFG-1",
         "graph": [
             {
                 "pathname": "/pool0",
@@ -24,6 +24,45 @@
                 ],
                 "destinations": [
                     {"/pool3":"put"}
+                ]
+            }
+        ]
+    },
+    {
+        "id": "bfae28b4-9f53-11ed-b888-0242ac110002",
+        "desc": "example DFG-2",
+        "graph": [
+            {
+                "pathname": "/app2/p0",
+                "user_defined_logic_list": [
+                    "271fa964-9f54-11ed-a449-0242ac110002",
+                    "271fa964-9f54-11ed-a449-0242ac110002",
+                    "27949b16-9f54-11ed-a120-0242ac110002",
+                    "28018c3a-9f54-11ed-a25d-0242ac110002"
+                ],
+                "user_defined_logic_stateful_list": [
+                    "stateful",
+                    "stateless",
+                    "singlethreaded",
+                    "singlethreaded"
+                ],
+                "user_defined_logic_hook_list": [
+                    "trigger",
+                    "trigger",
+                    "ordered",
+                    "both"
+                ],
+                "user_defined_logic_config_list": [
+                    "config string 1, for udl 271fa964-9f54-11ed-a449-0242ac110002",
+                    "config string 2, for udl 271fa964-9f54-11ed-a449-0242ac110002",
+                    "config string 3",
+                    "config string 4"
+                ],
+                "destinations": [
+                    {"/app2/p1":"put"},
+                    {"/app2/p2":"trigger_put"},
+                    {"/app2/p3":"put"},
+                    {"/app2/p4":"put"}
                 ]
             }
         ]

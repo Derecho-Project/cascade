@@ -67,6 +67,12 @@ endif()
 # json
 find_package(nlohmann_json 3.2.0 REQUIRED)
 
+# Hyperscan, which isn't packaged correctly and needs a custom Find module
+find_package(Hyperscan REQUIRED)
+if(Hyperscan_FOUND)
+    include_directories(${Hyperscan_INCLUDE_DIRS})
+endif()
+
 set(CMAKE_REQUIRED_DEFINITIONS -DFUSE_USE_VERSION=30)
 include(CheckIncludeFiles)
 include(CheckIncludeFileCXX)
@@ -109,7 +115,8 @@ target_link_libraries(cascade
     derecho
     spdlog::spdlog
     ${mutils_LIBRARIES}
-    OpenSSL::Crypto)
+    OpenSSL::Crypto
+    ${Hyperscan_LIBRARIES})
 set_target_properties(cascade PROPERTIES
     SOVERSION ${cascade_VERSION}
     VERSION ${cascade_build_VERSION}
