@@ -26,7 +26,7 @@ using version_tuple = std::tuple<persistent::version_t, uint64_t>;
  */
 struct ObjectProperties {
     const char* key;
-    const uint8_t* bytes;
+    uint8_t* bytes;
     std::size_t bytes_size;
     int64_t version;
     uint64_t timestamp;
@@ -156,8 +156,10 @@ public:
 std::function<ObjectProperties(const ObjectWithStringKey&)> object_unwrapper = [](const ObjectWithStringKey& obj) {
     ObjectProperties props;
     props.key = obj.get_key_ref().c_str();
-    props.bytes = obj.blob.bytes;
-    props.bytes_size = obj.blob.bytes_size();
+    // TODO: remove memcpy here (1 copy)
+    props.bytes = static_cast<uint8_t*>(malloc(obj.blob.size));
+    memcpy(props.bytes, obj.blob.bytes, obj.blob.size);
+    props.bytes_size = obj.blob.size;
     props.version = obj.get_version();
     props.timestamp = obj.get_timestamp();
     props.previous_version = obj.previous_version;
@@ -184,6 +186,7 @@ auto get_internal(ServiceClientAPI& capi, const std::string& key, persistent::ve
     derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result 
         = capi.template get<SubgroupType>(key, ver, stable, subgroup_index, shard_index);
     auto s = new QueryResultsStore<const typename SubgroupType::ObjectType, ObjectProperties>(std::move(result), object_unwrapper);
+
     return s;
 }
 
@@ -215,7 +218,6 @@ auto get_by_time(ServiceClientAPI& capi, const std::string& key, uint64_t ts_us,
 template <typename SubgroupType>
 auto put_internal(ServiceClientAPI& capi, const typename SubgroupType::ObjectType& obj, uint32_t subgroup_index = UINT32_MAX, uint32_t shard_index = 0) {
     derecho::rpc::QueryResults<version_tuple> result = (subgroup_index == UINT32_MAX) ? capi.put(obj) : capi.template put<SubgroupType>(obj, subgroup_index, shard_index);
-
     QueryResultsStore<version_tuple, VersionTimestampPair>* s = new QueryResultsStore<version_tuple, VersionTimestampPair>(std::move(result), bundle_f);
     return s;
 }
@@ -235,6 +237,24 @@ void put_and_forget(ServiceClientAPI& capi, const typename SubgroupType::ObjectT
         capi.put_and_forget(obj);
     } else {
         capi.template put_and_forget<SubgroupType>(obj, subgroup_index, shard_index);
+    }
+}
+
+/**
+    Trigger put objects into cascade store.
+    Please note that if subgroup_index is not specified, we will use the object_pool API.
+    @param capi             the service client API for this client.
+    @param obj object
+    @param subgroup_index
+    @param shard_index
+    @return QueryResultsStore that handles the tuple of version and ts_us.
+*/
+template <typename SubgroupType>
+void trigger_put(ServiceClientAPI& capi, const typename SubgroupType::ObjectType& obj, uint32_t subgroup_index = UINT32_MAX, uint32_t shard_index = 0) {
+    if(subgroup_index == UINT32_MAX) {
+        capi.trigger_put(obj);
+    } else {
+        capi.template trigger_put<SubgroupType>(obj, subgroup_index, shard_index);
     }
 }
 
@@ -280,18 +300,17 @@ struct PolicyMetadata {
     node_id_t userNode;
 };
 
-struct CsBlob {
-    uint8_t* bytes;
-    std::size_t size;
-};
-
 EXPORT StdVectorWrapper indexTwoDimensionalNodeVector(std::vector<std::vector<node_id_t>> vec, std::size_t index) {
     return {vec[index].data(), vec[index].size()};
 }
 
-EXPORT ObjectProperties extractResult(QueryResultsStore<const ObjectWithStringKey, ObjectProperties>* store) {
+EXPORT ObjectProperties extractObjectPropertiesFromQueryResults(QueryResultsStore<const ObjectWithStringKey, ObjectProperties>* store) {
     auto res = store->get_result();
     return res;
+}
+
+EXPORT void freePointer(void* ptr) {
+    free(ptr);
 }
 
 /*
@@ -301,58 +320,58 @@ EXPORT ObjectProperties extractResult(QueryResultsStore<const ObjectWithStringKe
  * a DLL. We use camelCase to be more idiomatic, as this is a C# library.
  */
 
-EXPORT ServiceClientAPI& getServiceClientRef() {
+EXPORT ServiceClientAPI& EXPORT_getServiceClientRef() {
     return ServiceClientAPI::get_service_client();
 }
 
-EXPORT uint32_t getMyId(ServiceClientAPI& capi) {
+EXPORT uint32_t EXPORT_getMyId(ServiceClientAPI& capi) {
     return capi.get_my_id();
 }
 
-EXPORT StdVectorWrapper getMembers(ServiceClientAPI& capi) {
+EXPORT StdVectorWrapper EXPORT_getMembers(ServiceClientAPI& capi) {
     return {capi.get_members().data(), capi.get_members().size()};
 }
 
-EXPORT TwoDimensionalNodeList getSubgroupMembers(ServiceClientAPI& capi, char* serviceType, uint32_t subgroupIndex) {
+EXPORT TwoDimensionalNodeList EXPORT_getSubgroupMembers(ServiceClientAPI& capi, char* serviceType, uint32_t subgroupIndex) {
     std::vector<std::vector<node_id_t>> members;
     on_all_subgroup_type(std::string(serviceType), members = capi.template get_subgroup_members, subgroupIndex);
     return {members, members.size()};
 }
 
-EXPORT TwoDimensionalNodeList getSubgroupMembersByObjectPool(ServiceClientAPI& capi, char* objectPoolPathname) {
+EXPORT TwoDimensionalNodeList EXPORT_getSubgroupMembersByObjectPool(ServiceClientAPI& capi, char* objectPoolPathname) {
     std::vector<std::vector<node_id_t>> members = capi.get_subgroup_members(objectPoolPathname);
     return {members, members.size()};
 }
 
-EXPORT StdVectorWrapper getShardMembers(ServiceClientAPI& capi, char* serviceType, uint32_t subgroupIndex, uint32_t shardIndex) {
+EXPORT StdVectorWrapper EXPORT_getShardMembers(ServiceClientAPI& capi, char* serviceType, uint32_t subgroupIndex, uint32_t shardIndex) {
     std::vector<node_id_t> members;
     on_all_subgroup_type(std::string(serviceType), members = capi.template get_shard_members, subgroupIndex, shardIndex);
     return {members.data(), members.size()};
 }
 
-EXPORT StdVectorWrapper getShardMembersByObjectPool(ServiceClientAPI& capi, char* objectPoolPathname, uint32_t shardIndex) {
+EXPORT StdVectorWrapper EXPORT_getShardMembersByObjectPool(ServiceClientAPI& capi, char* objectPoolPathname, uint32_t shardIndex) {
     std::vector<node_id_t> members = capi.get_shard_members(objectPoolPathname, shardIndex);
     return {members.data(), members.size()};
 }
 
-EXPORT uint32_t getNumberOfSubgroups(ServiceClientAPI& capi, char* serviceType) {
-    uint32_t num_subgroups;
+EXPORT uint32_t EXPORT_getNumberOfSubgroups(ServiceClientAPI& capi, char* serviceType) {
+    uint32_t num_subgroups = 0;
     on_all_subgroup_type(std::string(serviceType), num_subgroups = capi.template get_number_of_subgroups);
     return num_subgroups;
 }
 
-EXPORT uint32_t getNumberOfShards(ServiceClientAPI& capi, char* serviceType, uint32_t subgroupIndex) {
-    uint32_t num_shards;
+EXPORT uint32_t EXPORT_getNumberOfShards(ServiceClientAPI& capi, char* serviceType, uint32_t subgroupIndex) {
+    uint32_t num_shards = 0;
     on_all_subgroup_type(std::string(serviceType), num_shards = capi.template get_number_of_shards, subgroupIndex);
     return num_shards;
 }
 
-EXPORT void setMemberSelectionPolicy(ServiceClientAPI& capi, char* serviceType, uint32_t subgroupIndex, uint32_t shardIndex, char* policy, node_id_t userNode) {
+EXPORT void EXPORT_setMemberSelectionPolicy(ServiceClientAPI& capi, char* serviceType, uint32_t subgroupIndex, uint32_t shardIndex, char* policy, node_id_t userNode) {
     ShardMemberSelectionPolicy real_policy = parse_policy_name(policy);
     on_all_subgroup_type(std::string(serviceType), capi.template set_member_selection_policy, subgroupIndex, shardIndex, real_policy, userNode);
 }
 
-EXPORT PolicyMetadata getMemberSelectionPolicy(ServiceClientAPI& capi, char* serviceType, uint32_t subgroupIndex, uint32_t shardIndex) {
+EXPORT PolicyMetadata EXPORT_getMemberSelectionPolicy(ServiceClientAPI& capi, char* serviceType, uint32_t subgroupIndex, uint32_t shardIndex) {
     std::tuple<derecho::cascade::ShardMemberSelectionPolicy, unsigned int> policy;
     on_all_subgroup_type(std::string(serviceType), policy = capi.template get_member_selection_policy, subgroupIndex, shardIndex);
     std::string pol;
@@ -385,8 +404,8 @@ EXPORT PolicyMetadata getMemberSelectionPolicy(ServiceClientAPI& capi, char* ser
     return {pol.c_str(), std::get<0>(policy), std::get<1>(policy)};
 }
 
-EXPORT uint32_t getSubgroupIndex(ServiceClientAPI& capi, char* serviceType) {
-    uint32_t subgroup_index;
+EXPORT uint32_t EXPORT_getSubgroupIndex(ServiceClientAPI& capi, char* serviceType) {
+    uint32_t subgroup_index = 0;
     on_all_subgroup_type(std::string(serviceType), subgroup_index = capi.template get_subgroup_type_index);
     return subgroup_index;
 }
@@ -401,7 +420,7 @@ struct GetArgs {
     uint64_t timestamp;
 };
 
-EXPORT auto get(ServiceClientAPI& capi, char* key, GetArgs args) {
+EXPORT auto EXPORT_get(ServiceClientAPI& capi, char* key, GetArgs args) {
     std::cout << "Received get call with key: " << key << " and subgroup type: " 
         << args.subgroupType << std::endl;
     std::string subgroup_type;
@@ -414,13 +433,13 @@ EXPORT auto get(ServiceClientAPI& capi, char* key, GetArgs args) {
     if (args.subgroupType[0] != '\0') {
         subgroup_type = std::string(args.subgroupType);
     }
-    if (args.subgroupIndex != UINT32_MAX) {
+    if (args.subgroupIndex != 0) {
         subgroup_index = args.subgroupIndex;
     }
-    if (args.shardIndex != UINT32_MAX) {
+    if (args.shardIndex != 0) {
         shard_index = args.shardIndex;
     }
-    if (args.version != INT64_MIN) {
+    if (args.version != CURRENT_VERSION) {
         version = args.version;
     }
     if (args.timestamp != 0) {
@@ -450,53 +469,57 @@ EXPORT auto get(ServiceClientAPI& capi, char* key, GetArgs args) {
 
 struct PutArgs {
     char* subgroupType;
+    uint32_t subgroupIndex;
+    uint32_t shardIndex;
+    int64_t previousVersion;
+    int64_t previousVersionByKey;
+    bool blocking;
+    bool trigger;
+    uint64_t messageId;
 };
 
-EXPORT auto put(ServiceClientAPI& capi, char* key, CsBlob blob, PutArgs args) {
+EXPORT auto EXPORT_put(ServiceClientAPI& capi, char* key, uint8_t* bytes, std::size_t bytesSize, PutArgs args) {
     std::string subgroup_type;
-    uint32_t subgroup_index = 0;
+    uint32_t subgroup_index = UINT32_MAX;
     uint32_t shard_index = 0;
     persistent::version_t previous_version = CURRENT_VERSION;
     persistent::version_t previous_version_by_key = CURRENT_VERSION;
-    bool blocking = true;
-    bool trigger = false;
+    bool blocking = args.blocking;
+    bool trigger = args.trigger;
 #ifdef ENABLE_EVALUATION
     uint64_t message_id = 0;
 #endif
-    // if (kwargs.contains("subgroup_index")) {
-    //     subgroup_index = kwargs["subgroup_index"].cast<uint32_t>();
-    // }
-    // if (kwargs.contains("shard_index")) {
-    //     shard_index = kwargs["shard_index"].cast<uint32_t>();
-    // }
     if (args.subgroupType[0] != '\0') {
         subgroup_type = std::string(args.subgroupType);
     }
-//     if (kwargs.contains("previous_version")) {
-//         previous_version = kwargs["previous_version"].cast<persistent::version_t>();
-//     }
-//     if (kwargs.contains("previous_version_by_key")) {
-//         previous_version_by_key = kwargs["previous_version_by_key"].cast<persistent::version_t>();
-//     }
-//     if (kwargs.contains("blocking")) {
-//         blocking = kwargs["blocking"].cast<bool>();
-//     }
-//     if (kwargs.contains("trigger")) {
-//         trigger = kwargs["trigger"].cast<bool>();
-//     }
-// #ifdef ENABLE_EVALUATION
-//     if (kwargs.contains("message_id")) {
-//         message_id = kwargs["message_id"].cast<uint64_t>();
-//     }
-// #endif
+    if (args.subgroupIndex != UINT32_MAX) {
+        subgroup_index = args.subgroupIndex;
+    }
+    if (args.shardIndex != 0) {
+        shard_index = args.shardIndex;
+    }
+    if (args.subgroupType[0] != '\0') {
+        subgroup_type = std::string(args.subgroupType);
+    }
+    if (args.previousVersion != -1L) {
+        previous_version = args.previousVersion;
+    }
+    if (args.previousVersionByKey != -1L) {
+        previous_version_by_key = args.previousVersionByKey;
+    }
+#ifdef ENABLE_EVALUATION
+    if (args.messageId != 0) {
+        message_id = args.messageId;
+    }
+#endif
 
     ObjectWithStringKey obj;
     obj.key = key;
-    obj.set_previous_version(previous_version,previous_version_by_key);
+    obj.set_previous_version(previous_version, previous_version_by_key);
+    obj.blob = Blob(bytes, bytesSize);
 #ifdef ENABLE_EVALUATION
     obj.message_id = message_id;
 #endif
-    obj.blob = Blob(blob.bytes, blob.size);
     if (subgroup_type.empty()) {
         if (trigger) {
             capi.trigger_put(obj);
@@ -509,7 +532,7 @@ EXPORT auto put(ServiceClientAPI& capi, char* key, CsBlob blob, PutArgs args) {
         }
     } else {
         if (trigger) {
-            // on_all_subgroup_type(subgroup_type, trigger_put, capi, obj, subgroup_index, shard_index);
+            on_all_subgroup_type(subgroup_type, trigger_put, capi, obj, subgroup_index, shard_index);
         } else if (blocking) {
             on_all_subgroup_type(subgroup_type, return put_internal, capi, obj, subgroup_index, shard_index);
         } else {
@@ -518,7 +541,7 @@ EXPORT auto put(ServiceClientAPI& capi, char* key, CsBlob blob, PutArgs args) {
     }
 }
 
-EXPORT auto createObjectPool(ServiceClientAPI& capi, char* objectPoolPathname, char* serviceType, uint32_t subgroupIndex, char* affinitySetRegex) {
+EXPORT auto EXPORT_createObjectPool(ServiceClientAPI& capi, char* objectPoolPathname, char* serviceType, uint32_t subgroupIndex, char* affinitySetRegex) {
     on_all_subgroup_type(std::string(serviceType), return create_object_pool, capi, objectPoolPathname, subgroupIndex, std::string(affinitySetRegex));
 }
 
