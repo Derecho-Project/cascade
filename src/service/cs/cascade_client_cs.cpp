@@ -37,6 +37,7 @@ struct ObjectProperties {
 
 struct StdVectorWrapper {
     void* data;
+    void* vecBasePtr;
     uint64_t length;
 };
 
@@ -290,8 +291,8 @@ auto create_object_pool(ServiceClientAPI& capi, char* object_pool_pathname, uint
  */
 
 struct TwoDimensionalNodeList {
-    std::vector<std::vector<node_id_t>> vec;
-    std::size_t outerSize;
+    StdVectorWrapper flattenedList;
+    StdVectorWrapper vectorSizes;
 };
 
 struct PolicyMetadata {
@@ -300,17 +301,37 @@ struct PolicyMetadata {
     node_id_t userNode;
 };
 
-EXPORT StdVectorWrapper indexTwoDimensionalNodeVector(std::vector<std::vector<node_id_t>> vec, std::size_t index) {
-    return {vec[index].data(), vec[index].size()};
+TwoDimensionalNodeList convert_2d_vector(std::vector<std::vector<node_id_t>> vector) {
+    auto flattened_list = new std::vector<node_id_t>();
+    auto vector_sizes = new std::vector<node_id_t>();
+    for (const auto& inner_list : vector) {
+        vector_sizes->push_back(inner_list.size());
+        for (const node_id_t node : inner_list) {
+            flattened_list->push_back(node);
+        }
+    }
+    StdVectorWrapper flattened_list_wrapper = {flattened_list->data(), flattened_list, flattened_list->size()};
+    StdVectorWrapper vector_sizes_wrapper = {vector_sizes->data(), vector_sizes, vector_sizes->size()};
+    return {flattened_list_wrapper, vector_sizes_wrapper};
 }
 
 EXPORT ObjectProperties extractObjectPropertiesFromQueryResults(QueryResultsStore<const ObjectWithStringKey, ObjectProperties>* store) {
-    auto res = store->get_result();
-    return res;
+    return store->get_result();
 }
 
-EXPORT void freePointer(void* ptr) {
+EXPORT VersionTimestampPair extractVersionTimestampFromQueryResults(QueryResultsStore<version_tuple, VersionTimestampPair>* store) {
+    return store->get_result();   
+}
+
+EXPORT bool freeVectorPointer(std::vector<node_id_t>* ptr) {
+    delete ptr;
+    return true;
+}
+
+EXPORT bool freeBytePointer(void* ptr) {
+    // The byte pointer is allocated with malloc, so we use free
     free(ptr);
+    return true;
 }
 
 /*
@@ -329,29 +350,39 @@ EXPORT uint32_t EXPORT_getMyId(ServiceClientAPI& capi) {
 }
 
 EXPORT StdVectorWrapper EXPORT_getMembers(ServiceClientAPI& capi) {
-    return {capi.get_members().data(), capi.get_members().size()};
+    auto vec = new std::vector<node_id_t>();
+    *vec = capi.get_members();
+    return {vec->data(), vec, vec->size()};
 }
 
 EXPORT TwoDimensionalNodeList EXPORT_getSubgroupMembers(ServiceClientAPI& capi, char* serviceType, uint32_t subgroupIndex) {
     std::vector<std::vector<node_id_t>> members;
     on_all_subgroup_type(std::string(serviceType), members = capi.template get_subgroup_members, subgroupIndex);
-    return {members, members.size()};
+    return convert_2d_vector(members);
 }
 
 EXPORT TwoDimensionalNodeList EXPORT_getSubgroupMembersByObjectPool(ServiceClientAPI& capi, char* objectPoolPathname) {
     std::vector<std::vector<node_id_t>> members = capi.get_subgroup_members(objectPoolPathname);
-    return {members, members.size()};
+    return convert_2d_vector(members);
 }
 
 EXPORT StdVectorWrapper EXPORT_getShardMembers(ServiceClientAPI& capi, char* serviceType, uint32_t subgroupIndex, uint32_t shardIndex) {
+    auto members_ptr = new std::vector<node_id_t>();
     std::vector<node_id_t> members;
     on_all_subgroup_type(std::string(serviceType), members = capi.template get_shard_members, subgroupIndex, shardIndex);
-    return {members.data(), members.size()};
+    for (auto member : members) {
+        members_ptr->push_back(member);
+    }
+
+    return {members_ptr->data(), members_ptr, members_ptr->size()};
 }
 
 EXPORT StdVectorWrapper EXPORT_getShardMembersByObjectPool(ServiceClientAPI& capi, char* objectPoolPathname, uint32_t shardIndex) {
-    std::vector<node_id_t> members = capi.get_shard_members(objectPoolPathname, shardIndex);
-    return {members.data(), members.size()};
+    auto members = new std::vector<node_id_t>();
+    for (auto member : capi.get_shard_members(objectPoolPathname, shardIndex)) {
+        members->push_back(member);
+    }
+    return {members->data(), members,  members->size()};
 }
 
 EXPORT uint32_t EXPORT_getNumberOfSubgroups(ServiceClientAPI& capi, char* serviceType) {
