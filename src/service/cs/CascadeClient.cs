@@ -1,6 +1,7 @@
 using System;
 using System.Text;
 using System.Runtime.InteropServices;
+using System.Collections.Generic;
 
 namespace Derecho.Cascade
 {
@@ -9,7 +10,7 @@ namespace Derecho.Cascade
     ///
     /// Should match the definition of the same name in include/cascade/service.hpp.
     /// </summary>
-    enum ShardMemberSelectionPolicy
+    public enum ShardMemberSelectionPolicy
     {
         FirstMember,    // use the first member in the list returned from get_shard_members(), this is the default behaviour.
         LastMember,     // use the last member in the list returned from get_shard_members()
@@ -58,6 +59,7 @@ namespace Derecho.Cascade
         public struct ObjectProperties
         {
             public IntPtr key;
+            // TODO: needs to be freed after use.
             public IntPtr bytes;
             public UInt64 bytes_size;
             public Int64 version;
@@ -67,12 +69,34 @@ namespace Derecho.Cascade
             public UInt64 message_id;
         }
 
+        [StructLayout(LayoutKind.Sequential)]
+        public struct VersionTimestampPair
+        {
+            public Int64 version;
+            public UInt64 timestamp;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct PolicyMetadata
+        {
+            string policyString;
+            ShardMemberSelectionPolicy policy;
+            UInt32 userNode;
+        }
 
         [StructLayout(LayoutKind.Sequential)]
         public struct StdVectorWrapper
         {
-            IntPtr data;
-            UInt64 length;
+            public IntPtr data;
+            public IntPtr vecBasePtr;
+            public UInt64 length;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct TwoDimensionalNodeList
+        {
+            public StdVectorWrapper flattenedList;
+            public StdVectorWrapper vectorSizes;
         }
 
         private static string[] LEGAL_CASCADE_SUBGROUP_TYPES = 
@@ -88,10 +112,19 @@ namespace Derecho.Cascade
          * we do not redefine them in C#.
          */
         [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        public static extern StdVectorWrapper indexTwoDimensionalNodeVector(IntPtr vec, UInt64 index);
+
+        [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
         public static extern ObjectProperties extractObjectPropertiesFromQueryResults(IntPtr queryResultsPtr);
 
         [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void freePointer(IntPtr ptr);
+        public static extern VersionTimestampPair extractVersionTimestampFromQueryResults(IntPtr queryResultsPtr);
+        
+        [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        public static extern bool freeVectorPointer(IntPtr ptr);
+
+        [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        public static extern bool freeBytePointer(IntPtr ptr);
 
         /**
          * Cascade C# Service Client Exported Functions (from unmanaged code)
@@ -115,10 +148,36 @@ namespace Derecho.Cascade
         private static extern IntPtr EXPORT_createObjectPool(IntPtr capi, string objectPoolPathname, 
             string serviceType, UInt32 subgroupIndex, string affinitySetRegex);
 
-        /************************
-         * Class Implementations
-         ************************/
+        [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        private static extern UInt32 EXPORT_getNumberOfSubgroups(IntPtr capi, string serviceType);
 
+        [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        private static extern UInt32 EXPORT_getNumberOfShards(IntPtr capi, string serviceType, UInt32 shardIndex);
+    
+        [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        private static extern StdVectorWrapper EXPORT_getMembers(IntPtr capi);
+
+        [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        private static extern TwoDimensionalNodeList EXPORT_getSubgroupMembers(IntPtr capi, string serviceType, UInt32 subgroupIndex);
+
+        [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        private static extern TwoDimensionalNodeList EXPORT_getSubgroupMembersByObjectPool(IntPtr capi, string objectPoolPathname);
+
+        [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        private static extern StdVectorWrapper EXPORT_getShardMembers(IntPtr capi, string serviceType, UInt32 subgroupIndex, UInt32 shardIndex);
+
+        [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        private static extern StdVectorWrapper EXPORT_getShardMembersByObjectPool(IntPtr capi, string objectPoolPathname, UInt32 shardIndex);
+
+        [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void EXPORT_setMemberSelectionPolicy(IntPtr capi, string serviceType, UInt32 subgroupIndex, UInt32 shardIndex, string policy, UInt32 userNode);
+
+        [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        private static extern PolicyMetadata EXPORT_getMemberSelectionPolicy(IntPtr capi, string serviceType, UInt32 subgroupIndex, UInt32 shardIndex);
+
+        /************************
+         * Class helpers
+         ************************/
         private static string subgroupEnumToString(SubgroupType? type)
         {
             if (type is null)
@@ -135,10 +194,78 @@ namespace Derecho.Cascade
                 case SubgroupType.TriggerCascadeNoStoreWithStringKey:
                     return LEGAL_CASCADE_SUBGROUP_TYPES[2];
                 default:
-                    throw new Exception("Impossible");
+                    throw new ArgumentException("Impossible subgroup type enum.");
             }
         }
 
+        private static string shardMemberSelectionPolicyToString(ShardMemberSelectionPolicy policy)
+        {
+            switch (policy)
+            {
+                case ShardMemberSelectionPolicy.FirstMember:
+                    return "FirstMember";
+                case ShardMemberSelectionPolicy.LastMember:
+                    return "LastMember";
+                case ShardMemberSelectionPolicy.Random:
+                    return "Random";
+                case ShardMemberSelectionPolicy.FixedRandom:
+                    return "FixedRandom";
+                case ShardMemberSelectionPolicy.RoundRobin:
+                    return "RoundRobin";
+                case ShardMemberSelectionPolicy.KeyHashing:
+                    return "KeyHashing";
+                case ShardMemberSelectionPolicy.UserSpecified:
+                    return "UserSpecified";
+                case ShardMemberSelectionPolicy.InvalidPolicy:
+                    return "InvalidPolicy";
+                default:
+                    throw new ArgumentException("Impossible policy enum.");
+            }
+        }
+
+        private unsafe static List<UInt32> extractNodeList(StdVectorWrapper vector)
+        {
+            List<UInt32> members = new List<UInt32>();
+            UInt32* ptr = (UInt32*) vector.data;
+            for (UInt64 i = 0; i < vector.length; i++)
+            {
+                members.Add(*ptr);
+                ++ptr;
+            }
+
+            freeVectorPointer(vector.vecBasePtr);
+            return members;
+        }
+
+        private unsafe static List<List<UInt32>> extract2DNodeList(TwoDimensionalNodeList vector)
+        {
+            List<List<UInt32>> outerList = new List<List<UInt32>>();
+            StdVectorWrapper flattenedList = vector.flattenedList;
+            StdVectorWrapper vectorSizes = vector.vectorSizes;
+
+            UInt32* nodePtr = (UInt32*) flattenedList.data;
+            UInt64* sizePtr = (UInt64*) vectorSizes.data;    
+            for (UInt64 i = 0; i < vectorSizes.length; i++)
+            {
+                UInt64 size = *sizePtr;
+                List<UInt32> innerList = new List<UInt32>();
+                for (UInt64 j = 0; j < size; j++)
+                {
+                    innerList.Add(*nodePtr);
+                    ++nodePtr;
+                }
+                outerList.Add(innerList);
+                ++sizePtr;
+            }
+            
+            freeVectorPointer(flattenedList.vecBasePtr);
+            freeVectorPointer(vectorSizes.vecBasePtr);
+            return outerList;
+        }
+
+        /**************************************
+         * Client class functions
+         **************************************/
         /// <summary>
         /// Gets the client node's ID.
         /// </summary>
@@ -182,7 +309,6 @@ namespace Derecho.Cascade
 
         /// <summary>
         /// Get an object from Cascade's store.
-        /// </summary>
         /// <param><c>key</c> is the key of the object.</param>
         /// <param><c>type</c> is the subgroup type in Cascade to get from. 
         ///                    Defaults to none.
@@ -197,6 +323,7 @@ namespace Derecho.Cascade
         ///                         not using a timestamp get.
         /// </param>
         /// <returns>An ObjectProperties struct of the data associated with the object.</returns>
+        /// </summary>
         public ObjectProperties Get(string key, 
                                     SubgroupType? type = null, 
                                     UInt32 subgroupIndex = 0, 
@@ -241,7 +368,6 @@ namespace Derecho.Cascade
 
         /// <summary>
         /// Put an object into Cascade's store.
-        /// </summary>
         /// <param><c>key</c> is the key of the object.</param>
         /// <param><c>bytes</c> are the blob bytes of the data in a byte array.</param>
         /// <param><c>type</c> is the subgroup type in Cascade to get from.
@@ -254,7 +380,9 @@ namespace Derecho.Cascade
         /// <param><c>blocking</c> Defaults to true.</param>
         /// <param><c>trigger</c> Defaults to false.</param>
         /// <param><c>messageId</c></param>
-        public IntPtr Put(string key, 
+        /// <returns>A VersionTimestampPair response.</returns>
+        /// </summary>
+        public VersionTimestampPair Put(string key, 
                           byte[] bytes,
                           SubgroupType? type = null,
                           UInt32 subgroupIndex = UInt32.MaxValue,
@@ -267,16 +395,147 @@ namespace Derecho.Cascade
         {
             PutArgs args = new PutArgs(subgroupEnumToString(type), subgroupIndex,
                 shardIndex, previousVersion, previousVersionByKey, blocking, trigger, messageId);
-            return EXPORT_put(capi, key, bytes, (UInt64) bytes.Length, args);
+            return extractVersionTimestampFromQueryResults(
+                EXPORT_put(capi, key, bytes, (UInt64) bytes.Length, args));
         }
 
         /// <summary>
+        /// Create an object pool.
+        /// <param><c>type</c> is the subgroup type.</param>
+        /// <param><c>subgroupIndex</c></param>
+        /// <param><c>affinitySetRegex</c> defaults to an empty string.</param>
+        /// <returns>A version and timestamp pair response.</returns>
         /// </summary>
-        public IntPtr CreateObjectPool(string objectPoolPathname, SubgroupType type, 
+        public VersionTimestampPair CreateObjectPool(string objectPoolPathname, SubgroupType type, 
                                        UInt32 subgroupIndex, string affinitySetRegex = "")
         {
-            return EXPORT_createObjectPool(capi, objectPoolPathname, subgroupEnumToString(type), 
-                subgroupIndex, affinitySetRegex);
+            return extractVersionTimestampFromQueryResults(
+                EXPORT_createObjectPool(capi, objectPoolPathname, subgroupEnumToString(type), 
+                    subgroupIndex, affinitySetRegex));
+        }
+        
+        /// <summary>
+        /// Get the total number of subgroups.
+        ///
+        /// <param><c>type</c> is the subgroup type.</param>
+            /// <returns>The number of subgroups under the service type.</returns>
+        /// </summary>
+        public UInt32 GetNumberOfSubgroups(SubgroupType type)
+        {
+            return EXPORT_getNumberOfSubgroups(capi, subgroupEnumToString(type));
+        }
+
+        /// <summary>
+        /// Get the total number of shards within a subgroup.
+        ///
+        /// <param><c>type</c> is the subgroup type.</param>
+        /// <param><c>subgroupIndex</c></param>
+        /// <returns>The number of shards.</returns>
+        /// </summary>
+        public UInt32 GetNumberOfShards(SubgroupType type, UInt32 subgroupIndex)
+        {
+            return EXPORT_getNumberOfShards(capi, subgroupEnumToString(type), subgroupIndex);
+        }
+
+        /// <summary>
+        /// Get the members in the current Derecho group as a list of node IDs.
+        /// <returns>A list of node IDs of the members.</returns>
+        /// </summary>
+        public List<UInt32> GetMembers()
+        {  
+            StdVectorWrapper vector = EXPORT_getMembers(capi);
+            return extractNodeList(vector);
+        }
+
+        /// <summary>
+        /// Get the members of a shard.
+        /// <param><c>type</c> is the service type. </param>
+        /// <param><c>subgroupIndex</c></param>
+        /// <param><c>shardIndex</c></param>
+        /// <returns>A list of node IDs of the members.</returns>
+        /// </summary>
+        public List<UInt32> GetShardMembers(SubgroupType type, UInt32 subgroupIndex, UInt32 shardIndex)
+        {
+            StdVectorWrapper vector = EXPORT_getShardMembers(capi, subgroupEnumToString(type), 
+                subgroupIndex, shardIndex);
+            return extractNodeList(vector);
+        }
+
+        /// <summary>
+        /// Get the members of a shard, by its object pool path.
+        /// <param><c>type</c> is the service type. </param>
+        /// <param><c>objectPoolPathname</c></param>
+        /// <param><c>shardIndex</c></param>
+        /// <returns>A list of node IDs of the members.</returns>
+        /// </summary>
+        public List<UInt32> GetShardMembersByObjectPool(SubgroupType type, 
+                                                        string objectPoolPathname,
+                                                        UInt32 shardIndex)
+        {
+            StdVectorWrapper vector = EXPORT_getShardMembersByObjectPool(capi, 
+                subgroupEnumToString(type), shardIndex);
+            return extractNodeList(vector);
+        }
+
+        /// <summary>
+        /// Get members of a subgroup.
+        /// <param><c>type</c> is the subgroup type.</param>
+        /// <param><c>subgroupIndex</c></param>
+        /// </summary>
+        public List<List<UInt32>> GetSubgroupMembers(SubgroupType type, UInt32 subgroupIndex)
+        {
+            TwoDimensionalNodeList vector = EXPORT_getSubgroupMembers(capi, 
+                subgroupEnumToString(type), subgroupIndex);
+            List<List<UInt32>> subgroupMembers = extract2DNodeList(vector);
+            return subgroupMembers;
+        }
+
+        /// <summary>
+        /// Get members of a subgroup based on an object pool path name.
+        /// <param><c>objectPoolPathname</c></param>
+        /// </summary>
+        public List<List<UInt32>> GetSubgroupMembersByObjectPool(string objectPoolPathname)
+        {
+            TwoDimensionalNodeList vector = EXPORT_getSubgroupMembersByObjectPool(capi, 
+                objectPoolPathname);
+            List<List<UInt32>> subgroupMembers = extract2DNodeList(vector);
+            return subgroupMembers;
+        }
+
+        /// <summary>
+        /// Set the member selection policy for a given subgroup and shard index.
+        ///
+        /// <param><c>type</c> is the subgroup type.</param>
+        /// <param><c>subgroupIndex</c>
+        /// <param><c>shardIndex</c>
+        /// <param><c>policy</c>
+        /// <param><c>userNode</c>
+        /// </summary>
+        public void SetMemberSelectionPolicy(SubgroupType type, 
+                                             UInt32 subgroupIndex, 
+                                             UInt32 shardIndex, 
+                                             ShardMemberSelectionPolicy policy, 
+                                             UInt32 userNode)
+        {
+            EXPORT_setMemberSelectionPolicy(capi, subgroupEnumToString(type), subgroupIndex, 
+                shardIndex, shardMemberSelectionPolicyToString(policy), userNode);
+        }
+
+         /// <summary>
+        /// Get the member selection policy for a given subgroup and shard index.
+        ///
+        /// <param><c>type</c> is the subgroup type.</param>
+        /// <param><c>subgroupIndex</c>
+        /// <param><c>shardIndex</c>
+        /// <param><c>policy</c>
+        /// <param><c>userNode</c>
+        /// </summary>
+        public PolicyMetadata GetMemberSelectionPolicy(SubgroupType type, 
+                                             UInt32 subgroupIndex, 
+                                             UInt32 shardIndex)
+        {
+            return EXPORT_getMemberSelectionPolicy(capi, subgroupEnumToString(type), subgroupIndex, 
+                shardIndex);
         }
 
         public unsafe static void Main()
@@ -287,41 +546,48 @@ namespace Derecho.Cascade
             Console.WriteLine("Node id: " + nodeId);
             Console.WriteLine("VCSS subgroup index: " + subgroupIndexVcss);
 
-            client.CreateObjectPool("/console_printer", SubgroupType.VolatileCascadeStoreWithStringKey, 0, "");
+            VersionTimestampPair objectPoolMetadata = client.CreateObjectPool("/console_printer", SubgroupType.VolatileCascadeStoreWithStringKey, 0, "");
             Console.WriteLine("Created object pool /console_printer.");
+            Console.WriteLine("Version: " + objectPoolMetadata.version);
+            Console.WriteLine("Timestamp: " + objectPoolMetadata.timestamp);
+            byte[] byteArray = Encoding.UTF8.GetBytes("Data blob to be stored in Cascade from C#");
 
-            byte[] byteArray = Encoding.UTF8.GetBytes("hello");
-            for (int i = 0; i < byteArray.Length; i++)
+            List<UInt32> members = client.GetMembers();
+            Console.WriteLine("Members:");
+            foreach(var member in members)
             {
-                Console.WriteLine(byteArray[i].ToString());
+                Console.WriteLine(member);
             }
 
-            client.Put("/console_printer/obj_a", byteArray);
+            VersionTimestampPair putMetadata = client.Put("/console_printer/obj_a", byteArray);
+            Console.WriteLine("Put /console_printer/obj_a.");
+            Console.WriteLine("Version: " + putMetadata.version);
+            Console.WriteLine("Timestamp: " + putMetadata.timestamp);
 
-            // string key = "/console_printer/obj_a";
+            string key = "/console_printer/obj_a";
+            
+            ObjectProperties objResult = client.Get(key);
 
+            Console.WriteLine("Result");
+            Console.WriteLine("====================");
+            Console.WriteLine("Object byte ptr: " + objResult.bytes);
+            Console.WriteLine("Timestamp: " + objResult.timestamp);
+            Console.WriteLine("Version: " + objResult.version);
+            Console.WriteLine("Bytes size: " + objResult.bytes_size);
 
-            // IntPtr queryResult = get(capi, key, getArgs);
-            // ObjectProperties objResult = extractResult(queryResult);
+            Console.WriteLine("Data as string: " + Marshal.PtrToStringUTF8(objResult.bytes));
 
-            // Console.WriteLine("Result");
-            // Console.WriteLine("====================");
-            // Console.WriteLine("Object byte ptr: " + objResult.bytes);
-            // Console.WriteLine("Timestamp: " + objResult.timestamp);
-            // Console.WriteLine("Version: " + objResult.version);
-            // Console.WriteLine("Bytes size: " + objResult.bytes_size);
-
-            // // char[] data = new char[objResult.bytes_size];
-            // // byte* objectBytePointer = (byte*) objResult.bytes;
-            // // for (UInt64 i = 0; i < objResult.bytes_size; i++)
-            // // {
-            // //     char c = (char) *objectBytePointer;
-            // //     data[i] = c;
-            // //     ++objectBytePointer;
-            // // }
-            // // string result = new string(data);
-            // Console.WriteLine("Data as string: " + Marshal.PtrToStringUTF8(objResult.bytes));
-            // freePointer(objResult.bytes);
+            Console.WriteLine("Subgroup members of /console_printer");
+            var subgroupMembers = client.GetSubgroupMembersByObjectPool("/console_printer");
+            foreach (List<UInt32> outerList in subgroupMembers)
+            {
+                Console.WriteLine("List:");
+                foreach (UInt32 node in outerList)
+                {
+                    Console.WriteLine(node);
+                }
+            }
+            freeBytePointer(objResult.bytes);
         }
     }
 } // namespace Derecho.Cascade
