@@ -6,6 +6,23 @@ set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 find_package(derecho CONFIG REQUIRED)
 
 if (${HAS_FUSE})
+    add_library(fuse_client_signals OBJECT fuse_client_signals.cpp)
+    target_include_directories(fuse_client_signals PRIVATE
+        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    )
+
+    add_executable(fuse_client_hl fuse_client_hl.cpp)
+    target_include_directories(fuse_client_hl PRIVATE
+        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
+    )
+    target_link_libraries(fuse_client_hl cascade readline fuse3 fuse_client_signals)
+    set_target_properties(fuse_client_hl PROPERTIES OUTPUT_NAME cascade_fuse_client_hl)
+
     add_executable(fuse_client fuse_client.cpp)
     target_include_directories(fuse_client PRIVATE
         $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
@@ -13,9 +30,9 @@ if (${HAS_FUSE})
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
         $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
     )
-    target_link_libraries(fuse_client cascade readline fuse3)
+    target_link_libraries(fuse_client cascade readline fuse3 fuse_client_signals)
     set_target_properties(fuse_client PROPERTIES OUTPUT_NAME cascade_fuse_client)
- 
+
     add_custom_command(TARGET fuse_client POST_BUILD
         	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/testfuse.py ${CMAKE_CURRENT_BINARY_DIR}/.
         	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/util.py ${CMAKE_CURRENT_BINARY_DIR}/.
@@ -29,4 +46,3 @@ if (${HAS_FUSE})
 	    )
 
 endif()
-
