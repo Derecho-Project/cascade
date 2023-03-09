@@ -111,68 +111,68 @@ namespace Derecho.Cascade
          * These do not depend on a service client API reference, so
          * we do not redefine them in C#.
          */
-        [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
         public static extern StdVectorWrapper indexTwoDimensionalNodeVector(IntPtr vec, UInt64 index);
 
-        [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
         public static extern ObjectProperties extractObjectPropertiesFromQueryResults(IntPtr queryResultsPtr);
 
-        [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
         public static extern VersionTimestampPair extractVersionTimestampFromQueryResults(IntPtr queryResultsPtr);
         
-        [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
         public static extern bool freeVectorPointer(IntPtr ptr);
 
-        [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
         public static extern bool freeBytePointer(IntPtr ptr);
 
         /**
          * Cascade C# Service Client Exported Functions (from unmanaged code)
          */
-        [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr EXPORT_getServiceClientRef();
 
-        [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
         private static extern UInt32 EXPORT_getMyId(IntPtr capi);
 
-        [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
         private static extern UInt32 EXPORT_getSubgroupIndex(IntPtr capi, string serviceType); 
 
-        [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr EXPORT_get(IntPtr capi, string key, GetArgs args);
 
-        [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
         private static unsafe extern IntPtr EXPORT_put(IntPtr capi, string object_pool_path, byte[] bytes, UInt64 bytesSize, PutArgs args);      
 
-        [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr EXPORT_createObjectPool(IntPtr capi, string objectPoolPathname, 
             string serviceType, UInt32 subgroupIndex, string affinitySetRegex);
 
-        [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
         private static extern UInt32 EXPORT_getNumberOfSubgroups(IntPtr capi, string serviceType);
 
-        [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
         private static extern UInt32 EXPORT_getNumberOfShards(IntPtr capi, string serviceType, UInt32 shardIndex);
     
-        [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
         private static extern StdVectorWrapper EXPORT_getMembers(IntPtr capi);
 
-        [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
         private static extern TwoDimensionalNodeList EXPORT_getSubgroupMembers(IntPtr capi, string serviceType, UInt32 subgroupIndex);
 
-        [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
         private static extern TwoDimensionalNodeList EXPORT_getSubgroupMembersByObjectPool(IntPtr capi, string objectPoolPathname);
 
-        [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
         private static extern StdVectorWrapper EXPORT_getShardMembers(IntPtr capi, string serviceType, UInt32 subgroupIndex, UInt32 shardIndex);
 
-        [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
         private static extern StdVectorWrapper EXPORT_getShardMembersByObjectPool(IntPtr capi, string objectPoolPathname, UInt32 shardIndex);
 
-        [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
         private static extern void EXPORT_setMemberSelectionPolicy(IntPtr capi, string serviceType, UInt32 subgroupIndex, UInt32 shardIndex, string policy, UInt32 userNode);
 
-        [DllImport("/root/workspace/cascade/build-Release/src/service/cs/libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
         private static extern PolicyMetadata EXPORT_getMemberSelectionPolicy(IntPtr capi, string serviceType, UInt32 subgroupIndex, UInt32 shardIndex);
 
         /************************
@@ -536,58 +536,6 @@ namespace Derecho.Cascade
         {
             return EXPORT_getMemberSelectionPolicy(capi, subgroupEnumToString(type), subgroupIndex, 
                 shardIndex);
-        }
-
-        public unsafe static void Main()
-        {
-            CascadeClient client = new CascadeClient();
-            var nodeId = client.GetMyId();
-            var subgroupIndexVcss = client.GetSubgroupIndex(SubgroupType.VolatileCascadeStoreWithStringKey);
-            Console.WriteLine("Node id: " + nodeId);
-            Console.WriteLine("VCSS subgroup index: " + subgroupIndexVcss);
-
-            VersionTimestampPair objectPoolMetadata = client.CreateObjectPool("/console_printer", SubgroupType.VolatileCascadeStoreWithStringKey, 0, "");
-            Console.WriteLine("Created object pool /console_printer.");
-            Console.WriteLine("Version: " + objectPoolMetadata.version);
-            Console.WriteLine("Timestamp: " + objectPoolMetadata.timestamp);
-            byte[] byteArray = Encoding.UTF8.GetBytes("Data blob to be stored in Cascade from C#");
-
-            List<UInt32> members = client.GetMembers();
-            Console.WriteLine("Members:");
-            foreach(var member in members)
-            {
-                Console.WriteLine(member);
-            }
-
-            VersionTimestampPair putMetadata = client.Put("/console_printer/obj_a", byteArray);
-            Console.WriteLine("Put /console_printer/obj_a.");
-            Console.WriteLine("Version: " + putMetadata.version);
-            Console.WriteLine("Timestamp: " + putMetadata.timestamp);
-
-            string key = "/console_printer/obj_a";
-            
-            ObjectProperties objResult = client.Get(key);
-
-            Console.WriteLine("Result");
-            Console.WriteLine("====================");
-            Console.WriteLine("Object byte ptr: " + objResult.bytes);
-            Console.WriteLine("Timestamp: " + objResult.timestamp);
-            Console.WriteLine("Version: " + objResult.version);
-            Console.WriteLine("Bytes size: " + objResult.bytes_size);
-
-            Console.WriteLine("Data as string: " + Marshal.PtrToStringUTF8(objResult.bytes));
-
-            Console.WriteLine("Subgroup members of /console_printer");
-            var subgroupMembers = client.GetSubgroupMembersByObjectPool("/console_printer");
-            foreach (List<UInt32> outerList in subgroupMembers)
-            {
-                Console.WriteLine("List:");
-                foreach (UInt32 node in outerList)
-                {
-                    Console.WriteLine(node);
-                }
-            }
-            freeBytePointer(objResult.bytes);
-        }
+        } 
     }
 } // namespace Derecho.Cascade
