@@ -24,7 +24,7 @@ if (DOTNET_CMD)
         
         # Custom target will always cause its dependencies to be evaluated and is
         # run by default
-        add_custom_target(dummy_target ALL
+        add_custom_target(cascade_client_cs_library ALL
             DEPENDS custom_output
         )
         
