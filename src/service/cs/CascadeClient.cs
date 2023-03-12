@@ -1,7 +1,10 @@
+#define SHARED_OBJECTS_PATH
 using System;
 using System.Text;
 using System.Runtime.InteropServices;
 using System.Collections.Generic;
+using System.IO;
+using System.Reflection;
 
 namespace Derecho.Cascade
 {
@@ -122,117 +125,123 @@ namespace Derecho.Cascade
             "TriggerCascadeNoStoreWithStringKey"
         };
 
+#if IS_EXTERNAL_CLIENT
+    public const string CLIENT_DLL = "external_client_cs.so";
+#else
+    public const string CLIENT_DLL = "member_client_cs.so";
+#endif
+
         /**
          * Exported Utility Functions (from unmanaged code)
          * These do not depend on a service client API reference, so
          * we do not redefine them in C#.
          */
-        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         public static extern StdVectorWrapper indexTwoDimensionalNodeVector(IntPtr vec, UInt64 index);
 
-        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         public static extern ObjectProperties extractObjectPropertiesFromQueryResults(IntPtr queryResultsPtr);
 
-        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         public static extern VersionTimestampPair extractVersionTimestampFromQueryResults(IntPtr queryResultsPtr);
         
-        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         public static extern UInt64 extractUInt64FromQueryResults(IntPtr queryResults);
         
-        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         public static extern StdVectorWrapper extractStdVectorWrapperFromQueryResults(IntPtr queryResults);
 
-        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         public static extern IntPtr indexStdVectorWrapperString(StdVectorWrapper vector, UInt64 index);
 
-        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         public static extern bool freeVectorPointer(IntPtr ptr);
 
-        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         public static extern bool freeBytePointer(IntPtr ptr);
 
         /**
          * Cascade C# Service Client Exported Functions (from unmanaged code)
          */
-        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr EXPORT_getServiceClientRef();
 
-        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern UInt32 EXPORT_getMyId(IntPtr capi);
 
-        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern UInt32 EXPORT_getSubgroupIndex(IntPtr capi, string serviceType); 
 
-        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr EXPORT_get(IntPtr capi, string key, GetArgs args);
 
-        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static unsafe extern IntPtr EXPORT_put(IntPtr capi, string object_pool_path, byte[] bytes, UInt64 bytesSize, PutArgs args);      
 
-        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern UInt32 EXPORT_getNumberOfSubgroups(IntPtr capi, string serviceType);
 
-        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern UInt32 EXPORT_getNumberOfShards(IntPtr capi, string serviceType, UInt32 shardIndex);
     
-        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern StdVectorWrapper EXPORT_getMembers(IntPtr capi);
 
-        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern TwoDimensionalNodeList EXPORT_getSubgroupMembers(IntPtr capi, string serviceType, UInt32 subgroupIndex);
 
-        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern TwoDimensionalNodeList EXPORT_getSubgroupMembersByObjectPool(IntPtr capi, string objectPoolPathname);
 
-        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern StdVectorWrapper EXPORT_getShardMembers(IntPtr capi, string serviceType, UInt32 subgroupIndex, UInt32 shardIndex);
 
-        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern StdVectorWrapper EXPORT_getShardMembersByObjectPool(IntPtr capi, string objectPoolPathname, UInt32 shardIndex);
 
-        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern void EXPORT_setMemberSelectionPolicy(IntPtr capi, string serviceType, UInt32 subgroupIndex, UInt32 shardIndex, string policy, UInt32 userNode);
 
-        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern PolicyMetadata EXPORT_getMemberSelectionPolicy(IntPtr capi, string serviceType, UInt32 subgroupIndex, UInt32 shardIndex);
 
-        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr EXPORT_remove(IntPtr capi, string key, string subgroupType, UInt32 subgroupIndex, UInt32 shardIndex);
 
-        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr EXPORT_multiGet(IntPtr capi, string key, string subgroupType, UInt32 subgroupIndex, UInt32 shardIndex);
 
-        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr EXPORT_getSize(IntPtr capi, string key, string subgroupType, UInt32 subgroupIndex, UInt32 shardIndex, Int64 version, bool stable, UInt64 timestamp);
 
-        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr EXPORT_multiGetSize(IntPtr capi, string key, string subgroupType, UInt32 subgroupIndex, UInt32 shardIndex);
 
-        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr EXPORT_listKeysInShard(IntPtr capi, string subgroupType, UInt32 subgroupIndex, UInt32 shardIndex, Int64 version, bool stable, UInt64 timestamp);
 
         // TODO: unexposed
-        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr EXPORT_listKeysInObjectPool(IntPtr capi, string objectPoolPathname, Int64 version, bool stable, UInt64 timestamp);
 
         // TODO: unexposed
-        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr EXPORT_multiListKeysInObjectPool(IntPtr capi, string objectPoolPathname);
 
         // TODO: unexposed
-        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr EXPORT_listObjectPools(IntPtr capi);
         
-        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr EXPORT_createObjectPool(IntPtr capi, string objectPoolPathname, 
             string serviceType, UInt32 subgroupIndex, string affinitySetRegex);
 
         // TODO: unexposed
-        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern GetObjectPoolMetadata EXPORT_getObjectPool(IntPtr capi, string objectPoolPathname);
 
         // TODO: unexposed
-        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr EXPORT_removeObjectPool(IntPtr capi, string objectPoolPathname);
 
         /************************

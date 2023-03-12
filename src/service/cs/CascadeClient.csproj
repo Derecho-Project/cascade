@@ -1,9 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
-    <AssemblyName>CascadeClient</AssemblyName>
-    <OutputType>Exe</OutputType>
-    <OutputPath>../../../build-Release/src/service/cs/</OutputPath>
+    <OutputType>Library</OutputType>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <DefineConstants>$(SHARED_OBJECTS_PATH)</DefineConstants> 
   </PropertyGroup>
 </Project>
