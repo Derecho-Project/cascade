@@ -22,8 +22,10 @@ using namespace derecho::cascade;
 using version_tuple = std::tuple<persistent::version_t, uint64_t>;
 
 /*
- * Value struct to be marshalled into C# for object metadata. 
+ * Value structs to be marshalled into C#.
  */
+
+// The fields of an ObjectWithStringKey.
 struct ObjectProperties {
     const char* key;
     uint8_t* bytes;
@@ -35,12 +37,22 @@ struct ObjectProperties {
     uint64_t message_id;
 };
 
+// A wrapper for the std::vector data structure, generalizable to any type.
+// Make sure to call delete on the vecBasePtr in the managed code to prevent
+// memory leaks.
 struct StdVectorWrapper {
     void* data;
     void* vecBasePtr;
     uint64_t length;
 };
 
+// A single object location, with its key and corresponding shard index.
+struct ObjectLocation {
+    const char* key;
+    uint32_t shard;
+};
+
+// The metadata associated with a certain operation in Cascade.
 struct VersionTimestampPair {
     long version;
     uint64_t timestamp;
@@ -172,6 +184,17 @@ std::function<ObjectProperties(const ObjectWithStringKey&)> object_unwrapper = [
 };
 
 /**
+ * Lambda function for handling the unwrapping of vector
+ */
+std::function<StdVectorWrapper(std::vector<std::string>&)> list_unwrapper = [](std::vector<std::string>& keys)->StdVectorWrapper {
+    std::vector<std::string>* key_list = new std::vector<std::string>();
+    for(const auto& key : keys) {
+        key_list->push_back(key);
+    }
+    return {key_list->data(), key_list, key_list->size()};
+};
+
+/**
     Get objects from cascade store.
     @param capi the service client API for this client.
     @param key key to remove value from
@@ -260,6 +283,73 @@ void trigger_put(ServiceClientAPI& capi, const typename SubgroupType::ObjectType
 }
 
 /**
+    Remove objects from cascade store.
+    Please note that if subgroup_index is not specified, we will use the object_pool API.
+
+    @param capi the service client API for this client.
+    @param key key to remove value from
+    @param subgroup_index 
+    @param shard_index
+    @return QueryResultsStore that handles the tuple of version and ts_us.
+*/
+template <typename SubgroupType>
+auto remove_internal(ServiceClientAPI& capi, const std::string& key, uint32_t subgroup_index = UINT32_MAX, uint32_t shard_index = 0) {
+    if constexpr(std::is_integral<typename SubgroupType::KeyType>::value) {
+        derecho::rpc::QueryResults<version_tuple> result = std::move(capi.template remove<SubgroupType>(static_cast<uint64_t>(std::stol(key)), subgroup_index, shard_index));
+        QueryResultsStore<version_tuple, VersionTimestampPair>* s = new QueryResultsStore<version_tuple, VersionTimestampPair>(std::move(result), bundle_f);
+        return s;
+
+    } else if constexpr(std::is_convertible<typename SubgroupType::KeyType, std::string>::value) {
+        derecho::rpc::QueryResults<version_tuple> result = (subgroup_index == UINT32_MAX) ? capi.remove(key) : capi.template remove<SubgroupType>(key, subgroup_index, shard_index);
+        QueryResultsStore<version_tuple, VersionTimestampPair>* s = new QueryResultsStore<version_tuple, VersionTimestampPair>(std::move(result), bundle_f);
+        return s;
+
+    } else {
+        print_red(std::string("Unhandled KeyType:") + typeid(typename SubgroupType::KeyType).name());
+        return;
+    }
+}
+
+/**
+    Get objects from cascade store using multi_get.
+    @param capi the service client API for this client.
+    @param key key to remove value from
+    @param subgroup_index 
+    @param shard_index
+    @return QueryResultsStore that handles the return type.
+*/
+template <typename SubgroupType>
+auto multi_get(ServiceClientAPI& capi, const std::string& key, uint32_t subgroup_index = 0, uint32_t shard_index = 0) {
+    auto result = capi.template multi_get<SubgroupType>(key, subgroup_index, shard_index);
+    auto s = new QueryResultsStore<const typename SubgroupType::ObjectType, ObjectProperties>(std::move(result), object_unwrapper);
+    return s;
+}
+
+/**
+    Get object size from cascade store.
+    @param capi the service client API for this client.
+    @param key key to remove value from
+    @param ver version of the object you want to get.
+    @param stable using stable get or not.
+    @param subgroup_index 
+    @param shard_index
+    @return QueryResultsStore that handles the return type.
+*/
+template <typename SubgroupType>
+auto get_size(ServiceClientAPI& capi, const std::string& key, persistent::version_t ver, bool stable, uint32_t subgroup_index = 0, uint32_t shard_index = 0) {
+    derecho::rpc::QueryResults<uint64_t> result = capi.template get_size<SubgroupType>(key, ver, stable, subgroup_index, shard_index);
+    auto s = new QueryResultsStore<uint64_t, uint64_t>(std::move(result), [](const uint64_t& size){ return size; });
+    return s;
+}
+
+template <typename SubgroupType>
+auto get_size_by_time(ServiceClientAPI& capi, const std::string& key, uint64_t ts_us, bool stable, uint32_t subgroup_index, uint32_t shard_index) {
+    derecho::rpc::QueryResults<uint64_t> result = capi.template get_size_by_time<SubgroupType>(key, ts_us,stable, subgroup_index, shard_index);
+    auto s = new QueryResultsStore<uint64_t, uint64_t>(std::move(result), [](const uint64_t& size){ return size; });
+    return s;
+}
+
+/**
  * Create an object pool
  * @tparam  SubgroupType
  * @param   capi
@@ -269,14 +359,91 @@ void trigger_put(ServiceClientAPI& capi, const typename SubgroupType::ObjectType
  * @return  QueryResultsStore that handles the return type
 */
 template <typename SubgroupType>
-auto create_object_pool(ServiceClientAPI& capi, char* object_pool_pathname, uint32_t subgroup_index, const std::string& affinity_set_regex="") {
+auto create_object_pool(ServiceClientAPI& capi, const std::string& object_pool_pathname, uint32_t subgroup_index, const std::string& affinity_set_regex="") {
     auto result =
-        capi.template create_object_pool<SubgroupType>(std::string(object_pool_pathname), subgroup_index, sharding_policy_t::HASH, {}, affinity_set_regex);
+        capi.template create_object_pool<SubgroupType>(object_pool_pathname, subgroup_index, sharding_policy_t::HASH, {}, affinity_set_regex);
     QueryResultsStore<version_tuple, VersionTimestampPair>* s = new QueryResultsStore<version_tuple, VersionTimestampPair>(std::move(result), bundle_f);
     return s;
 }
 
-// iterators:
+/**
+    Get objects from cascade store using multi_get_size.
+    @param capi the service client API for this client.
+    @param key key to remove value from
+    @param subgroup_index 
+    @param shard_index
+    @return QueryResultsStore that handles the return type.
+*/
+template <typename SubgroupType>
+auto multi_get_size(ServiceClientAPI& capi, const std::string& key, uint32_t subgroup_index = 0, uint32_t shard_index = 0) {
+    auto result = capi.template multi_get_size<SubgroupType>(key, subgroup_index, shard_index);
+    auto s = new QueryResultsStore<uint64_t, uint64_t>(std::move(result), [](const uint64_t& size){ return size; });
+    return s;
+}
+
+template <typename SubgroupType>
+auto list_keys(ServiceClientAPI& capi, persistent::version_t version, bool stable, uint32_t subgroup_index = 0, uint32_t shard_index = 0) {
+    derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> result = capi.template list_keys<SubgroupType>(version, stable, subgroup_index, shard_index);
+    auto s = new QueryResultsStore<typename std::vector<typename SubgroupType::KeyType>, StdVectorWrapper>(std::move(result), list_unwrapper);
+    return s;
+}
+
+template <typename SubgroupType>
+auto list_keys_by_time(ServiceClientAPI& capi, uint64_t ts_us, bool stable, uint32_t subgroup_index = 0, uint32_t shard_index = 0) {
+    derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> result = capi.template list_keys_by_time<SubgroupType>(ts_us, stable, subgroup_index, shard_index);
+    auto s = new QueryResultsStore<typename std::vector<typename SubgroupType::KeyType>, StdVectorWrapper>(std::move(result), list_unwrapper);
+    return s;
+}
+
+template <typename SubgroupType>
+auto multi_list_keys(ServiceClientAPI& capi, uint32_t subgroup_index = 0, uint32_t shard_index = 0) {
+    derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> result = capi.template multi_list_keys<SubgroupType>(subgroup_index, shard_index);
+    auto s = new QueryResultsStore<typename std::vector<typename SubgroupType::KeyType>, StdVectorWrapper> (std::move(result), list_unwrapper);
+    return s;
+}
+
+struct GetObjectPoolMetadata {
+    persistent::version_t version;
+    uint64_t timestamp;
+    persistent::version_t previousVersion;
+    persistent::version_t previousVersionByKey;
+    const char* pathname;
+    uint32_t subgroupTypeIndex;
+    uint32_t subgroupIndex;
+    int32_t shardingPolicy;
+    StdVectorWrapper objectLocations;
+    const char* affinitySetRegex;
+    bool deleted;
+};
+
+/**
+ * Get details of an object pool
+ * @param   capi
+ * @param   object_pool_pathname
+ * @return  the object pool metadata
+ */
+auto get_object_pool(ServiceClientAPI& capi, const std::string& object_pool_pathname) {
+    auto copm = capi.find_object_pool(object_pool_pathname);
+    GetObjectPoolMetadata metadata;
+    metadata.version = copm.version;
+    metadata.timestamp = copm.timestamp_us;
+    metadata.previousVersion = copm.previous_version;
+    metadata.previousVersionByKey = copm.previous_version_by_key;
+    metadata.pathname = copm.pathname.c_str();
+    metadata.subgroupTypeIndex = copm.subgroup_type_index;
+    metadata.subgroupIndex = copm.subgroup_index;
+    metadata.shardingPolicy = copm.sharding_policy;
+    std::vector<ObjectLocation>* object_locations = new std::vector<ObjectLocation>();
+    for (const auto& [k, v] : copm.object_locations) {
+        object_locations->push_back({k.c_str(), v});
+    }
+    metadata.objectLocations = {object_locations->data(), object_locations, object_locations->size()};
+    metadata.affinitySetRegex = copm.affinity_set_regex.c_str();
+    metadata.deleted = copm.deleted;
+    return metadata;
+}
+
+// TODO(ptwu): iterators
 // - op_get_keys from an object pool
 // - all in a subgroup
 // - shard of a subgroup
@@ -303,7 +470,7 @@ struct PolicyMetadata {
 
 TwoDimensionalNodeList convert_2d_vector(std::vector<std::vector<node_id_t>> vector) {
     auto flattened_list = new std::vector<node_id_t>();
-    auto vector_sizes = new std::vector<node_id_t>();
+    auto vector_sizes = new std::vector<uint64_t>();
     for (const auto& inner_list : vector) {
         vector_sizes->push_back(inner_list.size());
         for (const node_id_t node : inner_list) {
@@ -322,6 +489,18 @@ EXPORT ObjectProperties extractObjectPropertiesFromQueryResults(QueryResultsStor
 EXPORT VersionTimestampPair extractVersionTimestampFromQueryResults(QueryResultsStore<version_tuple, VersionTimestampPair>* store) {
     return store->get_result();   
 }
+
+EXPORT uint64_t extractUInt64FromQueryResults(QueryResultsStore<uint64_t, uint64_t>* store) {
+    return store->get_result();
+}
+
+EXPORT StdVectorWrapper extractStdVectorWrapperFromQueryResults(QueryResultsStore<std::vector<std::string>, StdVectorWrapper>* store) {
+    return store->get_result();
+}
+
+EXPORT const char* indexStdVectorWrapperString(StdVectorWrapper vector, std::size_t index) {
+    return static_cast<std::vector<std::string>*>(vector.vecBasePtr)->at(index).c_str();
+} 
 
 EXPORT bool freeVectorPointer(std::vector<node_id_t>* ptr) {
     delete ptr;
@@ -511,7 +690,7 @@ struct PutArgs {
 
 EXPORT auto EXPORT_put(ServiceClientAPI& capi, char* key, uint8_t* bytes, std::size_t bytesSize, PutArgs args) {
     std::string subgroup_type;
-    uint32_t subgroup_index = UINT32_MAX;
+    uint32_t subgroup_index = 0;
     uint32_t shard_index = 0;
     persistent::version_t previous_version = CURRENT_VERSION;
     persistent::version_t previous_version_by_key = CURRENT_VERSION;
@@ -523,7 +702,7 @@ EXPORT auto EXPORT_put(ServiceClientAPI& capi, char* key, uint8_t* bytes, std::s
     if (args.subgroupType[0] != '\0') {
         subgroup_type = std::string(args.subgroupType);
     }
-    if (args.subgroupIndex != UINT32_MAX) {
+    if (args.subgroupIndex != 0) {
         subgroup_index = args.subgroupIndex;
     }
     if (args.shardIndex != 0) {
@@ -532,10 +711,10 @@ EXPORT auto EXPORT_put(ServiceClientAPI& capi, char* key, uint8_t* bytes, std::s
     if (args.subgroupType[0] != '\0') {
         subgroup_type = std::string(args.subgroupType);
     }
-    if (args.previousVersion != -1L) {
+    if (args.previousVersion != CURRENT_VERSION) {
         previous_version = args.previousVersion;
     }
-    if (args.previousVersionByKey != -1L) {
+    if (args.previousVersionByKey != CURRENT_VERSION) {
         previous_version_by_key = args.previousVersionByKey;
     }
 #ifdef ENABLE_EVALUATION
@@ -572,20 +751,155 @@ EXPORT auto EXPORT_put(ServiceClientAPI& capi, char* key, uint8_t* bytes, std::s
     }
 }
 
-EXPORT auto EXPORT_createObjectPool(ServiceClientAPI& capi, char* objectPoolPathname, char* serviceType, uint32_t subgroupIndex, char* affinitySetRegex) {
-    on_all_subgroup_type(std::string(serviceType), return create_object_pool, capi, objectPoolPathname, subgroupIndex, std::string(affinitySetRegex));
+EXPORT auto EXPORT_remove(ServiceClientAPI& capi, char* key, char* subgroupType, uint32_t subgroupIndex, uint32_t shardIndex) {
+    std::string subgroup_type;
+    uint32_t subgroup_index = subgroupIndex;
+    uint32_t shard_index = shardIndex;
+    if (subgroupType[0] != '\0') {
+        subgroup_type = subgroupType;
+    }
+
+    if (subgroup_type.empty()) {
+        auto result = capi.remove(std::string(key));
+        auto s = new QueryResultsStore<version_tuple, VersionTimestampPair>(std::move(result), bundle_f);
+        return s;
+    } else {
+        on_all_subgroup_type(subgroup_type, return remove_internal, capi, std::string(key), subgroup_index, shard_index);
+    }
 }
 
-// TODO(unimplemented, @ptwu):
-// remove
-// multiGet
-// getSize
-// multiGetSize
-// listKeysInShard
-// multiListKeysInShard
-// listKeysInObjectPool
-// multiListKeysInObjectPool
-// createObjectPool
-// listObjectPools
-// getObjectPool
-// removeObjectPool
+EXPORT auto EXPORT_multiGet(ServiceClientAPI& capi, char* key, char* subgroupType, uint32_t subgroupIndex, uint32_t shardIndex) {
+    std::string subgroup_type;
+    uint32_t subgroup_index = subgroupIndex;
+    uint32_t shard_index = shardIndex;
+    if (subgroupType[0] != '\0') {
+        subgroup_type = subgroupType;
+    }
+    // get versioned get
+    if (subgroup_type.empty()) {
+        auto res = capi.multi_get(std::string(key));
+        auto s = new QueryResultsStore<const ObjectWithStringKey, ObjectProperties>(std::move(res), object_unwrapper);
+        return s;
+    } else {
+        on_all_subgroup_type(subgroup_type, return multi_get, capi, std::string(key), subgroup_index, shard_index);
+    }
+}
+
+EXPORT auto EXPORT_getSize(ServiceClientAPI& capi, char* key, char* subgroupType, uint32_t subgroupIndex, 
+    uint32_t shardIndex, persistent::version_t version, bool stable, uint64_t timestamp) {
+        std::string subgroup_type;
+        uint32_t subgroup_index = subgroupIndex;
+        uint32_t shard_index = shardIndex;
+        if (subgroupType[0] != '\0') {
+            subgroup_type = subgroupType;
+        }
+
+        if (timestamp != 0 && version == CURRENT_VERSION) {
+            // timestamped get
+            if (subgroup_type.empty()) {
+                auto res = capi.get_size_by_time(std::string(key), timestamp, stable);
+                auto s = new QueryResultsStore<uint64_t, uint64_t>(std::move(res), [](const uint64_t& size){ return size; });
+                return s;
+            } else {
+                on_all_subgroup_type(subgroup_type, return get_size_by_time, capi, std::string(key), timestamp, stable, subgroup_index, shard_index);
+            }
+        } else {
+            // get versioned get
+            if (subgroup_type.empty()) {
+                auto res = capi.get_size(std::string(key), version, stable);
+                auto s = new QueryResultsStore<uint64_t, uint64_t>(std::move(res), [](const uint64_t& size){ return size; });
+                return s;
+            } else {
+                on_all_subgroup_type(subgroup_type, return get_size, capi, std::string(key), version, stable, subgroup_index, shard_index);
+            }
+        }
+}
+
+EXPORT auto EXPORT_multiGetSize(ServiceClientAPI& capi, char* key, char* subgroupType, uint32_t subgroupIndex, uint32_t shardIndex) {
+    std::string subgroup_type;
+    uint32_t subgroup_index = subgroupIndex;
+    uint32_t shard_index = shardIndex;
+    if (subgroupType[0] != '\0') {
+        subgroup_type = subgroupType;
+    }
+
+    // get versioned get
+    if (subgroup_type.empty()) {
+        auto res = capi.multi_get_size(std::string(key));
+        auto s = new QueryResultsStore<uint64_t, uint64_t>(std::move(res), [](const uint64_t& size){ return size; });
+        return s;
+    } else {
+        on_all_subgroup_type(subgroup_type, return multi_get_size, capi, std::string(key), subgroup_index, shard_index);
+    }
+}
+
+EXPORT auto EXPORT_listKeysInShard(ServiceClientAPI& capi, char* subgroupType, uint32_t subgroupIndex, 
+    uint32_t shardIndex, persistent::version_t version, bool stable, uint64_t timestamp) {
+        std::string subgroup_type = subgroupType;
+        uint32_t subgroup_index = subgroupIndex;
+        uint32_t shard_index = shardIndex;
+
+        if (timestamp != 0 && version == CURRENT_VERSION ) {
+            // timestamped get
+            on_all_subgroup_type(subgroup_type, return list_keys_by_time, capi, timestamp, stable, subgroup_index, shard_index);
+        } else {
+            on_all_subgroup_type(subgroup_type, return list_keys, capi, version, stable, subgroup_index, shard_index);
+        }
+}
+
+EXPORT auto EXPORT_multiListKeysInShard(ServiceClientAPI& capi, char* subgroupType, uint32_t subgroupIndex, uint32_t shardIndex) {
+    std::string subgroup_type = subgroupType;
+    uint32_t subgroup_index = subgroupIndex;
+    uint32_t shard_index = shardIndex;
+
+    on_all_subgroup_type(subgroup_type, return multi_list_keys, capi, subgroup_index, shard_index);
+}
+
+EXPORT auto EXPORT_listKeysInObjectPool(ServiceClientAPI& capi, char* objectPoolPathname, persistent::version_t version, bool stable, uint64_t timestamp) {
+    std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<std::string>>>> results;
+    if (timestamp != 0 && version == CURRENT_VERSION) {
+        results = std::move(capi.list_keys_by_time(timestamp, stable, std::string(objectPoolPathname)));
+    } else {
+        results = std::move(capi.list_keys(version,stable, std::string(objectPoolPathname)));
+    }
+    auto future_list = new std::vector<QueryResultsStore<std::vector<std::string>, StdVectorWrapper>*>();
+    for (auto& result : results) {
+        auto s = new QueryResultsStore<std::vector<std::string>, StdVectorWrapper>(std::move(*result), list_unwrapper);
+        future_list->push_back(s);
+    }
+    return future_list;
+}
+
+EXPORT auto EXPORT_multiListKeysInObjectPool(ServiceClientAPI& capi, char* objectPoolPathname) {
+    std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<std::string>>>> results;
+    results = std::move(capi.multi_list_keys(objectPoolPathname));
+    auto future_list = new std::vector<QueryResultsStore<std::vector<std::string>, StdVectorWrapper>*>();
+    for (auto& result : results) {
+        auto s = new QueryResultsStore<std::vector<std::string>, StdVectorWrapper>(std::move(*result), list_unwrapper);
+        future_list->push_back(s);
+    }
+    return future_list;
+}
+
+EXPORT StdVectorWrapper EXPORT_listObjectPools(ServiceClientAPI& capi) {
+    std::vector<std::string>* pools = new std::vector<std::string>();
+    for (const std::string& opp : capi.list_object_pools(true, true)) {
+        pools->push_back(opp);
+    }
+    return {pools->data(), pools, pools->size()};
+}
+
+EXPORT auto EXPORT_createObjectPool(ServiceClientAPI& capi, char* objectPoolPathname, char* serviceType, uint32_t subgroupIndex, char* affinitySetRegex) {
+    on_all_subgroup_type(std::string(serviceType), return create_object_pool, capi, std::string(objectPoolPathname), subgroupIndex, std::string(affinitySetRegex));
+}
+
+EXPORT auto EXPORT_getObjectPool(ServiceClientAPI& capi, char* objectPoolPathname) {
+    return get_object_pool(capi, std::string(objectPoolPathname));
+}
+
+EXPORT auto EXPORT_removeObjectPool(ServiceClientAPI& capi, char* objectPoolPathname) {
+    derecho::rpc::QueryResults<version_tuple> result = capi.remove_object_pool(std::string(objectPoolPathname));
+    QueryResultsStore<version_tuple, VersionTimestampPair>* s =
+        new QueryResultsStore<version_tuple, VersionTimestampPair>(std::move(result), bundle_f);
+    return s;
+}
