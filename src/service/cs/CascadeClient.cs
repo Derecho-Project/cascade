@@ -98,6 +98,22 @@ namespace Derecho.Cascade
             public StdVectorWrapper flattenedList;
             public StdVectorWrapper vectorSizes;
         }
+        
+        [StructLayout(LayoutKind.Sequential)]
+        public struct GetObjectPoolMetadata
+        {
+            public Int64 version;
+            public UInt64 timestamp;
+            public Int64 previousVersion;
+            public Int64 previousVersionByKey;
+            public string pathname;
+            public UInt32 subgroupTypeIndex;
+            public UInt32 subgroupIndex;
+            public Int32 shardingPolicy;
+            public StdVectorWrapper objectLocations;
+            public string affinitySetRegex;
+            public bool deleted;
+        }
 
         private static string[] LEGAL_CASCADE_SUBGROUP_TYPES = 
         {
@@ -121,6 +137,15 @@ namespace Derecho.Cascade
         public static extern VersionTimestampPair extractVersionTimestampFromQueryResults(IntPtr queryResultsPtr);
         
         [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        public static extern UInt64 extractUInt64FromQueryResults(IntPtr queryResults);
+        
+        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        public static extern StdVectorWrapper extractStdVectorWrapperFromQueryResults(IntPtr queryResults);
+
+        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        public static extern IntPtr indexStdVectorWrapperString(StdVectorWrapper vector, UInt64 index);
+
+        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
         public static extern bool freeVectorPointer(IntPtr ptr);
 
         [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
@@ -143,10 +168,6 @@ namespace Derecho.Cascade
 
         [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
         private static unsafe extern IntPtr EXPORT_put(IntPtr capi, string object_pool_path, byte[] bytes, UInt64 bytesSize, PutArgs args);      
-
-        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
-        private static extern IntPtr EXPORT_createObjectPool(IntPtr capi, string objectPoolPathname, 
-            string serviceType, UInt32 subgroupIndex, string affinitySetRegex);
 
         [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
         private static extern UInt32 EXPORT_getNumberOfSubgroups(IntPtr capi, string serviceType);
@@ -174,6 +195,45 @@ namespace Derecho.Cascade
 
         [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
         private static extern PolicyMetadata EXPORT_getMemberSelectionPolicy(IntPtr capi, string serviceType, UInt32 subgroupIndex, UInt32 shardIndex);
+
+        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr EXPORT_remove(IntPtr capi, string key, string subgroupType, UInt32 subgroupIndex, UInt32 shardIndex);
+
+        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr EXPORT_multiGet(IntPtr capi, string key, string subgroupType, UInt32 subgroupIndex, UInt32 shardIndex);
+
+        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr EXPORT_getSize(IntPtr capi, string key, string subgroupType, UInt32 subgroupIndex, UInt32 shardIndex, Int64 version, bool stable, UInt64 timestamp);
+
+        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr EXPORT_multiGetSize(IntPtr capi, string key, string subgroupType, UInt32 subgroupIndex, UInt32 shardIndex);
+
+        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr EXPORT_listKeysInShard(IntPtr capi, string subgroupType, UInt32 subgroupIndex, UInt32 shardIndex, Int64 version, bool stable, UInt64 timestamp);
+
+        // TODO: unexposed
+        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr EXPORT_listKeysInObjectPool(IntPtr capi, string objectPoolPathname, Int64 version, bool stable, UInt64 timestamp);
+
+        // TODO: unexposed
+        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr EXPORT_multiListKeysInObjectPool(IntPtr capi, string objectPoolPathname);
+
+        // TODO: unexposed
+        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr EXPORT_listObjectPools(IntPtr capi);
+        
+        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr EXPORT_createObjectPool(IntPtr capi, string objectPoolPathname, 
+            string serviceType, UInt32 subgroupIndex, string affinitySetRegex);
+
+        // TODO: unexposed
+        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        private static extern GetObjectPoolMetadata EXPORT_getObjectPool(IntPtr capi, string objectPoolPathname);
+
+        // TODO: unexposed
+        [DllImport("libcascade_client_cs.so", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr EXPORT_removeObjectPool(IntPtr capi, string objectPoolPathname);
 
         /************************
          * Class helpers
@@ -261,6 +321,18 @@ namespace Derecho.Cascade
             freeVectorPointer(flattenedList.vecBasePtr);
             freeVectorPointer(vectorSizes.vecBasePtr);
             return outerList;
+        }
+
+        private unsafe static List<string> extractStringListFromStdVector(StdVectorWrapper vector)
+        {
+            List<string> list = new List<string>();
+            for (UInt64 i = 0; i < vector.length; i++)
+            {
+                IntPtr strPtr = indexStdVectorWrapperString(vector, i);
+                list.Add(Marshal.PtrToStringAuto(strPtr));
+            }
+            freeVectorPointer(vector.vecBasePtr);
+            return list;
         }
 
         /**************************************
@@ -373,7 +445,7 @@ namespace Derecho.Cascade
         /// <param><c>type</c> is the subgroup type in Cascade to get from.
         ///                    Defaults to none.
         /// </param>
-        /// <param><c>subgroupIndex</c> Defaults to the max subgroup index.</param>
+        /// <param><c>subgroupIndex</c> Defaults to zero.</param>
         /// <param><c>shardIndex</c> Defaults to zero.</param>
         /// <param><c>previousVersion</c> Defaults to the current version.</param>
         /// <param><c>previousVersionByKey</c> Defaults to the current version.</param>
@@ -385,7 +457,7 @@ namespace Derecho.Cascade
         public VersionTimestampPair Put(string key, 
                           byte[] bytes,
                           SubgroupType? type = null,
-                          UInt32 subgroupIndex = UInt32.MaxValue,
+                          UInt32 subgroupIndex = 0,
                           UInt32 shardIndex = 0,
                           Int64 previousVersion = -1L,
                           Int64 previousVersionByKey = -1L,
@@ -397,6 +469,126 @@ namespace Derecho.Cascade
                 shardIndex, previousVersion, previousVersionByKey, blocking, trigger, messageId);
             return extractVersionTimestampFromQueryResults(
                 EXPORT_put(capi, key, bytes, (UInt64) bytes.Length, args));
+        }
+
+        /// <summary>
+        /// Remove an object from Cascade's store.
+        /// <param><c>key</c> is the key of the object.</param>
+        /// <param><c>type</c> is the subgroup type in Cascade to get from.
+        ///                    Defaults to none.
+        /// </param>
+        /// <param><c>subgroupIndex</c> Defaults to zero.</param>
+        /// <param><c>shardIndex</c> Defaults to zero.</param>
+        /// <returns>A VersionTimestampPair response.</returns>
+        /// </summary>
+        public VersionTimestampPair Remove(string key, 
+                                           SubgroupType? type = null, 
+                                           UInt32 subgroupIndex = 0, 
+                                           UInt32 shardIndex = 0)
+        {
+            IntPtr res = EXPORT_remove(capi, key, subgroupEnumToString(type), subgroupIndex, 
+                shardIndex);
+            return extractVersionTimestampFromQueryResults(res);
+        }
+        
+        /// <summary>
+        /// Get an object from Cascade's store using multi_get.
+        /// <param><c>key</c> is the key of the object.</param>
+        /// <param><c>type</c> is the subgroup type in Cascade to get from. 
+        ///                    Defaults to none.
+        /// </param>
+        /// <param><c>subgroupIndex</c> Defaults to 0.</param>
+        /// <param><c>shardIndex</c> Defaults to 0.</param>
+        /// <returns>An ObjectProperties struct of the data associated with the object.</returns>
+        /// </summary>
+        public ObjectProperties MultiGet(string key,
+                                         SubgroupType? type = null,
+                                         UInt32 subgroupIndex = 0,
+                                         UInt32 shardIndex = 0)
+        {
+            IntPtr res = EXPORT_multiGet(capi, key, subgroupEnumToString(type), subgroupIndex,
+                shardIndex);
+            return extractObjectPropertiesFromQueryResults(res);
+        }       
+
+        /// <summary>
+        /// Get the size of an object using get_size.
+        /// <param><c>key</c> is the key of the object.</param>
+        /// <param><c>type</c> is the subgroup type in Cascade to get from. 
+        ///                    Defaults to none.
+        /// </param>
+        /// <param><c>subgroupIndex</c> Defaults to 0.</param>
+        /// <param><c>shardIndex</c> Defaults to 0.</param>
+        /// <param><c>version</c> is the version to specify for a versioned get size. 
+        ///                       Defaults to the current version.
+        /// </param>
+        /// <param><c>stable</c> if getting stable data. Defaults to true.</param>
+        /// <param><c>timestamp</c> is the Unix epoch ms for a timestamped get. Defaults to
+        ///                         not using a timestamp get.
+        /// </param>
+        /// <returns>The size of the object.</returns>
+        /// </summary>
+        public UInt64 GetSize(string key,
+                              SubgroupType? type = null,
+                              UInt32 subgroupIndex = 0,
+                              UInt32 shardIndex = 0,
+                              Int64 version = 0,
+                              bool stable = true,
+                              UInt64 timestamp = 0L)
+        {
+            IntPtr res = EXPORT_getSize(capi, key, subgroupEnumToString(type), subgroupIndex, 
+                shardIndex, version, stable, timestamp);
+            return extractUInt64FromQueryResults(res);
+        }
+
+
+        /// <summary>
+        /// Get the size of an object using multi_get_size.
+        /// <param><c>key</c> is the key of the object.</param>
+        /// <param><c>type</c> is the subgroup type in Cascade to get from. 
+        ///                    Defaults to none.
+        /// </param>
+        /// <param><c>subgroupIndex</c> Defaults to 0.</param>
+        /// <param><c>shardIndex</c> Defaults to 0.</param>
+        /// <returns>The size of the object.</returns>
+        /// </summary>
+        public UInt64 MultiGetSize(string key,
+                              SubgroupType? type = null,
+                              UInt32 subgroupIndex = 0,
+                              UInt32 shardIndex = 0)
+        {
+            IntPtr res = EXPORT_multiGetSize(capi, key, subgroupEnumToString(type), subgroupIndex, 
+                shardIndex);
+            return extractUInt64FromQueryResults(res);
+        }
+
+        /// <summary>
+        /// List the keys in a given shard.
+        /// <param><c>key</c> is the key of the object.</param>
+        /// <param><c>type</c> is the subgroup type in Cascade to get from. 
+        /// </param>
+        /// <param><c>subgroupIndex</c> Defaults to 0.</param>
+        /// <param><c>shardIndex</c> Defaults to 0.</param>
+        /// <param><c>version</c> is the version to specify for a versioned get size. 
+        ///                       Defaults to the current version.
+        /// </param>
+        /// <param><c>stable</c> if getting stable data. Defaults to true.</param>
+        /// <param><c>timestamp</c> is the Unix epoch ms for a timestamped get. Defaults to
+        ///                         not using a timestamp get.
+        /// </param>
+        /// <returns>The size of the object.</returns>
+        /// </summary>
+        public List<string> ListKeysInShard(SubgroupType type,
+                              UInt32 subgroupIndex = 0,
+                              UInt32 shardIndex = 0,
+                              Int64 version = 0,
+                              bool stable = true,
+                              UInt64 timestamp = 0L)
+        {
+            IntPtr res = EXPORT_listKeysInShard(capi, subgroupEnumToString(type), subgroupIndex, 
+                shardIndex, version, stable, timestamp);
+            StdVectorWrapper vector = extractStdVectorWrapperFromQueryResults(res);
+            return extractStringListFromStdVector(vector);
         }
 
         /// <summary>
@@ -536,6 +728,6 @@ namespace Derecho.Cascade
         {
             return EXPORT_getMemberSelectionPolicy(capi, subgroupEnumToString(type), subgroupIndex, 
                 shardIndex);
-        } 
+        }
     }
 } // namespace Derecho.Cascade
