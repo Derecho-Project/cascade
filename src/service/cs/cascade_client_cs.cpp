@@ -402,7 +402,7 @@ auto multi_list_keys(ServiceClientAPI& capi, uint32_t subgroup_index = 0, uint32
     return s;
 }
 
-struct GetObjectPoolMetadata {
+struct GetObjectPoolMetadataInternal {
     persistent::version_t version;
     uint64_t timestamp;
     persistent::version_t previousVersion;
@@ -424,7 +424,7 @@ struct GetObjectPoolMetadata {
  */
 auto get_object_pool(ServiceClientAPI& capi, const std::string& object_pool_pathname) {
     auto copm = capi.find_object_pool(object_pool_pathname);
-    GetObjectPoolMetadata metadata;
+    GetObjectPoolMetadataInternal metadata;
     metadata.version = copm.version;
     metadata.timestamp = copm.timestamp_us;
     metadata.previousVersion = copm.previous_version;
@@ -501,6 +501,10 @@ EXPORT StdVectorWrapper extractStdVectorWrapperFromQueryResults(QueryResultsStor
 EXPORT const char* indexStdVectorWrapperString(StdVectorWrapper vector, std::size_t index) {
     return static_cast<std::vector<std::string>*>(vector.vecBasePtr)->at(index).c_str();
 } 
+
+EXPORT ObjectLocation indexStdVectorWrapperObjectLocation(StdVectorWrapper vector, std::size_t index) {
+    return static_cast<std::vector<ObjectLocation>*>(vector.vecBasePtr)->at(index);
+}
 
 EXPORT bool freeVectorPointer(std::vector<node_id_t>* ptr) {
     delete ptr;

@@ -38,6 +38,8 @@ namespace Derecho.Cascade
     /// </example>
     public unsafe class CascadeClient
     {
+        public const Int64 CURRENT_VERSION = -1L;
+
         private IntPtr capi;
         
         /// <summary>
@@ -102,7 +104,6 @@ namespace Derecho.Cascade
             public StdVectorWrapper vectorSizes;
         }
         
-        [StructLayout(LayoutKind.Sequential)]
         public struct GetObjectPoolMetadata
         {
             public Int64 version;
@@ -113,9 +114,34 @@ namespace Derecho.Cascade
             public UInt32 subgroupTypeIndex;
             public UInt32 subgroupIndex;
             public Int32 shardingPolicy;
-            public StdVectorWrapper objectLocations;
+            public Dictionary<string, UInt32> objectLocations;
             public string affinitySetRegex;
             public bool deleted;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct GetObjectPoolMetadataInternal
+        {
+            public Int64 version;
+            public UInt64 timestamp;
+            public Int64 previousVersion;
+            public Int64 previousVersionByKey;
+            // string
+            public IntPtr pathname;
+            public UInt32 subgroupTypeIndex;
+            public UInt32 subgroupIndex;
+            public Int32 shardingPolicy;
+            public StdVectorWrapper objectLocations;
+            // string
+            public IntPtr affinitySetRegex;
+            public bool deleted;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct ObjectLocation
+        {
+            public IntPtr key;
+            public UInt32 shard;
         }
 
         private static string[] LEGAL_CASCADE_SUBGROUP_TYPES = 
@@ -152,7 +178,10 @@ namespace Derecho.Cascade
         public static extern StdVectorWrapper extractStdVectorWrapperFromQueryResults(IntPtr queryResults);
 
         [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
-        public static extern IntPtr indexStdVectorWrapperString(StdVectorWrapper vector, UInt64 index);
+        private static extern IntPtr indexStdVectorWrapperString(StdVectorWrapper vector, UInt64 index);
+
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
+        private static extern ObjectLocation indexStdVectorWrapperObjectLocation(StdVectorWrapper vector, UInt64 index);
 
         [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         public static extern bool freeVectorPointer(IntPtr ptr);
@@ -220,15 +249,15 @@ namespace Derecho.Cascade
         [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr EXPORT_listKeysInShard(IntPtr capi, string subgroupType, UInt32 subgroupIndex, UInt32 shardIndex, Int64 version, bool stable, UInt64 timestamp);
 
-        // TODO: unexposed
         [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr EXPORT_listKeysInObjectPool(IntPtr capi, string objectPoolPathname, Int64 version, bool stable, UInt64 timestamp);
 
-        // TODO: unexposed
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr EXPORT_multiListKeysInShard(IntPtr capi, string subgroupType, UInt32 subgroupindex, UInt32 shardIndex);
+
         [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr EXPORT_multiListKeysInObjectPool(IntPtr capi, string objectPoolPathname);
 
-        // TODO: unexposed
         [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr EXPORT_listObjectPools(IntPtr capi);
         
@@ -236,11 +265,9 @@ namespace Derecho.Cascade
         private static extern IntPtr EXPORT_createObjectPool(IntPtr capi, string objectPoolPathname, 
             string serviceType, UInt32 subgroupIndex, string affinitySetRegex);
 
-        // TODO: unexposed
         [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
-        private static extern GetObjectPoolMetadata EXPORT_getObjectPool(IntPtr capi, string objectPoolPathname);
+        private static extern GetObjectPoolMetadataInternal EXPORT_getObjectPool(IntPtr capi, string objectPoolPathname);
 
-        // TODO: unexposed
         [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr EXPORT_removeObjectPool(IntPtr capi, string objectPoolPathname);
 
@@ -344,6 +371,34 @@ namespace Derecho.Cascade
             return list;
         }
 
+        private unsafe static GetObjectPoolMetadata extractObjectPoolMetadata(GetObjectPoolMetadataInternal metadataInternal)
+        {
+            // set same fields
+            GetObjectPoolMetadata metadata = new GetObjectPoolMetadata();
+            metadata.version = metadataInternal.version;
+            metadata.timestamp = metadataInternal.timestamp;
+            metadata.previousVersion = metadataInternal.previousVersion;
+            metadata.previousVersionByKey = metadataInternal.previousVersionByKey;
+            metadata.subgroupTypeIndex = metadataInternal.subgroupTypeIndex;
+            metadata.subgroupIndex = metadataInternal.subgroupIndex;
+            metadata.shardingPolicy = metadataInternal.shardingPolicy;
+            metadata.deleted = metadataInternal.deleted;
+            
+            // marshal non-blittable types
+            metadata.pathname = Marshal.PtrToStringAuto(metadataInternal.pathname);
+            metadata.affinitySetRegex = Marshal.PtrToStringAuto(metadataInternal.affinitySetRegex);
+            Dictionary<string, UInt32> objectLocations = new Dictionary<string, UInt32>();
+            StdVectorWrapper vector = metadataInternal.objectLocations;
+            for (UInt64 i = 0; i < vector.length; i++)
+            {
+                ObjectLocation objectLocation = indexStdVectorWrapperObjectLocation(vector, i);
+                objectLocations.Add(Marshal.PtrToStringAuto(objectLocation.key), objectLocation.shard);
+            }
+            metadata.objectLocations = objectLocations;
+            
+            return metadata;
+        }
+
         /**************************************
          * Client class functions
          **************************************/
@@ -410,7 +465,7 @@ namespace Derecho.Cascade
                                     UInt32 subgroupIndex = 0, 
                                     UInt32 shardIndex = 0,
                                     // this means current version
-                                    Int64 version = -1L,
+                                    Int64 version = CURRENT_VERSION,
                                     bool stable = true,
                                     UInt64 timestamp = 0)
         {
@@ -468,8 +523,8 @@ namespace Derecho.Cascade
                           SubgroupType? type = null,
                           UInt32 subgroupIndex = 0,
                           UInt32 shardIndex = 0,
-                          Int64 previousVersion = -1L,
-                          Int64 previousVersionByKey = -1L,
+                          Int64 previousVersion = CURRENT_VERSION,
+                          Int64 previousVersionByKey = CURRENT_VERSION,
                           bool blocking = true,
                           bool trigger = false,
                           UInt64 messageId = 0)
@@ -541,7 +596,7 @@ namespace Derecho.Cascade
                               SubgroupType? type = null,
                               UInt32 subgroupIndex = 0,
                               UInt32 shardIndex = 0,
-                              Int64 version = 0,
+                              Int64 version = CURRENT_VERSION,
                               bool stable = true,
                               UInt64 timestamp = 0L)
         {
@@ -585,17 +640,81 @@ namespace Derecho.Cascade
         /// <param><c>timestamp</c> is the Unix epoch ms for a timestamped get. Defaults to
         ///                         not using a timestamp get.
         /// </param>
-        /// <returns>The size of the object.</returns>
+        /// <returns>The keys in the shard.</returns>
         /// </summary>
         public List<string> ListKeysInShard(SubgroupType type,
                               UInt32 subgroupIndex = 0,
                               UInt32 shardIndex = 0,
-                              Int64 version = 0,
+                              Int64 version = CURRENT_VERSION,
                               bool stable = true,
                               UInt64 timestamp = 0L)
         {
             IntPtr res = EXPORT_listKeysInShard(capi, subgroupEnumToString(type), subgroupIndex, 
                 shardIndex, version, stable, timestamp);
+            StdVectorWrapper vector = extractStdVectorWrapperFromQueryResults(res);
+            return extractStringListFromStdVector(vector);
+        }
+
+        /// <summary>
+        /// List the keys in a given object pool.
+        /// <param><c>objectPoolPathname</c></param>
+        /// <param><c>version</c> is the version to specify for a versioned get size. 
+        ///                       Defaults to the current version.
+        /// </param>
+        /// <param><c>stable</c> if getting stable data. Defaults to true.</param>
+        /// <param><c>timestamp</c> is the Unix epoch ms for a timestamped get. Defaults to
+        ///                         not using a timestamp get.
+        /// </param>
+        /// <returns>The keys in the object pool.</returns>
+        /// </summary>
+        public List<string> ListKeysInObjectPool(string objectPoolPathname,
+                                                 Int64 version = CURRENT_VERSION,
+                                                 bool stable = true,
+                                                 UInt64 timestamp = 0L)
+        {
+            IntPtr res = EXPORT_listKeysInObjectPool(capi, objectPoolPathname, version, stable,
+                timestamp);
+            StdVectorWrapper vector = extractStdVectorWrapperFromQueryResults(res);
+            return extractStringListFromStdVector(vector);
+        }
+
+        /// <summary>
+        /// List the keys in a shard using multi_get.
+        /// <param><c>type</c> is the subgroup type in Cascade to get from. 
+        /// </param>
+        /// <param><c>subgroupIndex</c> Defaults to 0.</param>
+        /// <param><c>shardIndex</c> Defaults to 0.</param>
+        /// <returns>The keys in the shard.</returns>
+        /// </summary>
+        public List<string> MultiListKeysInShard(SubgroupType type, 
+                                                 UInt32 subgroupIndex = 0,
+                                                 UInt32 shardIndex = 0)
+        {
+            IntPtr res = EXPORT_multiListKeysInShard(capi, subgroupEnumToString(type), 
+                subgroupIndex, shardIndex);
+            StdVectorWrapper vector = extractStdVectorWrapperFromQueryResults(res);
+            return extractStringListFromStdVector(vector);
+        }
+
+        /// <summary>
+        /// List the keys in an object pool using multi_get.
+        /// <param><c>objectPoolPathname</c></param>
+        /// <returns>The keys in the object pool.</returns>
+        /// </summary>
+        public List<string> MultiListKeysInObjectPool(string objectPoolPathname)
+        {
+            IntPtr res = EXPORT_multiListKeysInObjectPool(capi, objectPoolPathname);
+            StdVectorWrapper vector = extractStdVectorWrapperFromQueryResults(res);
+            return extractStringListFromStdVector(vector);
+        }
+
+        /// <summary>
+        /// List all the object pools.
+        /// <returns>The keys in the object pool.</returns>
+        /// </summary>
+        public List<string> ListObjectPools()
+        {
+            IntPtr res = EXPORT_listObjectPools(capi);
             StdVectorWrapper vector = extractStdVectorWrapperFromQueryResults(res);
             return extractStringListFromStdVector(vector);
         }
@@ -613,6 +732,29 @@ namespace Derecho.Cascade
             return extractVersionTimestampFromQueryResults(
                 EXPORT_createObjectPool(capi, objectPoolPathname, subgroupEnumToString(type), 
                     subgroupIndex, affinitySetRegex));
+        }
+
+        /// <summary>
+        /// Remove an object pool.
+        /// <param><c>objectPoolPathname</c></param>
+        /// <returns>A version and timestamp pair response.</returns>
+        /// </summary>
+        public VersionTimestampPair RemoveObjectPool(string objectPoolPathname)
+        {
+            IntPtr res = EXPORT_removeObjectPool(capi, objectPoolPathname);
+            return extractVersionTimestampFromQueryResults(res);
+        }
+
+        /// <summary>
+        /// Get the metadata associated with an object pool.
+        /// <param><c>objectPoolPathname</c></param>
+        ///
+        /// <returns>A GetObjectPoolMetadata response.</returns>
+        /// </summary>
+        public GetObjectPoolMetadata GetObjectPool(string objectPoolPathname)
+        {
+            GetObjectPoolMetadataInternal res = EXPORT_getObjectPool(capi, objectPoolPathname);
+            return extractObjectPoolMetadata(res);
         }
         
         /// <summary>
