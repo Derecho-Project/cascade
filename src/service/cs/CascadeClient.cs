@@ -1,4 +1,3 @@
-#define SHARED_OBJECTS_PATH
 using System;
 using System.Text;
 using System.Runtime.InteropServices;
@@ -63,15 +62,25 @@ namespace Derecho.Cascade
         [StructLayout(LayoutKind.Sequential)]
         public struct ObjectProperties
         {
-            public IntPtr key;
-            // TODO: needs to be freed after use.
-            public IntPtr bytes;
+            private IntPtr key;
+            // needs to be freed after use.
+            private IntPtr bytes;
             public UInt64 bytes_size;
             public Int64 version;
             public UInt64 timestamp;
             public Int64 previous_version;
             public Int64 previous_version_by_key;
             public UInt64 message_id;
+
+            public string GetKey()
+            {
+                return Marshal.PtrToStringAuto(key);
+            }
+
+            public byte* GetBytePtr()
+            {
+                return (byte*) bytes.ToPointer();
+            }
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -84,13 +93,13 @@ namespace Derecho.Cascade
         [StructLayout(LayoutKind.Sequential)]
         public struct PolicyMetadata
         {
-            string policyString;
-            ShardMemberSelectionPolicy policy;
-            UInt32 userNode;
+            public string policyString;
+            public ShardMemberSelectionPolicy policy;
+            public UInt32 userNode;
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        public struct StdVectorWrapper
+        private struct StdVectorWrapper
         {
             public IntPtr data;
             public IntPtr vecBasePtr;
@@ -98,7 +107,7 @@ namespace Derecho.Cascade
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        public struct TwoDimensionalNodeList
+        private struct TwoDimensionalNodeList
         {
             public StdVectorWrapper flattenedList;
             public StdVectorWrapper vectorSizes;
@@ -162,20 +171,22 @@ namespace Derecho.Cascade
          * These do not depend on a service client API reference, so
          * we do not redefine them in C#.
          */
+
+        // Private helpers
         [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
-        public static extern StdVectorWrapper indexTwoDimensionalNodeVector(IntPtr vec, UInt64 index);
+        private static extern StdVectorWrapper indexTwoDimensionalNodeVector(IntPtr vec, UInt64 index);
 
         [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
-        public static extern ObjectProperties extractObjectPropertiesFromQueryResults(IntPtr queryResultsPtr);
+        private static extern ObjectProperties extractObjectPropertiesFromQueryResults(IntPtr queryResultsPtr);
 
         [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
-        public static extern VersionTimestampPair extractVersionTimestampFromQueryResults(IntPtr queryResultsPtr);
+        private static extern VersionTimestampPair extractVersionTimestampFromQueryResults(IntPtr queryResultsPtr);
         
         [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
-        public static extern UInt64 extractUInt64FromQueryResults(IntPtr queryResults);
+        private static extern UInt64 extractUInt64FromQueryResults(IntPtr queryResults);
         
         [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
-        public static extern StdVectorWrapper extractStdVectorWrapperFromQueryResults(IntPtr queryResults);
+        private static extern StdVectorWrapper extractStdVectorWrapperFromQueryResults(IntPtr queryResults);
 
         [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr indexStdVectorWrapperString(StdVectorWrapper vector, UInt64 index);
@@ -183,6 +194,7 @@ namespace Derecho.Cascade
         [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern ObjectLocation indexStdVectorWrapperObjectLocation(StdVectorWrapper vector, UInt64 index);
 
+        // Public utilities
         [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         public static extern bool freeVectorPointer(IntPtr ptr);
 
@@ -531,6 +543,41 @@ namespace Derecho.Cascade
         {
             PutArgs args = new PutArgs(subgroupEnumToString(type), subgroupIndex,
                 shardIndex, previousVersion, previousVersionByKey, blocking, trigger, messageId);
+            return extractVersionTimestampFromQueryResults(
+                EXPORT_put(capi, key, bytes, (UInt64) bytes.Length, args));
+        }
+
+        /// <summary>
+        /// Put a string value into Cascade's store.
+        /// <param><c>key</c> is the key of the object.</param>
+        /// <param><c>str</c> is the string to put into Cascade via bytes.</param>
+        /// <param><c>type</c> is the subgroup type in Cascade to get from.
+        ///                    Defaults to none.
+        /// </param>
+        /// <param><c>subgroupIndex</c> Defaults to zero.</param>
+        /// <param><c>shardIndex</c> Defaults to zero.</param>
+        /// <param><c>previousVersion</c> Defaults to the current version.</param>
+        /// <param><c>previousVersionByKey</c> Defaults to the current version.</param>
+        /// <param><c>blocking</c> Defaults to true.</param>
+        /// <param><c>trigger</c> Defaults to false.</param>
+        /// <param><c>messageId</c></param>
+        /// <returns>A VersionTimestampPair response.</returns>
+        /// </summary>
+        public VersionTimestampPair Put(string key, 
+                          string str,
+                          SubgroupType? type = null,
+                          UInt32 subgroupIndex = 0,
+                          UInt32 shardIndex = 0,
+                          Int64 previousVersion = CURRENT_VERSION,
+                          Int64 previousVersionByKey = CURRENT_VERSION,
+                          bool blocking = true,
+                          bool trigger = false,
+                          UInt64 messageId = 0)
+        {
+
+            PutArgs args = new PutArgs(subgroupEnumToString(type), subgroupIndex,
+                shardIndex, previousVersion, previousVersionByKey, blocking, trigger, messageId);
+            byte[] bytes = System.Text.Encoding.UTF8.GetBytes(str);
             return extractVersionTimestampFromQueryResults(
                 EXPORT_put(capi, key, bytes, (UInt64) bytes.Length, args));
         }
