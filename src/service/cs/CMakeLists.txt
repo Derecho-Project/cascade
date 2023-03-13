@@ -35,6 +35,19 @@ if (DOTNET_CMD)
         install(TARGETS external_client_cs RUNTIME DESTINATION ${CMAKE_INSTALL_LIBDIR})
         install(TARGETS member_client_cs RUNTIME DESTINATION ${CMAKE_INSTALL_LIBDIR})
         
+        # Custom target will always cause its dependencies to be evaluated and is
+        # run by default
+        add_custom_target(cascade_client_cs_library ALL
+            DEPENDS custom_output
+        )
+        
+        # custom_output will always be rebuilt because it depends on always_rebuild
+        add_custom_command(
+            OUTPUT custom_output
+            COMMAND echo "Built C# Cascade client CLI."
+            DEPENDS always_rebuild
+        )
+        
         # Build the external client C# DLL.
         add_custom_command(TARGET external_client_cs POST_BUILD
             COMMAND dotnet build ${CMAKE_CURRENT_SOURCE_DIR}/CascadeClient.csproj -o ${CMAKE_CURRENT_BINARY_DIR} -p:DefineConstants=IS_EXTERNAL_CLIENT /property:AssemblyName=ExternalClientCS
@@ -51,6 +64,15 @@ if (DOTNET_CMD)
             DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/CascadeClient.cs
             DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/CascadeClient.csproj
             COMMENT "building member client C# DLL"
+        )
+
+        # Build the C# CLI.
+        add_custom_command(POST_BUILD
+            OUTPUT always_rebuild
+            COMMAND dotnet build ${CMAKE_CURRENT_SOURCE_DIR}/cli/CascadeClientCLI.csproj -o ${CMAKE_CURRENT_BINARY_DIR}
+            COMMAND rm -rf ${CMAKE_CURRENT_SOURCE_DIR}/cli/obj/
+            DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/cli/CascadeClientCLI.csproj
+            DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/cli/CascadeClientCLI.cs
         )
     endif()
 else ()
