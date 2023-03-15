@@ -79,8 +79,5 @@ client.Put("/console_printer/obj_a", "Hello World");
 ## Using the Client CLI
 
 For experimentation and testing, you can use the client CLI, which offers a command-line interface
-for using the app. To build it, `cd` into the `cli` directory and do the following:
-
-1. Run `dotnet build`.
-
-2. Run the resulting executable: `./CascadeClientCLI`.
+for using the app. It should be built as an executable `CascadeClientCLI` which you can move
+into a client node directory and run similarly to the C++ `cascade_client`. 

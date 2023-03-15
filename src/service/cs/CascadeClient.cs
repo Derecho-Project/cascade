@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using System.Linq;
 
 namespace Derecho.Cascade
 {
@@ -65,12 +66,12 @@ namespace Derecho.Cascade
             private IntPtr key;
             // needs to be freed after use.
             private IntPtr bytes;
-            public UInt64 bytes_size;
+            public UInt64 bytesSize;
             public Int64 version;
             public UInt64 timestamp;
-            public Int64 previous_version;
-            public Int64 previous_version_by_key;
-            public UInt64 message_id;
+            public Int64 previousVersion;
+            public Int64 previousVersionByKey;
+            public UInt64 messageId;
 
             public string GetKey()
             {
@@ -81,6 +82,19 @@ namespace Derecho.Cascade
             {
                 return (byte*) bytes.ToPointer();
             }
+
+            public string BytesToString()
+            {
+                return Marshal.PtrToStringAuto(bytes);
+            }
+
+            public override string ToString()
+            {
+                return $@"ObjectProperties{{bytes:{BytesToString()}, bytesSize:{bytesSize},
+                    version:{version}, timestamp:{timestamp}, previousVersion:{previousVersion},
+                    previousVersionByKey:{previousVersionByKey}, messageId:{messageId}
+                }}";
+            }
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -88,12 +102,29 @@ namespace Derecho.Cascade
         {
             public Int64 version;
             public UInt64 timestamp;
+
+            public override string ToString()
+            {
+                return $"VersionTimestampPair{{version:{version}, timestamp:{timestamp}}}";
+            }
         }
 
-        [StructLayout(LayoutKind.Sequential)]
         public struct PolicyMetadata
         {
             public string policyString;
+            public ShardMemberSelectionPolicy policy;
+            public UInt32 userNode;
+
+            public override string ToString()
+            {
+                return $@"PolicyMetadata{{policyString:{policyString}, policy:{policy}, userNode:{userNode}}}";
+            }
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct PolicyMetadataInternal
+        {
+            public IntPtr policyString;
             public ShardMemberSelectionPolicy policy;
             public UInt32 userNode;
         }
@@ -126,6 +157,16 @@ namespace Derecho.Cascade
             public Dictionary<string, UInt32> objectLocations;
             public string affinitySetRegex;
             public bool deleted;
+
+            public override string ToString()
+            {
+                return $@"GetObjectPoolMetadata{{version:{version}, timestamp:{timestamp}, 
+                    previousVersion:{previousVersion}, previousVersionByKey:{previousVersionByKey},
+                    pathname:{pathname}, subgroupTypeIndex:{subgroupTypeIndex}, subgroupIndex:{subgroupIndex},
+                    shardingPolicy:{shardingPolicy}, objectLocations:{objectLocationsToString(objectLocations)},
+                    affinitySetRegex:{affinitySetRegex}, deleted:{deleted}
+                }}"; 
+            }
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -161,9 +202,9 @@ namespace Derecho.Cascade
         };
 
 #if IS_EXTERNAL_CLIENT
-    public const string CLIENT_DLL = "external_client_cs.so";
+    public const string CLIENT_DLL = "libexternal_client_cs.so";
 #else
-    public const string CLIENT_DLL = "member_client_cs.so";
+    public const string CLIENT_DLL = "libmember_client_cs.so";
 #endif
 
         /**
@@ -194,9 +235,18 @@ namespace Derecho.Cascade
         [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern ObjectLocation indexStdVectorWrapperObjectLocation(StdVectorWrapper vector, UInt64 index);
 
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr indexStdVectorWrapperStringVectorQueryResults(StdVectorWrapper vector, UInt64 index);
+
         // Public utilities
         [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
-        public static extern bool freeVectorPointer(IntPtr ptr);
+        public static extern bool deleteObjectLocationVectorPointer(IntPtr ptr);
+
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
+        public static extern bool deleteStringVectorPointer(IntPtr ptr);
+
+        [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
+        public static extern bool deleteNodeIdVectorPointer(IntPtr ptr);
 
         [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         public static extern bool freeBytePointer(IntPtr ptr);
@@ -244,7 +294,7 @@ namespace Derecho.Cascade
         private static extern void EXPORT_setMemberSelectionPolicy(IntPtr capi, string serviceType, UInt32 subgroupIndex, UInt32 shardIndex, string policy, UInt32 userNode);
 
         [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
-        private static extern PolicyMetadata EXPORT_getMemberSelectionPolicy(IntPtr capi, string serviceType, UInt32 subgroupIndex, UInt32 shardIndex);
+        private static extern PolicyMetadataInternal EXPORT_getMemberSelectionPolicy(IntPtr capi, string serviceType, UInt32 subgroupIndex, UInt32 shardIndex);
 
         [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr EXPORT_remove(IntPtr capi, string key, string subgroupType, UInt32 subgroupIndex, UInt32 shardIndex);
@@ -262,16 +312,16 @@ namespace Derecho.Cascade
         private static extern IntPtr EXPORT_listKeysInShard(IntPtr capi, string subgroupType, UInt32 subgroupIndex, UInt32 shardIndex, Int64 version, bool stable, UInt64 timestamp);
 
         [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
-        private static extern IntPtr EXPORT_listKeysInObjectPool(IntPtr capi, string objectPoolPathname, Int64 version, bool stable, UInt64 timestamp);
+        private static extern StdVectorWrapper EXPORT_listKeysInObjectPool(IntPtr capi, string objectPoolPathname, Int64 version, bool stable, UInt64 timestamp);
 
         [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr EXPORT_multiListKeysInShard(IntPtr capi, string subgroupType, UInt32 subgroupindex, UInt32 shardIndex);
 
         [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
-        private static extern IntPtr EXPORT_multiListKeysInObjectPool(IntPtr capi, string objectPoolPathname);
+        private static extern StdVectorWrapper EXPORT_multiListKeysInObjectPool(IntPtr capi, string objectPoolPathname);
 
         [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
-        private static extern IntPtr EXPORT_listObjectPools(IntPtr capi);
+        private static extern StdVectorWrapper EXPORT_listObjectPools(IntPtr capi);
         
         [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr EXPORT_createObjectPool(IntPtr capi, string objectPoolPathname, 
@@ -286,6 +336,12 @@ namespace Derecho.Cascade
         /************************
          * Class helpers
          ************************/
+        private static string objectLocationsToString(Dictionary<string, UInt32> dictionary)
+        {
+            var lines = dictionary.Select(kvp => kvp.Key + ": " + kvp.Value.ToString());
+            return "[" + string.Join(", ", lines) + "]";
+        }
+
         private static string subgroupEnumToString(SubgroupType? type)
         {
             if (type is null)
@@ -341,7 +397,7 @@ namespace Derecho.Cascade
                 ++ptr;
             }
 
-            freeVectorPointer(vector.vecBasePtr);
+            deleteNodeIdVectorPointer(vector.vecBasePtr);
             return members;
         }
 
@@ -366,8 +422,8 @@ namespace Derecho.Cascade
                 ++sizePtr;
             }
             
-            freeVectorPointer(flattenedList.vecBasePtr);
-            freeVectorPointer(vectorSizes.vecBasePtr);
+            deleteNodeIdVectorPointer(flattenedList.vecBasePtr);
+            deleteNodeIdVectorPointer(vectorSizes.vecBasePtr);
             return outerList;
         }
 
@@ -379,7 +435,6 @@ namespace Derecho.Cascade
                 IntPtr strPtr = indexStdVectorWrapperString(vector, i);
                 list.Add(Marshal.PtrToStringAuto(strPtr));
             }
-            freeVectorPointer(vector.vecBasePtr);
             return list;
         }
 
@@ -407,6 +462,7 @@ namespace Derecho.Cascade
                 objectLocations.Add(Marshal.PtrToStringAuto(objectLocation.key), objectLocation.shard);
             }
             metadata.objectLocations = objectLocations;
+            deleteObjectLocationVectorPointer(vector.vecBasePtr);
             
             return metadata;
         }
@@ -511,7 +567,6 @@ namespace Derecho.Cascade
             public bool blocking;
             public bool trigger;
             public UInt64 messageId;
-
         }
 
         /// <summary>
@@ -719,10 +774,20 @@ namespace Derecho.Cascade
                                                  bool stable = true,
                                                  UInt64 timestamp = 0L)
         {
-            IntPtr res = EXPORT_listKeysInObjectPool(capi, objectPoolPathname, version, stable,
+            List<string> keys = new List<string>();
+            StdVectorWrapper res = EXPORT_listKeysInObjectPool(capi, objectPoolPathname, version, stable,
                 timestamp);
-            StdVectorWrapper vector = extractStdVectorWrapperFromQueryResults(res);
-            return extractStringListFromStdVector(vector);
+            for (UInt64 i = 0; i < res.length; i++)
+            {
+                var queryResults = indexStdVectorWrapperStringVectorQueryResults(res, i);
+                var queryResultsVec = extractStdVectorWrapperFromQueryResults(queryResults);
+                var queryResultsList = extractStringListFromStdVector(queryResultsVec);
+                foreach (var str in queryResultsList)
+                {
+                    keys.Add(str);
+                } 
+            }
+            return keys;
         }
 
         /// <summary>
@@ -750,9 +815,16 @@ namespace Derecho.Cascade
         /// </summary>
         public List<string> MultiListKeysInObjectPool(string objectPoolPathname)
         {
-            IntPtr res = EXPORT_multiListKeysInObjectPool(capi, objectPoolPathname);
-            StdVectorWrapper vector = extractStdVectorWrapperFromQueryResults(res);
-            return extractStringListFromStdVector(vector);
+            List<string> keys = new List<string>();
+            StdVectorWrapper res = EXPORT_multiListKeysInObjectPool(capi, objectPoolPathname);
+            for (UInt64 i = 0; i < res.length; i++)
+            {
+                var queryResults = indexStdVectorWrapperStringVectorQueryResults(res, i);
+                var queryResultsVec = extractStdVectorWrapperFromQueryResults(queryResults);
+                var queryResultsList = extractStringListFromStdVector(queryResultsVec);
+                keys.Concat(queryResultsList);
+            }
+            return keys;
         }
 
         /// <summary>
@@ -761,9 +833,12 @@ namespace Derecho.Cascade
         /// </summary>
         public List<string> ListObjectPools()
         {
-            IntPtr res = EXPORT_listObjectPools(capi);
-            StdVectorWrapper vector = extractStdVectorWrapperFromQueryResults(res);
-            return extractStringListFromStdVector(vector);
+            StdVectorWrapper vector = EXPORT_listObjectPools(capi);
+            List<string> list = extractStringListFromStdVector(vector);
+            // We need to delete the pointer here, since it is not contained within a QueryResults object
+            // so it will never actually get destructed.
+            deleteStringVectorPointer(vector.vecBasePtr);
+            return list;
         }
 
         /// <summary>
@@ -853,17 +928,15 @@ namespace Derecho.Cascade
 
         /// <summary>
         /// Get the members of a shard, by its object pool path.
-        /// <param><c>type</c> is the service type. </param>
         /// <param><c>objectPoolPathname</c></param>
         /// <param><c>shardIndex</c></param>
         /// <returns>A list of node IDs of the members.</returns>
         /// </summary>
-        public List<UInt32> GetShardMembersByObjectPool(SubgroupType type, 
-                                                        string objectPoolPathname,
+        public List<UInt32> GetShardMembersByObjectPool(string objectPoolPathname,
                                                         UInt32 shardIndex)
         {
-            StdVectorWrapper vector = EXPORT_getShardMembersByObjectPool(capi, 
-                subgroupEnumToString(type), shardIndex);
+            StdVectorWrapper vector = EXPORT_getShardMembersByObjectPool(capi, objectPoolPathname,
+                shardIndex);
             return extractNodeList(vector);
         }
 
@@ -924,8 +997,13 @@ namespace Derecho.Cascade
                                              UInt32 subgroupIndex, 
                                              UInt32 shardIndex)
         {
-            return EXPORT_getMemberSelectionPolicy(capi, subgroupEnumToString(type), subgroupIndex, 
-                shardIndex);
+            PolicyMetadataInternal metadataInternal = EXPORT_getMemberSelectionPolicy(capi, 
+                subgroupEnumToString(type), subgroupIndex, shardIndex);
+            PolicyMetadata metadata = new PolicyMetadata();
+            metadata.policyString = shardMemberSelectionPolicyToString(metadataInternal.policy);
+            metadata.policy = metadataInternal.policy;
+            metadata.userNode = metadataInternal.userNode;
+            return metadata;
         }
     }
 } // namespace Derecho.Cascade

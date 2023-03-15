@@ -69,8 +69,8 @@ if (DOTNET_CMD)
         # Build the C# CLI.
         add_custom_command(POST_BUILD
             OUTPUT always_rebuild
+            COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/ExternalClientCS.dll ${CMAKE_CURRENT_SOURCE_DIR}/cli/
             COMMAND dotnet build ${CMAKE_CURRENT_SOURCE_DIR}/cli/CascadeClientCLI.csproj -o ${CMAKE_CURRENT_BINARY_DIR}
-            COMMAND rm -rf ${CMAKE_CURRENT_SOURCE_DIR}/cli/obj/
             DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/cli/CascadeClientCLI.csproj
             DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/cli/CascadeClientCLI.cs
         )
