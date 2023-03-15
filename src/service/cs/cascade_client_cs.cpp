@@ -29,12 +29,12 @@ using version_tuple = std::tuple<persistent::version_t, uint64_t>;
 struct ObjectProperties {
     const char* key;
     uint8_t* bytes;
-    std::size_t bytes_size;
+    std::size_t bytesSize;
     int64_t version;
     uint64_t timestamp;
-    int64_t previous_version;
-    int64_t previous_version_by_key;
-    uint64_t message_id;
+    int64_t previousVersion;
+    int64_t previousVersionByKey;
+    uint64_t messageId;
 };
 
 // A wrapper for the std::vector data structure, generalizable to any type.
@@ -76,7 +76,7 @@ static const char* policy_names[] = {
     @param policy_name string representation of policy name.
     @return ShardMemberSelectionPolicy
 */
-inline ShardMemberSelectionPolicy parse_policy_name(std::string_view policy_name) {
+inline ShardMemberSelectionPolicy parse_policy_name(const std::string& policy_name) {
     ShardMemberSelectionPolicy policy = ShardMemberSelectionPolicy::FirstMember;
     int i = 1;
     while (policy_names[i]) {
@@ -86,7 +86,7 @@ inline ShardMemberSelectionPolicy parse_policy_name(std::string_view policy_name
         }
         i++;
     }
-    if(policy_names[i] == nullptr) {
+    if (policy_names[i] == nullptr) {
         return ShardMemberSelectionPolicy::InvalidPolicy;
     }
     return policy;
@@ -172,13 +172,13 @@ std::function<ObjectProperties(const ObjectWithStringKey&)> object_unwrapper = [
     // TODO: remove memcpy here (1 copy)
     props.bytes = static_cast<uint8_t*>(malloc(obj.blob.size));
     memcpy(props.bytes, obj.blob.bytes, obj.blob.size);
-    props.bytes_size = obj.blob.size;
+    props.bytesSize = obj.blob.size;
     props.version = obj.get_version();
     props.timestamp = obj.get_timestamp();
-    props.previous_version = obj.previous_version;
-    props.previous_version_by_key = obj.previous_version_by_key;
+    props.previousVersion = obj.previous_version;
+    props.previousVersionByKey = obj.previous_version_by_key;
 #ifdef ENABLE_EVALUATION
-    props.message_id = obj.get_message_id();
+    props.messageId = obj.get_message_id();
 #endif
     return props;
 };
@@ -462,7 +462,7 @@ struct TwoDimensionalNodeList {
     StdVectorWrapper vectorSizes;
 };
 
-struct PolicyMetadata {
+struct PolicyMetadataInternal {
     const char* policyString;
     ShardMemberSelectionPolicy policy;
     node_id_t userNode;
@@ -506,7 +506,21 @@ EXPORT ObjectLocation indexStdVectorWrapperObjectLocation(StdVectorWrapper vecto
     return static_cast<std::vector<ObjectLocation>*>(vector.vecBasePtr)->at(index);
 }
 
-EXPORT bool freeVectorPointer(std::vector<node_id_t>* ptr) {
+EXPORT auto indexStdVectorWrapperStringVectorQueryResults(StdVectorWrapper vector, std::size_t index) {
+    return static_cast<std::vector<QueryResultsStore<std::vector<std::string>, StdVectorWrapper>*>*>(vector.vecBasePtr)->at(index);
+}
+
+EXPORT bool deleteObjectLocationVectorPointer(std::vector<ObjectLocation>* ptr) {
+    delete ptr;
+    return true;
+}
+
+EXPORT bool deleteStringVectorPointer(std::vector<std::string>* ptr) {
+    delete ptr;
+    return true;
+}
+
+EXPORT bool deleteNodeIdVectorPointer(std::vector<node_id_t>* ptr) {
     delete ptr;
     return true;
 }
@@ -535,6 +549,7 @@ EXPORT uint32_t EXPORT_getMyId(ServiceClientAPI& capi) {
 EXPORT StdVectorWrapper EXPORT_getMembers(ServiceClientAPI& capi) {
     auto vec = new std::vector<node_id_t>();
     *vec = capi.get_members();
+    INVALID_NODE_ID;
     return {vec->data(), vec, vec->size()};
 }
 
@@ -581,11 +596,11 @@ EXPORT uint32_t EXPORT_getNumberOfShards(ServiceClientAPI& capi, char* serviceTy
 }
 
 EXPORT void EXPORT_setMemberSelectionPolicy(ServiceClientAPI& capi, char* serviceType, uint32_t subgroupIndex, uint32_t shardIndex, char* policy, node_id_t userNode) {
-    ShardMemberSelectionPolicy real_policy = parse_policy_name(policy);
+    ShardMemberSelectionPolicy real_policy = parse_policy_name(std::string(policy));
     on_all_subgroup_type(std::string(serviceType), capi.template set_member_selection_policy, subgroupIndex, shardIndex, real_policy, userNode);
 }
 
-EXPORT PolicyMetadata EXPORT_getMemberSelectionPolicy(ServiceClientAPI& capi, char* serviceType, uint32_t subgroupIndex, uint32_t shardIndex) {
+EXPORT PolicyMetadataInternal EXPORT_getMemberSelectionPolicy(ServiceClientAPI& capi, char* serviceType, uint32_t subgroupIndex, uint32_t shardIndex) {
     std::tuple<derecho::cascade::ShardMemberSelectionPolicy, unsigned int> policy;
     on_all_subgroup_type(std::string(serviceType), policy = capi.template get_member_selection_policy, subgroupIndex, shardIndex);
     std::string pol;
@@ -859,7 +874,7 @@ EXPORT auto EXPORT_multiListKeysInShard(ServiceClientAPI& capi, char* subgroupTy
     on_all_subgroup_type(subgroup_type, return multi_list_keys, capi, subgroup_index, shard_index);
 }
 
-EXPORT auto EXPORT_listKeysInObjectPool(ServiceClientAPI& capi, char* objectPoolPathname, persistent::version_t version, bool stable, uint64_t timestamp) {
+EXPORT StdVectorWrapper EXPORT_listKeysInObjectPool(ServiceClientAPI& capi, char* objectPoolPathname, persistent::version_t version, bool stable, uint64_t timestamp) {
     std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<std::string>>>> results;
     if (timestamp != 0 && version == CURRENT_VERSION) {
         results = std::move(capi.list_keys_by_time(timestamp, stable, std::string(objectPoolPathname)));
@@ -871,10 +886,10 @@ EXPORT auto EXPORT_listKeysInObjectPool(ServiceClientAPI& capi, char* objectPool
         auto s = new QueryResultsStore<std::vector<std::string>, StdVectorWrapper>(std::move(*result), list_unwrapper);
         future_list->push_back(s);
     }
-    return future_list;
+    return {future_list->data(), future_list, future_list->size()};
 }
 
-EXPORT auto EXPORT_multiListKeysInObjectPool(ServiceClientAPI& capi, char* objectPoolPathname) {
+EXPORT StdVectorWrapper EXPORT_multiListKeysInObjectPool(ServiceClientAPI& capi, char* objectPoolPathname) {
     std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<std::string>>>> results;
     results = std::move(capi.multi_list_keys(objectPoolPathname));
     auto future_list = new std::vector<QueryResultsStore<std::vector<std::string>, StdVectorWrapper>*>();
@@ -882,7 +897,7 @@ EXPORT auto EXPORT_multiListKeysInObjectPool(ServiceClientAPI& capi, char* objec
         auto s = new QueryResultsStore<std::vector<std::string>, StdVectorWrapper>(std::move(*result), list_unwrapper);
         future_list->push_back(s);
     }
-    return future_list;
+    return {future_list->data(), future_list, future_list->size()};
 }
 
 EXPORT StdVectorWrapper EXPORT_listObjectPools(ServiceClientAPI& capi) {
