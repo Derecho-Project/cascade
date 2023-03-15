@@ -921,7 +921,7 @@ std::vector<command_entry_t> commands =
         "create_object_pool <path> <type> <subgroup_index> [affinity_set_regex]\n"
             "type := " SUBGROUP_TYPE_LIST,
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
-            CHECK_FORMAT(cmd_tokens,4);
+            CHECK_FORMAT(cmd_tokens,5);
             std::string opath = cmd_tokens[1];
             uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3],nullptr,0));
             std::string affinity_set_regex;
