@@ -141,7 +141,7 @@ const VT VolatileCascadeStore<KT, VT, IK, IV>::get(const KT& key, const persiste
          * thread modifying kv_map concurrently, the internal data structure can
          * be changed while this thread is inside kv_map.at(key). Therefore, we
          * keep trying until it is possible to copy either the object we are
-         * looking for, or the invalid object if it does not exist.
+         * looking for, or the invalid object.
          */
         while(true) {
             try {
