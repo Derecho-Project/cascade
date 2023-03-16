@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <AssemblyName>CascadeClientCLI</AssemblyName>
+    <OutputType>Exe</OutputType>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="CascadeClientCLI.cs" />
+    <Reference Include="CascadeClient">
+      <HintPath>./ExternalClientCS.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+</Project>
