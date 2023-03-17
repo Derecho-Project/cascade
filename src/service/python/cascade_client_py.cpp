@@ -133,17 +133,14 @@ public:
     @return ShardMemberSelectionPolicy
 */
 inline ShardMemberSelectionPolicy parse_policy_name(std::string& policy_name) {
-    ShardMemberSelectionPolicy policy = ShardMemberSelectionPolicy::FirstMember;
-    int i = 1;
+    ShardMemberSelectionPolicy policy = ShardMemberSelectionPolicy::InvalidPolicy;
+    int i = 0;
     while(policy_names[i]) {
         if(policy_name == policy_names[i]) {
             policy = static_cast<ShardMemberSelectionPolicy>(i);
             break;
         }
         i++;
-    }
-    if(policy_names[i] == nullptr) {
-        return ShardMemberSelectionPolicy::InvalidPolicy;
     }
     return policy;
 }
