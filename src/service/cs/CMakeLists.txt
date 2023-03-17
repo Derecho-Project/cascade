@@ -73,6 +73,7 @@ if (DOTNET_CMD)
             COMMAND dotnet build ${CMAKE_CURRENT_SOURCE_DIR}/cli/CascadeClientCLI.csproj -o ${CMAKE_CURRENT_BINARY_DIR}
             DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/cli/CascadeClientCLI.csproj
             DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/cli/CascadeClientCLI.cs
+            DEPENDS external_client_cs
         )
     endif()
 else ()
