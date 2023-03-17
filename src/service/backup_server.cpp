@@ -51,9 +51,9 @@ int main(int argc, char** argv) {
     auto pcss_factory = [&cdpo_pcss](persistent::PersistentRegistry* pr, derecho::subgroup_id_t, ICascadeContext* context_ptr) {
         return std::make_unique<PersistentCascadeStoreWithStringKey>(pr, &cdpo_pcss, context_ptr);
     };
-    auto scss_factory = [&cdpo_scss](persistent::PersistentRegistry* pr, derecho::subgroup_id_t,
+    auto scss_factory = [&cdpo_scss](persistent::PersistentRegistry* pr, derecho::subgroup_id_t subgroup_id,
                                      ICascadeContext* context_ptr) {
-        return std::make_unique<SignatureCascadeStoreWithStringKey>(pr, &cdpo_scss, context_ptr);
+        return std::make_unique<SignatureCascadeStoreWithStringKey>(pr, subgroup_id, &cdpo_scss, context_ptr);
     };
     auto tcss_factory = [&cdpo_tcss](persistent::PersistentRegistry*, derecho::subgroup_id_t, ICascadeContext* context_ptr) {
         return std::make_unique<TriggerCascadeNoStoreWithStringKey>(&cdpo_tcss, context_ptr);

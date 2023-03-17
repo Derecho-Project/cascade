@@ -6,22 +6,19 @@
             {
                 "pathname": "/storage",
                 "user_defined_logic_list": [
-                    "38a8ae35-37a8-4d6e-929e-64e7cba86de3",
-                    "2d3347bc-d450-4cd2-bf3a-e882b1e8351e"
+                    "38a8ae35-37a8-4d6e-929e-64e7cba86de3"
                 ],
                 "user_defined_logic_config_list": [
-                    {},
-                    {"conf_file": "wanagent.json"}
+                    {}
                 ],
                 "destinations": [
-                    {"/signatures" : "put" },
-                    {}
+                    {"/signatures" : "put" }
                 ]
             },
             {
                 "pathname": "/signatures",
-                "user_defined_logic_list": ["2d3347bc-d450-4cd2-bf3a-e882b1e8351e"],
-                "user_defined_logic_config_list": [{"conf_file":"wanagent.json"}],
+                "user_defined_logic_list": [],
+                "user_defined_logic_config_list": [{}],
                 "destinations": [{}]
             }
         ]

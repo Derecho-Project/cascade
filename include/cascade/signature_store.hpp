@@ -4,6 +4,7 @@
 #include "detail/delta_store_core.hpp"
 
 #include <derecho/core/derecho.hpp>
+#include <wan_agent.hpp>
 
 #include <cstdint>
 #include <map>
@@ -29,10 +30,15 @@ class SignatureCascadeStore : public ICascadeStore<KT, VT, IK, IV>,
                               public mutils::ByteRepresentable,
                               public derecho::SignedPersistentFields,
                               public derecho::NotificationSupport,
+                              public derecho::GetsViewChangeCallback,
                               public derecho::GroupReference {
 private:
     /** Derecho group reference */
     using derecho::GroupReference::group;
+    /**
+     * Subgroup ID of this node's subgroup, set in the constructor called by the Derecho factory.
+     */
+    derecho::subgroup_id_t subgroup_id;
     /**
      * Persistent core that stores hashes, which will be signed because Persistent<T> is
      * constructed with signatures=true.
@@ -61,6 +67,27 @@ private:
      * notifications for all keys.
      */
     mutable std::map<KT, std::list<node_id_t>> subscribed_clients;
+    /**
+     * The WanAgent instance running on this replica of the subgroup, used to send signed updates to
+     * the backup site once they have persisted locally. This is not part of the replicated state of
+     * SignatureCascadeStore, since each replica needs its own WanAgent instance.
+     */
+    mutable std::unique_ptr<wan_agent::WanAgent> wanagent;
+    /**
+     * A copy of the acknowledgement table reported by WanAgent, which maps each backup site ID
+     * to the most recent message number acknowledged by that site. This is needed to supply to WanAgent's
+     * initialize_new_leader() function if this replica becomes the subgroup leader.
+     */
+    std::map<wan_agent::site_id_t, uint64_t> backup_ack_table;
+    /**
+     * Maps each WanAgent message ID to the identifying tuple (key, hash version,
+     * data version) for the object sent in that WanAgent message. Used to
+     * determine which object corresponds to a WanAgent message, both for
+     * notifying the client that the backup is finished when a WanAgent message
+     * is acknowledged, and for determining which objects need to be re-sent to
+     * WanAgent after a View change.
+     */
+    std::map<uint64_t, std::tuple<KT, persistent::version_t, persistent::version_t>> wanagent_message_ids;
 
     /** Watcher */
     CriticalDataPathObserver<SignatureCascadeStore<KT, VT, IK, IV>>* cascade_watcher_ptr;
@@ -85,11 +112,10 @@ private:
                                   persistent::version_t data_object_version) const;
 
     /**
-     * Sends a trigger_put to the local node that includes a hash object plus its
-     * signature and corresponding data object version. This is done by concatenating
-     * the signature and data object version to the body of the hash object; the
-     * resulting object should not be stored, but only forwarded to the WanAgent UDL
-     * that gets activated upon a trigger_put.
+     * Sends a message to the backup sites via WanAgent that includes a hash
+     * object plus its signature and corresponding data object version, if this
+     * node is the shard leader (i.e. WanAgent leader). Does nothing if this
+     * node is not the shard leader.
      *
      * @param hash_object_version The version identifying the hash object that has
      * finished being signed. This is used to retrieve it from the DeltaStoreCore.
@@ -97,9 +123,64 @@ private:
      * object. This will be needed by the remote WanAgent to match up this signature
      * with the data object it receives from the PersistentCascadeStore.
      */
-    void put_signature_to_self(persistent::version_t hash_object_version, persistent::version_t data_object_version);
+    void send_to_wan_agent(persistent::version_t hash_object_version, persistent::version_t data_object_version);
+
+    /**
+     * Creates an object to send to the backup sites via WanAgent that contains
+     * a hash object, its signature, and the corresponding data object version.
+     * Specifically, the object's headers are the same as the hash object with
+     * the requested version, and its body consists of the hash concatenated
+     * with the signature and data object version.
+     *
+     * @param hash_object_version The version identifying the hash object that
+     * will be backed up. This is used to retrieve it from the DeltaStoreCore.
+     * @param data_object_version The data-object version corresponding to this
+     * hash object.
+     * @return An object that is mostly a copy of the hash object, but with the
+     * data object version and signature appended to its body.
+     */
+    VT make_backup_object(persistent::version_t hash_object_version, persistent::version_t data_object_version);
+
+    /**
+     * Callback function for WanAgent to use as its PredicateLambda, which is called
+     * when there is a new ACK from a remote site.
+     */
+    void wan_stability_callback(const std::map<wan_agent::site_id_t, uint64_t>& ack_table);
+
+    /**
+     * An ordered-callable function that sets the value of the backup_ack_table variable
+     * on all replicas. Called from the WanAgent's stability callback (which only runs on
+     * the leader) to replicate the cached ack table to the rest of the subgroup
+     *
+     * @param ack_table The new value of backup_ack_table
+     */
+    void update_ack_table(const std::map<wan_agent::site_id_t, uint64_t>& ack_table);
+
+    /**
+     * An ordered-callable function that adds a new entry to the wanagent_message_ids
+     * table, mapping a WanAgent message ID to the key and version of the object that
+     * was sent via WanAgent in that message. Called by the subgroup leader to update
+     * the other replicas when it submits a message to WanAgent.
+     *
+     * @param message_id The WanAgent message ID for a hash object that has been sent
+     * to the backup sites
+     * @param object_key The key identifying the hash object
+     * @param object_version The version of the hash object that was sent
+     * @param data_object_version The data-object version corresponding to the hash object
+     */
+    void record_wan_message_id(uint64_t message_id, const KT& object_key,
+                               persistent::version_t object_version, persistent::version_t data_object_version);
+
+    /**
+     * Constructor helper that sets up the WanAgent by loading and then modifying the
+     * config file. This allows the constructor to initialize the wanagent variable in
+     * the init list even though it takes more than one line of code.
+     */
+    std::unique_ptr<wan_agent::WanAgent> construct_wan_agent();
 
 public:
+    void new_view_callback(const View& new_view);
+
     /* Specific to SignatureStore, not part of the Cascade interface */
 
     /**
@@ -276,7 +357,9 @@ public:
                                                      ordered_get,
                                                      ordered_get_signature,
                                                      ordered_list_keys,
-                                                     ordered_get_size
+                                                     ordered_get_size,
+                                                     update_ack_table,
+                                                     record_wan_message_id
 #ifdef ENABLE_EVALUATION
                                                      ,
                                                      ordered_dump_timestamp_log
@@ -284,7 +367,7 @@ public:
                                                      ));
 
     /* Serialization support, with a custom deserializer to get the context pointers from the registry */
-    DEFAULT_SERIALIZE(persistent_core, data_to_hash_version);
+    DEFAULT_SERIALIZE(subgroup_id, persistent_core, data_to_hash_version, backup_ack_table, wanagent_message_ids);
 
     DEFAULT_DESERIALIZE_NOALLOC(SignatureCascadeStore);
 
@@ -293,11 +376,15 @@ public:
     /* Constructors */
     // Initial constructor, creates Persistent objects
     SignatureCascadeStore(persistent::PersistentRegistry* persistent_registry,
+                          derecho::subgroup_id_t subgroup_id,
                           CriticalDataPathObserver<SignatureCascadeStore<KT, VT, IK, IV>>* watcher = nullptr,
                           ICascadeContext* context = nullptr);
     // Deserialization constructor, moves Persistent objects
-    SignatureCascadeStore(persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST>&& deserialized_persistent_core,
+    SignatureCascadeStore(derecho::subgroup_id_t deserialized_subgroup_id,
+                          persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST>&& deserialized_persistent_core,
                           persistent::Persistent<std::map<persistent::version_t, const persistent::version_t>>&& deserialized_data_to_hash_version,
+                          std::map<wan_agent::site_id_t, uint64_t>&& deserialized_ack_table,
+                          std::map<uint64_t, std::tuple<KT, persistent::version_t, persistent::version_t>>&& deserialized_wanagent_message_ids,
                           CriticalDataPathObserver<SignatureCascadeStore<KT, VT, IK, IV>>* watcher = nullptr,
                           ICascadeContext* context = nullptr);
     // Dummy constructor needed by client_stub_factory

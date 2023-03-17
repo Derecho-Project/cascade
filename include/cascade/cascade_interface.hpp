@@ -16,6 +16,12 @@ namespace derecho {
 namespace cascade {
 
 /**
+ * Configuration file keys added by Cascade to the Derecho config file
+ */
+#define CASCADE_WANAGENT_CONFIG_FILE            "CASCADE/wanagent_config_file"
+#define CASCADE_WANAGENT_PORT_OFFSET            "CASCADE/wanagent_port_offset"
+
+/**
  * The off-critical data path handler API
  */
 class ICascadeContext : public derecho::DeserializationContext {
