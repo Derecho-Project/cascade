@@ -984,7 +984,7 @@ namespace Derecho.Cascade
                 shardIndex, shardMemberSelectionPolicyToString(policy), userNode);
         }
 
-         /// <summary>
+        /// <summary>
         /// Get the member selection policy for a given subgroup and shard index.
         ///
         /// <param><c>type</c> is the subgroup type.</param>
@@ -994,8 +994,8 @@ namespace Derecho.Cascade
         /// <param><c>userNode</c>
         /// </summary>
         public PolicyMetadata GetMemberSelectionPolicy(SubgroupType type, 
-                                             UInt32 subgroupIndex, 
-                                             UInt32 shardIndex)
+                                                       UInt32 subgroupIndex, 
+                                                       UInt32 shardIndex)
         {
             PolicyMetadataInternal metadataInternal = EXPORT_getMemberSelectionPolicy(capi, 
                 subgroupEnumToString(type), subgroupIndex, shardIndex);
@@ -1004,6 +1004,22 @@ namespace Derecho.Cascade
             metadata.policy = metadataInternal.policy;
             metadata.userNode = metadataInternal.userNode;
             return metadata;
+        }
+
+        /// <summary>
+        /// Get all objects within a shard for use with LINQ.
+        /// </summary>
+        public IEnumerable<ObjectProperties> FromShard(SubgroupType type,
+                                                      UInt32 subgroupIndex,
+                                                      UInt32 shardIndex,
+                                                      Int64 version = CURRENT_VERSION)
+        {
+            List<string> keysInShard = ListKeysInShard(type, subgroupIndex, shardIndex, stable: true);
+            foreach (string key in keysInShard)
+            {
+                yield return Get(key, type: type, subgroupIndex: subgroupIndex,
+                    shardIndex: shardIndex, version: version);
+            }
         }
     }
 } // namespace Derecho.Cascade

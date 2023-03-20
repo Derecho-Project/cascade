@@ -173,7 +173,7 @@ hdABCDEFG#
 Please note that the file contents are deserialized byte array of the corresponding object.
 
 # Python API
-Python API document has moved to [here](python).
+Please refer [here](python) for the Python API documentation.
 
 # Java API
 Cascade service also supports data access using Java. Cascade cmake building script will detect the Java environment to decide whether to enable Java support. We suggest openjdk-14. For example, on Ubuntu, you can install it as follows:
@@ -194,3 +194,7 @@ export JAVA_HOME=/usr/lib/jvm/java-14-openjdk-amd64
 To use the Java API, you just add `cascade.jar` to your classpath and import `io.cascade.*;`. The API is defined in `io.cascade.Client` mirroring the C++ [`ServiceClientAPI` interface](../../include/cascade/service.hpp#L155). Please refer to [`ClientTest.java`](java/io/cascade/test/ClientTest.java) as an example. 
 
 Please note that the Java API does not implement the LINQ support yet. We plan to add it later.
+
+# C\# (.NET 6) API
+Please refer [here](cs) for the C\# API documentation.
+
