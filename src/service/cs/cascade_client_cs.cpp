@@ -483,7 +483,8 @@ TwoDimensionalNodeList convert_2d_vector(std::vector<std::vector<node_id_t>> vec
 }
 
 EXPORT ObjectProperties extractObjectPropertiesFromQueryResults(QueryResultsStore<const ObjectWithStringKey, ObjectProperties>* store) {
-    return store->get_result();
+    auto res = store->get_result();
+    return res;
 }
 
 EXPORT VersionTimestampPair extractVersionTimestampFromQueryResults(QueryResultsStore<version_tuple, VersionTimestampPair>* store) {
@@ -650,8 +651,6 @@ struct GetArgs {
 };
 
 EXPORT auto EXPORT_get(ServiceClientAPI& capi, char* key, GetArgs args) {
-    std::cout << "Received get call with key: " << key << " and subgroup type: " 
-        << args.subgroupType << std::endl;
     std::string subgroup_type;
     uint32_t subgroup_index = 0;
     uint32_t shard_index = 0;

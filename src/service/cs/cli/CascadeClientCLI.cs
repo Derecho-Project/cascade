@@ -510,6 +510,32 @@ namespace Derecho.Cascade
                     var list = client.ListKeysInObjectPool(objectPoolPath, version, stable);
                     PrintStringList(list);
                 }
+            ),
+            new Command
+            (
+                "from_shard",
+                "Create an iterator to all the objects within a shard and list their metadata.",
+                "from_shard <type> <subgroup_index> <shard_index> [ version(default:current version) ]" +
+                    "type := " + SUBGROUP_TYPE_LIST_STRING,
+                (client, args) =>
+                {
+                    CheckFormat(args, 5);
+                    SubgroupType type = ParseSubgroup(args[1]);
+                    UInt32 subgroupIndex = UInt32.Parse(args[2]);
+                    UInt32 shardIndex = UInt32.Parse(args[3]);
+                    Int64 version = -1L;
+
+                    if (args.Length >= 5)
+                    {
+                        version = Int64.Parse(args[4]);
+                    }
+
+                    var iterator = client.FromShard(type, subgroupIndex, shardIndex, version);
+                    foreach (var obj in iterator)
+                    {
+                        Console.WriteLine(obj.ToString());
+                    }
+                }
             )
         };
 
@@ -528,8 +554,6 @@ namespace Derecho.Cascade
                 Console.Write("cmd> ");
                 command = Console.ReadLine();
                 string[] parts = Array.ConvertAll(command.Split(' '), p => p.Trim());
-                // put, get, remove, create_object_pool
-                // membership comamnds
                 string name = parts[0].ToLower();
                 if (parts[0].Equals("quit"))
                 {
