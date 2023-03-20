@@ -224,10 +224,26 @@ const VT DeltaCascadeStoreCore<KT, VT, IK, IV>::lockless_get(const KT& key) cons
 #else
 #error Lockless support is currently for GCC only
 #endif
-        if(this->kv_map.find(key) != this->kv_map.end()) {
-            copied_out.copy_from(this->kv_map.at(key));
-        } else {
-            copied_out.copy_from(*IV);
+        /* 
+         * An out_of_range exception can be thrown even if 'key' exists in
+         * kv_map. Since std::map is not thread-safe, and there is another
+         * thread modifying kv_map concurrently, the internal data structure can
+         * be changed while this thread is inside kv_map.at(key). Therefore, we
+         * keep trying until it is possible to copy either the object we are
+         * looking for, or the invalid object.
+         */
+        while(true) {
+            try {
+                if(this->kv_map.find(key) != this->kv_map.end()) {
+                    copied_out.copy_from(this->kv_map.at(key));
+                } else {
+                    copied_out.copy_from(*IV);
+                }
+
+                break;
+            } catch (const std::out_of_range&) {
+                dbg_default_debug("{}: out_of_range exception thrown while trying to get key {}", __PRETTY_FUNCTION__, key);
+            }
         }
         // compiler reordering barrier
 #ifdef __GNUC__
