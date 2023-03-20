@@ -314,7 +314,7 @@ namespace cascade {
         Random,         // use a random member in the shard for each operations(put/remove/get/get_by_time).
         FixedRandom,    // use a random member and stick to that for the following operations.
         RoundRobin,     // use a member in round-robin order.
-        KeyHashing,     // use the key's hashing 
+        KeyHashing,     // use the key's hashing
         UserSpecified,  // user specify which member to contact.
         InvalidPolicy = -1
     };
@@ -534,16 +534,16 @@ namespace cascade {
         std::tuple<uint32_t,uint32_t,uint32_t> key_to_shard(
                 const KeyType& key, bool check_object_location = true);
 
-    public:
         /**
          * The Constructor
-         * We prevent calling the constructor explicitely, because the ServiceClient is a singleton.
+         * We prevent calling the constructor explicitly, because the ServiceClient is a singleton.
          * @param _group_ptr The caller can pass a pointer pointing to a derecho group object. If the pointer is
          *                   valid, the implementation will reply on the group object instead of creating an external
          *                   client to communicate with group members.
          */
         ServiceClient(derecho::Group<CascadeMetadataService<CascadeTypes...>, CascadeTypes...>* _group_ptr=nullptr);
 
+    public:
         /**
          * ServiceClient can be an external client or a cascade server. is_external_client() test this condition.
          * The external client implementation is based on ExternalGroupClient<> while the cascade node implementation is
@@ -655,7 +655,7 @@ namespace cascade {
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
          */
         template <typename SubgroupType>
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> put(const typename SubgroupType::ObjectType& object,
+        derecho::rpc::QueryResults<version_tuple> put(const typename SubgroupType::ObjectType& object,
                 uint32_t subgroup_index, uint32_t shard_index);
         /**
          * "type_recursive_put" is a helper function for internal use only.
@@ -669,14 +669,14 @@ namespace cascade {
          */
     protected:
         template <typename ObjectType, typename FirstType, typename SecondType, typename... RestTypes>
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> type_recursive_put(
+        derecho::rpc::QueryResults<version_tuple> type_recursive_put(
                 uint32_t type_index,
                 const ObjectType& object,
                 uint32_t subgroup_index,
                 uint32_t shard_index);
 
         template <typename ObjectType, typename LastType>
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> type_recursive_put(
+        derecho::rpc::QueryResults<version_tuple> type_recursive_put(
                 uint32_t type_index,
                 const ObjectType& object,
                 uint32_t subgroup_index,
@@ -689,7 +689,7 @@ namespace cascade {
          * @return a future to the version and timestamp of the put operation.
          */
         template <typename ObjectType>
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> put(const ObjectType& object);
+        derecho::rpc::QueryResults<version_tuple> put(const ObjectType& object);
 
         /**
          * "put_and_forget" writes an object to a given subgroup/shard, but no return value.
@@ -813,7 +813,7 @@ namespace cascade {
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
          */
         template <typename SubgroupType>
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> remove(const typename SubgroupType::KeyType& key,
+        derecho::rpc::QueryResults<version_tuple> remove(const typename SubgroupType::KeyType& key,
                 uint32_t subgroup_index, uint32_t shard_index);
 
         /**
@@ -828,14 +828,14 @@ namespace cascade {
          */
     protected:
         template <typename KeyType, typename FirstType, typename SecondType, typename... RestTypes>
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> type_recursive_remove(
+        derecho::rpc::QueryResults<version_tuple> type_recursive_remove(
                 uint32_t type_index,
                 const KeyType& key,
                 uint32_t subgroup_index,
                 uint32_t shard_index);
 
         template <typename KeyType, typename LastType>
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> type_recursive_remove(
+        derecho::rpc::QueryResults<version_tuple> type_recursive_remove(
                 uint32_t type_index,
                 const KeyType& key,
                 uint32_t subgroup_index,
@@ -845,7 +845,7 @@ namespace cascade {
          * object pool version
          */
         template <typename KeyType>
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> remove(const KeyType& key);
+        derecho::rpc::QueryResults<version_tuple> remove(const KeyType& key);
 
         /**
          * "get" retrieve the object of a given key
@@ -1322,9 +1322,9 @@ namespace cascade {
          * @return a future to the version and timestamp of the put operation.
          */
         template <typename SubgroupType>
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> create_object_pool(
+        derecho::rpc::QueryResults<version_tuple> create_object_pool(
                 const std::string& pathname, const uint32_t subgroup_index,
-                const sharding_policy_t sharding_policy = HASH, 
+                const sharding_policy_t sharding_policy = HASH,
                 const std::unordered_map<std::string,uint32_t>& object_locations = {},
                 const std::string& affinity_set_regex = "");
 
@@ -1335,7 +1335,7 @@ namespace cascade {
          *
          * @return a future to the version and timestamp of the put operation.
          */
-        derecho::rpc::QueryResults<std::tuple<persistent::version_t,uint64_t>> remove_object_pool(const std::string& pathname);
+        derecho::rpc::QueryResults<version_tuple> remove_object_pool(const std::string& pathname);
     private:
         /**
          * ObjectPoolManagement API: find object pool
@@ -1365,7 +1365,7 @@ namespace cascade {
          * @return the object pool metadata along with the affinity set string
          */
         template <typename KeyType>
-        std::pair<ObjectPoolMetadata<CascadeTypes...>,std::string> 
+        std::pair<ObjectPoolMetadata<CascadeTypes...>,std::string>
             find_object_pool_and_affinity_set_by_key(const KeyType& key);
 
         /**
@@ -1504,7 +1504,7 @@ namespace cascade {
     protected:
         template <typename FirstType, typename SecondType, typename... RestTypes>
         void type_recursive_dump(uint32_t type_index, uint32_t subgroup_index, const std::string& filename);
-        
+
         template <typename LastType>
         void type_recursive_dump(uint32_t type_index, uint32_t subgroup_index, const std::string& filename);
 

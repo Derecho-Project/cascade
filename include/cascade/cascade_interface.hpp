@@ -57,6 +57,12 @@ public:
 };
 
 /**
+ * A tuple including the version number of an update and its associated timestamp.
+ * This is the return type of several CascadeStore functions.
+ */
+using version_tuple = std::tuple<persistent::version_t, uint64_t>;
+
+/**
  * The cascade store interface.
  * @tparam KT The type of the key
  * @tparam VT The type of the value must
@@ -87,7 +93,7 @@ public:
      *
      * @return a tuple including version number (version_t) and a timestamp in microseconds.
      */
-    virtual std::tuple<persistent::version_t, uint64_t> put(const VT& value) const = 0;
+    virtual version_tuple put(const VT& value) const = 0;
     /**
      * put_and_forget(const VT&)
      *
@@ -117,7 +123,7 @@ public:
      *
      * @return a tuple including version number (version_t) and a timestamp in microseconds.
      */
-    virtual std::tuple<persistent::version_t, uint64_t> remove(const KT& key) const = 0;
+    virtual version_tuple remove(const KT& key) const = 0;
 
     /**
      * get(const KT&,const persistent::version_t&)
@@ -317,7 +323,7 @@ protected:
      * @param value
      * @return a tuple including version number (version_t) and a timestamp in microseconds.
      */
-    virtual std::tuple<persistent::version_t, uint64_t> ordered_put(const VT& value) = 0;
+    virtual version_tuple ordered_put(const VT& value) = 0;
     /**
      * ordered_put_and_forget
      * @param value
@@ -328,7 +334,7 @@ protected:
      * @param key
      * @return a tuple including version number (version_t) and a timestamp in microseconds.
      */
-    virtual std::tuple<persistent::version_t, uint64_t> ordered_remove(const KT& key) = 0;
+    virtual version_tuple ordered_remove(const KT& key) = 0;
     /**
      * ordered_get
      * @param key
