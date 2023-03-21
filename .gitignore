@@ -4,3 +4,4 @@
 
 # The build output folders created by build.sh
 /build-*
+/docs
