@@ -55,7 +55,7 @@ class WanAgentBackupObserver : public OffCriticalDataPathObserver {
     }
 
 public:
-    void agent_stability_callback(const std::map<site_id_t, uint64_t>& ack_table) {
+    void agent_stability_callback(const std::map<wan_agent::site_id_t, uint64_t>& ack_table) {
         uint64_t min_msg_num = ack_table.begin()->second;
         for(const auto& entry : ack_table) {
             if(entry.second < min_msg_num) {
@@ -100,7 +100,7 @@ public:
         nlohmann::json wanagent_config = nlohmann::json::parse(wanagent_config_file);
         wanagent = wan_agent::WanAgent::create(
                 wanagent_config,
-                [this](const std::map<site_id_t, uint64_t>& table) { agent_stability_callback(table); },
+                [this](const std::map<wan_agent::site_id_t, uint64_t>& table) { agent_stability_callback(table); },
                 [this](const uint32_t sender, const uint8_t* msg, const size_t size) { agent_remote_message_callback(sender, msg, size); });
     }
     virtual void operator()(const node_id_t sender,

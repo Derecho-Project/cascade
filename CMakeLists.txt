@@ -68,7 +68,7 @@ endif()
 # json
 find_package(nlohmann_json 3.2.0 REQUIRED)
 
-# This is only required by sha_hash_udl within the service folder, but finding it within that CMakeLists.txt doesn't work
+# WanAgent, required for SignatureCascadeStore to do wide-area backups
 find_package(wanagent CONFIG REQUIRED)
 
 # Hyperscan, which isn't packaged correctly and needs a custom Find module
@@ -120,7 +120,9 @@ target_link_libraries(cascade
     spdlog::spdlog
     ${mutils_LIBRARIES}
     OpenSSL::Crypto
-    ${Hyperscan_LIBRARIES})
+    ${Hyperscan_LIBRARIES}
+    wanagent::wanagent
+)
 set_target_properties(cascade PROPERTIES
     SOVERSION ${cascade_VERSION}
     VERSION ${cascade_build_VERSION}
