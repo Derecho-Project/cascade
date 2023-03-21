@@ -80,7 +80,7 @@ inline ShardMemberSelectionPolicy parse_policy_name(const std::string& policy_na
     ShardMemberSelectionPolicy policy = ShardMemberSelectionPolicy::InvalidPolicy;
     int i = 0;
     while (policy_names[i]) {
-        if(policy_name == policy_names[i]) {
+        if (policy_name == policy_names[i]) {
             policy = static_cast<ShardMemberSelectionPolicy>(i);
             break;
         }
@@ -155,7 +155,7 @@ public:
             return f(reply);
         }
         
-        std::cout << "The reply was empty... Should not happen" << std::endl;
+        print_red("The reply was empty... Should not happen");
         return {};
     }
 };
