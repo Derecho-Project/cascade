@@ -72,7 +72,7 @@ $(function() {
   <div class="headertitle"><div class="title">Overview </div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md12"></a>Cascade is a C++17 cloud application framework powered by optimized RDMA data paths. It provides a K/V API for data manipulation in distributed memory and persistent storage. Besides the K/V API, Cascade allows injecting logic on the data paths for low-latency application. The highlights of Cascade's features include the following.</p>
+<div class="textblock"><p><a class="anchor" id="autotoc_md16"></a>Cascade is a C++17 cloud application framework powered by optimized RDMA data paths. It provides a K/V API for data manipulation in distributed memory and persistent storage. Besides the K/V API, Cascade allows injecting logic on the data paths for low-latency application. The highlights of Cascade's features include the following.</p>
 <ul>
 <li>High-throughput and low latency from zero-copy RDMA and NVMe storage layer.</li>
 <li>Timestamp-indexed versioning capability allows reproducing system states anytime in the past.</li>
@@ -80,7 +80,7 @@ $(function() {
 <li>Users can configure the application layout using the group, subgroup, and shard concepts deriving from <a href="http://github.com/Derecho-Project/derecho">Derecho</a>.</li>
 <li>Cascade derives the same fault-tolerance model from <a href="http://github.com/Derecho-Project/derecho">Derecho</a>.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md13"></a>
+<h1><a class="anchor" id="autotoc_md17"></a>
 Using Cascade</h1>
 <ul>
 <li>Cascade can be used both as a service, and as a software library<ul>
@@ -98,9 +98,9 @@ Using Cascade</h1>
 <li>Cascade also supports a variety of remoting options. Through them, Cascade's K/V API can be accessed from other popular high-level languages, notably Java and Python.</li>
 <li>Cascade also offers a File system API that maps to its K/V API through <a href="https://github.com/libfuse/libfuse">libfuse</a>.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md14"></a>
+<h1><a class="anchor" id="autotoc_md18"></a>
 Installation</h1>
-<h2><a class="anchor" id="autotoc_md15"></a>
+<h2><a class="anchor" id="autotoc_md19"></a>
 Prerequisites</h2>
 <ul>
 <li>Linux (other operating systems don't currently support the RDMA features we use. We recommend Ubuntu18 or Ubuntu20. However, other distributions should also work.)</li>
@@ -114,9 +114,9 @@ Prerequisites</h2>
 <li><a href="https://github.com/k06a/boolinq">boolinq</a> or newer (Optional for LINQ API)</li>
 <li>Python 3.5 or newer and <a href="https://github.com/pybind/pybind11">pybind11</a> (Optional for Python API)</li>
 <li>OpenJDK 11.06 or newer. On Ubuntu, use <code>apt install openjdk-11-jdk</code> to install it. (Optional for Java API)</li>
-<li>Derecho v2.2.2. Plesae follow this <a href="http://github.com/Derecho-Project/derecho">document</a> to install Derecho. Note: this cascade version replies on Derecho commit 3f24e06ed5ad572eb82206e8c1024935d03e903e on the master branch.</li>
+<li><a class="el" href="namespaceDerecho.html">Derecho</a> v2.2.2. Plesae follow this <a href="http://github.com/Derecho-Project/derecho">document</a> to install <a class="el" href="namespaceDerecho.html">Derecho</a>. Note: this cascade version replies on <a class="el" href="namespaceDerecho.html">Derecho</a> commit 3f24e06ed5ad572eb82206e8c1024935d03e903e on the master branch.</li>
 </ul>
-<h2><a class="anchor" id="autotoc_md16"></a>
+<h2><a class="anchor" id="autotoc_md20"></a>
 Build Cascade</h2>
 <p>1) Download Cascade Source Code </p><div class="fragment"><div class="line"># git clone https://github.com/Derecho-Project/cascade</div>
 </div><!-- fragment --><p> 2) Build Cascade source code </p><div class="fragment"><div class="line"># mkdir build</div>
@@ -130,10 +130,10 @@ Build Cascade</h2>
 <li>libraries to <code>${CMAKE_INSTALL_LIBDIR}</code></li>
 <li>binaries(cascade_client, cascade_server, cascade_fuse_client, interactive_test.py, perf_test.py) to <code>${CMAKE_INSTALL_BINDIR}</code></li>
 </ul>
-<h1><a class="anchor" id="autotoc_md17"></a>
+<h1><a class="anchor" id="autotoc_md21"></a>
 Usage</h1>
-<p>There are two ways to use Cascade in an application. You can use Cascade as a standalone service with pre-defined K/V types and configurable layout. Or, you can use the Cascade storage templates (defined in Cascade ) as building blocks to build the application using the Derecho group framework. Please refer to <a href="https://github.com/Derecho-Project/cascade/tree/master/src/service">Cascade service's README</a> for using Cascade as a service and <a href="https://github.com/Derecho-Project/cascade/tree/master/src/applications/tests/cascade_as_subgroup_classes">cli_example README</a> for using Cascade components to build your own binary with customized key type and value type.</p>
-<h1><a class="anchor" id="autotoc_md18"></a>
+<p>There are two ways to use Cascade in an application. You can use Cascade as a standalone service with pre-defined K/V types and configurable layout. Or, you can use the Cascade storage templates (defined in Cascade ) as building blocks to build the application using the <a class="el" href="namespaceDerecho.html">Derecho</a> group framework. Please refer to <a href="https://github.com/Derecho-Project/cascade/tree/master/src/service">Cascade service's README</a> for using Cascade as a service and <a href="https://github.com/Derecho-Project/cascade/tree/master/src/applications/tests/cascade_as_subgroup_classes">cli_example README</a> for using Cascade components to build your own binary with customized key type and value type.</p>
+<h1><a class="anchor" id="autotoc_md22"></a>
 New Features to Come</h1>
 <p>1) Resource management </p>
 </div></div><!-- contents -->

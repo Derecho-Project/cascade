@@ -1,4 +1,11 @@
 var searchData=
 [
-  ['overview_0',['Overview',['../md_README.html',1,'']]]
+  ['ack_0',['ack',['../classderecho_1_1cascade_1_1OpenLoopLatencyCollectorClient.html#a0313496b47b15c0e63fe7d60379ab33f',1,'derecho::cascade::OpenLoopLatencyCollectorClient::ack()'],['../classderecho_1_1cascade_1_1OpenLoopLatencyCollector.html#aefeacbaacf73ec6f9f490d841d3677bc',1,'derecho::cascade::OpenLoopLatencyCollector::ack()'],['../classderecho_1_1cascade_1_1OpenLoopLatencyCollectorClientImpl.html#aeb9a61b0714c45c58ccffc82469e0007',1,'derecho::cascade::OpenLoopLatencyCollectorClientImpl::ack()']]],
+  ['action_1',['Action',['../structderecho_1_1cascade_1_1Action.html#a10da2c7cd2e90a767011fa2614d4da72',1,'derecho::cascade::Action::Action(Action &amp;&amp;other)'],['../structderecho_1_1cascade_1_1Action.html#a51b20b4d9e1a9ad25c7887b048d351a4',1,'derecho::cascade::Action::Action(const node_id_t _sender=INVALID_NODE_ID, const std::string &amp;_key_string=&quot;&quot;, const uint32_t _prefix_length=0, const persistent::version_t &amp;_version=CURRENT_VERSION, const std::shared_ptr&lt; OffCriticalDataPathObserver &gt; &amp;_ocdpo_ptr=nullptr, const std::shared_ptr&lt; mutils::ByteRepresentable &gt; &amp;_value_ptr=nullptr, const std::unordered_map&lt; std::string, bool &gt; _outputs={})'],['../structderecho_1_1cascade_1_1Action.html',1,'derecho::cascade::Action']]],
+  ['add_5fhandler_2',['add_handler',['../classderecho_1_1cascade_1_1SubscriberCore.html#afb80c571c85d81f63c2c3d9c5ffabb53',1,'derecho::cascade::SubscriberCore::add_handler()'],['../classderecho_1_1cascade_1_1DDSSubscriberImpl.html#a0a05a401976bc22b25a2ab2c67112e74',1,'derecho::cascade::DDSSubscriberImpl::add_handler()']]],
+  ['add_5for_5fupdate_5fserver_3',['add_or_update_server',['../classderecho_1_1cascade_1_1PerfTestClient.html#a9558c5478b29d92de46da92cdd522135',1,'derecho::cascade::PerfTestClient']]],
+  ['apply_5fordered_5fput_4',['apply_ordered_put',['../classderecho_1_1cascade_1_1DeltaCascadeStoreCore.html#a396dce7afb04e882bde7fc1051cb01bd',1,'derecho::cascade::DeltaCascadeStoreCore']]],
+  ['atomically_5fmodify_5',['atomically_modify',['../classderecho_1_1cascade_1_1PrefixRegistry.html#aacbc9811bace8053f62ddd6212aee0a4',1,'derecho::cascade::PrefixRegistry']]],
+  ['atomically_5ftraverse_6',['atomically_traverse',['../classderecho_1_1cascade_1_1PrefixRegistry.html#a9fb196575d56b37a609e33721cb53b31',1,'derecho::cascade::PrefixRegistry']]],
+  ['atomicinteger_7',['AtomicInteger',['../classcascade__perf_1_1AtomicInteger.html',1,'cascade_perf']]]
 ];
