@@ -1,21 +1,22 @@
 {
     "version": "1.0.0",
     "transport" : "tcp",
-    "private_ip": "128.84.139.21",
-    "private_port": 35001,
+    "private_ip": "127.0.0.1",
+    "private_port": 28586,
     "local_site_id" : 1,
+    "local_initial_leader" : 0,
     "max_payload_size": 102400,
     "window_size": 1000,
     "sites": [
-      {
-        "id": 0,
-        "ip": "128.84.139.10",
-        "port": 35000
-      },
-      {
-        "id": 1,
-        "ip": "128.84.139.20",
-        "port": 35001
-      }
+        {
+            "id": 0,
+            "ips": ["127.0.0.1", "127.0.0.1"],
+            "ports": [28581, 28583]
+        },
+        {
+            "id": 1,
+            "ips": ["127.0.0.1", "127.0.0.1"],
+            "ports": [28586, 28587]
+        }
     ]
 }

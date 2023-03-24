@@ -2,7 +2,7 @@
     "version": "1.0.0",
     "transport" : "tcp",
     "private_ip": "127.0.0.1",
-    "private_port": 28585,
+    "private_port": 28587,
     "local_site_id" : 1,
     "local_initial_leader" : 0,
     "max_payload_size": 102400,

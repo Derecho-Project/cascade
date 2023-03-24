@@ -597,7 +597,6 @@ SignatureCascadeStore<KT, VT, IK, IV, ST>::SignatureCascadeStore(
         : subgroup_id(subgroup_id),
           persistent_core(pr, true),  // enable signatures
           data_to_hash_version(pr, false),
-          wanagent(construct_wan_agent()),
           cascade_watcher_ptr(cw),
           cascade_context_ptr(cc) {}
 
@@ -613,7 +612,6 @@ SignatureCascadeStore<KT, VT, IK, IV, ST>::SignatureCascadeStore(
         : subgroup_id(deserialized_subgroup_id),
           persistent_core(std::move(deserialized_persistent_core)),
           data_to_hash_version(std::move(deserialized_data_to_hash_version)),
-          wanagent(construct_wan_agent()),
           backup_ack_table(std::move(deserialized_ack_table)),
           wanagent_message_ids(std::move(deserialized_wanagent_message_ids)),
           cascade_watcher_ptr(cw),
@@ -638,55 +636,9 @@ SignatureCascadeStore<KT, VT, IK, IV, ST>::~SignatureCascadeStore() {}
 /* --- New methods only in SignatureCascadeStore, not copied from PersistentCascadeStore --- */
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-std::unique_ptr<wan_agent::WanAgent> SignatureCascadeStore<KT, VT, IK, IV, ST>::construct_wan_agent() {
-    std::string agent_config_location;
-    if(!derecho::hasCustomizedConfKey(CASCADE_WANAGENT_CONFIG_FILE)) {
-        dbg_default_error("Configuration option {} not found, attempting to load WanAgent config from default location ./wanagent.json", CASCADE_WANAGENT_CONFIG_FILE);
-        agent_config_location = "wanagent.json";
-    } else {
-        agent_config_location = derecho::getConfString(CASCADE_WANAGENT_CONFIG_FILE);
-    }
-    nlohmann::json wan_agent_config = nlohmann::json::parse(std::ifstream(agent_config_location));
-    int wanagent_port_offset;
-    if(!derecho::hasCustomizedConfKey(CASCADE_WANAGENT_PORT_OFFSET)) {
-        dbg_default_error("Configuration option {} not found, using default value of 1000", CASCADE_WANAGENT_PORT_OFFSET);
-        wanagent_port_offset = 1000;
-    } else {
-        wanagent_port_offset = derecho::getConfInt32(CASCADE_WANAGENT_PORT_OFFSET);
-    }
-    uint32_t my_shard_num = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index).get_shard_num();
-    std::vector<IpAndPorts> my_shard_members = group->template get_subgroup_member_addresses<SignatureCascadeStore>(
-                                                            this->subgroup_index)
-                                                       .at(my_shard_num);
-    wan_agent::site_id_t my_site_id = wan_agent_config[WAN_AGENT_CONF_LOCAL_SITE_ID];
-    // Find the sites entry for the local site, and ensure local_initial_leader is set to the index matching
-    // this subgroup/shard's actual leader in the current view
-    ip_addr_t shard_leader_ip = my_shard_members[0].ip_address;
-    int shard_leader_port = my_shard_members[0].gms_port + wanagent_port_offset;
-    for(const auto& site_object : wan_agent_config[WAN_AGENT_CONF_SITES]) {
-        if(site_object[WAN_AGENT_CONF_SITES_ID] == my_site_id) {
-            for(std::size_t replica_index = 0; replica_index < site_object[WAN_AGENT_CONF_SITES_IP].size(); ++replica_index) {
-                if(site_object[WAN_AGENT_CONF_SITES_IP][replica_index] == shard_leader_ip
-                   && site_object[WAN_AGENT_CONF_SITES_PORT][replica_index] == shard_leader_port) {
-                    wan_agent_config[WAN_AGENT_CONF_LOCAL_LEADER] = replica_index;
-                    break;
-                }
-            }
-            break;
-        }
-    }
-    return wan_agent::WanAgent::create(
-            wan_agent_config,
-            [this](const std::map<wan_agent::site_id_t, uint64_t>& ack_table) { wan_stability_callback(ack_table); },
-            [](const uint32_t sender, const uint8_t* msg, const size_t size) {});
-}
-
-template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void SignatureCascadeStore<KT, VT, IK, IV, ST>::new_view_callback(const View& new_view) {
     uint32_t my_shard_num = new_view.my_subgroups.at(subgroup_id);
     const SubView& my_shard_view = new_view.subgroup_shard_views.at(subgroup_id).at(my_shard_num);
-    // Determine if this node just became the shard leader, after previously not being the leader
-    bool became_leader = !wanagent->is_site_leader() && my_shard_view.members[0] == group->get_my_id();
     // Use the "wanagent_port_offset" config option to derive the WanAgent port for the shard leader from its Derecho port
     int wanagent_port_offset;
     if(!derecho::hasCustomizedConfKey(CASCADE_WANAGENT_PORT_OFFSET)) {
@@ -695,8 +647,42 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::new_view_callback(const View& ne
     } else {
         wanagent_port_offset = derecho::getConfInt32(CASCADE_WANAGENT_PORT_OFFSET);
     }
-    uint16_t wanagent_port = my_shard_view.member_ips_and_ports[0].gms_port + wanagent_port_offset;
-    wanagent->set_site_leader(wan_agent::TcpEndpoint{my_shard_view.member_ips_and_ports[0].ip_address, wanagent_port});
+    uint16_t wanagent_leader_port = my_shard_view.member_ips_and_ports[0].gms_port + wanagent_port_offset;
+    // If this is the very first new-view callback, the WanAgent hasn't been constructed yet and needs to be set up
+    if(!wanagent) {
+        std::string agent_config_location;
+        if(!derecho::hasCustomizedConfKey(CASCADE_WANAGENT_CONFIG_FILE)) {
+            dbg_default_error("Configuration option {} not found, attempting to load WanAgent config from default location ./wanagent.json", CASCADE_WANAGENT_CONFIG_FILE);
+            agent_config_location = "wanagent.json";
+        } else {
+            agent_config_location = derecho::getConfString(CASCADE_WANAGENT_CONFIG_FILE);
+        }
+        nlohmann::json wan_agent_config = nlohmann::json::parse(std::ifstream(agent_config_location));
+        wan_agent::site_id_t my_site_id = wan_agent_config[WAN_AGENT_CONF_LOCAL_SITE_ID];
+        // Find the sites entry for the local site, and ensure local_initial_leader is set to the index matching
+        // this subgroup/shard's actual leader in the current view
+        ip_addr_t shard_leader_ip = my_shard_view.member_ips_and_ports[0].ip_address;
+        for(const auto& site_object : wan_agent_config[WAN_AGENT_CONF_SITES]) {
+            if(site_object[WAN_AGENT_CONF_SITES_ID] == my_site_id) {
+                for(std::size_t replica_index = 0; replica_index < site_object[WAN_AGENT_CONF_SITES_IP].size(); ++replica_index) {
+                    if(site_object[WAN_AGENT_CONF_SITES_IP][replica_index] == shard_leader_ip
+                       && site_object[WAN_AGENT_CONF_SITES_PORT][replica_index] == wanagent_leader_port) {
+                        wan_agent_config[WAN_AGENT_CONF_LOCAL_LEADER] = replica_index;
+                        break;
+                    }
+                }
+                break;
+            }
+        }
+        wanagent = wan_agent::WanAgent::create(
+            wan_agent_config,
+            [this](const std::map<wan_agent::site_id_t, uint64_t>& ack_table) { wan_stability_callback(ack_table); },
+            [](const uint32_t sender, const uint8_t* msg, const size_t size) {});
+        return;
+    }
+    // Otherwise, update WanAgent's leader (to equal the shard leader) and determine if this node just became the leader
+    bool became_leader = !wanagent->is_site_leader() && my_shard_view.members[0] == group->get_my_id();
+    wanagent->set_site_leader(wan_agent::TcpEndpoint{my_shard_view.member_ips_and_ports[0].ip_address, wanagent_leader_port});
     if(became_leader) {
         // Determine from the ack table which updates were still pending and need to be resent
         uint64_t max_acked_id = 0;

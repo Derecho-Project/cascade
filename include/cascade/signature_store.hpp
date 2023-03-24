@@ -70,7 +70,9 @@ private:
     /**
      * The WanAgent instance running on this replica of the subgroup, used to send signed updates to
      * the backup site once they have persisted locally. This is not part of the replicated state of
-     * SignatureCascadeStore, since each replica needs its own WanAgent instance.
+     * SignatureCascadeStore, since each replica needs its own WanAgent instance. Note that it is
+     * initially null and does not get constructed until the first new-view callback, which should
+     * happen before the SignatureCascadeStore starts receiving messages.
      */
     mutable std::unique_ptr<wan_agent::WanAgent> wanagent;
     /**
@@ -171,17 +173,20 @@ private:
     void record_wan_message_id(uint64_t message_id, const KT& object_key,
                                persistent::version_t object_version, persistent::version_t data_object_version);
 
-    /**
-     * Constructor helper that sets up the WanAgent by loading and then modifying the
-     * config file. This allows the constructor to initialize the wanagent variable in
-     * the init list even though it takes more than one line of code.
-     */
-    std::unique_ptr<wan_agent::WanAgent> construct_wan_agent();
-
 public:
-    void new_view_callback(const View& new_view);
 
     /* Specific to SignatureStore, not part of the Cascade interface */
+
+    /**
+     * Handler function for new view callbacks delivered by the Derecho Group;
+     * reconfigures the WanAgent to have a new site leader if the SignatureCascadeStore
+     * shard leader changed in the new view. In the very first new-view callback,
+     * this also creates the WanAgent (the WanAgent can't be created until we know
+     * the initial view).
+     *
+     * @param new_view The View installed by Derecho
+     */
+    void new_view_callback(const View& new_view);
 
     /**
      * Retrieves the signature and the previous signed version that is logged

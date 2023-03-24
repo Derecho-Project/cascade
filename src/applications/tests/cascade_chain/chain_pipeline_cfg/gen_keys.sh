@@ -11,8 +11,16 @@ for folder in n{0..3}; do
     cp private_key.pem $folder
 done
 
-# Copy the public key to the external client node
-cp service_public_key.pem n4
+# Copy the public key to the external client node and the backup nodes
+for folder in n{4..7}; do
+    cp service_public_key.pem $folder
+done
 
 # Generate a private key for the client, even though it won't use it, to make Derecho happy
 openssl genpkey -algorithm rsa -outform PEM -out n4/private_key.pem
+
+# Generate a private key for the backup site nodes
+openssl genpkey -algorithm rsa -outform PEM -out backup_private_key.pem
+for folder in n{5..7}; do
+    cp backup_private_key.pem $folder/private_key.pem
+done
