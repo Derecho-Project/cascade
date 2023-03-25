@@ -15,7 +15,7 @@ Cascade is a C++17 cloud application framework powered by optimized RDMA data pa
   - Within C++, we have found it useful to combine Cascade with a language-integrated query library such as LINQ (we can support both cpplinq and boolinq).
   - Doing so permits the developer to treat collections of objects or object histories as sets of K/V tuples, describing "transformations" on the data much as we would in a database setting, and leaving the runtime to make scheduling and object placement decisions on our behalf.
   - [LINQ](https://docs.microsoft.com/en-us/dotnet/csharp/programming-guide/concepts/linq/) is closely related to models widely used in ML, such as the Spark concept of an RDD, or the Tensor Flow model for tensors and sets of tensors. Cascade is currently enabled with LINQ data retrieving C++ API.
-  - We do not plan to require use of LINQ, but we do think it lends itself to concise, elegant code.  During summer 2022 we are extending the API to also support use from C\# via the .NET Core CLR (F# and C++/CLI should also be able to access these extensions).
+  - We do not plan to require use of LINQ, but we do think it lends itself to concise, elegant code.  We have extended the API to also support use from C\# via the .NET Core CLR. This allows for development of user-defined logic in C\# as well.
 - Cascade also supports a variety of remoting options.  Through them, Cascade's K/V API can be accessed from other popular high-level languages, notably Java and Python.
 - Cascade also offers a File system API that maps to its K/V API through [libfuse](https://github.com/libfuse/libfuse).
 
@@ -33,6 +33,7 @@ Cascade is a C++17 cloud application framework powered by optimized RDMA data pa
 - [boolinq](https://github.com/k06a/boolinq) or newer (Optional for LINQ API)
 - Python 3.5 or newer and [pybind11](https://github.com/pybind/pybind11) (Optional for Python API)
 - OpenJDK 11.06 or newer. On Ubuntu, use `apt install openjdk-11-jdk` to install it. (Optional for Java API)
+- .NET Framework 6x. Please follow the instructions from Microsoft to install it based on Linux distro [here](https://learn.microsoft.com/en-us/dotnet/core/install/linux-ubuntu). (Optional for C\# API)
 - Derecho v2.2.2. Plesae follow this [document](http://github.com/Derecho-Project/derecho) to install Derecho. Note: this cascade version replies on Derecho commit 3f24e06ed5ad572eb82206e8c1024935d03e903e on the master branch.
 
 ## Build Cascade
