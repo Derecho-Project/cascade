@@ -3,4 +3,5 @@
 .idea
 
 # The build output folders created by build.sh
-/build-*
+/build*
+/docs

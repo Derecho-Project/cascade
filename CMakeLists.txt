@@ -73,6 +73,9 @@ if(Hyperscan_FOUND)
     include_directories(${Hyperscan_INCLUDE_DIRS})
 endif()
 
+# Doxygen, optional to generate documentation HTML
+find_package(Doxygen)
+
 set(CMAKE_REQUIRED_DEFINITIONS -DFUSE_USE_VERSION=30)
 include(CheckIncludeFiles)
 include(CheckIncludeFileCXX)
@@ -170,3 +173,19 @@ install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/cascade/cascadeConfigVersion.cmake"
     DESTINATION ${ConfigPackageLocation}
 )
+
+if (DOXYGEN_FOUND)
+    # set input and output files
+    set(DOXYGEN_OUT ${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile)
+
+    # request to configure the file
+    message("Doxygen build started")
+
+    # note the option ALL which allows to build the docs together with the application
+    add_custom_target(doc_doxygen ALL
+        COMMAND ${DOXYGEN_EXECUTABLE} ${DOXYGEN_OUT}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        COMMENT "Generating API documentation with Doxygen..."
+        VERBATIM
+    )
+endif()
