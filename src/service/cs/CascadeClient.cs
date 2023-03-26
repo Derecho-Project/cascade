@@ -213,7 +213,7 @@ namespace Derecho.Cascade
          * we do not redefine them in C#.
          */
 
-        // Private helpers
+        // Private Helpers
         [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern StdVectorWrapper indexTwoDimensionalNodeVector(IntPtr vec, UInt64 index);
 
@@ -238,15 +238,15 @@ namespace Derecho.Cascade
         [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr indexStdVectorWrapperStringVectorQueryResults(StdVectorWrapper vector, UInt64 index);
 
-        // Public utilities
+        // Memory Management Utilities
         [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
-        public static extern bool deleteObjectLocationVectorPointer(IntPtr ptr);
+        private static extern bool deleteObjectLocationVectorPointer(IntPtr ptr);
 
         [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
-        public static extern bool deleteStringVectorPointer(IntPtr ptr);
+        private static extern bool deleteStringVectorPointer(IntPtr ptr);
 
         [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
-        public static extern bool deleteNodeIdVectorPointer(IntPtr ptr);
+        private static extern bool deleteNodeIdVectorPointer(IntPtr ptr);
 
         [DllImport(CLIENT_DLL, CallingConvention = CallingConvention.Cdecl)]
         public static extern bool freeBytePointer(IntPtr ptr);
@@ -473,6 +473,7 @@ namespace Derecho.Cascade
         /// <summary>
         /// Gets the client node's ID.
         /// </summary>
+        /// <returns>The ID of the client node.</returns>
         public UInt32 GetMyId()
         {
             return EXPORT_getMyId(capi);
@@ -513,6 +514,7 @@ namespace Derecho.Cascade
 
         /// <summary>
         /// Get an object from Cascade's store.
+        /// </summary>
         /// <param><c>key</c> is the key of the object.</param>
         /// <param><c>type</c> is the subgroup type in Cascade to get from. 
         ///                    Defaults to none.
@@ -527,7 +529,6 @@ namespace Derecho.Cascade
         ///                         not using a timestamp get.
         /// </param>
         /// <returns>An ObjectProperties struct of the data associated with the object.</returns>
-        /// </summary>
         public ObjectProperties Get(string key, 
                                     SubgroupType? type = null, 
                                     UInt32 subgroupIndex = 0, 
@@ -571,6 +572,7 @@ namespace Derecho.Cascade
 
         /// <summary>
         /// Put an object into Cascade's store.
+        /// </summary>
         /// <param><c>key</c> is the key of the object.</param>
         /// <param><c>bytes</c> are the blob bytes of the data in a byte array.</param>
         /// <param><c>type</c> is the subgroup type in Cascade to get from.
@@ -584,7 +586,6 @@ namespace Derecho.Cascade
         /// <param><c>trigger</c> Defaults to false.</param>
         /// <param><c>messageId</c></param>
         /// <returns>A VersionTimestampPair response.</returns>
-        /// </summary>
         public VersionTimestampPair Put(string key, 
                           byte[] bytes,
                           SubgroupType? type = null,
@@ -604,6 +605,7 @@ namespace Derecho.Cascade
 
         /// <summary>
         /// Put a string value into Cascade's store.
+        /// </summary>
         /// <param><c>key</c> is the key of the object.</param>
         /// <param><c>str</c> is the string to put into Cascade via bytes.</param>
         /// <param><c>type</c> is the subgroup type in Cascade to get from.
@@ -617,7 +619,6 @@ namespace Derecho.Cascade
         /// <param><c>trigger</c> Defaults to false.</param>
         /// <param><c>messageId</c></param>
         /// <returns>A VersionTimestampPair response.</returns>
-        /// </summary>
         public VersionTimestampPair Put(string key, 
                           string str,
                           SubgroupType? type = null,
@@ -639,6 +640,7 @@ namespace Derecho.Cascade
 
         /// <summary>
         /// Remove an object from Cascade's store.
+        /// </summary>
         /// <param><c>key</c> is the key of the object.</param>
         /// <param><c>type</c> is the subgroup type in Cascade to get from.
         ///                    Defaults to none.
@@ -646,7 +648,6 @@ namespace Derecho.Cascade
         /// <param><c>subgroupIndex</c> Defaults to zero.</param>
         /// <param><c>shardIndex</c> Defaults to zero.</param>
         /// <returns>A VersionTimestampPair response.</returns>
-        /// </summary>
         public VersionTimestampPair Remove(string key, 
                                            SubgroupType? type = null, 
                                            UInt32 subgroupIndex = 0, 
@@ -659,6 +660,7 @@ namespace Derecho.Cascade
         
         /// <summary>
         /// Get an object from Cascade's store using multi_get.
+        /// </summary>
         /// <param><c>key</c> is the key of the object.</param>
         /// <param><c>type</c> is the subgroup type in Cascade to get from. 
         ///                    Defaults to none.
@@ -666,7 +668,6 @@ namespace Derecho.Cascade
         /// <param><c>subgroupIndex</c> Defaults to 0.</param>
         /// <param><c>shardIndex</c> Defaults to 0.</param>
         /// <returns>An ObjectProperties struct of the data associated with the object.</returns>
-        /// </summary>
         public ObjectProperties MultiGet(string key,
                                          SubgroupType? type = null,
                                          UInt32 subgroupIndex = 0,
@@ -679,6 +680,7 @@ namespace Derecho.Cascade
 
         /// <summary>
         /// Get the size of an object using get_size.
+        /// </summary>
         /// <param><c>key</c> is the key of the object.</param>
         /// <param><c>type</c> is the subgroup type in Cascade to get from. 
         ///                    Defaults to none.
@@ -693,7 +695,6 @@ namespace Derecho.Cascade
         ///                         not using a timestamp get.
         /// </param>
         /// <returns>The size of the object.</returns>
-        /// </summary>
         public UInt64 GetSize(string key,
                               SubgroupType? type = null,
                               UInt32 subgroupIndex = 0,
@@ -710,6 +711,7 @@ namespace Derecho.Cascade
 
         /// <summary>
         /// Get the size of an object using multi_get_size.
+        /// </summary>
         /// <param><c>key</c> is the key of the object.</param>
         /// <param><c>type</c> is the subgroup type in Cascade to get from. 
         ///                    Defaults to none.
@@ -717,7 +719,6 @@ namespace Derecho.Cascade
         /// <param><c>subgroupIndex</c> Defaults to 0.</param>
         /// <param><c>shardIndex</c> Defaults to 0.</param>
         /// <returns>The size of the object.</returns>
-        /// </summary>
         public UInt64 MultiGetSize(string key,
                               SubgroupType? type = null,
                               UInt32 subgroupIndex = 0,
@@ -730,6 +731,7 @@ namespace Derecho.Cascade
 
         /// <summary>
         /// List the keys in a given shard.
+        /// </summary>
         /// <param><c>key</c> is the key of the object.</param>
         /// <param><c>type</c> is the subgroup type in Cascade to get from. 
         /// </param>
@@ -743,7 +745,6 @@ namespace Derecho.Cascade
         ///                         not using a timestamp get.
         /// </param>
         /// <returns>The keys in the shard.</returns>
-        /// </summary>
         public List<string> ListKeysInShard(SubgroupType type,
                               UInt32 subgroupIndex = 0,
                               UInt32 shardIndex = 0,
@@ -759,6 +760,7 @@ namespace Derecho.Cascade
 
         /// <summary>
         /// List the keys in a given object pool.
+        /// </summary>
         /// <param><c>objectPoolPathname</c></param>
         /// <param><c>version</c> is the version to specify for a versioned get size. 
         ///                       Defaults to the current version.
@@ -768,7 +770,6 @@ namespace Derecho.Cascade
         ///                         not using a timestamp get.
         /// </param>
         /// <returns>The keys in the object pool.</returns>
-        /// </summary>
         public List<string> ListKeysInObjectPool(string objectPoolPathname,
                                                  Int64 version = CURRENT_VERSION,
                                                  bool stable = true,
@@ -792,12 +793,12 @@ namespace Derecho.Cascade
 
         /// <summary>
         /// List the keys in a shard using multi_get.
+        /// </summary>
         /// <param><c>type</c> is the subgroup type in Cascade to get from. 
         /// </param>
         /// <param><c>subgroupIndex</c> Defaults to 0.</param>
         /// <param><c>shardIndex</c> Defaults to 0.</param>
         /// <returns>The keys in the shard.</returns>
-        /// </summary>
         public List<string> MultiListKeysInShard(SubgroupType type, 
                                                  UInt32 subgroupIndex = 0,
                                                  UInt32 shardIndex = 0)
@@ -810,9 +811,9 @@ namespace Derecho.Cascade
 
         /// <summary>
         /// List the keys in an object pool using multi_get.
+        /// </summary>
         /// <param><c>objectPoolPathname</c></param>
         /// <returns>The keys in the object pool.</returns>
-        /// </summary>
         public List<string> MultiListKeysInObjectPool(string objectPoolPathname)
         {
             List<string> keys = new List<string>();
@@ -829,8 +830,8 @@ namespace Derecho.Cascade
 
         /// <summary>
         /// List all the object pools.
-        /// <returns>The keys in the object pool.</returns>
         /// </summary>
+        /// <returns>The keys in the object pool.</returns>
         public List<string> ListObjectPools()
         {
             StdVectorWrapper vector = EXPORT_listObjectPools(capi);
@@ -843,11 +844,11 @@ namespace Derecho.Cascade
 
         /// <summary>
         /// Create an object pool.
+        /// </summary>
         /// <param><c>type</c> is the subgroup type.</param>
         /// <param><c>subgroupIndex</c></param>
         /// <param><c>affinitySetRegex</c> defaults to an empty string.</param>
         /// <returns>A version and timestamp pair response.</returns>
-        /// </summary>
         public VersionTimestampPair CreateObjectPool(string objectPoolPathname, SubgroupType type, 
                                        UInt32 subgroupIndex, string affinitySetRegex = "")
         {
@@ -858,9 +859,9 @@ namespace Derecho.Cascade
 
         /// <summary>
         /// Remove an object pool.
+        /// </summary>
         /// <param><c>objectPoolPathname</c></param>
         /// <returns>A version and timestamp pair response.</returns>
-        /// </summary>
         public VersionTimestampPair RemoveObjectPool(string objectPoolPathname)
         {
             IntPtr res = EXPORT_removeObjectPool(capi, objectPoolPathname);
@@ -870,9 +871,8 @@ namespace Derecho.Cascade
         /// <summary>
         /// Get the metadata associated with an object pool.
         /// <param><c>objectPoolPathname</c></param>
-        ///
-        /// <returns>A GetObjectPoolMetadata response.</returns>
         /// </summary>
+        /// <returns>A GetObjectPoolMetadata response.</returns>
         public GetObjectPoolMetadata GetObjectPool(string objectPoolPathname)
         {
             GetObjectPoolMetadataInternal res = EXPORT_getObjectPool(capi, objectPoolPathname);
@@ -881,10 +881,9 @@ namespace Derecho.Cascade
         
         /// <summary>
         /// Get the total number of subgroups.
-        ///
-        /// <param><c>type</c> is the subgroup type.</param>
-            /// <returns>The number of subgroups under the service type.</returns>
         /// </summary>
+        /// <param><c>type</c> is the subgroup type.</param>
+        /// <returns>The number of subgroups under the service type.</returns>
         public UInt32 GetNumberOfSubgroups(SubgroupType type)
         {
             return EXPORT_getNumberOfSubgroups(capi, subgroupEnumToString(type));
@@ -892,11 +891,10 @@ namespace Derecho.Cascade
 
         /// <summary>
         /// Get the total number of shards within a subgroup.
-        ///
+        /// </summary>
         /// <param><c>type</c> is the subgroup type.</param>
         /// <param><c>subgroupIndex</c></param>
         /// <returns>The number of shards.</returns>
-        /// </summary>
         public UInt32 GetNumberOfShards(SubgroupType type, UInt32 subgroupIndex)
         {
             return EXPORT_getNumberOfShards(capi, subgroupEnumToString(type), subgroupIndex);
@@ -904,8 +902,8 @@ namespace Derecho.Cascade
 
         /// <summary>
         /// Get the members in the current Derecho group as a list of node IDs.
-        /// <returns>A list of node IDs of the members.</returns>
         /// </summary>
+        /// <returns>A list of node IDs of the members.</returns>
         public List<UInt32> GetMembers()
         {  
             StdVectorWrapper vector = EXPORT_getMembers(capi);
@@ -914,11 +912,11 @@ namespace Derecho.Cascade
 
         /// <summary>
         /// Get the members of a shard.
+        /// </summary>
         /// <param><c>type</c> is the service type. </param>
         /// <param><c>subgroupIndex</c></param>
         /// <param><c>shardIndex</c></param>
         /// <returns>A list of node IDs of the members.</returns>
-        /// </summary>
         public List<UInt32> GetShardMembers(SubgroupType type, UInt32 subgroupIndex, UInt32 shardIndex)
         {
             StdVectorWrapper vector = EXPORT_getShardMembers(capi, subgroupEnumToString(type), 
@@ -928,10 +926,10 @@ namespace Derecho.Cascade
 
         /// <summary>
         /// Get the members of a shard, by its object pool path.
+        /// </summary>
         /// <param><c>objectPoolPathname</c></param>
         /// <param><c>shardIndex</c></param>
         /// <returns>A list of node IDs of the members.</returns>
-        /// </summary>
         public List<UInt32> GetShardMembersByObjectPool(string objectPoolPathname,
                                                         UInt32 shardIndex)
         {
@@ -942,9 +940,9 @@ namespace Derecho.Cascade
 
         /// <summary>
         /// Get members of a subgroup.
+        /// </summary>
         /// <param><c>type</c> is the subgroup type.</param>
         /// <param><c>subgroupIndex</c></param>
-        /// </summary>
         public List<List<UInt32>> GetSubgroupMembers(SubgroupType type, UInt32 subgroupIndex)
         {
             TwoDimensionalNodeList vector = EXPORT_getSubgroupMembers(capi, 
@@ -955,8 +953,8 @@ namespace Derecho.Cascade
 
         /// <summary>
         /// Get members of a subgroup based on an object pool path name.
-        /// <param><c>objectPoolPathname</c></param>
         /// </summary>
+        /// <param><c>objectPoolPathname</c></param>
         public List<List<UInt32>> GetSubgroupMembersByObjectPool(string objectPoolPathname)
         {
             TwoDimensionalNodeList vector = EXPORT_getSubgroupMembersByObjectPool(capi, 
@@ -967,13 +965,12 @@ namespace Derecho.Cascade
 
         /// <summary>
         /// Set the member selection policy for a given subgroup and shard index.
-        ///
-        /// <param><c>type</c> is the subgroup type.</param>
-        /// <param><c>subgroupIndex</c>
-        /// <param><c>shardIndex</c>
-        /// <param><c>policy</c>
-        /// <param><c>userNode</c>
         /// </summary>
+        /// <param><c>type</c> is the subgroup type.</param>
+        /// <param><c>subgroupIndex</c></param>
+        /// <param><c>shardIndex</c></param>
+        /// <param><c>policy</c></param>
+        /// <param><c>userNode</c></param>
         public void SetMemberSelectionPolicy(SubgroupType type, 
                                              UInt32 subgroupIndex, 
                                              UInt32 shardIndex, 
@@ -985,14 +982,14 @@ namespace Derecho.Cascade
         }
 
         /// <summary>
-        /// Get the member selection policy for a given subgroup and shard index.
-        ///
-        /// <param><c>type</c> is the subgroup type.</param>
-        /// <param><c>subgroupIndex</c>
-        /// <param><c>shardIndex</c>
-        /// <param><c>policy</c>
-        /// <param><c>userNode</c>
+        /// Get the member selection policy for a given subgroup and shard index. 
         /// </summary>
+        /// <param><c>type</c> is the subgroup type.</param>
+        /// <param><c>subgroupIndex</c></param>
+        /// <param><c>shardIndex</c></param>
+        /// <param><c>policy</c></param>
+        /// <param><c>userNode</c></param>
+        /// <returns>The member selection policy metadata associated with the params.</returns>
         public PolicyMetadata GetMemberSelectionPolicy(SubgroupType type, 
                                                        UInt32 subgroupIndex, 
                                                        UInt32 shardIndex)
@@ -1009,16 +1006,57 @@ namespace Derecho.Cascade
         /// <summary>
         /// Get all objects within a shard for use with LINQ.
         /// </summary>
+        /// <param><c>subgroupIndex</c></param>
+        /// <param><c>shardIndex</c></param>
+        /// <param><c>version</c> Defaults to the current version.</param>
+        /// <returns>An IEnumerable consisting of ObjectProperties allowing for LINQ use.</returns>
         public IEnumerable<ObjectProperties> FromShard(SubgroupType type,
                                                       UInt32 subgroupIndex,
                                                       UInt32 shardIndex,
                                                       Int64 version = CURRENT_VERSION)
         {
-            List<string> keysInShard = ListKeysInShard(type, subgroupIndex, shardIndex, stable: true);
+            List<string> keysInShard = ListKeysInShard(type, subgroupIndex, shardIndex, stable: true, version: version);
             foreach (string key in keysInShard)
             {
                 yield return Get(key, type: type, subgroupIndex: subgroupIndex,
-                    shardIndex: shardIndex, version: version);
+                    shardIndex: shardIndex, version: version, stable: true);
+            }
+        }
+
+        /// <summary>
+        /// Get all objects within a shard at a point in time.
+        /// </summary>
+        /// <param><c>subgroupIndex</c></param>
+        /// <param><c>shardIndex</c></param>
+        /// <param><c>timestamp</c> The Unix epoch ms for the timestamp.</param>
+        /// <returns>An IEnumerable consisting of ObjectProperties allowing for LINQ use.</returns>
+        public IEnumerable<ObjectProperties> FromShardByTime(SubgroupType type,
+                                                             UInt32 subgroupIndex,
+                                                             UInt32 shardIndex,
+                                                             UInt64 timestamp)
+        {
+            List<string> keysInShard = ListKeysInShard(type, subgroupIndex, shardIndex, stable: true, timestamp: timestamp);
+            foreach (string key in keysInShard)
+            {
+                yield return Get(key, type: type, subgroupIndex: subgroupIndex,
+                    shardIndex: shardIndex, stable: true, timestamp: timestamp);
+            }
+        }
+
+        /// <summary>
+        /// Get all objects within an object pool.
+        /// </summary>
+        /// <param><c>version</c></param>
+        /// <param><c>objectPoolPathname</c></param>
+        /// <returns>An IEnumerable consisting of ObjectProperties allowing for LINQ use.</returns>
+        public IEnumerable<ObjectProperties> FromObjectPool(SubgroupType type,
+                                                             Int64 version, 
+                                                             string objectPoolPathname)
+        {
+            List<string> keysInObjPool = ListKeysInObjectPool(objectPoolPathname, version: version, stable: true);
+            foreach (string key in keysInObjPool)
+            {
+                yield return Get(key, version: version);
             }
         }
     }

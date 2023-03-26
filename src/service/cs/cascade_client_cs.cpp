@@ -440,12 +440,6 @@ auto get_object_pool(ServiceClientAPI& capi, const std::string& object_pool_path
     return metadata;
 }
 
-// TODO(ptwu): iterators
-// - op_get_keys from an object pool
-// - all in a subgroup
-// - shard of a subgroup
-// - versions of a key
-
 // ------------------------------------
 // Exported functions through P/Invoke
 // ------------------------------------
@@ -466,6 +460,7 @@ struct PolicyMetadataInternal {
 };
 
 TwoDimensionalNodeList convert_2d_vector(std::vector<std::vector<node_id_t>> vector) {
+    // heap-allocated so that they persist into the managed code without being destructed
     auto flattened_list = new std::vector<node_id_t>();
     auto vector_sizes = new std::vector<uint64_t>();
     for (const auto& inner_list : vector) {
@@ -545,9 +540,8 @@ EXPORT uint32_t EXPORT_getMyId(ServiceClientAPI& capi) {
 }
 
 EXPORT StdVectorWrapper EXPORT_getMembers(ServiceClientAPI& capi) {
-    auto vec = new std::vector<node_id_t>();
-    *vec = capi.get_members();
-    INVALID_NODE_ID;
+    // heap-allocated so that it persists into the managed code without being destructed
+    auto vec = new std::vector<node_id_t>(capi.get_members());
     return {vec->data(), vec, vec->size()};
 }
 
@@ -563,6 +557,7 @@ EXPORT TwoDimensionalNodeList EXPORT_getSubgroupMembersByObjectPool(ServiceClien
 }
 
 EXPORT StdVectorWrapper EXPORT_getShardMembers(ServiceClientAPI& capi, char* serviceType, uint32_t subgroupIndex, uint32_t shardIndex) {
+    // heap-allocated so that it persists into the managed code without being destructed
     auto members_ptr = new std::vector<node_id_t>();
     std::vector<node_id_t> members;
     on_all_subgroup_type(std::string(serviceType), members = capi.template get_shard_members, subgroupIndex, shardIndex);
@@ -574,6 +569,7 @@ EXPORT StdVectorWrapper EXPORT_getShardMembers(ServiceClientAPI& capi, char* ser
 }
 
 EXPORT StdVectorWrapper EXPORT_getShardMembersByObjectPool(ServiceClientAPI& capi, char* objectPoolPathname, uint32_t shardIndex) {
+    // heap-allocated so that it persists into the managed code without being destructed
     auto members = new std::vector<node_id_t>();
     for (auto member : capi.get_shard_members(objectPoolPathname, shardIndex)) {
         members->push_back(member);
