@@ -720,9 +720,9 @@ namespace Derecho.Cascade
         /// <param><c>shardIndex</c> Defaults to 0.</param>
         /// <returns>The size of the object.</returns>
         public UInt64 MultiGetSize(string key,
-                              SubgroupType? type = null,
-                              UInt32 subgroupIndex = 0,
-                              UInt32 shardIndex = 0)
+                                   SubgroupType? type = null,
+                                   UInt32 subgroupIndex = 0,
+                                   UInt32 shardIndex = 0)
         {
             IntPtr res = EXPORT_multiGetSize(capi, key, subgroupEnumToString(type), subgroupIndex, 
                 shardIndex);

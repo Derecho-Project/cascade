@@ -475,8 +475,7 @@ TwoDimensionalNodeList convert_2d_vector(std::vector<std::vector<node_id_t>> vec
 }
 
 EXPORT ObjectProperties extractObjectPropertiesFromQueryResults(QueryResultsStore<const ObjectWithStringKey, ObjectProperties>* store) {
-    auto res = store->get_result();
-    return res;
+    return store->get_result();
 }
 
 EXPORT VersionTimestampPair extractVersionTimestampFromQueryResults(QueryResultsStore<version_tuple, VersionTimestampPair>* store) {
@@ -686,6 +685,9 @@ EXPORT auto EXPORT_get(ServiceClientAPI& capi, char* key, GetArgs args) {
             on_all_subgroup_type(subgroup_type, return get_internal, capi, std::string(key), version, stable, subgroup_index, shard_index);
         }
     }
+    // Execution should never reach this point. If it does, then stopping control flow is
+    // sensible to prevent clients from receiving malformed data, which will cause further issues. 
+    throw derecho::derecho_exception("Reached end of exported get implementation.");
 }
 
 struct PutArgs {
@@ -760,6 +762,9 @@ EXPORT auto EXPORT_put(ServiceClientAPI& capi, char* key, uint8_t* bytes, std::s
             on_all_subgroup_type(subgroup_type, put_and_forget, capi, obj, subgroup_index, shard_index);
         }
     }
+    // Execution should never reach this point. If it does, then stopping control flow is
+    // sensible to prevent clients from receiving malformed data, which will cause further issues. 
+    throw derecho::derecho_exception("Reached end of exported put implementation.");
 }
 
 EXPORT auto EXPORT_remove(ServiceClientAPI& capi, char* key, char* subgroupType, uint32_t subgroupIndex, uint32_t shardIndex) {
@@ -777,6 +782,9 @@ EXPORT auto EXPORT_remove(ServiceClientAPI& capi, char* key, char* subgroupType,
     } else {
         on_all_subgroup_type(subgroup_type, return remove_internal, capi, std::string(key), subgroup_index, shard_index);
     }
+    // Execution should never reach this point. If it does, then stopping control flow is
+    // sensible to prevent clients from receiving malformed data, which will cause further issues. 
+    throw derecho::derecho_exception("Reached end of exported remove implementation.");
 }
 
 EXPORT auto EXPORT_multiGet(ServiceClientAPI& capi, char* key, char* subgroupType, uint32_t subgroupIndex, uint32_t shardIndex) {
@@ -794,6 +802,9 @@ EXPORT auto EXPORT_multiGet(ServiceClientAPI& capi, char* key, char* subgroupTyp
     } else {
         on_all_subgroup_type(subgroup_type, return multi_get, capi, std::string(key), subgroup_index, shard_index);
     }
+    // Execution should never reach this point. If it does, then stopping control flow is
+    // sensible to prevent clients from receiving malformed data, which will cause further issues. 
+    throw derecho::derecho_exception("Reached end of exported multi_get implementation.");
 }
 
 EXPORT auto EXPORT_getSize(ServiceClientAPI& capi, char* key, char* subgroupType, uint32_t subgroupIndex, 
@@ -824,6 +835,9 @@ EXPORT auto EXPORT_getSize(ServiceClientAPI& capi, char* key, char* subgroupType
                 on_all_subgroup_type(subgroup_type, return get_size, capi, std::string(key), version, stable, subgroup_index, shard_index);
             }
         }
+        // Execution should never reach this point. If it does, then stopping control flow is
+        // sensible to prevent clients from receiving malformed data, which will cause further issues. 
+        throw derecho::derecho_exception("Reached end of exported get_size implementation.");
 }
 
 EXPORT auto EXPORT_multiGetSize(ServiceClientAPI& capi, char* key, char* subgroupType, uint32_t subgroupIndex, uint32_t shardIndex) {
@@ -842,6 +856,9 @@ EXPORT auto EXPORT_multiGetSize(ServiceClientAPI& capi, char* key, char* subgrou
     } else {
         on_all_subgroup_type(subgroup_type, return multi_get_size, capi, std::string(key), subgroup_index, shard_index);
     }
+    // Execution should never reach this point. If it does, then stopping control flow is
+    // sensible to prevent clients from receiving malformed data, which will cause further issues. 
+    throw derecho::derecho_exception("Reached end of exported multi_get_size implementation.");
 }
 
 EXPORT auto EXPORT_listKeysInShard(ServiceClientAPI& capi, char* subgroupType, uint32_t subgroupIndex, 
@@ -856,6 +873,9 @@ EXPORT auto EXPORT_listKeysInShard(ServiceClientAPI& capi, char* subgroupType, u
         } else {
             on_all_subgroup_type(subgroup_type, return list_keys, capi, version, stable, subgroup_index, shard_index);
         }
+        // Execution should never reach this point. If it does, then stopping control flow is
+        // sensible to prevent clients from receiving malformed data, which will cause further issues. 
+        throw derecho::derecho_exception("Reached end of exported list_keys_in_shard implementation.");
 }
 
 EXPORT auto EXPORT_multiListKeysInShard(ServiceClientAPI& capi, char* subgroupType, uint32_t subgroupIndex, uint32_t shardIndex) {
@@ -864,6 +884,9 @@ EXPORT auto EXPORT_multiListKeysInShard(ServiceClientAPI& capi, char* subgroupTy
     uint32_t shard_index = shardIndex;
 
     on_all_subgroup_type(subgroup_type, return multi_list_keys, capi, subgroup_index, shard_index);
+    // Execution should never reach this point. If it does, then stopping control flow is
+    // sensible to prevent clients from receiving malformed data, which will cause further issues. 
+    throw derecho::derecho_exception("Reached end of exported multi_list_keys_in_shard implementation.");
 }
 
 EXPORT StdVectorWrapper EXPORT_listKeysInObjectPool(ServiceClientAPI& capi, char* objectPoolPathname, persistent::version_t version, bool stable, uint64_t timestamp) {
@@ -902,6 +925,9 @@ EXPORT StdVectorWrapper EXPORT_listObjectPools(ServiceClientAPI& capi) {
 
 EXPORT auto EXPORT_createObjectPool(ServiceClientAPI& capi, char* objectPoolPathname, char* serviceType, uint32_t subgroupIndex, char* affinitySetRegex) {
     on_all_subgroup_type(std::string(serviceType), return create_object_pool, capi, std::string(objectPoolPathname), subgroupIndex, std::string(affinitySetRegex));
+    // Execution should never reach this point. If it does, then stopping control flow is
+    // sensible to prevent clients from receiving malformed data, which will cause further issues. 
+    throw derecho::derecho_exception("Reached end of exported create_object_pool implementation.");
 }
 
 EXPORT auto EXPORT_getObjectPool(ServiceClientAPI& capi, char* objectPoolPathname) {
