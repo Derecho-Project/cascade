@@ -1006,6 +1006,7 @@ namespace Derecho.Cascade
         /// <summary>
         /// Get all objects within a shard for use with LINQ.
         /// </summary>
+        /// <param><c>type</c> is the subgroup type.</param>
         /// <param><c>subgroupIndex</c></param>
         /// <param><c>shardIndex</c></param>
         /// <param><c>version</c> Defaults to the current version.</param>
@@ -1026,6 +1027,7 @@ namespace Derecho.Cascade
         /// <summary>
         /// Get all objects within a shard at a point in time.
         /// </summary>
+        /// <param><c>type</c> is the subgroup type.</param>
         /// <param><c>subgroupIndex</c></param>
         /// <param><c>shardIndex</c></param>
         /// <param><c>timestamp</c> The Unix epoch ms for the timestamp.</param>
@@ -1046,18 +1048,41 @@ namespace Derecho.Cascade
         /// <summary>
         /// Get all objects within an object pool.
         /// </summary>
+        /// <param><c>type</c> is the subgroup type.</param>
         /// <param><c>version</c></param>
         /// <param><c>objectPoolPathname</c></param>
         /// <returns>An IEnumerable consisting of ObjectProperties allowing for LINQ use.</returns>
         public IEnumerable<ObjectProperties> FromObjectPool(SubgroupType type,
-                                                             Int64 version, 
-                                                             string objectPoolPathname)
+                                                            Int64 version, 
+                                                            string objectPoolPathname)
         {
             List<string> keysInObjPool = ListKeysInObjectPool(objectPoolPathname, version: version, stable: true);
             foreach (string key in keysInObjPool)
             {
                 yield return Get(key, version: version);
             }
+        }
+
+        /// <summary>
+        /// Get all objects corresponding to a certain key for given versions.
+        /// </summary>
+        /// <param><c>key</c> is the key to iterate over.</param>
+        /// <param><c>subgroupIndex</c></param>
+        /// <param><c>version</c></param>
+        /// <returns>An IEnumerable consisting of ObjectProperties allowing for LINQ use.</returns>
+        public IEnumerable<ObjectProperties> FromVersions(string key,
+                                                          UInt32 subgroupIndex, 
+                                                          UInt32 shardIndex,
+                                                          Int64 version)
+        {
+            Int64 currVersion = version;
+            do
+            {
+                ObjectProperties result = Get(key, subgroupIndex: subgroupIndex, shardIndex: shardIndex,
+                    version: currVersion, stable: true);
+                currVersion = result.previousVersionByKey;
+                yield return result;
+            } while (currVersion != CURRENT_VERSION);
         }
     }
 } // namespace Derecho.Cascade
