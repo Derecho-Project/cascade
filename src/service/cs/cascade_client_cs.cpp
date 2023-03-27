@@ -80,7 +80,7 @@ inline ShardMemberSelectionPolicy parse_policy_name(const std::string& policy_na
     ShardMemberSelectionPolicy policy = ShardMemberSelectionPolicy::InvalidPolicy;
     int i = 0;
     while (policy_names[i]) {
-        if(policy_name == policy_names[i]) {
+        if (policy_name == policy_names[i]) {
             policy = static_cast<ShardMemberSelectionPolicy>(i);
             break;
         }
@@ -155,7 +155,7 @@ public:
             return f(reply);
         }
         
-        std::cout << "The reply was empty... Should not happen" << std::endl;
+        print_red("The reply was empty... Should not happen");
         return {};
     }
 };
@@ -440,12 +440,6 @@ auto get_object_pool(ServiceClientAPI& capi, const std::string& object_pool_path
     return metadata;
 }
 
-// TODO(ptwu): iterators
-// - op_get_keys from an object pool
-// - all in a subgroup
-// - shard of a subgroup
-// - versions of a key
-
 // ------------------------------------
 // Exported functions through P/Invoke
 // ------------------------------------
@@ -466,6 +460,7 @@ struct PolicyMetadataInternal {
 };
 
 TwoDimensionalNodeList convert_2d_vector(std::vector<std::vector<node_id_t>> vector) {
+    // heap-allocated so that they persist into the managed code without being destructed
     auto flattened_list = new std::vector<node_id_t>();
     auto vector_sizes = new std::vector<uint64_t>();
     for (const auto& inner_list : vector) {
@@ -544,9 +539,8 @@ EXPORT uint32_t EXPORT_getMyId(ServiceClientAPI& capi) {
 }
 
 EXPORT StdVectorWrapper EXPORT_getMembers(ServiceClientAPI& capi) {
-    auto vec = new std::vector<node_id_t>();
-    *vec = capi.get_members();
-    INVALID_NODE_ID;
+    // heap-allocated so that it persists into the managed code without being destructed
+    auto vec = new std::vector<node_id_t>(capi.get_members());
     return {vec->data(), vec, vec->size()};
 }
 
@@ -562,6 +556,7 @@ EXPORT TwoDimensionalNodeList EXPORT_getSubgroupMembersByObjectPool(ServiceClien
 }
 
 EXPORT StdVectorWrapper EXPORT_getShardMembers(ServiceClientAPI& capi, char* serviceType, uint32_t subgroupIndex, uint32_t shardIndex) {
+    // heap-allocated so that it persists into the managed code without being destructed
     auto members_ptr = new std::vector<node_id_t>();
     std::vector<node_id_t> members;
     on_all_subgroup_type(std::string(serviceType), members = capi.template get_shard_members, subgroupIndex, shardIndex);
@@ -573,6 +568,7 @@ EXPORT StdVectorWrapper EXPORT_getShardMembers(ServiceClientAPI& capi, char* ser
 }
 
 EXPORT StdVectorWrapper EXPORT_getShardMembersByObjectPool(ServiceClientAPI& capi, char* objectPoolPathname, uint32_t shardIndex) {
+    // heap-allocated so that it persists into the managed code without being destructed
     auto members = new std::vector<node_id_t>();
     for (auto member : capi.get_shard_members(objectPoolPathname, shardIndex)) {
         members->push_back(member);
@@ -647,8 +643,6 @@ struct GetArgs {
 };
 
 EXPORT auto EXPORT_get(ServiceClientAPI& capi, char* key, GetArgs args) {
-    std::cout << "Received get call with key: " << key << " and subgroup type: " 
-        << args.subgroupType << std::endl;
     std::string subgroup_type;
     uint32_t subgroup_index = 0;
     uint32_t shard_index = 0;
@@ -691,6 +685,9 @@ EXPORT auto EXPORT_get(ServiceClientAPI& capi, char* key, GetArgs args) {
             on_all_subgroup_type(subgroup_type, return get_internal, capi, std::string(key), version, stable, subgroup_index, shard_index);
         }
     }
+    // Execution should never reach this point. If it does, then stopping control flow is
+    // sensible to prevent clients from receiving malformed data, which will cause further issues. 
+    throw derecho::derecho_exception("Reached end of exported get implementation.");
 }
 
 struct PutArgs {
@@ -765,6 +762,9 @@ EXPORT auto EXPORT_put(ServiceClientAPI& capi, char* key, uint8_t* bytes, std::s
             on_all_subgroup_type(subgroup_type, put_and_forget, capi, obj, subgroup_index, shard_index);
         }
     }
+    // Execution should never reach this point. If it does, then stopping control flow is
+    // sensible to prevent clients from receiving malformed data, which will cause further issues. 
+    throw derecho::derecho_exception("Reached end of exported put implementation.");
 }
 
 EXPORT auto EXPORT_remove(ServiceClientAPI& capi, char* key, char* subgroupType, uint32_t subgroupIndex, uint32_t shardIndex) {
@@ -782,6 +782,9 @@ EXPORT auto EXPORT_remove(ServiceClientAPI& capi, char* key, char* subgroupType,
     } else {
         on_all_subgroup_type(subgroup_type, return remove_internal, capi, std::string(key), subgroup_index, shard_index);
     }
+    // Execution should never reach this point. If it does, then stopping control flow is
+    // sensible to prevent clients from receiving malformed data, which will cause further issues. 
+    throw derecho::derecho_exception("Reached end of exported remove implementation.");
 }
 
 EXPORT auto EXPORT_multiGet(ServiceClientAPI& capi, char* key, char* subgroupType, uint32_t subgroupIndex, uint32_t shardIndex) {
@@ -799,6 +802,9 @@ EXPORT auto EXPORT_multiGet(ServiceClientAPI& capi, char* key, char* subgroupTyp
     } else {
         on_all_subgroup_type(subgroup_type, return multi_get, capi, std::string(key), subgroup_index, shard_index);
     }
+    // Execution should never reach this point. If it does, then stopping control flow is
+    // sensible to prevent clients from receiving malformed data, which will cause further issues. 
+    throw derecho::derecho_exception("Reached end of exported multi_get implementation.");
 }
 
 EXPORT auto EXPORT_getSize(ServiceClientAPI& capi, char* key, char* subgroupType, uint32_t subgroupIndex, 
@@ -829,6 +835,9 @@ EXPORT auto EXPORT_getSize(ServiceClientAPI& capi, char* key, char* subgroupType
                 on_all_subgroup_type(subgroup_type, return get_size, capi, std::string(key), version, stable, subgroup_index, shard_index);
             }
         }
+        // Execution should never reach this point. If it does, then stopping control flow is
+        // sensible to prevent clients from receiving malformed data, which will cause further issues. 
+        throw derecho::derecho_exception("Reached end of exported get_size implementation.");
 }
 
 EXPORT auto EXPORT_multiGetSize(ServiceClientAPI& capi, char* key, char* subgroupType, uint32_t subgroupIndex, uint32_t shardIndex) {
@@ -847,6 +856,9 @@ EXPORT auto EXPORT_multiGetSize(ServiceClientAPI& capi, char* key, char* subgrou
     } else {
         on_all_subgroup_type(subgroup_type, return multi_get_size, capi, std::string(key), subgroup_index, shard_index);
     }
+    // Execution should never reach this point. If it does, then stopping control flow is
+    // sensible to prevent clients from receiving malformed data, which will cause further issues. 
+    throw derecho::derecho_exception("Reached end of exported multi_get_size implementation.");
 }
 
 EXPORT auto EXPORT_listKeysInShard(ServiceClientAPI& capi, char* subgroupType, uint32_t subgroupIndex, 
@@ -861,6 +873,9 @@ EXPORT auto EXPORT_listKeysInShard(ServiceClientAPI& capi, char* subgroupType, u
         } else {
             on_all_subgroup_type(subgroup_type, return list_keys, capi, version, stable, subgroup_index, shard_index);
         }
+        // Execution should never reach this point. If it does, then stopping control flow is
+        // sensible to prevent clients from receiving malformed data, which will cause further issues. 
+        throw derecho::derecho_exception("Reached end of exported list_keys_in_shard implementation.");
 }
 
 EXPORT auto EXPORT_multiListKeysInShard(ServiceClientAPI& capi, char* subgroupType, uint32_t subgroupIndex, uint32_t shardIndex) {
@@ -869,6 +884,9 @@ EXPORT auto EXPORT_multiListKeysInShard(ServiceClientAPI& capi, char* subgroupTy
     uint32_t shard_index = shardIndex;
 
     on_all_subgroup_type(subgroup_type, return multi_list_keys, capi, subgroup_index, shard_index);
+    // Execution should never reach this point. If it does, then stopping control flow is
+    // sensible to prevent clients from receiving malformed data, which will cause further issues. 
+    throw derecho::derecho_exception("Reached end of exported multi_list_keys_in_shard implementation.");
 }
 
 EXPORT StdVectorWrapper EXPORT_listKeysInObjectPool(ServiceClientAPI& capi, char* objectPoolPathname, persistent::version_t version, bool stable, uint64_t timestamp) {
@@ -907,6 +925,9 @@ EXPORT StdVectorWrapper EXPORT_listObjectPools(ServiceClientAPI& capi) {
 
 EXPORT auto EXPORT_createObjectPool(ServiceClientAPI& capi, char* objectPoolPathname, char* serviceType, uint32_t subgroupIndex, char* affinitySetRegex) {
     on_all_subgroup_type(std::string(serviceType), return create_object_pool, capi, std::string(objectPoolPathname), subgroupIndex, std::string(affinitySetRegex));
+    // Execution should never reach this point. If it does, then stopping control flow is
+    // sensible to prevent clients from receiving malformed data, which will cause further issues. 
+    throw derecho::derecho_exception("Reached end of exported create_object_pool implementation.");
 }
 
 EXPORT auto EXPORT_getObjectPool(ServiceClientAPI& capi, char* objectPoolPathname) {
