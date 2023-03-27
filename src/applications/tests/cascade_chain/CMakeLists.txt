@@ -65,6 +65,8 @@ add_custom_command(TARGET chain_only_client POST_BUILD
      ${CMAKE_CURRENT_BINARY_DIR}/chain_pipeline_cfg/n5/backup_layout.json
      COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/chain_pipeline_cfg/backup_layout.json
      ${CMAKE_CURRENT_BINARY_DIR}/chain_pipeline_cfg/n6/backup_layout.json
+     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/chain_pipeline_cfg/backup_layout.json
+     ${CMAKE_CURRENT_BINARY_DIR}/chain_pipeline_cfg/n7/backup_layout.json
      DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/chain_pipeline_cfg/run.sh
              ${CMAKE_CURRENT_SOURCE_DIR}/chain_pipeline_cfg/gen_keys.sh
              ${CMAKE_CURRENT_SOURCE_DIR}/chain_pipeline_cfg/dfgs.json

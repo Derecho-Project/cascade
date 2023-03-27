@@ -6,7 +6,7 @@
                                 "min_nodes_by_shard": ["1"],
                                 "max_nodes_by_shard": ["1"],
                                 "delivery_modes_by_shard": ["Ordered"],
-                                "reserved_node_ids_by_shard": [["4"]],
+                                "reserved_node_ids_by_shard": [["5"]],
                                 "profiles_by_shard": ["DEFAULT"]
                             }
                         ]
@@ -18,7 +18,7 @@
                                 "min_nodes_by_shard": ["1"],
                                 "max_nodes_by_shard": ["1"],
                                 "delivery_modes_by_shard": ["Ordered"],
-                                "reserved_node_ids_by_shard": [["4"]],
+                                "reserved_node_ids_by_shard": [["5"]],
                                 "profiles_by_shard": ["DEFAULT"]
                             }
                         ]
@@ -30,7 +30,7 @@
                                 "min_nodes_by_shard": ["1"],
                                 "max_nodes_by_shard": ["2"],
                                 "delivery_modes_by_shard": ["Ordered"],
-                                "reserved_node_ids_by_shard": [["4"]],
+                                "reserved_node_ids_by_shard": [["5"]],
                                 "profiles_by_shard": ["DEFAULT"]
                             }
                         ]
@@ -42,7 +42,7 @@
                                 "min_nodes_by_shard": ["1"],
                                 "max_nodes_by_shard": ["2"],
                                 "delivery_modes_by_shard": ["Ordered"],
-                                "reserved_node_ids_by_shard": [["5", "6"]],
+                                "reserved_node_ids_by_shard": [["6", "7"]],
                                 "profiles_by_shard": ["DEFAULT"]
                             }
                         ]
@@ -54,7 +54,7 @@
                                 "min_nodes_by_shard": ["1"],
                                 "max_nodes_by_shard": ["1"],
                                 "delivery_modes_by_shard": ["Ordered"],
-                                "reserved_node_ids_by_shard": [["4"]],
+                                "reserved_node_ids_by_shard": [["5"]],
                                 "profiles_by_shard": ["DEFAULT"]
                             }
                         ]
