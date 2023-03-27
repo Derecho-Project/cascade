@@ -36,14 +36,17 @@ namespace Derecho.Cascade
         }
     }
 
-    // Custom exception for reporting an invalid command (too few args).
+    // Custom exception for reporting an invalid command (too few or many args).
     public class InvalidCommandLengthException : Exception
     {
         public int trueSize { get; }
+        // if this is true, then the command has too few args; otherwise, too many.
+        public bool isTooShort { get; }
 
-        public InvalidCommandLengthException(int trueSize)
+        public InvalidCommandLengthException(int trueSize, bool isTooShort)
         {
             this.trueSize = trueSize;
+            this.isTooShort = isTooShort;
         }
 
         public InvalidCommandLengthException(string message)
@@ -74,11 +77,15 @@ namespace Derecho.Cascade
         private static string SHARD_MEMBER_SELECTION_POLICY_LIST = String.Join("|", 
             Enum.GetNames(typeof(ShardMemberSelectionPolicy)));
 
-        private static void CheckFormat(string[] args, int expectedMaxLength)
+        private static void CheckFormat(string[] args, int expectedMinLength, int expectedMaxLength)
         {
+            if (args.Length < expectedMinLength)
+            {
+                throw new InvalidCommandLengthException(expectedMinLength, true);
+            }
             if (args.Length > expectedMaxLength)
             {
-                throw new InvalidCommandLengthException(expectedMaxLength);
+                throw new InvalidCommandLengthException(expectedMaxLength,false);
             }
         }
 
@@ -124,7 +131,7 @@ namespace Derecho.Cascade
                 "help [command name]",
                 (_, args) =>
                 {
-                    CheckFormat(args, 2);
+                    CheckFormat(args, 1, 2);
                     if (args.Length >= 2)
                     {
                         Command command = commands.FirstOrDefault(command => command.name.Equals(args[1]));
@@ -174,7 +181,7 @@ namespace Derecho.Cascade
                     "type := " + SUBGROUP_TYPE_LIST_STRING,
                 (client, args) => 
                 {
-                    CheckFormat(args, 3);
+                    CheckFormat(args, 2, 3);
                     UInt32 subgroupIndex = 0;
                     SubgroupType type = ParseSubgroup(args[1]); 
                     if (args.Length >= 3)
@@ -192,7 +199,7 @@ namespace Derecho.Cascade
                 "op_list_subgroup_members <object pool pathname>",
                 (client, args) =>
                 {
-                    CheckFormat(args, 2);
+                    CheckFormat(args, 2, 2);
                     string objectPoolPathname = args[1];
                     Console.WriteLine("for object pool: " + args[1]);
                     var members = client.GetSubgroupMembersByObjectPool(objectPoolPathname);
@@ -207,7 +214,7 @@ namespace Derecho.Cascade
                     "type := " + SUBGROUP_TYPE_LIST_STRING,
                 (client, args) =>
                 {
-                    CheckFormat(args, 4);
+                    CheckFormat(args, 2, 4);
                     UInt32 subgroupIndex = 0, shardIndex = 0;
                     SubgroupType type = ParseSubgroup(args[1]);
                     if (args.Length >= 3)
@@ -229,7 +236,7 @@ namespace Derecho.Cascade
                 "op_list_shard_members <object pool pathname> [shard index(default:0)]",
                 (client, args) =>
                 {
-                    CheckFormat(args, 3);
+                    CheckFormat(args, 2, 3);
                     UInt32 shardIndex = 0;
                     if (args.Length >= 3)
                     {
@@ -248,7 +255,7 @@ namespace Derecho.Cascade
                     "policy := " + SHARD_MEMBER_SELECTION_POLICY_LIST,
                 (client, args) =>
                 {
-                    CheckFormat(args, 6);
+                    CheckFormat(args, 5, 6);
                     SubgroupType type = ParseSubgroup(args[1]);
                     UInt32 subgroupIndex = UInt32.Parse(args[2]);
                     UInt32 shardIndex = UInt32.Parse(args[3]);
@@ -281,7 +288,7 @@ namespace Derecho.Cascade
                     "type := " + SUBGROUP_TYPE_LIST_STRING,
                 (client, args) =>
                 {
-                    CheckFormat(args, 4);
+                    CheckFormat(args, 4, 4);
                     SubgroupType type = ParseSubgroup(args[1]);
                     UInt32 subgroupIndex = UInt32.Parse(args[2]);
                     UInt32 shardIndex = UInt32.Parse(args[3]);
@@ -307,7 +314,7 @@ namespace Derecho.Cascade
                     "type := " + SUBGROUP_TYPE_LIST_STRING,
                 (client, args) =>
                 {
-                    CheckFormat(args, 5);
+                    CheckFormat(args, 4, 5);
                     string objectPoolPath = args[1];
                     SubgroupType type = ParseSubgroup(args[2]);
                     UInt32 subgroupIndex = UInt32.Parse(args[3]);
@@ -327,7 +334,7 @@ namespace Derecho.Cascade
                 "remove_object_pool <path>",
                 (client, args) =>
                 {
-                    CheckFormat(args, 2);
+                    CheckFormat(args, 2, 2);
                     var versionTimestamp = client.RemoveObjectPool(args[1]);
                     PrintResult(versionTimestamp.ToString());
                 }
@@ -339,7 +346,7 @@ namespace Derecho.Cascade
                 "get_object_pool <path>",
                 (client, args) =>
                 {
-                    CheckFormat(args, 2);
+                    CheckFormat(args, 2, 2);
                     var opm = client.GetObjectPool(args[1]);
                     PrintResult(opm.ToString());
                 }
@@ -352,7 +359,7 @@ namespace Derecho.Cascade
                     "type := " + SUBGROUP_TYPE_LIST_STRING,
                 (client, args) =>
                 {
-                    CheckFormat(args, 8);
+                    CheckFormat(args, 6, 8);
                     SubgroupType type = ParseSubgroup(args[1]);
                     string key = args[2];
                     string value = args[3];
@@ -381,7 +388,7 @@ namespace Derecho.Cascade
                 "Please note that Cascade automatically decides the object pool path using the key's prefix.",
                 (client, args) =>
                 {
-                    CheckFormat(args, 5);
+                    CheckFormat(args, 3, 5);
                     Int64 previousVersion = -1L;
                     Int64 previousVersionByKey = -1L;
                     string key = args[1];
@@ -400,7 +407,7 @@ namespace Derecho.Cascade
                     "stable := 1|0  using stable data or not.",
                 (client, args) =>
                 {
-                    CheckFormat(args, 7);
+                    CheckFormat(args, 6, 7);
                     SubgroupType type = ParseSubgroup(args[1]);
                     string key = args[2];
                     bool stable = args[3].Equals("1");
@@ -424,7 +431,7 @@ namespace Derecho.Cascade
                     "Please note that Cascade automatically decides the object pool path using the key's prefix.",
                 (client, args) =>
                 {
-                    CheckFormat(args, 4);
+                    CheckFormat(args, 3, 4);
                     string key = args[1];
                     bool stable = args[2].Equals("1");
                     Int64 version = -1L;
@@ -444,7 +451,7 @@ namespace Derecho.Cascade
                      "type := " + SUBGROUP_TYPE_LIST_STRING,
                 (client, args) =>
                 {
-                    CheckFormat(args, 5);
+                    CheckFormat(args, 5, 5);
                     SubgroupType type = ParseSubgroup(args[1]);
                     string key = args[2];
                     UInt32 subgroupIndex = UInt32.Parse(args[3]);
@@ -461,7 +468,7 @@ namespace Derecho.Cascade
                     "Please note that cascade automatically decides the object pool path using the key's prefix.",
                 (client, args) =>
                 {
-                    CheckFormat(args, 2);
+                    CheckFormat(args, 2, 2);
                     string key = args[1];
                     var versionTimestamp = client.Remove(key);
                     PrintResult(versionTimestamp.ToString());
@@ -476,7 +483,7 @@ namespace Derecho.Cascade
                     "stable := 1|0  using stable data or not.",
                 (client, args) =>
                 {
-                    CheckFormat(args, 6);
+                    CheckFormat(args, 5, 6);
                     SubgroupType type = ParseSubgroup(args[1]);
                     bool stable = args[2].Equals("1");
                     UInt32 subgroupIndex = UInt32.Parse(args[3]);
@@ -499,7 +506,7 @@ namespace Derecho.Cascade
                      "stable := 1|0  using stable data or not.",
                 (client, args) =>
                 {
-                    CheckFormat(args, 4);
+                    CheckFormat(args, 3, 4);
                     string objectPoolPath = args[1];
                     bool stable = args[2].Equals("1");
                     Int64 version = -1L;
@@ -509,6 +516,93 @@ namespace Derecho.Cascade
                     }
                     var list = client.ListKeysInObjectPool(objectPoolPath, version, stable);
                     PrintStringList(list);
+                }
+            ),
+            new Command
+            (
+                "from_shard",
+                "Create an iterator to all the objects within a shard and list their metadata.",
+                "from_shard <type> <subgroup_index> <shard_index> [ version(default:current version) ]" +
+                    "type := " + SUBGROUP_TYPE_LIST_STRING,
+                (client, args) =>
+                {
+                    CheckFormat(args, 4, 5);
+                    SubgroupType type = ParseSubgroup(args[1]);
+                    UInt32 subgroupIndex = UInt32.Parse(args[2]);
+                    UInt32 shardIndex = UInt32.Parse(args[3]);
+                    Int64 version = -1L;
+
+                    if (args.Length >= 5)
+                    {
+                        version = Int64.Parse(args[4]);
+                    }
+
+                    var iterator = client.FromShard(type, subgroupIndex, shardIndex, version);
+                    foreach (var obj in iterator)
+                    {
+                        Console.WriteLine(obj.ToString());
+                    }
+                }
+            ),
+            new Command
+            (
+                "from_shard_by_time",
+                "Create an iterator to all the objects within a shard at a point in time and list their metadata.",
+                "from_shard <type> <subgroup_index> <shard_index> <timestamp_us>" +
+                    "type := " + SUBGROUP_TYPE_LIST_STRING,
+                (client, args) =>
+                {
+                    CheckFormat(args, 5, 5);
+                    SubgroupType type = ParseSubgroup(args[1]);
+                    UInt32 subgroupIndex = UInt32.Parse(args[2]);
+                    UInt32 shardIndex = UInt32.Parse(args[3]);
+                    UInt64 timestamp = UInt64.Parse(args[4]);
+
+                    var iterator = client.FromShardByTime(type, subgroupIndex, shardIndex, timestamp);
+                    foreach (var obj in iterator)
+                    {
+                        Console.WriteLine(obj.ToString());
+                    }
+                }
+            ),
+            new Command
+            (
+                "from_object_pool",
+                "Create an iterator to all the objects within an object pool by version.",
+                "from_object_pool <type> <version> <object pool pathname>" +
+                    "type := " + SUBGROUP_TYPE_LIST_STRING,
+                (client, args) =>
+                {
+                    CheckFormat(args, 4, 4);
+                    SubgroupType type = ParseSubgroup(args[1]);
+                    Int64 version = Int64.Parse(args[2]);
+                    string objectPoolPathname = args[3];
+
+                    var iterator = client.FromObjectPool(type, version, objectPoolPathname);
+                    foreach (var obj in iterator)
+                    {
+                        Console.WriteLine(obj.ToString());
+                    }
+                }
+            ),
+            new Command
+            (
+                "from_versions",
+                "Create an iterator to all the objects corresponding to a certain key, by a given version.",
+                "from_versions <key> <subgroup_index> <shard_index> <version>",
+                (client, args) =>
+                {
+                    CheckFormat(args, 5, 5);
+                    string key = args[1];
+                    UInt32 subgroupIndex = UInt32.Parse(args[2]);
+                    UInt32 shardIndex = UInt32.Parse(args[3]);
+                    Int64 version = Int64.Parse(args[4]);
+
+                    var iterator = client.FromVersions(key, subgroupIndex, shardIndex, version);
+                    foreach (var obj in iterator)
+                    {
+                        Console.WriteLine(obj.ToString());
+                    }
                 }
             )
         };
@@ -528,8 +622,6 @@ namespace Derecho.Cascade
                 Console.Write("cmd> ");
                 command = Console.ReadLine();
                 string[] parts = Array.ConvertAll(command.Split(' '), p => p.Trim());
-                // put, get, remove, create_object_pool
-                // membership comamnds
                 string name = parts[0].ToLower();
                 if (parts[0].Equals("quit"))
                 {
@@ -559,7 +651,8 @@ namespace Derecho.Cascade
             }
             catch (InvalidCommandLengthException exception)
             {
-                PrintRed($"Invalid number of arguments supplied. For this command, a maximum of {exception.trueSize - 1} arguments are expected.");
+                var numArgs = exception.trueSize - 1;
+                PrintRed($"Invalid number of arguments supplied. For this command, a {(exception.isTooShort ? "minimum" : "maximum")} of {numArgs} arguments are expected.");
             }
             catch (Exception exception)
             {
