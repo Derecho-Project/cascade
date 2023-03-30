@@ -13,11 +13,48 @@
 #include <utility>
 #include <fstream>
 #include <derecho/conf/conf.hpp>
+#include <derecho/utils/logger.hpp>
 
 using namespace std::chrono_literals;
 
 namespace derecho {
 namespace cascade {
+
+uint32_t getConfWithDefault(const std::string& conf_key, uint32_t default_value) {
+    if(!derecho::hasCustomizedConfKey(conf_key)) {
+        dbg_default_error("Configuration option {} not found, using default value of {}", default_value);
+        return default_value;
+    } else {
+        return derecho::getConfUInt32(conf_key);
+    }
+}
+
+int32_t getConfWithDefault(const std::string& conf_key, int32_t default_value) {
+    if(!derecho::hasCustomizedConfKey(conf_key)) {
+        dbg_default_error("Configuration option {} not found, using default value of {}", default_value);
+        return default_value;
+    } else {
+        return derecho::getConfInt32(conf_key);
+    }
+}
+
+std::string getConfWithDefault(const std::string& conf_key, const std::string& default_value) {
+    if(!derecho::hasCustomizedConfKey(conf_key)) {
+        dbg_default_error("Configuration option {} not found, using default value of {}", default_value);
+        return default_value;
+    } else {
+        return derecho::getConfString(conf_key);
+    }
+}
+
+bool getConfWithDefault(const std::string& conf_key, bool default_value) {
+    if(!derecho::hasCustomizedConfKey(conf_key)) {
+        dbg_default_error("Configuration option {} not found, using default value of {}", default_value);
+        return default_value;
+    } else {
+        return derecho::getConfBoolean(conf_key);
+    }
+}
 
 struct __attribute__((packed)) open_loop_ack_t {
     uint32_t type;

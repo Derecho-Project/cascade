@@ -27,6 +27,12 @@ add_custom_command(TARGET chain_only_client POST_BUILD
             ${CMAKE_CURRENT_BINARY_DIR}/chain_pipeline_cfg/n3/run.sh
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/chain_pipeline_cfg/run.sh
             ${CMAKE_CURRENT_BINARY_DIR}/chain_pipeline_cfg/n4/run.sh
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/chain_pipeline_cfg/run.sh
+            ${CMAKE_CURRENT_BINARY_DIR}/chain_pipeline_cfg/n5/run.sh
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/chain_pipeline_cfg/run.sh
+            ${CMAKE_CURRENT_BINARY_DIR}/chain_pipeline_cfg/n6/run.sh
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/chain_pipeline_cfg/run.sh
+            ${CMAKE_CURRENT_BINARY_DIR}/chain_pipeline_cfg/n7/run.sh
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/chain_pipeline_cfg/dfgs.json
             ${CMAKE_CURRENT_BINARY_DIR}/chain_pipeline_cfg/n0/dfgs.json
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/chain_pipeline_cfg/dfgs.json
@@ -41,6 +47,8 @@ add_custom_command(TARGET chain_only_client POST_BUILD
             ${CMAKE_CURRENT_BINARY_DIR}/chain_pipeline_cfg/n5/dfgs.json
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/chain_pipeline_cfg/backup_dfgs.json
             ${CMAKE_CURRENT_BINARY_DIR}/chain_pipeline_cfg/n6/dfgs.json
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/chain_pipeline_cfg/backup_dfgs.json
+            ${CMAKE_CURRENT_BINARY_DIR}/chain_pipeline_cfg/n7/dfgs.json
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/chain_pipeline_cfg/udl_dlls.cfg
             ${CMAKE_CURRENT_BINARY_DIR}/chain_pipeline_cfg/n0/udl_dlls.cfg
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/chain_pipeline_cfg/udl_dlls.cfg

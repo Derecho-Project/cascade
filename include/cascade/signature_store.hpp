@@ -40,6 +40,11 @@ private:
      */
     derecho::subgroup_id_t subgroup_id;
     /**
+     * True if this node is on the CascadeChain primary site, false if it is on a backup site.
+     * Initialized from the Derecho config file in the constructor.
+     */
+    bool is_primary_site;
+    /**
      * Persistent core that stores hashes, which will be signed because Persistent<T> is
      * constructed with signatures=true.
      */
@@ -148,6 +153,18 @@ private:
      * when there is a new ACK from a remote site.
      */
     void wan_stability_callback(const std::map<wan_agent::site_id_t, uint64_t>& ack_table);
+
+    /**
+     * Callback function for WanAgent to use as its RemoteMessageCallback, which is
+     * called when it receives a new message from a remote site. This only has an
+     * effect when running on a backup site, since the primary site should never
+     * receive WanAgent messages.
+     *
+     * @param sender The WanAgent site ID of the message's sender
+     * @param msg_buf A pointer to the byte buffer containing the message
+     * @param msg_size The size of the message in bytes
+     */
+    void wan_message_callback(wan_agent::site_id_t sender, const uint8_t* msg_buf, size_t msg_size);
 
     /**
      * An ordered-callable function that sets the value of the backup_ack_table variable
@@ -372,7 +389,7 @@ public:
                                                      ));
 
     /* Serialization support, with a custom deserializer to get the context pointers from the registry */
-    DEFAULT_SERIALIZE(subgroup_id, persistent_core, data_to_hash_version, backup_ack_table, wanagent_message_ids);
+    DEFAULT_SERIALIZE(subgroup_id, is_primary_site, persistent_core, data_to_hash_version, backup_ack_table, wanagent_message_ids);
 
     DEFAULT_DESERIALIZE_NOALLOC(SignatureCascadeStore);
 
@@ -386,6 +403,7 @@ public:
                           ICascadeContext* context = nullptr);
     // Deserialization constructor, moves Persistent objects
     SignatureCascadeStore(derecho::subgroup_id_t deserialized_subgroup_id,
+                          bool is_primary_site,
                           persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST>&& deserialized_persistent_core,
                           persistent::Persistent<std::map<persistent::version_t, const persistent::version_t>>&& deserialized_data_to_hash_version,
                           std::map<wan_agent::site_id_t, uint64_t>&& deserialized_ack_table,

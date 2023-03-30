@@ -212,7 +212,7 @@ inline std::ostream& operator<<(std::ostream& out, const Blob& b) {
     if(b.size > 0) {
         uint32_t i = 0;
         for(i = 0; i < 8 && i < b.size; i++) {
-            out << " " << b.bytes[i];
+            out << " " << static_cast<int>(b.bytes[i]);
         }
         if(i < b.size) {
             out << "...";

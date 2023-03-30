@@ -60,21 +60,6 @@ add_custom_command(TARGET server POST_BUILD
     ${CMAKE_CURRENT_BINARY_DIR}/cfg
 )
 
-add_executable(backup_server backup_server.cpp)
-target_include_directories(backup_server PRIVATE
-    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
-)
-target_link_libraries(backup_server cascade dl wanagent::wanagent)
-set_target_properties(backup_server PROPERTIES OUTPUT_NAME backup_server)
-add_custom_command(TARGET backup_server POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/cfg
-    ${CMAKE_CURRENT_BINARY_DIR}/cfg
-)
-
-
 add_executable(client client.cpp perftest.cpp)
 target_include_directories(client PRIVATE
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
@@ -114,16 +99,6 @@ target_include_directories(sha_hash_udl PRIVATE
 )
 target_link_libraries(sha_hash_udl derecho::derecho OpenSSL::Crypto)
 add_dependencies(sha_hash_udl cascade)
-
-add_library(wan_backup_udl SHARED wan_backup_udl.cpp)
-target_include_directories(wan_backup_udl PRIVATE
-    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
-)
-target_link_libraries(wan_backup_udl derecho::derecho wanagent::wanagent)
-add_dependencies(wan_backup_udl cascade)
 
 # install
 install(TARGETS client server

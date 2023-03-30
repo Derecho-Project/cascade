@@ -20,6 +20,7 @@ namespace cascade {
  */
 #define CASCADE_WANAGENT_CONFIG_FILE            "CASCADE/wanagent_config_file"
 #define CASCADE_WANAGENT_PORT_OFFSET            "CASCADE/wanagent_port_offset"
+#define CASCADE_IS_PRIMARY_SITE                 "CASCADE/is_primary_site"
 
 /**
  * The off-critical data path handler API

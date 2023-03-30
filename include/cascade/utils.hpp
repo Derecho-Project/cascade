@@ -33,7 +33,12 @@ inline uint64_t get_time_us(bool use_wall_clock = true) {
     return get_time_ns(use_wall_clock)/1e3;
 }
 
+/* Helper functions to safely call getConf() and use a default if the key is not found */
 
+uint32_t getConfWithDefault(const std::string& conf_key, uint32_t default_value);
+int32_t getConfWithDefault(const std::string& conf_key, int32_t default_value);
+std::string getConfWithDefault(const std::string& conf_key, const std::string& default_value);
+bool getConfWithDefault(const std::string& conf_key, bool default_value);
 /**
  * decompose the prefix into tokens. Please note that the token after the last separator is not considered a part of
  * the prefix and hence dropped if the "prefix_only" is true

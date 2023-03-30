@@ -435,12 +435,13 @@ version_tuple SignatureCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put(co
                 });
     }
     // Register an action to send the signed object to the WanAgent once the signature is finished
-    cascade_context_ptr->get_persistence_observer().register_persistence_action(
-            my_subgroup_id, std::get<0>(hash_object_version_and_timestamp), true,
-            [=]() {
-                send_to_wan_agent(std::get<0>(hash_object_version_and_timestamp), data_object_version);
-            });
-
+    if(is_primary_site) {
+        cascade_context_ptr->get_persistence_observer().register_persistence_action(
+                my_subgroup_id, std::get<0>(hash_object_version_and_timestamp), true,
+                [=]() {
+                    send_to_wan_agent(std::get<0>(hash_object_version_and_timestamp), data_object_version);
+                });
+    }
     if(cascade_watcher_ptr) {
         (*cascade_watcher_ptr)(
                 this->subgroup_index,
@@ -570,6 +571,8 @@ template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 std::unique_ptr<SignatureCascadeStore<KT, VT, IK, IV, ST>> SignatureCascadeStore<KT, VT, IK, IV, ST>::from_bytes(mutils::DeserializationManager* dsm, uint8_t const* buf) {
     auto subgroup_id_ptr = mutils::from_bytes<derecho::subgroup_id_t>(dsm, buf);
     std::size_t offset = mutils::bytes_size(*subgroup_id_ptr);
+    auto is_primary_ptr = mutils::from_bytes<bool>(dsm, buf + offset);
+    offset += mutils::bytes_size(*is_primary_ptr);
     auto persistent_core_ptr = mutils::from_bytes<persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST>>(dsm, buf + offset);
     offset += mutils::bytes_size(*persistent_core_ptr);
     auto version_map_ptr = mutils::from_bytes<persistent::Persistent<std::map<persistent::version_t, const persistent::version_t>>>(dsm, buf + offset);
@@ -579,6 +582,7 @@ std::unique_ptr<SignatureCascadeStore<KT, VT, IK, IV, ST>> SignatureCascadeStore
     auto message_table_ptr = mutils::from_bytes<std::map<uint64_t, std::tuple<KT, persistent::version_t, persistent::version_t>>>(dsm, buf + offset);
     auto persistent_cascade_store_ptr
             = std::make_unique<SignatureCascadeStore>(*subgroup_id_ptr,
+                                                      *is_primary_ptr,
                                                       std::move(*persistent_core_ptr),
                                                       std::move(*version_map_ptr),
                                                       std::move(*ack_table_ptr),
@@ -595,6 +599,7 @@ SignatureCascadeStore<KT, VT, IK, IV, ST>::SignatureCascadeStore(
         CriticalDataPathObserver<SignatureCascadeStore<KT, VT, IK, IV>>* cw,
         ICascadeContext* cc)
         : subgroup_id(subgroup_id),
+          is_primary_site(getConfWithDefault(CASCADE_IS_PRIMARY_SITE, true)),
           persistent_core(pr, true),  // enable signatures
           data_to_hash_version(pr, false),
           cascade_watcher_ptr(cw),
@@ -603,6 +608,7 @@ SignatureCascadeStore<KT, VT, IK, IV, ST>::SignatureCascadeStore(
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 SignatureCascadeStore<KT, VT, IK, IV, ST>::SignatureCascadeStore(
         derecho::subgroup_id_t deserialized_subgroup_id,
+        bool is_primary_site,
         persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST>&& deserialized_persistent_core,
         persistent::Persistent<std::map<persistent::version_t, const persistent::version_t>>&& deserialized_data_to_hash_version,
         std::map<wan_agent::site_id_t, uint64_t>&& deserialized_ack_table,
@@ -610,6 +616,7 @@ SignatureCascadeStore<KT, VT, IK, IV, ST>::SignatureCascadeStore(
         CriticalDataPathObserver<SignatureCascadeStore<KT, VT, IK, IV>>* cw,
         ICascadeContext* cc)
         : subgroup_id(deserialized_subgroup_id),
+          is_primary_site(is_primary_site),
           persistent_core(std::move(deserialized_persistent_core)),
           data_to_hash_version(std::move(deserialized_data_to_hash_version)),
           backup_ack_table(std::move(deserialized_ack_table)),
@@ -619,12 +626,14 @@ SignatureCascadeStore<KT, VT, IK, IV, ST>::SignatureCascadeStore(
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 SignatureCascadeStore<KT, VT, IK, IV, ST>::SignatureCascadeStore()
-        : persistent_core(
-                []() {
-                    return std::make_unique<DeltaCascadeStoreCore<KT, VT, IK, IV>>();
-                },
-                nullptr,
-                nullptr),  // I'm guessing the dummy version doesn't need to enable signatures on persistent_core
+        : subgroup_id(0),
+          is_primary_site(false),
+          persistent_core(
+                  []() {
+                      return std::make_unique<DeltaCascadeStoreCore<KT, VT, IK, IV>>();
+                  },
+                  nullptr,
+                  nullptr),  // I'm guessing the dummy version doesn't need to enable signatures on persistent_core
           data_to_hash_version(nullptr),
           wanagent(nullptr),
           cascade_watcher_ptr(nullptr),
@@ -640,23 +649,11 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::new_view_callback(const View& ne
     uint32_t my_shard_num = new_view.my_subgroups.at(subgroup_id);
     const SubView& my_shard_view = new_view.subgroup_shard_views.at(subgroup_id).at(my_shard_num);
     // Use the "wanagent_port_offset" config option to derive the WanAgent port for the shard leader from its Derecho port
-    int wanagent_port_offset;
-    if(!derecho::hasCustomizedConfKey(CASCADE_WANAGENT_PORT_OFFSET)) {
-        dbg_default_error("Configuration option {} not found, using default value of 1000", CASCADE_WANAGENT_PORT_OFFSET);
-        wanagent_port_offset = 1000;
-    } else {
-        wanagent_port_offset = derecho::getConfInt32(CASCADE_WANAGENT_PORT_OFFSET);
-    }
+    int wanagent_port_offset = getConfWithDefault(CASCADE_WANAGENT_PORT_OFFSET, 1000);
     uint16_t wanagent_leader_port = my_shard_view.member_ips_and_ports[0].gms_port + wanagent_port_offset;
     // If this is the very first new-view callback, the WanAgent hasn't been constructed yet and needs to be set up
     if(!wanagent) {
-        std::string agent_config_location;
-        if(!derecho::hasCustomizedConfKey(CASCADE_WANAGENT_CONFIG_FILE)) {
-            dbg_default_error("Configuration option {} not found, attempting to load WanAgent config from default location ./wanagent.json", CASCADE_WANAGENT_CONFIG_FILE);
-            agent_config_location = "wanagent.json";
-        } else {
-            agent_config_location = derecho::getConfString(CASCADE_WANAGENT_CONFIG_FILE);
-        }
+        std::string agent_config_location = getConfWithDefault(CASCADE_WANAGENT_CONFIG_FILE, std::string("wanagent.json"));
         nlohmann::json wan_agent_config = nlohmann::json::parse(std::ifstream(agent_config_location));
         wan_agent::site_id_t my_site_id = wan_agent_config[WAN_AGENT_CONF_LOCAL_SITE_ID];
         // Find the sites entry for the local site, and ensure local_initial_leader is set to the index matching
@@ -675,9 +672,9 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::new_view_callback(const View& ne
             }
         }
         wanagent = wan_agent::WanAgent::create(
-            wan_agent_config,
-            [this](const std::map<wan_agent::site_id_t, uint64_t>& ack_table) { wan_stability_callback(ack_table); },
-            [](const uint32_t sender, const uint8_t* msg, const size_t size) {});
+                wan_agent_config,
+                [this](const std::map<wan_agent::site_id_t, uint64_t>& ack_table) { wan_stability_callback(ack_table); },
+                [this](uint32_t sender, const uint8_t* msg, size_t size) { wan_message_callback(sender, msg, size); });
         return;
     }
     // Otherwise, update WanAgent's leader (to equal the shard leader) and determine if this node just became the leader
@@ -875,8 +872,8 @@ VT SignatureCascadeStore<KT, VT, IK, IV, ST>::make_backup_object(persistent::ver
     // Unnecessary copy because Blob can't take ownership of a buffer; it always copies it in
     object_plus_signature.blob = Blob(new_body_buffer, new_body_size);
     delete[] new_body_buffer;
+    debug_leave_func_with_value("{}", object_plus_signature);
     return object_plus_signature;
-    debug_leave_func();
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
@@ -997,12 +994,28 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::subscribe_to_all_notifications(n
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void SignatureCascadeStore<KT, VT, IK, IV, ST>::wan_stability_callback(const std::map<wan_agent::site_id_t, uint64_t>& ack_table) {
+    debug_enter_func();
     derecho::Replicated<SignatureCascadeStore>& subgroup_handle = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index);
     subgroup_handle.template ordered_send<RPC_NAME(update_ack_table)>(ack_table);
+    debug_leave_func();
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+void SignatureCascadeStore<KT, VT, IK, IV, ST>::wan_message_callback(wan_agent::site_id_t sender, const uint8_t* msg_buf, size_t msg_size) {
+    debug_enter_func_with_args("sender={}", sender);
+    if(is_primary_site) {
+        dbg_default_warn("Received a WanAgent remote message, but this is the primary site! Ignoring it.");
+        return;
+    }
+    std::unique_ptr<VT> object_from_remote = mutils::from_bytes<VT>(nullptr, msg_buf);
+    derecho::Replicated<SignatureCascadeStore>& subgroup_handle = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index);
+    subgroup_handle.template ordered_send<RPC_NAME(ordered_put)>(*object_from_remote);
+    debug_leave_func();
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void SignatureCascadeStore<KT, VT, IK, IV, ST>::update_ack_table(const std::map<wan_agent::site_id_t, uint64_t>& ack_table) {
+    debug_enter_func_with_args("ack_table={}", ack_table);
     backup_ack_table = ack_table;
     uint64_t min_acked_id = static_cast<uint64_t>(-1);
     for(const auto& site_entry : backup_ack_table) {
@@ -1020,11 +1033,13 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::update_ack_table(const std::map<
     if(min_id_iter != wanagent_message_ids.end()) {
         wanagent_message_ids.erase(wanagent_message_ids.begin(), min_id_iter);
     }
+    debug_leave_func();
 }
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void SignatureCascadeStore<KT, VT, IK, IV, ST>::record_wan_message_id(uint64_t message_id, const KT& object_key,
                                                                       persistent::version_t object_version,
                                                                       persistent::version_t data_object_version) {
+    debug_enter_func_with_args("message_id={}, key={}, object_version={}, data_version={}", message_id, object_key, object_version, data_object_version);
     wanagent_message_ids.emplace(message_id, std::make_tuple(object_key, object_version, data_object_version));
 }
 
