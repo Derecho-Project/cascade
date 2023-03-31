@@ -34,6 +34,13 @@ enum NodeFlag : uint32_t {
     SNAPSHOT_TIME_DIR = 1 << 9,
 };
 
+/*
+op_get_by_time
+op_get_size <-- create new function for content size ???
+VT template type ??
+op_list_keys_by_time
+*/
+
 const uint32_t FILE_FLAG = KEY_FILE | METADATA_INFO_FILE;
 const uint32_t DIR_FLAG = ~FILE_FLAG;
 const uint32_t OP_FLAG = OP_PREFIX_DIR | OP_ROOT_DIR | KEY_DIR | KEY_FILE;
@@ -44,7 +51,9 @@ struct NodeData {
     uint64_t timestamp;
     std::vector<uint8_t> bytes;
 
-    NodeData(const NodeFlag flag) : flag(flag), timestamp(0) {
+    bool writeable;
+
+    NodeData(const NodeFlag flag) : flag(flag), timestamp(0), writeable(false) {
     }
 };
 
@@ -63,21 +72,27 @@ struct FuseClientContext {
     const fs::path ROOT = "/";
     ServiceClientAPI& capi;
 
+    bool version_snapshot;
     persistent::version_t max_ver;
+    uint64_t max_timestamp;  // timestamp in microsecond
 
     std::set<fs::path> local_latest_dirs;
     std::set<persistent::version_t> snapshots;
+    std::set<uint64_t> snapshots_by_time;
 
     time_t update_interval;
     time_t last_update_sec;
 
-    FuseClientContext() : capi(ServiceClientAPI::get_service_client()) {
+    FuseClientContext(int update_int, bool ver_snap) : capi(ServiceClientAPI::get_service_client()) {
         DL = LoggerFactory::createLogger("fuse_client", spdlog::level::from_str(derecho::getConfString(CONF_LOGGER_DEFAULT_LOG_LEVEL)));
         DL->set_pattern("[%T][%n][%^%l%$] %v");
 
         max_ver = 0;
+        max_timestamp = 0;
 
-        update_interval = 15;
+        version_snapshot = ver_snap;
+        dbg_info(DL, "snapshot type: {}", version_snapshot ? "version" : "timestamp");
+        update_interval = update_int;
         last_update_sec = 0;
 
         root = std::make_unique<Node>(ROOT, NodeData(ROOT_DIR));
@@ -145,16 +160,44 @@ struct FuseClientContext {
         return object_pool_root(node);
     }
 
-    persistent::version_t is_snapshot(const fs::path& path) {
+    bool add_snapshot(const fs::path& path) {
         if(path.parent_path() != SNAPSHOT_PATH) {
-            return CURRENT_VERSION;
+            return false;
         }
         try {
-            return std::stoull(path.filename());
+            unsigned long long ts_us = std::stoull(path.filename());
+            persistent::version_t ver = ts_us;
+            if(version_snapshot && ver <= max_ver) {
+                add_snapshot_folder(ver);
+                return true;
+            }
+            if(!version_snapshot && ts_us <= max_timestamp) {
+                add_snapshot_folder_by_time(ts_us);
+                return true;
+            }
         } catch(std::invalid_argument const& ex) {
-            return CURRENT_VERSION;
         } catch(std::out_of_range const& ex) {
-            return CURRENT_VERSION;
+        }
+        return false;
+    }
+
+    void add_snapshot_folder(persistent::version_t ver) {
+        auto snapshot = SNAPSHOT_PATH;
+        snapshot += "/" + std::to_string(ver);
+        auto res = add_snapshot_time(snapshot);
+        dbg_info(DL, "adding {}", snapshot);
+        if(res != nullptr) {
+            fill_at(snapshot, ver);
+        }
+    }
+
+    void add_snapshot_folder_by_time(uint64_t ts_us) {
+        auto snapshot = SNAPSHOT_PATH;
+        snapshot += "/" + std::to_string(ts_us);
+        auto res = add_snapshot_time(snapshot);
+        dbg_info(DL, "adding {}", snapshot);
+        if(res != nullptr) {
+            fill_at_by_time(snapshot, ts_us);
         }
     }
 
@@ -200,14 +243,37 @@ struct FuseClientContext {
         return 0;
     }
 
+    void fill_op_meta(const fs::path& prefix, const std::string& op_root) {
+        auto opm = capi.find_object_pool(op_root);
+        json j{{"valid", opm.is_valid()},
+               {"null", opm.is_null()}};
+        if(opm.is_valid() && !opm.is_null()) {
+            j.emplace("pathname", opm.pathname);
+            j.emplace("version", opm.version);
+            j.emplace("timestamp_us", opm.timestamp_us);
+            j.emplace("previous_version", opm.previous_version);
+            j.emplace("previous_version_by_key", opm.previous_version_by_key);
+            j.emplace("subgroup_type", std::to_string(opm.subgroup_type_index) + "-->" + DefaultObjectPoolMetadataType::subgroup_type_order[opm.subgroup_type_index].name());
+            j.emplace("subgroup_index", opm.subgroup_index);
+            j.emplace("sharding_policy", std::to_string(opm.sharding_policy));
+            j.emplace("deleted", opm.deleted);
+        }
+        auto op_root_meta_path = prefix;
+        op_root_meta_path += METADATA_PATH;
+        op_root_meta_path += op_root;
+        add_op_info(op_root_meta_path, j.dump(2));
+    }
+
     void fill_at(const fs::path& prefix, persistent::version_t ver) {
         // TODO no version for list object pools
         auto str_paths = capi.list_object_pools(false, true);
 
-        auto meta_path = prefix;
-        meta_path += METADATA_PATH;
-        root->set(meta_path,
-                  NodeData(METADATA_PREFIX_DIR), NodeData(METADATA_PREFIX_DIR));
+        if(ver == CURRENT_VERSION) {
+            auto meta_path = prefix;
+            meta_path += METADATA_PATH;
+            root->set(meta_path,
+                      NodeData(METADATA_PREFIX_DIR), NodeData(METADATA_PREFIX_DIR));
+        }
         for(const std::string& op_root : str_paths) {
             auto op_root_path = prefix;
             op_root_path += op_root;
@@ -216,24 +282,9 @@ struct FuseClientContext {
                 continue;
             }
 
-            auto opm = capi.find_object_pool(op_root);
-            json j{{"valid", opm.is_valid()},
-                   {"null", opm.is_null()}};
-            if(opm.is_valid() && !opm.is_null()) {
-                j.emplace("pathname", opm.pathname);
-                j.emplace("version", opm.version);
-                j.emplace("timestamp_us", opm.timestamp_us);
-                j.emplace("previous_version", opm.previous_version);
-                j.emplace("previous_version_by_key", opm.previous_version_by_key);
-                j.emplace("subgroup_type", std::to_string(opm.subgroup_type_index) + "-->" + DefaultObjectPoolMetadataType::subgroup_type_order[opm.subgroup_type_index].name());
-                j.emplace("subgroup_index", opm.subgroup_index);
-                j.emplace("sharding_policy", std::to_string(opm.sharding_policy));
-                j.emplace("deleted", opm.deleted);
+            if(ver == CURRENT_VERSION) {
+                fill_op_meta(prefix, op_root);
             }
-            auto op_root_meta_path = prefix;
-            op_root_meta_path += METADATA_PATH;
-            op_root_meta_path += op_root;
-            add_op_info(op_root_meta_path, j.dump(2));
 
             auto keys = get_keys(op_root, ver);
             std::sort(keys.begin(), keys.end(), std::greater<>());
@@ -242,9 +293,8 @@ struct FuseClientContext {
                 auto key_path = prefix;
                 key_path += k;
                 auto node = add_op_key(key_path);
-                if(node == nullptr) {
-                    dbg_info(DL, "did not add {}", key_path);
-                } else {
+                // colliding keys do not get added
+                if(node != nullptr) {
                     get_contents(node, k, ver);
                     // dbg_info(DL, "file: {}", std::quoted(reinterpret_cast<const char*>(node->data.bytes.data())));
                 }
@@ -252,15 +302,31 @@ struct FuseClientContext {
         }
     }
 
-    void add_snapshot(persistent::version_t ver) {
-        auto snapshot = SNAPSHOT_PATH;
-        snapshot += "/" + std::to_string(ver);
-        auto res = add_snapshot_time(snapshot);
-        dbg_info(DL, "adding {}", snapshot);
-        if(res != nullptr) {
-            dbg_info(DL, "ok");
-            fill_at(snapshot, ver);
-            dbg_info(DL, "filled");
+    void fill_at_by_time(const fs::path& prefix, uint64_t ts_us) {
+        // TODO no version for list object pools
+        auto str_paths = capi.list_object_pools(false, true);
+
+        for(const std::string& op_root : str_paths) {
+            auto op_root_path = prefix;
+            op_root_path += op_root;
+            auto op_root_node = add_op_root(op_root_path);
+            if(op_root_node == nullptr) {
+                continue;
+            }
+
+            auto keys = get_keys_by_time(op_root, ts_us);
+            std::sort(keys.begin(), keys.end(), std::greater<>());
+            // sort removes files colliding with directory
+            for(const auto& k : keys) {
+                auto key_path = prefix;
+                key_path += k;
+                // colliding keys do not get added
+                auto node = add_op_key(key_path);
+                if(node != nullptr) {
+                    get_contents_by_time(node, k, ts_us);
+                    // dbg_info(DL, "file: {}", std::quoted(reinterpret_cast<const char*>(node->data.bytes.data())));
+                }
+            }
         }
     }
 
@@ -294,13 +360,18 @@ struct FuseClientContext {
         stbuf->st_nlink = 1;
         stbuf->st_uid = fuse_get_context()->uid;
         stbuf->st_gid = fuse_get_context()->gid;
-        stbuf->st_atim = timespec{last_update_sec, 0};
         // TODO merge timestamp for dirs, update during set
         int64_t sec = node->data.timestamp / 1'000'000;
         int64_t nano = (node->data.timestamp % 1'000'000) * 1000;
         stbuf->st_mtim = timespec{sec, nano};
         stbuf->st_ctim = stbuf->st_mtim;
+        stbuf->st_atim = timespec{last_update_sec, 0};
+        if(uint64_t(last_update_sec) * 1'000'000 < node->data.timestamp) {
+            stbuf->st_atim = stbuf->st_mtim;
+        }
         // - at prefix dir location add .info file ???
+
+        // TODO timestamps messing with vim??
 
         if(node->data.flag & DIR_FLAG) {
             if(node->data.flag & OP_PREFIX_DIR) {
@@ -342,7 +413,6 @@ struct FuseClientContext {
     }
 
     void get_contents(Node* node, const std::string& path, persistent::version_t ver) {
-        // persistent::version_t version = CURRENT_VERSION;
         auto result = capi.get(path, ver, true);
         // TODO only get file contents on open
 
@@ -350,7 +420,11 @@ struct FuseClientContext {
             auto reply = reply_future.second.get();
             if(ver == CURRENT_VERSION) {
                 max_ver = std::max(max_ver, reply.version);
+                max_timestamp = std::max(max_timestamp, reply.timestamp_us);
+
+                node->data.writeable = true;
             }
+            // TODO std::move ??
             Blob blob = reply.blob;
             std::vector<uint8_t> bytes(blob.bytes, blob.bytes + blob.size);
             node->data.bytes = bytes;
@@ -359,12 +433,30 @@ struct FuseClientContext {
         }
     }
 
+    // not to be called by latest
+    void get_contents_by_time(Node* node, const std::string& path, uint64_t ts_us) {
+        auto result = capi.get_by_time(path, ts_us, true);
+        // TODO only get file contents on open
+
+        for(auto& reply_future : result.get()) {
+            auto reply = reply_future.second.get();
+            Blob blob = reply.blob;
+            // TODO std::move ??
+            std::vector<uint8_t> bytes(blob.bytes, blob.bytes + blob.size);
+            node->data.bytes = bytes;
+            node->data.timestamp = reply.timestamp_us;
+            return;
+        }
+    }
+
     std::vector<std::string> get_keys(const std::string& path, persistent::version_t ver) {
-        // persistent::version_t version = CURRENT_VERSION;
         auto future_result = capi.list_keys(ver, true, path);
-        auto reply = capi.wait_list_keys(future_result);
-        // TODO remove keys that collide with directory (key is a prefix of another key)
-        return reply;
+        return capi.wait_list_keys(future_result);
+    }
+
+    std::vector<std::string> get_keys_by_time(const std::string& path, uint64_t ts_us) {
+        auto future_result = capi.list_keys_by_time(ts_us, true, path);
+        return capi.wait_list_keys(future_result);
     }
 
     // make a trash folder? (move on delete)

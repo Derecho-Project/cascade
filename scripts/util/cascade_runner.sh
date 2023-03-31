@@ -6,6 +6,7 @@ SCRIPT_NAME=$(basename "${BASH_SOURCE[0]}")
 HELP_STRING="A helper script to set up a local cascade instance
 Usage: $SCRIPT_NAME [options]
   -h            Print this message and exit.
+  -a    ARGS    Args passed to resulting command.
   -d    D       CFG directory location (defaults to cfg).
   -n    N       Sets a range from 0..N-1 for range commands.
 
@@ -44,6 +45,8 @@ CLIENT_COMMAND="cascade_client"
 SERVER_COMMAND="cascade_server"
 LOG_FILE="node_info.log"
 
+ARGS=""
+
 if ! command -v $SERVER_COMMAND &>/dev/null; then
   echo "$SERVER_COMMAND could not be found"
   exit_abnormal
@@ -81,9 +84,10 @@ foreach() {
 }
 
 main() {
-  while getopts 'hd:n:f:F:krsc:u:v:' opt; do
+  while getopts 'ha:d:n:f:F:krsc:u:v:' opt; do
     case "$opt" in
     h) HELP=true ;;
+    a) ARGS="$OPTARG" ;;
     d) CFG_DIR="$OPTARG" ;;
     n)
       NODES="$OPTARG"
@@ -123,9 +127,9 @@ main() {
       mkdir -p "$MOUNT"
 
       if [[ "$FUSE_FOREGROUND" = true ]]; then
-        "$FUSE_COMMAND" -s -f "$MOUNT"
+        "$FUSE_COMMAND" -s -f "$MOUNT" $ARGS
       else
-        "$FUSE_COMMAND" -s -f "$MOUNT" &>"$LOG_FILE" &
+        "$FUSE_COMMAND" -s -f "$MOUNT" $ARGS &>"$LOG_FILE" &
       fi
 
       cd - &>/dev/null

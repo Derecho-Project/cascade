@@ -20,16 +20,19 @@
 
 using namespace derecho::cascade;
 
+// TODO segfault debugging
+// stat on invalid path
+
 struct cli_options {
     const char* client_dir;
     int update_interval;
-    int flag;
+    int by_version;
 };
 
 static cli_options options = {
         .client_dir = nullptr,
-        .update_interval = 1,
-        .flag = 0,
+        .update_interval = 15,
+        .by_version = 0,
 };
 
 #define OPTION(t, p) \
@@ -38,14 +41,14 @@ static cli_options options = {
 static const struct fuse_opt option_spec[] = {
         OPTION("--client=%s", client_dir),
         OPTION("--update-interval=%d", update_interval),
-        OPTION("--flag", flag),
+        OPTION("--by_version", by_version),
         FUSE_OPT_END};
 
 static void show_help(const char* progname) {
     printf("usage: %s [options] <mountpoint>\n\n", progname);
-    printf("    --update-interval=<secs>  Update-rate of file system contents\n"
+    printf("    --update-interval=<secs>  Update-rate of file system contents (default: 15)\n"
            "    --client=<dir-path>    Client directory\n"
-           "    --flag                 Flag that does nothing\n"
+           "    --by_version           Snapshot by version number rather than timestamp in microseconds\n"
            "\n");
 }
 
@@ -59,7 +62,8 @@ static void* cascade_fs_init(struct fuse_conn_info* conn,
                              struct fuse_config* cfg) {
     // TODO why read conf_layout_json_layout?
     // TODO don't like no control over derecho config
-    return new FuseClientContext();
+
+    return new FuseClientContext(options.update_interval, options.by_version);
 }
 
 static void cascade_fs_destroy(void* private_data) {
@@ -167,7 +171,7 @@ static int cascade_fs_write(const char* path, const char* buf, size_t size,
     if(node == nullptr) {
         return -ENOENT;
     }
-    if(node->data.flag & DIR_FLAG) {  // TODO diff error
+    if(node->data.flag & DIR_FLAG || !node->data.writeable) {  // TODO diff error
         return -ENOTSUP;
     }
     auto& bytes = node->data.bytes;
@@ -195,7 +199,7 @@ static int cascade_fs_release(const char* path, struct fuse_file_info* fi) {
     if(node == nullptr) {
         return -ENOENT;
     }
-    if(node->data.flag & DIR_FLAG) {
+    if(node->data.flag & DIR_FLAG || !node->data.writeable) {
         return -ENOTSUP;
     }
     return fcc()->put_to_capi(node);
@@ -207,14 +211,7 @@ static int cascade_fs_mkdir(const char* path, mode_t mode) {
     }
     auto op_root = fcc()->nearest_object_pool_root(path);
     if(op_root == nullptr) {
-        persistent::version_t ver = fcc()->is_snapshot(path);
-        if(ver != CURRENT_VERSION && ver <= fcc()->max_ver) {
-            dbg_info(DL, "{}", ver);
-
-            fcc()->add_snapshot(ver);
-            return 0;
-        }
-        return -EACCES;
+        return fcc()->add_snapshot(path) ? 0 : -EACCES;
     }
     auto res = fcc()->add_op_key_dir(path);
     if(res) {
@@ -275,7 +272,7 @@ static int cascade_fs_truncate(const char* path, off_t size,
     if(node == nullptr) {
         return -ENOENT;
     }
-    if(node->data.flag & DIR_FLAG) {
+    if(node->data.flag & DIR_FLAG || !node->data.writeable) {
         return -EINVAL;
     }
     node->data.bytes.resize(size, 0);
@@ -317,7 +314,7 @@ static int cascade_fs_setxattr(const char* path, const char* name, const char* v
     if(flags & XATTR_CREATE) {
         return -EPERM;
     }
-    dbg_info(DL, "{}, {}, {}", path, name, value);
+    dbg_default_info("{}, {}, {}", path, name, value);
     // TODO save into node data
     if(strcmp(path, fcc()->ROOT) == 0) {
         if(!fcc()->latest && strcmp(name, "user.cascade.version") == 0) {
