@@ -40,6 +40,12 @@ private:
      */
     derecho::subgroup_id_t subgroup_id;
     /**
+     * True if CascadeChain backup sites via WanAgent are enabled (the default), false if
+     * they are disabled (for testing purposes). Initialized from the Derecho config file
+     * in the constructor.
+     */
+    const bool backup_enabled;
+    /**
      * True if this node is on the CascadeChain primary site, false if it is on a backup site.
      * Initialized from the Derecho config file in the constructor.
      */
@@ -389,7 +395,7 @@ public:
                                                      ));
 
     /* Serialization support, with a custom deserializer to get the context pointers from the registry */
-    DEFAULT_SERIALIZE(subgroup_id, is_primary_site, persistent_core, data_to_hash_version, backup_ack_table, wanagent_message_ids);
+    DEFAULT_SERIALIZE(subgroup_id, backup_enabled, is_primary_site, persistent_core, data_to_hash_version, backup_ack_table, wanagent_message_ids);
 
     DEFAULT_DESERIALIZE_NOALLOC(SignatureCascadeStore);
 
@@ -403,6 +409,7 @@ public:
                           ICascadeContext* context = nullptr);
     // Deserialization constructor, moves Persistent objects
     SignatureCascadeStore(derecho::subgroup_id_t deserialized_subgroup_id,
+                          bool backup_enabled,
                           bool is_primary_site,
                           persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST>&& deserialized_persistent_core,
                           persistent::Persistent<std::map<persistent::version_t, const persistent::version_t>>&& deserialized_data_to_hash_version,

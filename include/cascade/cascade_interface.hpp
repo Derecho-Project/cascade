@@ -18,6 +18,7 @@ namespace cascade {
 /**
  * Configuration file keys added by Cascade to the Derecho config file
  */
+#define CASCADE_ENABLE_WANAGENT                 "CASCADE/enable_wanagent"
 #define CASCADE_WANAGENT_CONFIG_FILE            "CASCADE/wanagent_config_file"
 #define CASCADE_WANAGENT_PORT_OFFSET            "CASCADE/wanagent_port_offset"
 #define CASCADE_IS_PRIMARY_SITE                 "CASCADE/is_primary_site"

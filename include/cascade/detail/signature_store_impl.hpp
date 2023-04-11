@@ -435,7 +435,7 @@ version_tuple SignatureCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put(co
                 });
     }
     // Register an action to send the signed object to the WanAgent once the signature is finished
-    if(is_primary_site) {
+    if(backup_enabled && is_primary_site) {
         cascade_context_ptr->get_persistence_observer().register_persistence_action(
                 my_subgroup_id, std::get<0>(hash_object_version_and_timestamp), true,
                 [=]() {
@@ -571,6 +571,8 @@ template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 std::unique_ptr<SignatureCascadeStore<KT, VT, IK, IV, ST>> SignatureCascadeStore<KT, VT, IK, IV, ST>::from_bytes(mutils::DeserializationManager* dsm, uint8_t const* buf) {
     auto subgroup_id_ptr = mutils::from_bytes<derecho::subgroup_id_t>(dsm, buf);
     std::size_t offset = mutils::bytes_size(*subgroup_id_ptr);
+    auto backup_enabled_ptr = mutils::from_bytes<bool>(dsm, buf + offset);
+    offset += mutils::bytes_size(*backup_enabled_ptr);
     auto is_primary_ptr = mutils::from_bytes<bool>(dsm, buf + offset);
     offset += mutils::bytes_size(*is_primary_ptr);
     auto persistent_core_ptr = mutils::from_bytes<persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST>>(dsm, buf + offset);
@@ -582,6 +584,7 @@ std::unique_ptr<SignatureCascadeStore<KT, VT, IK, IV, ST>> SignatureCascadeStore
     auto message_table_ptr = mutils::from_bytes<std::map<uint64_t, std::tuple<KT, persistent::version_t, persistent::version_t>>>(dsm, buf + offset);
     auto persistent_cascade_store_ptr
             = std::make_unique<SignatureCascadeStore>(*subgroup_id_ptr,
+                                                      *backup_enabled_ptr,
                                                       *is_primary_ptr,
                                                       std::move(*persistent_core_ptr),
                                                       std::move(*version_map_ptr),
@@ -599,6 +602,7 @@ SignatureCascadeStore<KT, VT, IK, IV, ST>::SignatureCascadeStore(
         CriticalDataPathObserver<SignatureCascadeStore<KT, VT, IK, IV>>* cw,
         ICascadeContext* cc)
         : subgroup_id(subgroup_id),
+          backup_enabled(getConfWithDefault(CASCADE_ENABLE_WANAGENT, true)),
           is_primary_site(getConfWithDefault(CASCADE_IS_PRIMARY_SITE, true)),
           persistent_core(pr, true),  // enable signatures
           data_to_hash_version(pr, false),
@@ -608,6 +612,7 @@ SignatureCascadeStore<KT, VT, IK, IV, ST>::SignatureCascadeStore(
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 SignatureCascadeStore<KT, VT, IK, IV, ST>::SignatureCascadeStore(
         derecho::subgroup_id_t deserialized_subgroup_id,
+        bool backup_enabled,
         bool is_primary_site,
         persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST>&& deserialized_persistent_core,
         persistent::Persistent<std::map<persistent::version_t, const persistent::version_t>>&& deserialized_data_to_hash_version,
@@ -616,6 +621,7 @@ SignatureCascadeStore<KT, VT, IK, IV, ST>::SignatureCascadeStore(
         CriticalDataPathObserver<SignatureCascadeStore<KT, VT, IK, IV>>* cw,
         ICascadeContext* cc)
         : subgroup_id(deserialized_subgroup_id),
+          backup_enabled(backup_enabled),
           is_primary_site(is_primary_site),
           persistent_core(std::move(deserialized_persistent_core)),
           data_to_hash_version(std::move(deserialized_data_to_hash_version)),
@@ -627,6 +633,7 @@ SignatureCascadeStore<KT, VT, IK, IV, ST>::SignatureCascadeStore(
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 SignatureCascadeStore<KT, VT, IK, IV, ST>::SignatureCascadeStore()
         : subgroup_id(0),
+          backup_enabled(false),
           is_primary_site(false),
           persistent_core(
                   []() {
@@ -646,6 +653,9 @@ SignatureCascadeStore<KT, VT, IK, IV, ST>::~SignatureCascadeStore() {}
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void SignatureCascadeStore<KT, VT, IK, IV, ST>::new_view_callback(const View& new_view) {
+    if(!backup_enabled) {
+        return;
+    }
     uint32_t my_shard_num = new_view.my_subgroups.at(subgroup_id);
     const SubView& my_shard_view = new_view.subgroup_shard_views.at(subgroup_id).at(my_shard_num);
     // Use the "wanagent_port_offset" config option to derive the WanAgent port for the shard leader from its Derecho port
@@ -1041,6 +1051,7 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::record_wan_message_id(uint64_t m
                                                                       persistent::version_t data_object_version) {
     debug_enter_func_with_args("message_id={}, key={}, object_version={}, data_version={}", message_id, object_key, object_version, data_object_version);
     wanagent_message_ids.emplace(message_id, std::make_tuple(object_key, object_version, data_object_version));
+    debug_leave_func();
 }
 
 }  // namespace cascade
