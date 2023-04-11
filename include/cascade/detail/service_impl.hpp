@@ -410,7 +410,7 @@ std::tuple<uint32_t,uint32_t,uint32_t> ServiceClient<CascadeTypes...>::key_to_sh
 
 template <typename... CascadeTypes>
 ServiceClient<CascadeTypes...>::ObjectPoolMetadataCacheEntry::ObjectPoolMetadataCacheEntry(
-        const ObjectPoolMetadata<CascadeTypes...>& _opm): opm(_opm) {
+        const ObjectPoolMetadata<CascadeTypes...>& _opm): opm(_opm), database(nullptr) {
     if (opm.affinity_set_regex.size() > 0) {
         hs_compile_error_t* compile_err;
         if (hs_compile(opm.affinity_set_regex.c_str(), HS_FLAG_DOTALL|HS_FLAG_SOM_LEFTMOST, HS_MODE_BLOCK, NULL, &database,

@@ -85,13 +85,13 @@ ___If the result is 0, please enable it before running this example.___
 ```
 ___Please note that Root privilege is required. And if you are running in a docker environment with out root privilege, you have to do this on the host kernel.___
 
-Once cascade is built, you will find seven folders named `n0` to `n6` in `<build_dir>/src/service/cfg/`. Each of them contains a configuration file to run a demo service node with localhost IP and RDMA API layer over TCP/IP. In the folder, start the node by calling:
+Once cascade is built and installed, you will find seven folders named `n0` to `n6` in `<build_dir>/src/service/cfg/`. Each of them contains a configuration file to run a demo service node with localhost IP and RDMA API layer over TCP/IP. In the folder, start the node by calling:
 ```
-# ../../cascade_server
+# cascade_server
 ```
 Since the demo service requires six nodes to start running, let's start the server nodes in `n0`, `n1`, ..., `n5` and leave `n6` for the client by calling
 ```
-# ../../cascade_client
+# cascade_client
 ```
 Once the client connnects to the service, it is going to show prompt for command.
 ```
@@ -173,7 +173,7 @@ hdABCDEFG#
 Please note that the file contents are deserialized byte array of the corresponding object.
 
 # Python API
-Python API document has moved to [here](python).
+Please refer [here](python) for the Python API documentation.
 
 # Java API
 Cascade service also supports data access using Java. Cascade cmake building script will detect the Java environment to decide whether to enable Java support. We suggest openjdk-14. For example, on Ubuntu, you can install it as follows:
@@ -194,3 +194,7 @@ export JAVA_HOME=/usr/lib/jvm/java-14-openjdk-amd64
 To use the Java API, you just add `cascade.jar` to your classpath and import `io.cascade.*;`. The API is defined in `io.cascade.Client` mirroring the C++ [`ServiceClientAPI` interface](../../include/cascade/service.hpp#L155). Please refer to [`ClientTest.java`](java/io/cascade/test/ClientTest.java) as an example. 
 
 Please note that the Java API does not implement the LINQ support yet. We plan to add it later.
+
+# C\# (.NET 6) API
+Please refer [here](cs) for the C\# API documentation.
+

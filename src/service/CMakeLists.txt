@@ -106,4 +106,5 @@ install(TARGETS client server
 
 add_subdirectory(python)
 add_subdirectory(java)
+add_subdirectory(cs)
 add_subdirectory(fuse)
