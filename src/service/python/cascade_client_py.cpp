@@ -55,7 +55,7 @@ static const char* policy_names[] = {
 /**
     Lambda function for handling the unwrapping of tuple of version and timestamp
 */
-auto bundle_f = [](std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>& obj) {
+auto bundle_f = [](version_tuple& obj) {
     std::vector<long> a;
     a.push_back(static_cast<long>(std::get<0>(obj)));
     a.push_back(static_cast<long>(std::get<1>(obj)));

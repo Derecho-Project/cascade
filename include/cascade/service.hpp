@@ -664,7 +664,7 @@ namespace cascade {
          * @param subugroup_index   the subgroup index of CascadeType
          * @param shard_index       the shard index.
          *
-         * @return a future to the version, previous_version, previous_version_by_key, and timestamp of the put operation.
+         * @return a future to the version, timestamp, previous_version, and previous_version_by_key of the put operation.
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
          */
         template <typename SubgroupType>
@@ -678,7 +678,7 @@ namespace cascade {
          * @subgroup_index          the subgroup index in the subgroup type designated by type_index
          * @shard_index             the shard index
          *
-         * @return a future to the version, previous_version, previous_version_by_key, and timestamp of the put operation.
+         * @return a future to the version, timestamp, previous_version, and previous_version_by_key of the put operation.
          */
     protected:
         template <typename ObjectType, typename FirstType, typename SecondType, typename... RestTypes>
@@ -699,7 +699,7 @@ namespace cascade {
          * object pool version
          * @param object            the object to write, the object pool is extracted from the object key.
          *
-         * @return a future to the version and timestamp of the put operation.
+         * @return a future to the version, timestamp, previous_version, and previous_version_by_key of the put operation.
          */
         template <typename ObjectType>
         derecho::rpc::QueryResults<version_tuple> put(const ObjectType& object);
@@ -822,7 +822,7 @@ namespace cascade {
          * @param subugroup_index   the subgroup index of CascadeType
          * @param shard_index       the shard index.
          *
-         * @return a future to the version, previous_version, previous_version_by_key, and timestamp of the put operation.
+         * @return a future to the version, timestamp, previous_version, and previous_version_by_key of the put operation.
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
          */
         template <typename SubgroupType>
@@ -837,7 +837,7 @@ namespace cascade {
          * @subgroup_index          the subgroup index in the subgroup type designated by type_index
          * @shard_index             the shard index
          *
-         * @return a future to the version, previous_version, previous_version_by_key, and timestamp of the put operation.
+         * @return a future to the version, timestamp, previous_version, and previous_version_by_key of the put operation.
          */
     protected:
         template <typename KeyType, typename FirstType, typename SecondType, typename... RestTypes>
@@ -1540,7 +1540,7 @@ namespace cascade {
          * @param  affinity_set_regex
          *                          The affinity set regex.
          *
-         * @return a future to the version, previous_version, previous_version_by_key, and timestamp of the put operation.
+         * @return a future to the version, timestamp, previous_version, and previous_version_by_key of the put operation.
          */
         template <typename SubgroupType>
         derecho::rpc::QueryResults<version_tuple> create_object_pool(
@@ -1554,7 +1554,7 @@ namespace cascade {
          *
          * @param  pathname         Object pool pathname
          *
-         * @return a future to the version, previous_version, previous_version_by_key, and timestamp of the put operation.
+         * @return a future to the version, timestamp, previous_version, and previous_version_by_key of the put operation.
          */
         derecho::rpc::QueryResults<version_tuple> remove_object_pool(const std::string& pathname);
     private:

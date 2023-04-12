@@ -19,8 +19,6 @@
 
 using namespace derecho::cascade;
 
-using version_tuple = std::tuple<persistent::version_t, uint64_t>;
-
 /*
  * Value structs to be marshalled into C#.
  */
@@ -92,7 +90,7 @@ inline ShardMemberSelectionPolicy parse_policy_name(const std::string& policy_na
 /**
     Lambda function for handling the unwrapping of tuple of version and timestamp
 */
-auto bundle_f = [](std::tuple<persistent::version_t, uint64_t>& obj) {
+auto bundle_f = [](version_tuple& obj) {
     VersionTimestampPair pair;
     pair.version = static_cast<long>(std::get<0>(obj));
     pair.timestamp = static_cast<long>(std::get<1>(obj));
@@ -110,7 +108,7 @@ static void print_red(std::string_view msg) {
 
 /**
  * Allows for usage of template functions in P/Invoke exported functions in this file.
- * This is necessary, since functions exported to managed code require C linkage. 
+ * This is necessary, since functions exported to managed code require C linkage.
  */
 #define on_all_subgroup_type(x, ft, ...)                      \
     if((x) == "VolatileCascadeStoreWithStringKey") {          \
@@ -154,7 +152,7 @@ public:
             T reply = reply_future.second.get();
             return f(reply);
         }
-        
+
         print_red("The reply was empty... Should not happen");
         return {};
     }
@@ -202,9 +200,9 @@ std::function<StdVectorWrapper(std::vector<std::string>&)> list_unwrapper = [](s
     @return QueryResultsStore that handles the return type.
 */
 template <typename SubgroupType>
-auto get_internal(ServiceClientAPI& capi, const std::string& key, persistent::version_t ver, bool stable, 
+auto get_internal(ServiceClientAPI& capi, const std::string& key, persistent::version_t ver, bool stable,
             uint32_t subgroup_index = 0, uint32_t shard_index = 0) {
-    derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result 
+    derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result
         = capi.template get<SubgroupType>(key, ver, stable, subgroup_index, shard_index);
     auto s = new QueryResultsStore<const typename SubgroupType::ObjectType, ObjectProperties>(std::move(result), object_unwrapper);
 
@@ -285,7 +283,7 @@ void trigger_put(ServiceClientAPI& capi, const typename SubgroupType::ObjectType
 
     @param capi the service client API for this client.
     @param key key to remove value from
-    @param subgroup_index 
+    @param subgroup_index
     @param shard_index
     @return QueryResultsStore that handles the tuple of version and ts_us.
 */
@@ -311,7 +309,7 @@ auto remove_internal(ServiceClientAPI& capi, const std::string& key, uint32_t su
     Get objects from cascade store using multi_get.
     @param capi the service client API for this client.
     @param key key to remove value from
-    @param subgroup_index 
+    @param subgroup_index
     @param shard_index
     @return QueryResultsStore that handles the return type.
 */
@@ -328,7 +326,7 @@ auto multi_get(ServiceClientAPI& capi, const std::string& key, uint32_t subgroup
     @param key key to remove value from
     @param ver version of the object you want to get.
     @param stable using stable get or not.
-    @param subgroup_index 
+    @param subgroup_index
     @param shard_index
     @return QueryResultsStore that handles the return type.
 */
@@ -367,7 +365,7 @@ auto create_object_pool(ServiceClientAPI& capi, const std::string& object_pool_p
     Get objects from cascade store using multi_get_size.
     @param capi the service client API for this client.
     @param key key to remove value from
-    @param subgroup_index 
+    @param subgroup_index
     @param shard_index
     @return QueryResultsStore that handles the return type.
 */
@@ -479,7 +477,7 @@ EXPORT ObjectProperties extractObjectPropertiesFromQueryResults(QueryResultsStor
 }
 
 EXPORT VersionTimestampPair extractVersionTimestampFromQueryResults(QueryResultsStore<version_tuple, VersionTimestampPair>* store) {
-    return store->get_result();   
+    return store->get_result();
 }
 
 EXPORT uint64_t extractUInt64FromQueryResults(QueryResultsStore<uint64_t, uint64_t>* store) {
@@ -492,7 +490,7 @@ EXPORT StdVectorWrapper extractStdVectorWrapperFromQueryResults(QueryResultsStor
 
 EXPORT const char* indexStdVectorWrapperString(StdVectorWrapper vector, std::size_t index) {
     return static_cast<std::vector<std::string>*>(vector.vecBasePtr)->at(index).c_str();
-} 
+}
 
 EXPORT ObjectLocation indexStdVectorWrapperObjectLocation(StdVectorWrapper vector, std::size_t index) {
     return static_cast<std::vector<ObjectLocation>*>(vector.vecBasePtr)->at(index);
@@ -686,7 +684,7 @@ EXPORT auto EXPORT_get(ServiceClientAPI& capi, char* key, GetArgs args) {
         }
     }
     // Execution should never reach this point. If it does, then stopping control flow is
-    // sensible to prevent clients from receiving malformed data, which will cause further issues. 
+    // sensible to prevent clients from receiving malformed data, which will cause further issues.
     throw derecho::derecho_exception("Reached end of exported get implementation.");
 }
 
@@ -763,7 +761,7 @@ EXPORT auto EXPORT_put(ServiceClientAPI& capi, char* key, uint8_t* bytes, std::s
         }
     }
     // Execution should never reach this point. If it does, then stopping control flow is
-    // sensible to prevent clients from receiving malformed data, which will cause further issues. 
+    // sensible to prevent clients from receiving malformed data, which will cause further issues.
     throw derecho::derecho_exception("Reached end of exported put implementation.");
 }
 
@@ -783,7 +781,7 @@ EXPORT auto EXPORT_remove(ServiceClientAPI& capi, char* key, char* subgroupType,
         on_all_subgroup_type(subgroup_type, return remove_internal, capi, std::string(key), subgroup_index, shard_index);
     }
     // Execution should never reach this point. If it does, then stopping control flow is
-    // sensible to prevent clients from receiving malformed data, which will cause further issues. 
+    // sensible to prevent clients from receiving malformed data, which will cause further issues.
     throw derecho::derecho_exception("Reached end of exported remove implementation.");
 }
 
@@ -803,11 +801,11 @@ EXPORT auto EXPORT_multiGet(ServiceClientAPI& capi, char* key, char* subgroupTyp
         on_all_subgroup_type(subgroup_type, return multi_get, capi, std::string(key), subgroup_index, shard_index);
     }
     // Execution should never reach this point. If it does, then stopping control flow is
-    // sensible to prevent clients from receiving malformed data, which will cause further issues. 
+    // sensible to prevent clients from receiving malformed data, which will cause further issues.
     throw derecho::derecho_exception("Reached end of exported multi_get implementation.");
 }
 
-EXPORT auto EXPORT_getSize(ServiceClientAPI& capi, char* key, char* subgroupType, uint32_t subgroupIndex, 
+EXPORT auto EXPORT_getSize(ServiceClientAPI& capi, char* key, char* subgroupType, uint32_t subgroupIndex,
     uint32_t shardIndex, persistent::version_t version, bool stable, uint64_t timestamp) {
         std::string subgroup_type;
         uint32_t subgroup_index = subgroupIndex;
@@ -836,7 +834,7 @@ EXPORT auto EXPORT_getSize(ServiceClientAPI& capi, char* key, char* subgroupType
             }
         }
         // Execution should never reach this point. If it does, then stopping control flow is
-        // sensible to prevent clients from receiving malformed data, which will cause further issues. 
+        // sensible to prevent clients from receiving malformed data, which will cause further issues.
         throw derecho::derecho_exception("Reached end of exported get_size implementation.");
 }
 
@@ -857,11 +855,11 @@ EXPORT auto EXPORT_multiGetSize(ServiceClientAPI& capi, char* key, char* subgrou
         on_all_subgroup_type(subgroup_type, return multi_get_size, capi, std::string(key), subgroup_index, shard_index);
     }
     // Execution should never reach this point. If it does, then stopping control flow is
-    // sensible to prevent clients from receiving malformed data, which will cause further issues. 
+    // sensible to prevent clients from receiving malformed data, which will cause further issues.
     throw derecho::derecho_exception("Reached end of exported multi_get_size implementation.");
 }
 
-EXPORT auto EXPORT_listKeysInShard(ServiceClientAPI& capi, char* subgroupType, uint32_t subgroupIndex, 
+EXPORT auto EXPORT_listKeysInShard(ServiceClientAPI& capi, char* subgroupType, uint32_t subgroupIndex,
     uint32_t shardIndex, persistent::version_t version, bool stable, uint64_t timestamp) {
         std::string subgroup_type = subgroupType;
         uint32_t subgroup_index = subgroupIndex;
@@ -874,7 +872,7 @@ EXPORT auto EXPORT_listKeysInShard(ServiceClientAPI& capi, char* subgroupType, u
             on_all_subgroup_type(subgroup_type, return list_keys, capi, version, stable, subgroup_index, shard_index);
         }
         // Execution should never reach this point. If it does, then stopping control flow is
-        // sensible to prevent clients from receiving malformed data, which will cause further issues. 
+        // sensible to prevent clients from receiving malformed data, which will cause further issues.
         throw derecho::derecho_exception("Reached end of exported list_keys_in_shard implementation.");
 }
 
@@ -885,7 +883,7 @@ EXPORT auto EXPORT_multiListKeysInShard(ServiceClientAPI& capi, char* subgroupTy
 
     on_all_subgroup_type(subgroup_type, return multi_list_keys, capi, subgroup_index, shard_index);
     // Execution should never reach this point. If it does, then stopping control flow is
-    // sensible to prevent clients from receiving malformed data, which will cause further issues. 
+    // sensible to prevent clients from receiving malformed data, which will cause further issues.
     throw derecho::derecho_exception("Reached end of exported multi_list_keys_in_shard implementation.");
 }
 
@@ -926,7 +924,7 @@ EXPORT StdVectorWrapper EXPORT_listObjectPools(ServiceClientAPI& capi) {
 EXPORT auto EXPORT_createObjectPool(ServiceClientAPI& capi, char* objectPoolPathname, char* serviceType, uint32_t subgroupIndex, char* affinitySetRegex) {
     on_all_subgroup_type(std::string(serviceType), return create_object_pool, capi, std::string(objectPoolPathname), subgroupIndex, std::string(affinitySetRegex));
     // Execution should never reach this point. If it does, then stopping control flow is
-    // sensible to prevent clients from receiving malformed data, which will cause further issues. 
+    // sensible to prevent clients from receiving malformed data, which will cause further issues.
     throw derecho::derecho_exception("Reached end of exported create_object_pool implementation.");
 }
 

@@ -414,9 +414,9 @@ bool ChainClientContext<CascadeTypes...>::put_with_signature(const std::vector<s
               << std::hex << std::get<0>(put_reply) << std::dec << ", ts_us:" << std::get<1>(put_reply) << std::endl;
     // Store the version fields in our local copy of the object, so we can hash it accurately
     obj.version = std::get<0>(put_reply);
-    obj.previous_version = std::get<1>(put_reply);
-    obj.previous_version_by_key = std::get<2>(put_reply);
-    obj.timestamp_us = std::get<3>(put_reply);
+    obj.timestamp_us = std::get<1>(put_reply);
+    obj.previous_version = std::get<2>(put_reply);
+    obj.previous_version_by_key = std::get<3>(put_reply);
     // Create a record of this object's headers for the cache
     std::shared_ptr<ObjectSignature> signature_record = std::make_shared<ObjectSignature>();
     signature_record->key_suffix = key_suffix;

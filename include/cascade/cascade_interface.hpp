@@ -69,12 +69,12 @@ public:
 };
 
 /**
- * A tuple including (1) the version number of an update, (2) the previous version
- * number in the log, (3) the previous version number of the same key as the update,
- * and (4) the timestamp associated with the update.
+ * A tuple including (1) the version number of an update, (2) the timestamp associated
+ * with the update, (3) the previous version number in the log, and (4) the previous
+ * version number of the same key as the update.
  * This is the return type of several CascadeStore functions.
  */
-using version_tuple = std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t>;
+using version_tuple = std::tuple<persistent::version_t, uint64_t, persistent::version_t, persistent::version_t>;
 
 /**
  * The cascade store interface.
