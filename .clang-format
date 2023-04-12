@@ -2,31 +2,43 @@
 Language:        Cpp
 # BasedOnStyle:  Google
 AccessModifierOffset: -4
-ConstructorInitializerIndentWidth: 8
-AlignEscapedNewlinesLeft: true
+AlignConsecutiveMacros: Consecutive
+AlignEscapedNewlines: Left
+AlignOperands:   Align
 AlignTrailingComments: true
 AllowAllParametersOfDeclarationOnNextLine: true
 AllowShortBlocksOnASingleLine: false
 AllowShortIfStatementsOnASingleLine: true
 AllowShortLoopsOnASingleLine: true
 AllowShortFunctionsOnASingleLine: All
-AlwaysBreakTemplateDeclarations: true
+AlwaysBreakAfterReturnType: None
 AlwaysBreakBeforeMultilineStrings: false
-BreakBeforeBinaryOperators: true 
+AlwaysBreakTemplateDeclarations: true
+BreakBeforeBinaryOperators: true
+BreakBeforeBraces: Attach
 BreakBeforeTernaryOperators: true
 BreakConstructorInitializersBeforeComma: false
+BreakInheritanceList: AfterComma
+BinPackArguments: true
 BinPackParameters: true
 ColumnLimit:     0
+CommentPragmas:  '^ IWYU pragma:'
 ConstructorInitializerAllOnOneLineOrOnePerLine: true
+ConstructorInitializerIndentWidth: 8
+ContinuationIndentWidth: 8
+Cpp11BracedListStyle: true
+DisableFormat:   false
 ExperimentalAutoDetectBinPacking: false
+ForEachMacros:   [ foreach, Q_FOREACH, BOOST_FOREACH ]
 IndentCaseLabels: true
-IndentWrappedFunctionNames: false
+IndentPPDirectives: None
 IndentFunctionDeclarationAfterType: false
-MaxEmptyLinesToKeep: 1
+IndentWrappedFunctionNames: false
+IndentWidth:     4
 KeepEmptyLinesAtTheStartOfBlocks: false
+LambdaBodyIndentation: Signature
+MaxEmptyLinesToKeep: 1
 NamespaceIndentation: None
-ObjCSpaceAfterProperty: false
-ObjCSpaceBeforeProtocolList: false
 PenaltyBreakBeforeFirstCallParameter: 1
 PenaltyBreakComment: 300
 PenaltyBreakString: 1000
@@ -35,22 +47,15 @@ PenaltyExcessCharacter: 1000000
 PenaltyReturnTypeOnItsOwnLine: 200
 PointerAlignment: Left
 SpacesBeforeTrailingComments: 2
-Cpp11BracedListStyle: true
-Standard:        Auto
-IndentWidth:     4
-TabWidth:        4
-UseTab:          Never
-BreakBeforeBraces: Attach
 SpacesInParentheses: false
 SpacesInAngles:  false
 SpaceInEmptyParentheses: false
 SpacesInCStyleCastParentheses: false
 SpacesInContainerLiterals: true
 SpaceBeforeAssignmentOperators: true
-ContinuationIndentWidth: 8
-CommentPragmas:  '^ IWYU pragma:'
-ForEachMacros:   [ foreach, Q_FOREACH, BOOST_FOREACH ]
 SpaceBeforeParens: Never
-DisableFormat:   false
+Standard:        Auto
+TabWidth:        4
+UseTab:          Never
 ...
 
