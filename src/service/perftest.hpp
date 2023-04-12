@@ -29,8 +29,8 @@ private:
      * @param max_operation_per_second  max message rate
      * @param duration_secs         experiment duration in seconds
      * @param subgroup_type_index
-     * @param subgroup_index        If subgroup_index and shard_index are both valid, the test will use object pool API.
-     * @param shard_index           If subgroup_index and shard_index are both valid, the test will use object pool API.
+     * @param subgroup_index        If subgroup_index and shard_index are both invalid, the test will use object pool API.
+     * @param shard_index           If subgroup_index and shard_index are both invalid, the test will use object pool API.
      *
      * @return true/false
      */
@@ -39,6 +39,23 @@ private:
                   uint32_t subgroup_type_index,
                   uint32_t subgroup_index=INVALID_SUBGROUP_INDEX,
                   uint32_t shard_index=INVALID_SHARD_INDEX);
+
+    /**
+     * Evaluates the put operation on a CascadeChain instance (with signatures)
+     *
+     * @param max_operation_per_second  max message rate
+     * @param duration_secs  experiment duration in seconds
+     * @param subgroup_type_index Index of the targeted subgroup type within the Cascade template parameters
+     * @param subgroup_index    If subgroup_index and shard_index are both invalid, the test will use object pool API.
+     * @param shard_index       If subgroup_index and shard_index are both invalid, the test will use object pool API.
+     *
+     * @return true/false
+     */
+    bool eval_signature_put(uint64_t max_operation_per_second,
+                            uint64_t duration_secs,
+                            uint32_t subgroup_type_index,
+                            uint32_t subgroup_index = INVALID_SUBGROUP_INDEX,
+                            uint32_t shard_index = INVALID_SHARD_INDEX);
 
     /**
      * evaluating put_and_forget operation
@@ -108,7 +125,8 @@ enum ExternalClientToCascadeServerMapping {
 enum PutType {
     PUT,            // normal put
     PUT_AND_FORGET, // put and forget
-    TRIGGER_PUT     // trigger put
+    TRIGGER_PUT,    // trigger put
+    SIGNATURE_PUT   // put to CascadeChain, with signatures
 };
 
 class PerfTestClient {
@@ -246,6 +264,9 @@ bool PerfTestClient::perf_put(PutType               put_type,
     case PutType::TRIGGER_PUT:
         rpc_cmd = "perf_trigger_put_to_objectpool";
         break;
+    case PutType::SIGNATURE_PUT:
+        rpc_cmd = "perf_signature_put_to_objectpool";
+        break;
     }
     int64_t start_sec = static_cast<int64_t>(get_walltime())/1e9 + 5; // wait for 5 second so that the rpc servers are started.
 
@@ -320,6 +341,9 @@ bool PerfTestClient::perf_put(PutType   put_type,
     case PutType::TRIGGER_PUT:
         rpc_cmd = "perf_trigger_put_to_shard";
         break;
+    case PutType::SIGNATURE_PUT:
+        // SIGNATURE_PUT requires object pools and is not supported for this command
+        return false;
     }
 
     int64_t start_sec = static_cast<int64_t>(get_walltime())/1e9 + 5; // wait for 5 second so that the rpc servers are started.
