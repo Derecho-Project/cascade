@@ -1631,9 +1631,9 @@ std::vector<command_entry_t> commands =
     {
         "perftest_object_pool",
         "Performance Tester for put to an object pool.",
-        "perftest_object_pool <type> <forget> <object pool pathname> <member selection policy> <r/w ratio> <max rate> <duration in sec> <client1> [<client2>, ...] \n"
+        "perftest_object_pool <type> <object pool pathname> <member selection policy> <r/w ratio> <max rate> <duration in sec> <client1> [<client2>, ...] \n"
             "type := " SUBGROUP_TYPE_LIST "\n"
-            "put_type := put|put_and_forget|trigger_put \n"
+            "put_type := put|put_and_forget|trigger_put|signature \n"
             "'member selection policy' refers how the external clients pick a member in a shard;\n"
             "    Available options: FIXED|RANDOM|ROUNDROBIN;\n"
             "'r/w ratio' is the ratio of get vs put operations, INF for all put test; \n"
@@ -1649,6 +1649,8 @@ std::vector<command_entry_t> commands =
                 put_type = PutType::PUT_AND_FORGET;
             } else if (cmd_tokens[2] == "trigger_put") {
                 put_type = PutType::TRIGGER_PUT;
+            } else if (cmd_tokens[2] == "signature") {
+                put_type = PutType::SIGNATURE_PUT;
             }
 
             std::string object_pool_pathname = cmd_tokens[3];
