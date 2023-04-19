@@ -18,7 +18,6 @@ namespace cascade {
 #ifdef ENABLE_EVALUATION
 #define TLT_READY_TO_SEND       (11000)
 #define TLT_EC_SENT             (12000)
-#define TLT_EC_PUT_FINISHED     (12001)
 #define TLT_EC_SIGNATURE_NOTIFY (12002)
 
 /////////////////////////////////////////////////////
@@ -163,8 +162,6 @@ bool PerfTestServer::eval_signature_put(uint64_t max_operation_per_second,
         uint32_t window_slots = window_size * 2;
         std::mutex window_slots_mutex;
         std::condition_variable window_slots_cv;
-        // Pair is (message ID, QueryResults for that message), unlike eval_put where first is a timestamp
-        // This is needed because TimestampLogger requires a message ID for each log event
         std::queue<std::pair<uint64_t, derecho::QueryResults<derecho::cascade::version_tuple>>> futures;
         std::mutex futures_mutex;
         std::condition_variable futures_cv;
@@ -173,9 +170,6 @@ bool PerfTestServer::eval_signature_put(uint64_t max_operation_per_second,
         std::atomic<bool> all_puts_complete = false;
         std::atomic<bool> all_signed = false;
         persistent::version_t last_put_version;
-        // Used by futures thread to record which message ID corresponds to which version
-        std::map<persistent::version_t, uint64_t> message_ids_by_version;
-        std::mutex message_ids_mutex;
         std::map<persistent::version_t, uint64_t> signature_finished_times;
         std::mutex signature_times_mutex;
 
@@ -189,15 +183,11 @@ bool PerfTestServer::eval_signature_put(uint64_t max_operation_per_second,
         capi.register_signature_notification_handler(
                 [&](const Blob& message) {
                     uint64_t now_timestamp = get_walltime();
-                    // Get the data object version from the signature callback message
-                    persistent::version_t data_object_version;
-                    std::memcpy(&data_object_version, message.bytes, sizeof(data_object_version));
-                    // Figure out which message ID corresponds to this version so we can log it
+                    // Get the message ID and the data object version from the signature callback message
                     uint64_t message_id;
-                    {
-                        std::lock_guard id_map_lock(message_ids_mutex);
-                        message_id = message_ids_by_version.at(data_object_version);
-                    }
+                    persistent::version_t data_object_version;
+                    std::memcpy(&message_id, message.bytes, sizeof(message_id));
+                    std::memcpy(&data_object_version, message.bytes + sizeof(message_id), sizeof(data_object_version));
                     TimestampLogger::log(TLT_EC_SIGNATURE_NOTIFY, my_node_id, message_id, get_walltime());
                     // Record the time in signature_finished_times
                     {
@@ -232,14 +222,6 @@ bool PerfTestServer::eval_signature_put(uint64_t max_operation_per_second,
                                 // and when the futures thread finishes, it will contain the
                                 // version returned by the last put() operation
                                 last_put_version = std::get<0>(reply.second.get());
-                                // This might not be an accurate time for when the query completed,
-                                // depending on how long the thread waited to acquire the queue lock
-                                uint64_t query_complete_time = get_walltime();
-                                {
-                                    std::lock_guard id_map_lock(message_ids_mutex);
-                                    message_ids_by_version.emplace(last_put_version, pending_futures.front().first);
-                                }
-                                TimestampLogger::log(TLT_EC_PUT_FINISHED, my_node_id, pending_futures.front().first, query_complete_time);
                                 break;
                             }
                             pending_futures.pop();
@@ -290,12 +272,12 @@ bool PerfTestServer::eval_signature_put(uint64_t max_operation_per_second,
                 window_slots--;
             }
             next_ns += interval_ns;
-            // Since each loop iteration creates its own future_appender, capture the message_id by copy
             std::function<void(QueryResults<derecho::cascade::version_tuple> &&)> future_appender =
-                    [&futures, &futures_mutex, &futures_cv, message_id](
+                    [&futures, &futures_mutex, &futures_cv](
                             QueryResults<derecho::cascade::version_tuple>&& query_results) {
                         std::unique_lock<std::mutex> lock{futures_mutex};
-                        futures.emplace(message_id, std::move(query_results));
+                        uint64_t timestamp_ns = get_walltime();
+                        futures.emplace(timestamp_ns,std::move(query_results));
                         lock.unlock();
                         futures_cv.notify_one();
                     };

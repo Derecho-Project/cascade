@@ -142,13 +142,19 @@ private:
 
 public:
     void operator()(const Blob& message_body) {
-        // Peek at the data version, which is the first element in the message
+        // Peek at the data version, which is either the first or second element in the message,
+        // depending on if evaluation is enabled (the message ID comes first if evaluation is enabled)
+        std::size_t data_version_offset = 0;
+#ifdef ENABLE_EVALUATION
+        data_version_offset = sizeof(uint64_t);
+#endif
         persistent::version_t data_object_version;
-        std::memcpy(&data_object_version, message_body.bytes, sizeof(data_object_version));
+        std::memcpy(&data_object_version, message_body.bytes + data_version_offset, sizeof(data_object_version));
         // If there is a callback registered for this version, call it, then delete it
         auto find_callback = callbacks_by_version.find(data_object_version);
         if(find_callback != callbacks_by_version.end()) {
-            mutils::deserialize_and_run(nullptr, message_body.bytes, find_callback->second);
+            // Skip past the evaluation message ID if evaluation is enabled
+            mutils::deserialize_and_run(nullptr, message_body.bytes + data_version_offset, find_callback->second);
             callbacks_by_version.erase(find_callback);
         }
     }
@@ -699,7 +705,7 @@ ssize_t find_command(const std::vector<command_entry_t>& command_list, const std
 }
 
 bool shell_is_active = true;
-#define SUBGROUP_TYPE_LIST "VCSS|PCSS|SCSS|TCSS"
+#define SUBGROUP_TYPE_LIST                 "VCSS|PCSS|SCSS|TCSS"
 #define SHARD_MEMBER_SELECTION_POLICY_LIST "FirstMember|LastMember|Random|FixedRandom|RoundRobin|UserSpecified"
 
 std::vector<command_entry_t> commands = {

@@ -1,0 +1,26 @@
+[
+    {
+        "id": "200c8278-2e1c-11ec-a3d7-0242ac110002",
+        "desc": "CascadeChain pipeline DFG",
+        "graph": [
+            {
+                "pathname": "/storage",
+                "user_defined_logic_list": [
+                    "38a8ae35-37a8-4d6e-929e-64e7cba86de3"
+                ],
+                "user_defined_logic_config_list": [
+                    {}
+                ],
+                "destinations": [
+                    {"/signatures" : "put" }
+                ]
+            },
+            {
+                "pathname": "/signatures",
+                "user_defined_logic_list": [],
+                "user_defined_logic_config_list": [{}],
+                "destinations": [{}]
+            }
+        ]
+    }
+]

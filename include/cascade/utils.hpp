@@ -477,8 +477,10 @@ public:
 /*
  * For Persistent:
  *      TLT_PERSISTED
+ *      TLT_SIGNATURE_PERSISTED - a persistence event on a SignatureCascadeStore node, where signatures are enabled
  */
 #define TLT_PERSISTED                               (5001)
+#define TLT_SIGNATURE_PERSISTED                     (5101)
 
 /*
  * For UDLs:

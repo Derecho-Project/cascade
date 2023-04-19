@@ -30,12 +30,12 @@ public:
         sha_hasher.init();
         const std::size_t hash_size = sha_hasher.get_hash_size();
         uint8_t hash_bytes[hash_size];
-        //Assume this observer is installed on a PersistentCascadeStoreWithStringKey
+        // Assume this observer is installed on a PersistentCascadeStoreWithStringKey
         const ObjectWithStringKey* const value_object = dynamic_cast<const ObjectWithStringKey* const>(value_ptr);
         if(value_object) {
             assert(value_object->version == version);
             assert(value_object->key == key_string);
-            //Hash each field of the object in place instead of using to_bytes to copy it to a byte array
+            // Hash each field of the object in place instead of using to_bytes to copy it to a byte array
             sha_hasher.add_bytes(&value_object->version, sizeof(persistent::version_t));
             sha_hasher.add_bytes(&value_object->timestamp_us, sizeof(uint64_t));
             sha_hasher.add_bytes(&value_object->previous_version, sizeof(persistent::version_t));
@@ -43,7 +43,7 @@ public:
             sha_hasher.add_bytes(value_object->key.data(), value_object->key.size());
             sha_hasher.add_bytes(value_object->blob.bytes, value_object->blob.size);
         } else {
-            //This will work for any object, but it's slower
+            // This will work for any object, but it's slower
             const std::size_t value_size = mutils::bytes_size(*value_ptr);
             std::unique_ptr<uint8_t[]> value_bytes = std::make_unique<uint8_t[]>(value_size);
             mutils::to_bytes(*value_ptr, value_bytes.get());
@@ -51,17 +51,22 @@ public:
             sha_hasher.add_bytes(value_bytes.get(), value_size);
         }
         sha_hasher.finalize(hash_bytes);
-        //Assume prefix_length identifies the "object pool" prefix of key_string
+        // Assume prefix_length identifies the "object pool" prefix of key_string
         std::string key_without_object_pool = key_string.substr(prefix_length);
-        //Outputs should only have one entry (the object pool for signatures), but loop just in case
+        // Outputs should only have one entry (the object pool for signatures), but loop just in case
         for(const auto& dest_trigger_pair : outputs) {
-            //If the current object's key is /object_pool/key_name, create the "parallel" key /signature_pool/key_name
+            // If the current object's key is /object_pool/key_name, create the "parallel" key /signature_pool/key_name
             std::string destination_key = dest_trigger_pair.first + key_without_object_pool;
-            //Create an ObjectWithStringKey for the hash
+            // Create an ObjectWithStringKey for the hash
             std::unique_ptr<ObjectWithStringKey> hash_object(new ObjectWithStringKey(
                     destination_key, hash_bytes, hash_size));
-            //Use the "version" field of the hash object to inform SignatureCascadeStore of the corresponding data object version
+            // Use the "version" field of the hash object to inform SignatureCascadeStore of the corresponding data object version
             hash_object->set_version(version);
+#ifdef ENABLE_EVALUATION
+            if constexpr(std::is_base_of_v<IHasMessageID, ObjectWithStringKey>) {
+                hash_object->set_message_id(value_object->get_message_id());
+            }
+#endif
             DefaultCascadeContextType* typed_context = dynamic_cast<DefaultCascadeContextType*>(context);
             if(typed_context) {
                 if(dest_trigger_pair.second) {

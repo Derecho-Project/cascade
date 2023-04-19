@@ -1784,7 +1784,7 @@ namespace cascade {
          * @return the the subgroup type index
          */
         template <typename SubgroupType>
-        inline static uint32_t get_subgroup_type_index();
+        static uint32_t get_subgroup_type_index();
 
         /* singleton */
     private:

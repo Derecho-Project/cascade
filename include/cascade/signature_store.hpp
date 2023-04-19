@@ -120,9 +120,13 @@ private:
      * this function is called
      * @param data_object_version The version of the corresponding data object
      * in PersistentCascadeStore that generated the hash object
+     * @param evaluation_message_id The message ID associated with the put
+     * request that placed this hash object in the SignatureCascadeStore. This
+     * is only used when ENABLE_EVALUATION is defined and defaults to 0 otherwise.
      */
     void send_client_notification(node_id_t client_id, const KT& key, persistent::version_t hash_object_version,
-                                  persistent::version_t data_object_version) const;
+                                  persistent::version_t data_object_version,
+                                  uint64_t evaluation_message_id = 0) const;
 
     /**
      * Sends a message to the backup sites via WanAgent that includes a hash

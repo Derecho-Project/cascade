@@ -483,6 +483,7 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::ordered_put_and_forget(const VT&
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 version_tuple SignatureCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put(const VT& value) {
     static_assert(std::is_base_of_v<IKeepVersion, VT>, "SignatureCascadeStore can only be used with values that implement IKeepVersion");
+    debug_enter_func_with_args("key={}", value.get_key_ref());
     std::tuple<persistent::version_t, uint64_t> hash_object_version_and_timestamp
             = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index).get_current_version();
     // Assume the input object's version field is currently set to its corresponding data object's version
@@ -510,12 +511,19 @@ version_tuple SignatureCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put(co
     // Register a signature notification action for all subscribed clients
     // The key must be copied into the lambdas, since value.get_key_ref() won't work once this method ends
     KT copy_of_key = value.get_key_ref();
+    uint64_t message_id = 0;
+#ifdef ENABLE_EVALUATION
+    // Similarly, the message ID for timestamp logging must be copied in, if enabled
+    if constexpr(std::is_base_of_v<IHasMessageID, VT>) {
+        message_id = value.get_message_id();
+    }
+#endif
     for(const node_id_t client_id : subscribed_clients[value.get_key_ref()]) {
         dbg_default_debug("internal_ordered_put: Registering notify action for client {}, version 0x{:x}", client_id, std::get<0>(hash_object_version_and_timestamp));
         cascade_context_ptr->get_persistence_observer().register_persistence_action(
                 my_subgroup_id, std::get<0>(hash_object_version_and_timestamp), true,
                 [=]() {
-                    send_client_notification(client_id, copy_of_key, std::get<0>(hash_object_version_and_timestamp), data_object_version);
+                    send_client_notification(client_id, copy_of_key, std::get<0>(hash_object_version_and_timestamp), data_object_version, message_id);
                 });
     }
     for(const node_id_t client_id : subscribed_clients[*IK]) {
@@ -523,9 +531,20 @@ version_tuple SignatureCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put(co
         cascade_context_ptr->get_persistence_observer().register_persistence_action(
                 my_subgroup_id, std::get<0>(hash_object_version_and_timestamp), true,
                 [=]() {
-                    send_client_notification(client_id, copy_of_key, std::get<0>(hash_object_version_and_timestamp), data_object_version);
+                    send_client_notification(client_id, copy_of_key, std::get<0>(hash_object_version_and_timestamp), data_object_version, message_id);
                 });
     }
+#ifdef ENABLE_EVALUATION
+    // For evaluation, register an additional action to record a timestamp log entry when the signature is finished
+    if constexpr(std::is_base_of_v<IHasMessageID, VT>) {
+        node_id_t my_id = this->group->get_my_id();
+        cascade_context_ptr->get_persistence_observer().register_persistence_action(
+                my_subgroup_id, std::get<0>(hash_object_version_and_timestamp), true,
+                [=]() {
+                    TimestampLogger::log(TLT_SIGNATURE_PERSISTED, my_id, message_id, get_walltime(), std::get<0>(hash_object_version_and_timestamp));
+                });
+    }
+#endif
     // Register an action to send the signed object to the WanAgent once the signature is finished
     if(backup_enabled && is_primary_site) {
         cascade_context_ptr->get_persistence_observer().register_persistence_action(
@@ -1055,7 +1074,7 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::send_to_wan_agent(persistent::ve
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void SignatureCascadeStore<KT, VT, IK, IV, ST>::send_client_notification(
         node_id_t external_client_id, const KT& key, persistent::version_t hash_object_version,
-        persistent::version_t data_object_version) const {
+        persistent::version_t data_object_version, uint64_t evaluation_message_id) const {
     debug_enter_func_with_args("key={}, hash_object_version={}, data_object_version={}", key, hash_object_version, data_object_version);
     // Retrieve the signature, which must exist by now since persistence is finished, as well as the previous signature it encapsulates
     persistent::version_t previous_signed_version = persistent::INVALID_VERSION;
@@ -1076,13 +1095,21 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::send_client_notification(
 
     derecho::ExternalClientCallback<SignatureCascadeStore>& client_caller
             = group->template get_client_callback<SignatureCascadeStore>(this->subgroup_index);
-    std::size_t message_size = mutils::bytes_size(data_object_version) + mutils::bytes_size(hash_object_version)
-                               + mutils::bytes_size(signature) + mutils::bytes_size(previous_signed_version)
+    std::size_t message_size = mutils::bytes_size(data_object_version)
+#ifdef ENABLE_EVALUATION
+                               + mutils::bytes_size(evaluation_message_id)
+#endif
+                               + mutils::bytes_size(hash_object_version)
+                               + mutils::bytes_size(signature)
+                               + mutils::bytes_size(previous_signed_version)
                                + mutils::bytes_size(previous_signature);
-    // Message format: data version, hash version, signature data, previous signed version, previous signature
+    // Message format: [message id], data version, hash version, signature data, previous signed version, previous signature
     // Problem: Blob's data buffer can't be modified, so I have to copy the bytes into a temporary buffer, then copy them again into Blob
     uint8_t* temp_buffer_for_blob = new uint8_t[message_size];
     std::size_t body_offset = 0;
+#ifdef ENABLE_EVALUATION
+    body_offset += mutils::to_bytes(evaluation_message_id, temp_buffer_for_blob + body_offset);
+#endif
     body_offset += mutils::to_bytes(data_object_version, temp_buffer_for_blob + body_offset);
     body_offset += mutils::to_bytes(hash_object_version, temp_buffer_for_blob + body_offset);
     body_offset += mutils::to_bytes(signature, temp_buffer_for_blob + body_offset);
