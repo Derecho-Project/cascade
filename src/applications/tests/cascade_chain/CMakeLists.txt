@@ -84,3 +84,73 @@ add_custom_command(TARGET chain_only_client POST_BUILD
             ${CMAKE_CURRENT_SOURCE_DIR}/chain_pipeline_cfg/backup_dfgs.json
     COMMENT "prepare cascade_chain configuration"
 )
+
+add_custom_command(TARGET chain_only_client POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/primary_test_cfg
+            ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/run.sh
+            ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/n0/run.sh
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/run.sh
+            ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/n1/run.sh
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/run.sh
+            ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/n2/run.sh
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/run.sh
+            ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/n3/run.sh
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/run.sh
+            ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/n4/run.sh
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/run.sh
+            ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/n5/run.sh
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/run.sh
+            ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/n6/run.sh
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/run.sh
+            ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/n7/run.sh
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/dfgs.json
+            ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/n0/dfgs.json
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/dfgs.json
+            ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/n1/dfgs.json
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/dfgs.json
+            ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/n2/dfgs.json
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/dfgs.json
+            ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/n3/dfgs.json
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/dfgs.json
+            ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/n4/dfgs.json
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/dfgs.json
+            ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/n5/dfgs.json
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/dfgs.json
+            ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/n6/dfgs.json
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/udl_dlls.cfg
+            ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/n0/udl_dlls.cfg
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/udl_dlls.cfg
+            ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/n1/udl_dlls.cfg
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/udl_dlls.cfg
+            ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/n2/udl_dlls.cfg
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/udl_dlls.cfg
+            ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/n3/udl_dlls.cfg
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/udl_dlls.cfg
+            ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/n4/udl_dlls.cfg
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/udl_dlls.cfg
+            ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/n5/udl_dlls.cfg
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/udl_dlls.cfg
+            ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/n6/udl_dlls.cfg
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/layout.json
+            ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/n0/layout.json
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/layout.json
+            ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/n1/layout.json
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/layout.json
+            ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/n2/layout.json
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/layout.json
+            ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/n3/layout.json
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/layout.json
+            ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/n4/layout.json
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/layout.json
+            ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/n5/layout.json
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/layout.json
+            ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/n6/layout.json
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/layout.json
+            ${CMAKE_CURRENT_BINARY_DIR}/primary_test_cfg/n7/layout.json
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/primary_test_cfg/run.sh
+            ${CMAKE_CURRENT_SOURCE_DIR}/primary_test_cfg/dfgs.json
+            ${CMAKE_CURRENT_SOURCE_DIR}/primary_test_cfg/udl_dlls.cfg
+            ${CMAKE_CURRENT_SOURCE_DIR}/primary_test_cfg/layout.json
+    COMMENT "prepare chain primary_test configuration"
+)
