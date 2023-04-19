@@ -1631,7 +1631,7 @@ std::vector<command_entry_t> commands =
     {
         "perftest_object_pool",
         "Performance Tester for put to an object pool.",
-        "perftest_object_pool <type> <object pool pathname> <member selection policy> <r/w ratio> <max rate> <duration in sec> <client1> [<client2>, ...] \n"
+        "perftest_object_pool <type> <put type> <object pool pathname> <member selection policy> <r/w ratio> <max rate> <duration in sec> <client1> [<client2>, ...] \n"
             "type := " SUBGROUP_TYPE_LIST "\n"
             "put_type := put|put_and_forget|trigger_put|signature \n"
             "'member selection policy' refers how the external clients pick a member in a shard;\n"
