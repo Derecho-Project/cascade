@@ -247,7 +247,10 @@ bool PerfTestServer::eval_signature_put(uint64_t max_operation_per_second,
 
     // Subscribe to notifications for all the test objects' keys
     for(const auto& test_object : objects) {
-        capi.subscribe_signature_notifications(test_object.get_key_ref());
+        std::string data_object_path = test_object.get_key_ref();
+        std::string key_suffix = data_object_path.substr(data_object_path.rfind('/'));
+        std::string signature_path = signatures_pool_pathname + key_suffix;
+        capi.subscribe_signature_notifications(signature_path);
     }
 
     // Timing control variables
@@ -715,10 +718,15 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
             usleep(sleep_us);
         }
         // STEP 3 - start experiment and log
-        if(this->eval_signature_put(max_operation_per_second, duration_secs, object_pool.subgroup_type_index)) {
-            TimestampLogger::flush(output_filename);
-            return true;
-        } else {
+        try {
+            if(this->eval_signature_put(max_operation_per_second, duration_secs, object_pool.subgroup_type_index)) {
+                TimestampLogger::flush(output_filename);
+                return true;
+            } else {
+                return false;
+            }
+        } catch(const std::exception& e) {
+            std::cerr << "eval_signature_put failed with exception: " << typeid(e).name() << ": " << e.what() << std::endl;
             return false;
         }
     });
