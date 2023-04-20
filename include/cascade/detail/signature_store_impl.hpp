@@ -1123,7 +1123,11 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::send_client_notification(
     NotificationMessage derecho_message(CascadeNotificationMessageType::SignatureNotification,
                                         mutils::bytes_size(cascade_message));
     mutils::to_bytes(cascade_message, derecho_message.body);
-    client_caller.template p2p_send<derecho::rpc::hash_cstr("notify")>(external_client_id, derecho_message);
+    try {
+        client_caller.template p2p_send<derecho::rpc::hash_cstr("notify")>(external_client_id, derecho_message);
+    } catch (const derecho::node_removed_from_group_exception& e) {
+        dbg_default_debug("Notification not sent, client has disconnected");
+    }
     debug_leave_func();
 }
 
