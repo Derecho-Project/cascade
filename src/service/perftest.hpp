@@ -18,6 +18,13 @@ namespace cascade {
 #define INVALID_SHARD_INDEX         (std::numeric_limits<uint32_t>::max())
 
 class PerfTestServer {
+public:
+    /**
+     * The object pool pathname that eval_signature_put will assume has been set up
+     * as the signature pool. For now this is a hard-coded constant, but maybe it
+     * should be configurable, like the object pool that is the target of the put().
+     */
+    static const std::string SIGNATURES_POOL_PATHNAME;
 private:
     ServiceClientAPI&   capi;
     ::rpc::server       server;
@@ -287,6 +294,10 @@ bool PerfTestClient::perf_put(PutType               put_type,
 
     // 3 - flush server timestamps
     capi.template dump_timestamp(output_filename,object_pool_pathname);
+    if(put_type == PutType::SIGNATURE_PUT) {
+        // The signature-put test also needs to flush timestamps from the (separate) signatures pool
+        capi.template dump_timestamp(output_filename, PerfTestServer::SIGNATURES_POOL_PATHNAME);
+    }
 
     debug_leave_func();
     return ret;

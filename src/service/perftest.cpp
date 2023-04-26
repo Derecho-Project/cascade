@@ -46,6 +46,8 @@ namespace cascade {
         throw derecho::derecho_exception(std::string("Unknown type_index:") + tindex.name()); \
     }
 
+const std::string PerfTestServer::SIGNATURES_POOL_PATHNAME = "/signatures";
+
 bool PerfTestServer::eval_put(uint64_t max_operation_per_second,
                               uint64_t duration_secs,
                               uint32_t subgroup_type_index,
@@ -176,9 +178,6 @@ bool PerfTestServer::eval_signature_put(uint64_t max_operation_per_second,
     // Node ID, used for logger calls
     const node_id_t my_node_id = this->capi.get_my_id();
 
-    // For now, this will be a hard-coded constant, but maybe it should be configurable
-    const std::string signatures_pool_pathname("/signatures");
-
     // Notification-callback function that monitors notifications from the signature subgroup
     capi.register_signature_notification_handler(
             [&](const Blob& message) {
@@ -198,7 +197,7 @@ bool PerfTestServer::eval_signature_put(uint64_t max_operation_per_second,
                     all_signed = true;
                 }
             },
-            signatures_pool_pathname);
+            SIGNATURES_POOL_PATHNAME);
 
     // Thread that consumes put-result futures from the futures queue and waits for them
     std::thread future_consumer_thread(
@@ -249,7 +248,7 @@ bool PerfTestServer::eval_signature_put(uint64_t max_operation_per_second,
     for(const auto& test_object : objects) {
         std::string data_object_path = test_object.get_key_ref();
         std::string key_suffix = data_object_path.substr(data_object_path.rfind('/'));
-        std::string signature_path = signatures_pool_pathname + key_suffix;
+        std::string signature_path = SIGNATURES_POOL_PATHNAME + key_suffix;
         capi.subscribe_signature_notifications(signature_path);
     }
 
