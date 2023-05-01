@@ -171,9 +171,11 @@ bool PerfTestServer::eval_signature_put(uint64_t max_operation_per_second,
     std::atomic<bool> all_sent = false;
     std::atomic<bool> all_puts_complete = false;
     std::atomic<bool> all_signed = false;
-    persistent::version_t last_put_version;
-    std::map<persistent::version_t, uint64_t> signature_finished_times;
-    std::mutex signature_times_mutex;
+    std::atomic<persistent::version_t> last_put_version;
+    std::atomic<persistent::version_t> last_signed_version;
+    std::mutex signatures_mutex;
+    // Instead of busy-waiting on all_signed, the main thread will block on this CV
+    std::condition_variable all_signed_cv;
 
     // Node ID, used for logger calls
     const node_id_t my_node_id = this->capi.get_my_id();
@@ -187,14 +189,18 @@ bool PerfTestServer::eval_signature_put(uint64_t max_operation_per_second,
                 persistent::version_t data_object_version;
                 std::memcpy(&message_id, message.bytes, sizeof(message_id));
                 std::memcpy(&data_object_version, message.bytes + sizeof(message_id), sizeof(data_object_version));
-                TimestampLogger::log(TLT_EC_SIGNATURE_NOTIFY, my_node_id, message_id, get_walltime());
-                // Record the time in signature_finished_times
-                {
-                    std::lock_guard time_map_lock(signature_times_mutex);
-                    signature_finished_times.emplace(data_object_version, now_timestamp);
+                TimestampLogger::log(TLT_EC_SIGNATURE_NOTIFY, my_node_id, message_id, now_timestamp);
+                dbg_default_debug("Signature notification for message {}, data version {}", message_id, data_object_version);
+                // Keep track of the highest version number received so the futures thread can also check for the last version being signed
+                if(data_object_version > last_signed_version) {
+                    last_signed_version = data_object_version;
                 }
+                // Normally, the futures thread will finish first, and once all_puts_complete is true
+                // this will notify the main thread when the last version has been signed
                 if(all_puts_complete && data_object_version == last_put_version) {
+                    std::lock_guard signatures_lock(signatures_mutex);
                     all_signed = true;
+                    all_signed_cv.notify_all();
                 }
             },
             SIGNATURES_POOL_PATHNAME);
@@ -237,10 +243,12 @@ bool PerfTestServer::eval_signature_put(uint64_t max_operation_per_second,
                 }
                 // Signal the notification handler that the last put() has completed
                 all_puts_complete = true;
-                // Check to see if the last signature notification has already been received
-                std::lock_guard signatures_lock(signature_times_mutex);
-                if(signature_finished_times.find(last_put_version) != signature_finished_times.end()) {
+                dbg_default_debug("All puts complete, last version is {}", last_put_version);
+                // Check to see if the last signature notification has already been received (should be rare)
+                std::lock_guard signatures_lock(signatures_mutex);
+                if(last_signed_version == last_put_version) {
                     all_signed = true;
+                    all_signed_cv.notify_all();
                 }
             });
 
@@ -305,8 +313,8 @@ bool PerfTestServer::eval_signature_put(uint64_t max_operation_per_second,
     // Wait for all the puts to complete
     future_consumer_thread.join();
     // Wait for the last signature notification to arrive
-    while(!all_signed)
-        ;
+    std::unique_lock signature_lock(signatures_mutex);
+    all_signed_cv.wait(signature_lock, [&]() { return all_signed.load(); });
     return true;
 }
 
