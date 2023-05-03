@@ -298,11 +298,6 @@ bool PerfTestClient::perf_put(PutType               put_type,
         // The signature-put test also needs to flush timestamps from the (separate) signatures pool
         capi.template dump_timestamp(output_filename, PerfTestServer::SIGNATURES_POOL_PATHNAME);
     }
-    // Temporary workaround: call put() again to unwedge the persistence thread after dump_timestamp wedges it
-    std::unique_ptr<uint8_t[]> dummy_payload = std::make_unique<uint8_t[]>(32);
-    memset(dummy_payload.get(), 'A', 32);
-    ObjectWithStringKey dummy_object(object_pool_pathname + "/dummy", dummy_payload.get(), 32);
-    capi.put(dummy_object);
     debug_leave_func();
     return ret;
 }
