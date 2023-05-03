@@ -312,6 +312,7 @@ bool PerfTestServer::eval_signature_put(uint64_t max_operation_per_second,
     }
     // Wait for all the puts to complete
     future_consumer_thread.join();
+    dbg_default_info("eval_signature_put: All messages sent, waiting for signatures");
     // Wait for the last signature notification to arrive
     std::unique_lock signature_lock(signatures_mutex);
     all_signed_cv.wait(signature_lock, [&]() { return all_signed.load(); });

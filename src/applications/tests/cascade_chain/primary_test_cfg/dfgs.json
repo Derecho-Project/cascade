@@ -8,6 +8,9 @@
                 "user_defined_logic_list": [
                     "38a8ae35-37a8-4d6e-929e-64e7cba86de3"
                 ],
+                "user_definde_logic_stateful_list": [
+                    "stateless"
+                ],
                 "user_defined_logic_config_list": [
                     {}
                 ],

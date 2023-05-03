@@ -292,6 +292,7 @@ bool PerfTestClient::perf_put(PutType               put_type,
 
     ret = check_rpc_futures(std::move(futures));
 
+    dbg_default_info("perf_put complete, flushing server timestamps");
     // 3 - flush server timestamps
     capi.template dump_timestamp(output_filename,object_pool_pathname);
     if(put_type == PutType::SIGNATURE_PUT) {
