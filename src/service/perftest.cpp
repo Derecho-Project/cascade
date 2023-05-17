@@ -159,6 +159,8 @@ bool PerfTestServer::eval_signature_put(uint64_t max_operation_per_second,
                                         uint32_t subgroup_type_index,
                                         uint32_t subgroup_index,
                                         uint32_t shard_index) {
+    debug_enter_func_with_args("max_ops={},duration={},subgroup_type_index={},subgroup_index={},shard_index={}",
+                               max_operation_per_second, duration_secs, subgroup_type_index, subgroup_index, shard_index);
     // Synchronization data structures
     uint32_t window_size = derecho::getConfUInt32(CONF_DERECHO_P2P_WINDOW_SIZE);
     uint32_t window_slots = window_size * 2;
@@ -259,6 +261,7 @@ bool PerfTestServer::eval_signature_put(uint64_t max_operation_per_second,
         std::string signature_path = SIGNATURES_POOL_PATHNAME + key_suffix;
         capi.subscribe_signature_notifications(signature_path);
     }
+    dbg_default_info("eval_signature_put: Subscribed to notifications, ready to start experiment");
 
     // Timing control variables
     uint64_t interval_ns = (max_operation_per_second == 0) ? 0 : static_cast<uint64_t>(1e9 / max_operation_per_second);
@@ -568,6 +571,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         int64_t             start_sec,
         uint64_t            duration_secs,
         const std::string&  output_filename) {
+        dbg_default_debug("Entering perf_put_to_objectpool");
 
         auto object_pool = this->capi.find_object_pool(object_pool_pathname);
 
@@ -617,6 +621,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         int64_t             start_sec,
         uint64_t            duration_secs,
         const std::string&  output_filename) {
+        dbg_default_debug("Entering perf_put_and_forget_to_objectpool");
 
         auto object_pool = this->capi.find_object_pool(object_pool_pathname);
 
@@ -704,6 +709,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
                                                            int64_t start_sec,
                                                            uint64_t duration_secs,
                                                            const std::string& output_filename) {
+        dbg_default_debug("Entering perf_signature_put_to_objectpool");
         auto object_pool = this->capi.find_object_pool(object_pool_pathname);
 
         uint32_t number_of_shards;
