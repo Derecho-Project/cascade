@@ -11,11 +11,22 @@ namespace derecho {
 namespace cascade {
 
 #define PERFTEST_PORT               (18720)
-#define NUMBER_OF_DISTINCT_OBJECTS  (4096)
 #define INVALID_SUBGROUP_INDEX      (std::numeric_limits<uint32_t>::max())
 #define INVALID_SHARD_INDEX         (std::numeric_limits<uint32_t>::max())
 
 class PerfTestServer {
+public:
+    /**
+     * The maximum number of distinct test objects to create for test workloads.
+     * Fewer will be created if the total size of the objects would be greater than
+     * max_workload_memory.
+     */
+    static const uint32_t max_num_distinct_objects = 4096;
+    /**
+     * The maximum number of bytes that should be used to create workload objects.
+     * This prevents the client from running out of RAM creating large objects.
+     */
+    static constexpr uint64_t max_workload_memory = 16 * 1073741824L;
 private:
     ServiceClientAPI&   capi;
     ::rpc::server       server;
