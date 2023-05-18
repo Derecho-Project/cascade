@@ -100,6 +100,7 @@ bool PerfTestServer::eval_put(uint64_t max_operation_per_second,
         uint64_t next_ns = get_walltime();
         uint64_t end_ns = next_ns + duration_secs*1000000000ull;
         uint64_t message_id = this->capi.get_my_id()*1000000000ull;
+        const uint32_t num_distinct_objects = objects.size();
         while(true) {
             uint64_t now_ns = get_walltime();
             if (now_ns > end_ns) {
@@ -127,19 +128,19 @@ bool PerfTestServer::eval_put(uint64_t max_operation_per_second,
             // set message id.
             // constexpr does not work in non-template functions.
             if (std::is_base_of<IHasMessageID,std::decay_t<decltype(objects[0])>>::value) {
-                dynamic_cast<IHasMessageID*>(&objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS))->set_message_id(message_id);
+                dynamic_cast<IHasMessageID*>(&objects.at(now_ns%num_distinct_objects))->set_message_id(message_id);
             } else {
                 throw derecho_exception{"Evaluation requests an object to support IHasMessageID interface."};
             }
             TimestampLogger::log(TLT_READY_TO_SEND,this->capi.get_my_id(),message_id,get_walltime());
             if (subgroup_index == INVALID_SUBGROUP_INDEX ||
                 shard_index == INVALID_SHARD_INDEX) {
-                future_appender(this->capi.put(objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS)));
+                future_appender(this->capi.put(objects.at(now_ns%num_distinct_objects)));
             } else {
                 on_subgroup_type_index_with_return(
                     std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
                     future_appender,
-                    this->capi.template put, objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS), subgroup_index, shard_index);
+                    this->capi.template put, objects.at(now_ns%num_distinct_objects), subgroup_index, shard_index);
             }
             TimestampLogger::log(TLT_EC_SENT,this->capi.get_my_id(),message_id,get_walltime());
             message_id ++;
@@ -158,6 +159,7 @@ bool PerfTestServer::eval_put_and_forget(uint64_t max_operation_per_second,
     uint64_t next_ns = get_walltime();
     uint64_t end_ns = next_ns + duration_secs*1000000000ull;
     uint64_t message_id = this->capi.get_my_id()*1000000000ull;
+    const uint32_t num_distinct_objects = objects.size();
     // control read_write_ratio
     while(true) {
         uint64_t now_ns = get_walltime();
@@ -172,7 +174,7 @@ bool PerfTestServer::eval_put_and_forget(uint64_t max_operation_per_second,
         // set message id.
         // constexpr does not work in non-template function, obviously
         if (std::is_base_of<IHasMessageID, std::decay_t<decltype(objects[0])>>::value) {
-            dynamic_cast<IHasMessageID*>(&objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS))->set_message_id(message_id);
+            dynamic_cast<IHasMessageID*>(&objects.at(now_ns%num_distinct_objects))->set_message_id(message_id);
         } else {
             throw derecho_exception{"Evaluation requests an object to support IHasMessageID interface."};
         }
@@ -180,10 +182,10 @@ bool PerfTestServer::eval_put_and_forget(uint64_t max_operation_per_second,
         TimestampLogger::log(TLT_READY_TO_SEND,this->capi.get_my_id(),message_id,get_walltime());
         // send it
         if (subgroup_index == INVALID_SUBGROUP_INDEX || shard_index == INVALID_SHARD_INDEX) {
-            this->capi.put_and_forget(objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS));
+            this->capi.put_and_forget(objects.at(now_ns%num_distinct_objects));
         } else {
             on_subgroup_type_index(std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
-                    this->capi.template put_and_forget, objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS), subgroup_index, shard_index);
+                    this->capi.template put_and_forget, objects.at(now_ns%num_distinct_objects), subgroup_index, shard_index);
         }
         // log time.
         TimestampLogger::log(TLT_EC_SENT,this->capi.get_my_id(),message_id,get_walltime());
@@ -201,6 +203,7 @@ bool PerfTestServer::eval_trigger_put(uint64_t max_operation_per_second,
     uint64_t next_ns = get_walltime();
     uint64_t end_ns = next_ns + duration_secs*1000000000ull;
     uint64_t message_id = this->capi.get_my_id()*1000000000ull;
+    const uint32_t num_distinct_objects = objects.size();
     // control read_write_ratio
     while(true) {
         uint64_t now_ns = get_walltime();
@@ -215,17 +218,17 @@ bool PerfTestServer::eval_trigger_put(uint64_t max_operation_per_second,
         // set message id.
         // constexpr does not work here.
         if (std::is_base_of<IHasMessageID,std::decay_t<decltype(objects[0])>>::value) {
-            dynamic_cast<IHasMessageID*>(&objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS))->set_message_id(message_id);
+            dynamic_cast<IHasMessageID*>(&objects.at(now_ns%num_distinct_objects))->set_message_id(message_id);
         } else {
             throw derecho_exception{"Evaluation requests an object to support IHasMessageID interface."};
         }
         // log time.
         TimestampLogger::log(TLT_READY_TO_SEND,this->capi.get_my_id(),message_id,get_walltime());
         if (subgroup_index == INVALID_SUBGROUP_INDEX || shard_index == INVALID_SHARD_INDEX) {
-            this->capi.trigger_put(objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS));
+            this->capi.trigger_put(objects.at(now_ns%num_distinct_objects));
         } else {
             on_subgroup_type_index(std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
-                    this->capi.template trigger_put, objects.at(now_ns%NUMBER_OF_DISTINCT_OBJECTS), subgroup_index, shard_index);
+                    this->capi.template trigger_put, objects.at(now_ns%num_distinct_objects), subgroup_index, shard_index);
         }
         TimestampLogger::log(TLT_EC_SENT,this->capi.get_my_id(),message_id,get_walltime());
         message_id ++;
@@ -442,7 +445,9 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
             user_specified_node_id);
         // STEP 2 - prepare workload
         objects.clear();
-        make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
+        uint32_t object_size = derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
+        uint32_t num_distinct_objects = std::min(static_cast<uint64_t>(max_num_distinct_objects), max_workload_memory / object_size);
+        make_workload<std::string, ObjectWithStringKey>(object_size, num_distinct_objects, "raw_key_", objects);
         // STEP 3 - start experiment and log
         int64_t sleep_us = (start_sec*1e9 - static_cast<int64_t>(get_walltime()))/1e3;
         if (sleep_us > 1) {
@@ -488,7 +493,9 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
             user_specified_node_id);
         // STEP 2 - prepare workload
         objects.clear();
-        make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
+        uint32_t object_size = derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
+        uint32_t num_distinct_objects = std::min(static_cast<uint64_t>(max_num_distinct_objects), max_workload_memory / object_size);
+        make_workload<std::string, ObjectWithStringKey>(object_size, num_distinct_objects, "raw_key_", objects);
         // STEP 3 - start experiment and log
         int64_t sleep_us = (start_sec*1e9 - static_cast<int64_t>(get_walltime()))/1e3;
         if (sleep_us > 1) {
@@ -534,8 +541,10 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
             user_specified_node_id);
         // STEP 2 - prepare workload
         objects.clear();
-        make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
-        int64_t sleep_us = (start_sec*1e9 - static_cast<int64_t>(get_walltime()))/1e3;
+        uint32_t object_size = derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
+        uint32_t num_distinct_objects = std::min(static_cast<uint64_t>(max_num_distinct_objects), max_workload_memory / object_size);
+        make_workload<std::string, ObjectWithStringKey>(object_size, num_distinct_objects, "raw_key_", objects);
+        int64_t sleep_us = (start_sec * 1e9 - static_cast<int64_t>(get_walltime())) / 1e3;
         if (sleep_us > 1) {
             usleep(sleep_us);
         }
@@ -582,7 +591,9 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
                                user_specified_node_id);
         // Create workload objects
         objects.clear();
-        make_workload<std::string, ObjectWithStringKey>(derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE), "raw_key_", objects);
+        uint32_t object_size = derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
+        uint32_t num_distinct_objects = std::min(static_cast<uint64_t>(max_num_distinct_objects), max_workload_memory / object_size);
+        make_workload<std::string, ObjectWithStringKey>(object_size, num_distinct_objects, "raw_key_", objects);
         // Wait for start time
         int64_t sleep_us = (start_sec * 1e9 - static_cast<int64_t>(get_walltime())) / 1e3;
         if(sleep_us > 1) {
@@ -638,7 +649,9 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         }
         // STEP 2 - prepare workload
         objects.clear();
-        make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),object_pool_pathname+"/key_",objects);
+        uint32_t object_size = derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
+        uint32_t num_distinct_objects = std::min(static_cast<uint64_t>(max_num_distinct_objects), max_workload_memory / object_size);
+        make_workload<std::string, ObjectWithStringKey>(object_size, num_distinct_objects, object_pool_pathname + "/key_", objects);
         int64_t sleep_us = (start_sec*1e9 - static_cast<int64_t>(get_walltime()))/1e3;
         if (sleep_us > 1) {
             usleep(sleep_us);
@@ -687,7 +700,9 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         }
         // STEP 2 - prepare workload
         objects.clear();
-        make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
+        uint32_t object_size = derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
+        uint32_t num_distinct_objects = std::min(static_cast<uint64_t>(max_num_distinct_objects), max_workload_memory / object_size);
+        make_workload<std::string, ObjectWithStringKey>(object_size, num_distinct_objects, "raw_key_", objects);
         int64_t sleep_us = (start_sec*1e9 - static_cast<int64_t>(get_walltime()))/1e3;
         if (sleep_us > 1) {
             usleep(sleep_us);
@@ -736,7 +751,9 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         }
         // STEP 2 - prepare workload
         objects.clear();
-        make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
+        uint32_t object_size = derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
+        uint32_t num_distinct_objects = std::min(static_cast<uint64_t>(max_num_distinct_objects), max_workload_memory / object_size);
+        make_workload<std::string, ObjectWithStringKey>(object_size, num_distinct_objects, "raw_key_", objects);
         int64_t sleep_us = (start_sec*1e9 - static_cast<int64_t>(get_walltime()))/1e3;
         if (sleep_us > 1) {
             usleep(sleep_us);
@@ -785,7 +802,12 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         }
         // Create workload objects
         objects.clear();
-        make_workload<std::string, ObjectWithStringKey>(derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE), object_pool_pathname + "/key_", objects);
+        // Ensure the workload objects will fit in memory (for now, 16GB)
+        uint32_t object_size = derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
+        // Result of min will never be larger than max_num_distinct_objects, so assigning it to uint32_t is safe
+        uint32_t num_distinct_objects = std::min(static_cast<uint64_t>(max_num_distinct_objects), max_workload_memory / object_size);
+        make_workload<std::string, ObjectWithStringKey>(object_size, num_distinct_objects,
+                                                        object_pool_pathname + "/key_", objects);
         // Wait for start time
         int64_t sleep_us = (start_sec * 1e9 - static_cast<int64_t>(get_walltime())) / 1e3;
         if(sleep_us > 1) {

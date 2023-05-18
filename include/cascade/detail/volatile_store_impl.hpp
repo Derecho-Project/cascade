@@ -53,11 +53,12 @@ template <typename CascadeType>
 double internal_perf_put(derecho::Replicated<CascadeType>& subgroup_handle, const uint64_t max_payload_size, const uint64_t duration_sec) {
     uint64_t num_messages_sent = 0;
     // make workload
+    const uint32_t num_distinct_objects = 4096;
     std::vector<typename CascadeType::ObjectType> objects;
     if constexpr(std::is_convertible_v<typename CascadeType::KeyType, std::string>) {
-        make_workload<typename CascadeType::KeyType, typename CascadeType::ObjectType>(max_payload_size, "raw_key_", objects);
+        make_workload<typename CascadeType::KeyType, typename CascadeType::ObjectType>(max_payload_size, num_distinct_objects, "raw_key_", objects);
     } else if constexpr(std::is_integral_v<typename CascadeType::KeyType>) {
-        make_workload<typename CascadeType::KeyType, typename CascadeType::ObjectType>(max_payload_size, 10000, objects);
+        make_workload<typename CascadeType::KeyType, typename CascadeType::ObjectType>(max_payload_size, num_distinct_objects, 10000, objects);
     } else {
         dbg_default_error("{} see unknown Key Type:{}", __PRETTY_FUNCTION__, typeid(typename CascadeType::KeyType).name());
         return 0;
@@ -66,12 +67,12 @@ double internal_perf_put(derecho::Replicated<CascadeType>& subgroup_handle, cons
     uint64_t start_ns = now_ns;
     uint64_t end_ns = now_ns + duration_sec * 1000000000;
     while(end_ns > now_ns) {
-        subgroup_handle.template ordered_send<RPC_NAME(ordered_put_and_forget)>(objects.at(now_ns % NUMBER_OF_DISTINCT_OBJECTS));
+        subgroup_handle.template ordered_send<RPC_NAME(ordered_put_and_forget)>(objects.at(now_ns % num_distinct_objects));
         now_ns = get_walltime();
         num_messages_sent++;
     }
     // send a normal put
-    auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put)>(objects.at(now_ns % NUMBER_OF_DISTINCT_OBJECTS));
+    auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put)>(objects.at(now_ns % num_distinct_objects));
     auto& replies = results.get();
     std::tuple<persistent::version_t, uint64_t> ret(CURRENT_VERSION, 0);
     // TODO: verfiy consistency ?
