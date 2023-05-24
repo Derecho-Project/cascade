@@ -34,7 +34,11 @@ version_tuple SignatureCascadeStore<KT, VT, IK, IV, ST>::put(const VT& value) co
         ret = reply_pair.second.get();
     }
 
-    LOG_TIMESTAMP_BY_TAG(TLT_SIGNATURE_PUT_END, group, value);
+#if __cplusplus > 201703L
+    LOG_TIMESTAMP_BY_TAG(TLT_SIGNATURE_PUT_END, group, value, std::get<0>(ret));
+#else
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_SIGNATURE_PUT_END, group, value, std::get<0>(ret));
+#endif
     debug_leave_func_with_value("version=0x{:x},timestamp={},previous_version=0x{:x},previous_version_by_key=0x{:x}",
                                 std::get<0>(ret), std::get<1>(ret), std::get<2>(ret), std::get<3>(ret));
     return ret;
