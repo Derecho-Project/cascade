@@ -1129,8 +1129,10 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::send_client_notification(
     mutils::to_bytes(cascade_message, derecho_message.body);
     try {
         client_caller.template p2p_send<derecho::rpc::hash_cstr("notify")>(external_client_id, derecho_message);
-    } catch (const derecho::node_removed_from_group_exception& e) {
-        dbg_default_debug("Notification not sent, client has disconnected");
+    } catch(const derecho::node_removed_from_group_exception& e) {
+        dbg_default_debug("Notification not sent, client has disconnected. Unsubscribing client {} from key '{}'", external_client_id, key);
+        // Warning: This creates a race condition with subscribe_to_notifications, but subscribe_to_notifications should be called rarely
+        subscribed_clients[key].remove(external_client_id);
     }
     debug_leave_func();
 }
@@ -1173,6 +1175,13 @@ template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void SignatureCascadeStore<KT, VT, IK, IV, ST>::subscribe_to_notifications(node_id_t external_client_id, const KT& key) const {
     debug_enter_func_with_args("external_client_id={}, key={}", external_client_id, key);
     subscribed_clients[key].emplace_back(external_client_id);
+    debug_leave_func();
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+void SignatureCascadeStore<KT, VT, IK, IV, ST>::unsubscribe_from_notifications(node_id_t external_client_id, const KT& key) const {
+    debug_enter_func_with_args("external_client_id={}, key={}", external_client_id, key);
+    subscribed_clients[key].remove(external_client_id);
     debug_leave_func();
 }
 

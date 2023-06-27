@@ -1920,11 +1920,37 @@ ServiceClient<CascadeTypes...>::subscribe_signature_notifications(const typename
             return subgroup_handle.template p2p_send<RPC_NAME(subscribe_to_notifications)>(target_node_id, group_ptr->get_my_id(), key);
         }
     } else {
-        // Normal use case: an external client requests a notification for when a version it submitted has been signed
+        // Normal use case: an external client subscribes to notifications for a key it submitted
         std::lock_guard<std::mutex> lock(this->external_group_ptr_mutex);
         auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
         node_id_t target_node_id = pick_member_by_policy<SubgroupType>(subgroup_index, shard_index, key);
         return caller.template p2p_send<RPC_NAME(subscribe_to_notifications)>(target_node_id, external_group_ptr->get_my_id(), key);
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+std::enable_if_t<is_signature_store<SubgroupType>::value, derecho::rpc::QueryResults<void>>
+ServiceClient<CascadeTypes...>::unsubscribe_signature_notifications(const typename SubgroupType::KeyType& key, uint32_t subgroup_index, uint32_t shard_index) {
+    if(!is_external_client()) {
+        std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
+        node_id_t target_node_id = pick_member_by_policy<SubgroupType>(subgroup_index, shard_index, key);
+        try {
+            auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
+            if(static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
+                target_node_id = group_ptr->get_my_id();
+            }
+            return subgroup_handle.template p2p_send<RPC_NAME(unsubscribe_from_notifications)>(target_node_id, group_ptr->get_my_id(), key);
+        } catch(derecho::invalid_subgroup_exception& ex) {
+            auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
+            return subgroup_handle.template p2p_send<RPC_NAME(unsubscribe_from_notifications)>(target_node_id, group_ptr->get_my_id(), key);
+        }
+    } else {
+        // Normal use case: an external client wants to unsubscribe from notifications for a key it submitted
+        std::lock_guard<std::mutex> lock(this->external_group_ptr_mutex);
+        auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
+        node_id_t target_node_id = pick_member_by_policy<SubgroupType>(subgroup_index, shard_index, key);
+        return caller.template p2p_send<RPC_NAME(unsubscribe_from_notifications)>(target_node_id, external_group_ptr->get_my_id(), key);
     }
 }
 
@@ -1974,6 +2000,54 @@ derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::subscribe_signa
     const auto [subgroup_type_index, subgroup_index, shard_index] = this->template key_to_shard(key);
 
     return this->template type_recursive_subscribe_signature_notifications<KeyType, CascadeTypes...>(subgroup_type_index, key, subgroup_index, shard_index);
+}
+
+template <typename... CascadeTypes>
+template <typename KeyType, typename FirstType, typename SecondType, typename... RestTypes>
+derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::type_recursive_unsubscribe_signature_notifications(
+        uint32_t type_index,
+        const KeyType& key,
+        uint32_t subgroup_index,
+        uint32_t shard_index) {
+    if(type_index == 0) {
+        // This must be a runtime check, not a static_assert, because type_index is a runtime value
+        if constexpr(is_signature_store<FirstType>::value) {
+            return this->template unsubscribe_signature_notifications<FirstType>(key, subgroup_index, shard_index);
+        } else {
+            throw derecho::derecho_exception("unsubscribe_signature_notifications can only be called for objects stored in SignatureCascadeStore subgroups");
+        }
+    } else {
+        return this->template type_recursive_unsubscribe_signature_notifications<KeyType, SecondType, RestTypes...>(
+                type_index - 1, key, subgroup_index, shard_index);
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename KeyType, typename LastType>
+derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::type_recursive_unsubscribe_signature_notifications(
+        uint32_t type_index,
+        const KeyType& key,
+        uint32_t subgroup_index,
+        uint32_t shard_index) {
+    if(type_index == 0) {
+        if constexpr(is_signature_store<LastType>::value) {
+            return this->template unsubscribe_signature_notifications<LastType>(key, subgroup_index, shard_index);
+        } else {
+            throw derecho::derecho_exception("unsubscribe_signature_notifications can only be called for objects stored in SignatureCascadeStore subgroups");
+        }
+    } else {
+        throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) + ": type index is out of bounds.");
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename KeyType>
+derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::unsubscribe_signature_notifications(const KeyType& key) {
+    static_assert(std::is_convertible_v<KeyType, std::string>, "unsubscribe_signature_notifications(key) only supports string keys");
+
+    const auto [subgroup_type_index, subgroup_index, shard_index] = this->template key_to_shard(key);
+
+    return this->template type_recursive_unsubscribe_signature_notifications<KeyType, CascadeTypes...>(subgroup_type_index, key, subgroup_index, shard_index);
 }
 
 template <typename... CascadeTypes>

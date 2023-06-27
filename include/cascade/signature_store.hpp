@@ -342,6 +342,12 @@ public:
      */
     void subscribe_to_notifications(node_id_t external_client_id, const KT& key) const;
     /**
+     * Unsubscribes an external client from signature notifications for a specific key.
+     * @param external_client_id The ID of the external client
+     * @param key The key (of a hash object stored here) to unsubscribe from
+     */
+    void unsubscribe_from_notifications(node_id_t external_client_id, const KT& key) const;
+    /**
      * Asks this node to send a notification to an external client when a specific version
      * of a data object has finished being signed. This will only generate one notification,
      * rather than subscribing the client to updates.
@@ -376,6 +382,7 @@ public:
                                                      trigger_put,
                                                      subscribe_to_notifications,
                                                      subscribe_to_all_notifications,
+                                                     unsubscribe_from_notifications,
                                                      request_notification
 #ifdef ENABLE_EVALUATION
                                                      ,

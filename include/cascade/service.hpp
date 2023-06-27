@@ -1469,6 +1469,20 @@ namespace cascade {
         subscribe_signature_notifications(const typename SubgroupType::KeyType& key, uint32_t subgroup_index, uint32_t shard_index);
 
         /**
+         * Unsubscribes from signature notifications from SignatureCascadeStore; the reverse of
+         * subscribe_signature_notifications.
+         *
+         * @tparam SubgroupType The type of the subgroup; should be SignatureCascadeStore<KT,VT,IK,IV>
+         * @param key               The object key
+         * @param subgroup_index    the subgroup index of SubgroupType to communicate with
+         * @param shard_index       the shard index to communicate with
+         * @return A QueryResults<void>> representing the result of the P2P RPC call to unsubscribe_from_notifications
+         */
+        template <typename SubgroupType>
+        std::enable_if_t<is_signature_store<SubgroupType>::value, derecho::rpc::QueryResults<void>>
+        unsubscribe_signature_notifications(const typename SubgroupType::KeyType& key, uint32_t subgroup_index, uint32_t shard_index);
+
+        /**
          * Object pool version of subscribe_signature_notifications. Uses the key's object pool prefix
          * to decide which subgroup and shard to contact
          *
@@ -1477,6 +1491,16 @@ namespace cascade {
          */
         template <typename KeyType>
         derecho::rpc::QueryResults<void> subscribe_signature_notifications(const KeyType& key);
+
+        /**
+         * Object pool version of unsubscribe_signature_notifications. Uses the key's object pool prefix
+         * to decide which subgroup and shard to contact
+         *
+         * @param key               The object key
+         * @return A QueryResults<void>> representing the result of the P2P RPC call to unsubscribe_from_notifications
+         */
+        template <typename KeyType>
+        derecho::rpc::QueryResults<void> unsubscribe_signature_notifications(const KeyType& key);
 
         /**
          * Object pool version of request_signature_notification. Uses the key's object pool prefix
@@ -1501,6 +1525,21 @@ namespace cascade {
 
         template <typename KeyType, typename LastType>
         derecho::rpc::QueryResults<void> type_recursive_subscribe_signature_notifications(
+                uint32_t type_index,
+                const KeyType& key,
+                uint32_t subgroup_index,
+                uint32_t shard_index);
+
+        /* Internal helper functions for unsubscribe_signature_notifications */
+        template <typename KeyType, typename FirstType, typename SecondType, typename... RestTypes>
+        derecho::rpc::QueryResults<void> type_recursive_unsubscribe_signature_notifications(
+                uint32_t type_index,
+                const KeyType& key,
+                uint32_t subgroup_index,
+                uint32_t shard_index);
+
+        template <typename KeyType, typename LastType>
+        derecho::rpc::QueryResults<void> type_recursive_unsubscribe_signature_notifications(
                 uint32_t type_index,
                 const KeyType& key,
                 uint32_t subgroup_index,

@@ -321,6 +321,14 @@ bool PerfTestServer::eval_signature_put(uint64_t max_operation_per_second,
     // Wait for the last signature notification to arrive
     std::unique_lock signature_lock(signatures_mutex);
     all_signed_cv.wait(signature_lock, [&]() { return all_signed.load(); });
+    // Unsubscribe from signature notifications, so that the next iteration of the test won't subscribe again for the same keys
+    dbg_default_info("eval_signature_put: Finished, unsubscribing from notifications");
+    for(const auto& test_object : objects) {
+        std::string data_object_path = test_object.get_key_ref();
+        std::string key_suffix = data_object_path.substr(data_object_path.rfind('/'));
+        std::string signature_path = SIGNATURES_POOL_PATHNAME + key_suffix;
+        capi.unsubscribe_signature_notifications(signature_path);
+    }
     return true;
 }
 
