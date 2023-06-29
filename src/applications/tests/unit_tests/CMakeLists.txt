@@ -17,3 +17,11 @@ target_include_directories(object_pool_metadata PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
 target_link_libraries(object_pool_metadata cascade)
+
+add_executable(test_persistence_observer test_persistence_observer.cpp)
+target_include_directories(test_persistence_observer PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+)
+target_link_libraries(test_persistence_observer cascade)
