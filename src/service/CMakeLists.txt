@@ -1,7 +1,3 @@
-cmake_minimum_required(VERSION 3.10.0)
-set(CMAKE_DISABLE_SOURCE_CHANGES ON)
-set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
-
 set(UDL_SIGNATURE_HEADER ${CMAKE_BINARY_DIR}/include/cascade/detail/udl_signature.hpp)
 set(UDL_SIGNATURE_BOOTSTRAPPING_HEADER ${CMAKE_CURRENT_SOURCE_DIR}/bootstrapping_udl_signature.hpp)
 
