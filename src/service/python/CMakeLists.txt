@@ -1,6 +1,8 @@
+find_package(Python 3.6 COMPONENTS Interpreter Development QUIET)
 find_package(pybind11 QUIET)
 
 if (pybind11_FOUND)
+    message(NOTICE "Pybind11 found. Python client enabled.")
     # test if some python dependencies are included
     execute_process(COMMAND pip3 show build RESULT_VARIABLE HAS_PYTHON_BUILD OUTPUT_QUIET ERROR_QUIET)
     if(NOT ${HAS_PYTHON_BUILD} EQUAL 0)
@@ -30,11 +32,12 @@ if (pybind11_FOUND)
     target_link_libraries(external_client_py PUBLIC cascade)
     add_custom_command(TARGET external_client_py PRE_LINK
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/derecho ${CMAKE_CURRENT_BINARY_DIR}/derecho)
+    # Use the Python_EXECUTABLE variable defined by FindPython since some systems call it "python3" and some call it "python"
     add_custom_command(TARGET external_client_py POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/README.md ${CMAKE_CURRENT_BINARY_DIR}/README.md
         COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/cascade_client.py ${CMAKE_CURRENT_BINARY_DIR}/cascade_client.py
         COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/cascade_perf.py ${CMAKE_CURRENT_BINARY_DIR}/cascade_perf.py
-        COMMAND python -m build
+        COMMAND ${Python_EXECUTABLE} -m build
         DEPENDS cascade_client.py cascade_perf.py
     )
     set_target_properties(external_client_py PROPERTIES
@@ -54,7 +57,7 @@ if (pybind11_FOUND)
         COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/README.md ${CMAKE_CURRENT_BINARY_DIR}/README.md
         COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/cascade_client.py ${CMAKE_CURRENT_BINARY_DIR}/cascade_client.py
         COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/cascade_perf.py ${CMAKE_CURRENT_BINARY_DIR}/cascade_perf.py
-        COMMAND python -m build
+        COMMAND ${Python_EXECUTABLE} -m build
         DEPENDS cascade_client.py cascade_perf.py
     )
     set_target_properties(member_client_py PROPERTIES
@@ -65,5 +68,7 @@ if (pybind11_FOUND)
             TYPE BIN
             PERMISSIONS OWNER_WRITE OWNER_READ GROUP_READ WORLD_READ OWNER_EXECUTE GROUP_EXECUTE WORLD_EXECUTE
     )
+else()
+    message(NOTICE "Pybind11 not found. Python client is disabled.")
 endif()
 
