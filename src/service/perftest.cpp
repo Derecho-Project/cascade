@@ -192,7 +192,7 @@ bool PerfTestServer::eval_signature_put(uint64_t max_operation_per_second,
                 persistent::version_t data_object_version;
                 std::memcpy(&message_id, message.bytes, sizeof(message_id));
                 std::memcpy(&data_object_version, message.bytes + sizeof(message_id), sizeof(data_object_version));
-                TimestampLogger::log(TLT_EC_SIGNATURE_NOTIFY, my_node_id, message_id, now_timestamp);
+                TimestampLogger::log(TLT_EC_SIGNATURE_NOTIFY, my_node_id, message_id, now_timestamp, data_object_version);
                 dbg_default_debug("Signature notification for message {}, data version {}", message_id, data_object_version);
                 // Keep track of the highest version number received so the futures thread can also check for the last version being signed
                 if(data_object_version > last_signed_version) {
