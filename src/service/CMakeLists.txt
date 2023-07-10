@@ -1,7 +1,3 @@
-cmake_minimum_required(VERSION 3.10.0)
-set(CMAKE_DISABLE_SOURCE_CHANGES ON)
-set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
-
 set(UDL_SIGNATURE_HEADER ${CMAKE_BINARY_DIR}/include/cascade/detail/udl_signature.hpp)
 set(UDL_SIGNATURE_BOOTSTRAPPING_HEADER ${CMAKE_CURRENT_SOURCE_DIR}/bootstrapping_udl_signature.hpp)
 
@@ -29,10 +25,10 @@ add_custom_command(TARGET udl_signature POST_BUILD
     COMMAND ${CMAKE_NM} _dummy_ | grep cascade | grep get_description | awk '{print \"\#define GET_DESCRIPTION_SIG \\\"\" \$\$3 \"\\\"\"}' >>
     udl_signature.hpp
     COMMAND ${CMAKE_NM} _dummy_ | grep cascade | grep initialize      | awk '{print \"\#define INITIALIZE_SIG \\\"\" \$\$3 \"\\\"\"}' >>
-    udl_signature.hpp 
+    udl_signature.hpp
     COMMAND ${CMAKE_NM} _dummy_ | grep cascade | grep get_observer    | awk '{print \"\#define GET_OBSERVER_SIG \\\"\" \$\$3 \"\\\"\"}' >>
-    udl_signature.hpp 
-    COMMAND ${CMAKE_NM} _dummy_ | grep cascade | grep release         | awk '{print \"\#define RELEASE_SIG \\\"\" \$\$3 \"\\\"\"}' >> 
+    udl_signature.hpp
+    COMMAND ${CMAKE_NM} _dummy_ | grep cascade | grep release         | awk '{print \"\#define RELEASE_SIG \\\"\" \$\$3 \"\\\"\"}' >>
     udl_signature.hpp
     COMMAND ${CMAKE_COMMAND} -E remove ${CMAKE_BINARY_DIR}/include/cascade/detail/udl_signature.hpp
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/udl_signature.hpp ${CMAKE_BINARY_DIR}/include/cascade/detail/udl_signature.hpp
