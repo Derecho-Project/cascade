@@ -177,9 +177,9 @@ install(FILES
 if (DOXYGEN_FOUND)
     # create docs
     doxygen_add_docs(docs
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/src
         ALL
-        CONFIG_FILE${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile
+        # CONFIG_FILE ${CMAKE_SOURCE_DIR}/Doxyfile
     )
 endif()
