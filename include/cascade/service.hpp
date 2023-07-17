@@ -1,4 +1,19 @@
 #pragma once
+/**
+ * @file    service.hpp
+ *
+ * @brief   This file includes the cascade service templates
+ *
+ * Type neutral templates components go here. Since the server binary and client library has to be type aware (because
+ * they are pre-compiled), we separate the api and implementation of them in type-awared header files as follows:
+ * - service_types.hpp contains the predefined types for derecho Subgroups, which are specialized from
+ *   derecho::cascade::VolatileCascadeStore/PersistentCascadeStore templates.
+ * - service_client_api.hpp contains the client API definition.
+ * - service_server_api.hpp contains the server API definition. Huh, Server API??? YES! because the application need to
+ *   specify their 'onData()' behaviours by implementing the APIs in service_server_api.hpp as a shared library. The
+ *   server will load them on restart.
+ */
+
 #include "cascade.hpp"
 #include "cascade_notification_message.hpp"
 #include "data_flow_graph.hpp"
@@ -30,18 +45,6 @@
 #include <utility>
 
 
-/**
- * The cascade service templates
- *
- * Type neutral templates components go here. Since the server binary and client library has to be type aware (because
- * they are pre-compiled), we separate the api and implementation of them in type-awared header files as follows:
- * - service_types.hpp contains the predefined types for derecho Subgroups, which are specialized from
- *   derecho::cascade::VolatileCascadeStore/PersistentCascadeStore templates.
- * - service_client_api.hpp contains the client API definition.
- * - service_server_api.hpp contains the server API definition. Huh, Server API??? YES! because the application need to
- *   specify their 'onData()' behaviours by implementing the APIs in service_server_api.hpp as a shared library. The
- *   server will load them on restart.
- */
 namespace derecho {
 namespace cascade {
     /* Cascade Factory type*/

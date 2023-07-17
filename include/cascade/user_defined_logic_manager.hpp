@@ -9,6 +9,7 @@ namespace cascade {
 
 /* forward reference */
 class OffCriticalDataPathObserver;
+
 /**
  * This file defines the API between cascade service and data path logic manager a.k.a. UDLM.
  *
