@@ -9,6 +9,7 @@
 #include <derecho/conf/conf.hpp>
 #include <derecho/persistent/PersistentInterface.hpp>
 #include <derecho/persistent/detail/PersistLog.hpp>
+
 #include <fstream>
 #include <map>
 #include <memory>

@@ -1,21 +1,22 @@
 #pragma once
-#include <chrono>
-#include <iostream>
-#include <map>
-#include <memory>
-#include <string.h>
-#include <string>
-#include <time.h>
-#include <vector>
-#include <optional>
-#include <tuple>
+#include "cascade/cascade_interface.hpp"
+#include "cascade/config.h"
 
 #include <derecho/conf/conf.hpp>
 #include <derecho/core/derecho.hpp>
 #include <derecho/mutils-serialization/SerializationSupport.hpp>
 #include <derecho/persistent/Persistent.hpp>
 
-#include <cascade/cascade.hpp>
+#include <chrono>
+#include <iostream>
+#include <map>
+#include <memory>
+#include <optional>
+#include <string.h>
+#include <string>
+#include <time.h>
+#include <tuple>
+#include <vector>
 
 using namespace persistent;
 using namespace std::chrono_literals;
@@ -113,7 +114,7 @@ public:
     // bool operator==(const ObjectWithUInt64Key& other);
 
     // constructor 0 : copy constructor
-    ObjectWithUInt64Key(const uint64_t _key, 
+    ObjectWithUInt64Key(const uint64_t _key,
                         const Blob& _blob);
 
     // constructor 0.5 : copy/emplace constructor
@@ -225,11 +226,11 @@ inline std::ostream& operator<<(std::ostream& out, const Blob& b) {
 }
 
 inline std::ostream& operator<<(std::ostream& out, const ObjectWithUInt64Key& o) {
-    out << "ObjectWithUInt64Key{ver: 0x" << std::hex << o.version << std::dec 
-        << ", ts(us): " << o.timestamp_us 
+    out << "ObjectWithUInt64Key{ver: 0x" << std::hex << o.version << std::dec
+        << ", ts(us): " << o.timestamp_us
         << ", prev_ver: " << std::hex << o.previous_version << std::dec
         << ", prev_ver_by_key: " << std::hex << o.previous_version_by_key << std::dec
-        << ", id:" << o.key 
+        << ", id:" << o.key
         << ", data:" << o.blob << "}";
     return out;
 }
@@ -256,7 +257,7 @@ public:
     // bool operator==(const ObjectWithStringKey& other);
 
     // constructor 0 : copy constructor
-    ObjectWithStringKey(const std::string& _key, 
+    ObjectWithStringKey(const std::string& _key,
                         const Blob& _blob);
 
     // constructor 0.5 : copy/in-place constructor
@@ -352,15 +353,15 @@ public:
 };
 
 inline std::ostream& operator<<(std::ostream& out, const ObjectWithStringKey& o) {
-    out << "ObjectWithStringKey{" 
+    out << "ObjectWithStringKey{"
 #ifdef ENABLE_EVALUATION
         << "msg_id: " << o.message_id
 #endif
-        << "ver: 0x" << std::hex << o.version << std::dec 
+        << "ver: 0x" << std::hex << o.version << std::dec
         << ", ts: " << o.timestamp_us
         << ", prev_ver: " << std::hex << o.previous_version << std::dec
         << ", prev_ver_by_key: " << std::hex << o.previous_version_by_key << std::dec
-        << ", id:" << o.key 
+        << ", id:" << o.key
         << ", data:" << o.blob << "}";
     return out;
 }

@@ -1,4 +1,6 @@
-#include <cascade/service_client_api.hpp>
+#include "cascade/service_client_api.hpp"
+#include "cascade/utils.hpp"
+
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -6,7 +8,6 @@
 #include <stdio.h>
 #include <readline/readline.h>
 #include <readline/history.h>
-#include <cascade/utils.hpp>
 #include <sys/prctl.h>
 #ifdef ENABLE_EVALUATION
 #include "perftest.hpp"

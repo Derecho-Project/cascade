@@ -8,6 +8,7 @@
 #include <derecho/conf/conf.hpp>
 #include <derecho/persistent/PersistentInterface.hpp>
 #include <derecho/persistent/detail/PersistLog.hpp>
+
 #include <map>
 #include <memory>
 #include <string>
@@ -135,7 +136,7 @@ const VT VolatileCascadeStore<KT, VT, IK, IV>::get(const KT& key, const persiste
 #else
 #error Lockless support is currently for GCC only
 #endif
-        /* 
+        /*
          * An out_of_range exception can be thrown even if 'key' exists in
          * kv_map. Since std::map is not thread-safe, and there is another
          * thread modifying kv_map concurrently, the internal data structure can

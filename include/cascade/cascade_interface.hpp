@@ -5,7 +5,7 @@
  * @brief   Declarations of the interfaces of core Cascade types as Derecho Subgroup type.
  */
 
-#include <cascade/config.h>
+#include "cascade/config.h"
 
 #include <derecho/core/derecho.hpp>
 #include <derecho/mutils-serialization/SerializationSupport.hpp>
@@ -147,7 +147,7 @@ public:
      *              If `stable == false`, we only return the data reflecting the latest locally delivered atomic
      *              broadcast. Otherwise, stable data will be returned, meaning that the persisted states returned
      *              is safe: they will survive after whole system recovery.
-     * @param[in]   exact 
+     * @param[in]   exact
      *              The exact match flag: this function try to return the value of that key at the 'ver'. If such a
      *              value does not exists and exact is true, it will throw an exception. If such a value does not
      *              exists and exact is false, it will return the latest state of the value for 'key' before 'ver'.
@@ -270,7 +270,7 @@ public:
      * @param[in]   key     The key
      * @param[in]   ver     Version, if `ver == CURRENT_VERSION`, get the latest value.
      * @param[in]   stable
-     * @param[in]   exact 
+     * @param[in]   exact
      *              The exact match flag: this function try to return the value of that key at the 'ver'. If such a
      *              value does not exists and exact is true, it will throw an exception. If such a value does not
      *              exists and exact is false, it will return the latest state of the value for 'key' before 'ver'.
@@ -422,7 +422,7 @@ VT create_null_object_cb(const KT& key = *IK);
  * We use both the concepts of null and valid object in Cascade. A null object precisely means 'no data'; while a
  * valid object literarily means an object is 'valid'. Technically, a null object has a valid key while invalid
  * object does not.
- * 
+ *
  * @tparam      KT      The key type.
  * @tparam      VT      The value type.
  */
@@ -484,7 +484,7 @@ class IKeepVersion {
 
     /**
      * @brief   The version getter
-     * 
+     *
      * Get the version
      *
      * @return  The K/V object's version.

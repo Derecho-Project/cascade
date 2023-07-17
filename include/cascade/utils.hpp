@@ -1,5 +1,7 @@
 #pragma once
 
+#include "cascade/config.h"
+
 #include <functional>
 #include <memory>
 #include <map>
@@ -10,7 +12,6 @@
 #include <time.h>
 #include <thread>
 #include <unordered_set>
-#include <cascade/config.h>
 
 namespace derecho {
 namespace cascade {
@@ -162,7 +163,7 @@ public:
 #ifdef ENABLE_EVALUATION
 /*
  * time logger tags (TLTs)
- * 
+ *
  * We support a wide range of timestamps in cascade for performance tests.
  * For Service Client (Please note that the END time is not logged because the return clause should be included.
  * The callers should measure it by themselves):
