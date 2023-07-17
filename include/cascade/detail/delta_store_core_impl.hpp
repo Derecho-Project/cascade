@@ -175,6 +175,7 @@ persistent::version_t DeltaCascadeStoreCore<KT, VT, IK, IV>::ordered_put(const V
 template <typename KT, typename VT, KT* IK, VT* IV>
 persistent::version_t DeltaCascadeStoreCore<KT, VT, IK, IV>::ordered_remove(const VT& value, persistent::version_t previous_version) {
     auto& key = value.get_key_ref();
+    assert(value.is_null());
     // test if key exists
     if(kv_map.find(key) == kv_map.end()) {
         // skip it when no such key.
@@ -230,7 +231,7 @@ const VT DeltaCascadeStoreCore<KT, VT, IK, IV>::lockless_get(const KT& key) cons
 #else
 #error Lockless support is currently for GCC only
 #endif
-        /* 
+        /*
          * An out_of_range exception can be thrown even if 'key' exists in
          * kv_map. Since std::map is not thread-safe, and there is another
          * thread modifying kv_map concurrently, the internal data structure can

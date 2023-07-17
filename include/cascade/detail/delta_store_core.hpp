@@ -79,16 +79,16 @@ public:
      * Ordered put, and generate a delta.
      * @param value
      * @param previous_version
-     * 
+     *
      * @return previous version by key
      * @throws cascade_exception on error
      */
     virtual persistent::version_t ordered_put(const VT& value, persistent::version_t previous_version);
     /**
      * Ordered remove, and generate a delta.
-     * @param value
+     * @param value A null object with the same key as the object to be removed
      * @param previous_version
-     * 
+     *
      * @return previous version by key
      * @throws cascade_exception on error
      */
