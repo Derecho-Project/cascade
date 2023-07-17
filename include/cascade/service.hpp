@@ -335,6 +335,8 @@ namespace cascade {
     // #define DEFAULT_SHARD_MEMBER_SELECTION_POLICY (ShardMemberSelectionPolicy::FirstMember)
     #define DEFAULT_SHARD_MEMBER_SELECTION_POLICY (ShardMemberSelectionPolicy::RoundRobin)
 
+    std::ostream& operator<<(std::ostream& stream, const ShardMemberSelectionPolicy& policy);
+
     template <typename T> struct do_hash {};
 
     template <> struct do_hash<std::tuple<std::type_index,uint32_t,uint32_t>> {

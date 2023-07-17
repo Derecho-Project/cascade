@@ -29,6 +29,8 @@ namespace cascade {
         func <VolatileCascadeStoreWithStringKey>(__VA_ARGS__); \
     } else if (std::type_index(typeid(PersistentCascadeStoreWithStringKey)) == tindex) { \
         func <PersistentCascadeStoreWithStringKey>(__VA_ARGS__); \
+    } else if (std::type_index(typeid(SignatureCascadeStoreWithStringKey)) == tindex) { \
+        func <SignatureCascadeStoreWithStringKey>(__VA_ARGS__); \
     } else if (std::type_index(typeid(TriggerCascadeNoStoreWithStringKey)) == tindex) { \
         func <TriggerCascadeNoStoreWithStringKey>(__VA_ARGS__); \
     } else { \
@@ -40,6 +42,8 @@ namespace cascade {
         result_handler(func <VolatileCascadeStoreWithStringKey>(__VA_ARGS__)); \
     } else if (std::type_index(typeid(PersistentCascadeStoreWithStringKey)) == tindex) { \
         result_handler(func <PersistentCascadeStoreWithStringKey>(__VA_ARGS__)); \
+    } else if (std::type_index(typeid(SignatureCascadeStoreWithStringKey)) == tindex) { \
+        result_handler(func <SignatureCascadeStoreWithStringKey>(__VA_ARGS__)); \
     } else if (std::type_index(typeid(TriggerCascadeNoStoreWithStringKey)) == tindex) { \
         result_handler(func <TriggerCascadeNoStoreWithStringKey>(__VA_ARGS__)); \
     } else { \
@@ -738,14 +742,46 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
 
         uint32_t number_of_shards;
         // STEP 1 - set up the shard member selection policy
-        on_subgroup_type_index(std::decay_t<decltype(capi)>::subgroup_type_order.at(object_pool.subgroup_type_index),
+        std::type_index object_pool_subgroup_type = std::decay_t<decltype(this->capi)>::subgroup_type_order.at(object_pool.subgroup_type_index);
+        on_subgroup_type_index(object_pool_subgroup_type,
                                number_of_shards = this->capi.template get_number_of_shards, object_pool.subgroup_index);
         if(user_specified_node_ids.size() < number_of_shards) {
             throw derecho::derecho_exception(std::string("the size of 'user_specified_node_ids' argument does not match shard number."));
         }
         for(uint32_t shard_index = 0; shard_index < number_of_shards; shard_index++) {
-            on_subgroup_type_index(std::decay_t<decltype(capi)>::subgroup_type_order.at(object_pool.subgroup_type_index),
-                                   this->capi.template set_member_selection_policy, object_pool.subgroup_index, shard_index, static_cast<ShardMemberSelectionPolicy>(policy), user_specified_node_ids.at(shard_index));
+            on_subgroup_type_index(object_pool_subgroup_type,
+                                   this->capi.template set_member_selection_policy, object_pool.subgroup_index,
+                                   shard_index, static_cast<ShardMemberSelectionPolicy>(policy), user_specified_node_ids.at(shard_index));
+            dbg_default_debug("Set member selection policy of subgroup type {}, index {}, shard {} to {} with user_specified_node_id={}", object_pool.subgroup_type_index, object_pool.subgroup_index, shard_index, static_cast<ShardMemberSelectionPolicy>(policy), user_specified_node_ids.at(shard_index));
+        }
+        // Apply the same shard member selection policy to the signature object pool as requested for the "targeted" (storage) object pool
+        // We assume the signature object pool has the same number of shards as the storage object pool.
+        auto signature_pool_metadata = this->capi.find_object_pool(SIGNATURES_POOL_PATHNAME);
+        std::type_index signature_pool_subgroup_type = std::decay_t<decltype(this->capi)>::subgroup_type_order.at(signature_pool_metadata.subgroup_type_index);
+        std::vector<node_id_t> user_node_ids_for_signatures(user_specified_node_ids.size());
+        // If the "FIXED" policy was requested in PerfTestClient::perf_put, user_specified_node_ids will contain one node from each
+        // shard of the storage pool, so we need to create a parallel list of one node from each shard of the signature pool
+        if(static_cast<ShardMemberSelectionPolicy>(policy) == ShardMemberSelectionPolicy::UserSpecified) {
+            for(uint32_t shard_index = 0; shard_index < number_of_shards; shard_index++) {
+                std::vector<node_id_t> storage_shard_members;
+                on_subgroup_type_index(object_pool_subgroup_type,
+                                       storage_shard_members = this->capi.template get_shard_members, object_pool.subgroup_index, shard_index);
+                std::vector<node_id_t> signature_shard_members;
+                on_subgroup_type_index(signature_pool_subgroup_type,
+                                       signature_shard_members = this->capi.template get_shard_members, signature_pool_metadata.subgroup_index, shard_index);
+                // Get the index of user_specified_node_ids[shard_index] within storage_shard_members, and use that same index within signature_shard_members
+                auto my_client_index = std::distance(storage_shard_members.begin(),
+                                                     std::find(storage_shard_members.begin(), storage_shard_members.end(),
+                                                     user_specified_node_ids.at(shard_index)));
+                user_node_ids_for_signatures[shard_index] = signature_shard_members.at(my_client_index);
+            }
+        }
+        // The other policies don't use user_specified_node_ids, so it remains a vector of all zeroes
+        for(uint32_t shard_index = 0; shard_index < number_of_shards; shard_index++) {
+            on_subgroup_type_index(signature_pool_subgroup_type,
+                                   this->capi.template set_member_selection_policy, signature_pool_metadata.subgroup_index,
+                                   shard_index, static_cast<ShardMemberSelectionPolicy>(policy), user_node_ids_for_signatures.at(shard_index));
+            dbg_default_debug("Set member selection policy of subgroup type {}, index {}, shard {} to {} with user_specified_node_id={}", signature_pool_metadata.subgroup_type_index, signature_pool_metadata.subgroup_index, shard_index, static_cast<ShardMemberSelectionPolicy>(policy), user_node_ids_for_signatures.at(shard_index));
         }
         // STEP 2 - prepare workload
         objects.clear();
