@@ -177,12 +177,13 @@ bool PerfTestServer::eval_signature_put(uint64_t max_operation_per_second,
     std::condition_variable window_cv;
     std::atomic<bool> all_sent = false;
     std::atomic<bool> all_puts_complete = false;
-    std::atomic<bool> all_signed = false;
-    std::atomic<persistent::version_t> last_put_version;
-    std::atomic<persistent::version_t> last_signed_version;
+    bool all_signed = false;
+    std::atomic<uint64_t> last_message_id;
     std::mutex signatures_mutex;
     // Instead of busy-waiting on all_signed, the main thread will block on this CV
     std::condition_variable all_signed_cv;
+    // Not needed for synchronization, but useful for debugging
+    persistent::version_t last_put_version;
 
     // Node ID, used for logger calls
     const node_id_t my_node_id = this->capi.get_my_id();
@@ -198,20 +199,15 @@ bool PerfTestServer::eval_signature_put(uint64_t max_operation_per_second,
                 std::memcpy(&data_object_version, message.bytes + sizeof(message_id), sizeof(data_object_version));
                 TimestampLogger::log(TLT_EC_SIGNATURE_NOTIFY, my_node_id, message_id, now_timestamp, data_object_version);
                 dbg_default_debug("Signature notification for message {}, data version {}", message_id, data_object_version);
-                // Keep track of the highest version number received so the futures thread can also check for the last version being signed
-                if(data_object_version > last_signed_version) {
-                    last_signed_version = data_object_version;
-                }
-                // Normally, the futures thread will finish first, and once all_puts_complete is true
-                // this will notify the main thread when the last version has been signed
-                if(all_puts_complete && data_object_version == last_put_version) {
+                // Notify the main thread when the version corresponding to the last message has been signed
+                // last_message_id will have been set if all_sent is true
+                if(all_sent && message_id == last_message_id) {
                     std::lock_guard signatures_lock(signatures_mutex);
                     all_signed = true;
                     all_signed_cv.notify_all();
                 }
             },
             SIGNATURES_POOL_PATHNAME);
-
     // Thread that consumes put-result futures from the futures queue and waits for them
     std::thread future_consumer_thread(
             [&]() {
@@ -251,12 +247,6 @@ bool PerfTestServer::eval_signature_put(uint64_t max_operation_per_second,
                 // Signal the notification handler that the last put() has completed
                 all_puts_complete = true;
                 dbg_default_debug("All puts complete, last version is {}", last_put_version);
-                // Check to see if the last signature notification has already been received (should be rare)
-                std::lock_guard signatures_lock(signatures_mutex);
-                if(last_signed_version == last_put_version) {
-                    all_signed = true;
-                    all_signed_cv.notify_all();
-                }
             });
 
     // Subscribe to notifications for all the test objects' keys
@@ -278,6 +268,7 @@ bool PerfTestServer::eval_signature_put(uint64_t max_operation_per_second,
     while(true) {
         uint64_t now_ns = get_walltime();
         if(now_ns > end_ns) {
+            last_message_id = message_id - 1;
             all_sent.store(true);
             break;
         }
@@ -324,12 +315,13 @@ bool PerfTestServer::eval_signature_put(uint64_t max_operation_per_second,
         TimestampLogger::log(TLT_EC_SENT, my_node_id, message_id, get_walltime());
         message_id++;
     }
+    dbg_default_debug("All messages sent, last message ID was {}", last_message_id);
     // Wait for all the puts to complete
     future_consumer_thread.join();
     dbg_default_info("eval_signature_put: All messages sent, waiting for signatures");
     // Wait for the last signature notification to arrive
     std::unique_lock signature_lock(signatures_mutex);
-    all_signed_cv.wait(signature_lock, [&]() { return all_signed.load(); });
+    all_signed_cv.wait(signature_lock, [&]() { return all_signed; });
     // Unsubscribe from signature notifications, so that the next iteration of the test won't subscribe again for the same keys
     dbg_default_info("eval_signature_put: Finished, unsubscribing from notifications");
     for(const auto& test_object : objects) {
