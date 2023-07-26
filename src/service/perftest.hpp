@@ -305,7 +305,7 @@ bool PerfTestClient::perf_put(PutType               put_type,
     dbg_default_info("perf_put complete, flushing server timestamps");
     // 3 - flush server timestamps
     capi.template dump_timestamp(output_filename,object_pool_pathname);
-    if(put_type == PutType::SIGNATURE_PUT) {
+    if(put_type == PutType::SIGNATURE_PUT && object_pool_pathname != PerfTestServer::SIGNATURES_POOL_PATHNAME) {
         // The signature-put test also needs to flush timestamps from the (separate) signatures pool
         capi.template dump_timestamp(output_filename, PerfTestServer::SIGNATURES_POOL_PATHNAME);
     }

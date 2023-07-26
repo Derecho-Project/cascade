@@ -307,6 +307,11 @@ bool PerfTestServer::eval_signature_put(uint64_t max_operation_per_second,
         } else {
             throw derecho_exception{"Evaluation requests an object to support IHasMessageID interface."};
         }
+        // For the special case of testing puts directly to the /signatures pool (instead of to /storage),
+        // set the version field in the object to a unique value so SignatureCascadeStore won't break
+        // (get won't work, but at least the put will succeed). If the put is going to /storage as usual,
+        // the PersistentCascadeStore will just ignore the version.
+        objects.at(now_ns % num_distinct_objects).set_version(message_id);
         TimestampLogger::log(TLT_READY_TO_SEND, my_node_id, message_id, get_walltime());
         if(subgroup_index == INVALID_SUBGROUP_INDEX || shard_index == INVALID_SHARD_INDEX) {
             future_appender(this->capi.put(objects.at(now_ns % num_distinct_objects)));
