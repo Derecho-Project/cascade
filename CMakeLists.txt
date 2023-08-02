@@ -29,16 +29,9 @@ if ( NOT DEFINED CMAKE_INSTALL_INCLUDEDIR )
     set( CMAKE_INSTALL_INCLUDEDIR include )
 endif ( )
 
-# The mutils package exports its location information in the "old" way,
-# with INCLUDE_DIRS and LIBRARIES variables
-
-# mutils_FOUND
-# mutils_INCLUDE_DIRS
-# mutils_LIBRARIES
 find_package(mutils REQUIRED)
 if(mutils_FOUND)
     message(STATUS "Found mutils in ${mutils_INCLUDE_DIRS}")
-    include_directories(${mutils_INCLUDE_DIRS})
 endif()
 
 # Cascade includes a custom Find module for GNU Readline (required by client.cpp)
@@ -53,19 +46,8 @@ find_package(OpenSSL REQUIRED)
 # derecho
 find_package(derecho CONFIG REQUIRED)
 
-# Derecho exports an IMPORT target, following the "new" way of
-# doing things, but for some reason we still need to do this
-# in order for some of the sub-components of Cascade to compile.
-# Ideally, if every target that needs the Derecho headers declares
-# its dependency on the IMPORT target derecho::derecho (i.e. with
-# target_link_libraries), they will each automatically include the
-# Derecho headers from the location specified by that target
-if(derecho_FOUND)
-    include_directories(${derecho_INCLUDE_DIRS})
-endif()
-
 # json
-find_package(nlohmann_json 3.2.0 REQUIRED)
+find_package(nlohmann_json 3.9.1 REQUIRED)
 
 # WanAgent, required for SignatureCascadeStore to do wide-area backups
 find_package(wanagent CONFIG REQUIRED)
@@ -118,9 +100,9 @@ add_library(cascade SHARED
 #    $<TARGET_OBJECTS:utils>)
 
 target_link_libraries(cascade
-    derecho
+    derecho::derecho
     spdlog::spdlog
-    ${mutils_LIBRARIES}
+    mutils::mutils
     OpenSSL::Crypto
     ${Hyperscan_LIBRARIES}
     wanagent::wanagent
@@ -146,25 +128,21 @@ install(DIRECTORY
 
 include(CMakePackageConfigHelpers)
 write_basic_package_version_file(
-    "${CMAKE_CURRENT_BINARY_DIR}/cascade/cascadeConfigVersion.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/cmake/cascadeConfigVersion.cmake"
     VERSION ${cascade_VERSION}
     COMPATIBILITY AnyNewerVersion
 )
 
 export (EXPORT cascadeTargets
-    FILE "${CMAKE_CURRENT_BINARY_DIR}/cascade/cascadeTargets.cmake"
+    FILE "${CMAKE_CURRENT_BINARY_DIR}/cmake/cascadeTargets.cmake"
 )
-
-#configure_file (cascadeConfig.cmake
-#    "${CMAKE_CURRENT_BINARY_DIR}/cascade/cascadeConfig.cmake"
-#)
 
 set(ConfigPackageLocation ${CMAKE_INSTALL_LIBDIR}/cmake/cascade)
 
 configure_package_config_file(cascadeConfig.cmake.in
-    "${CMAKE_CURRENT_BINARY_DIR}/cascade/cascadeConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/cmake/cascadeConfig.cmake"
     INSTALL_DESTINATION ${ConfigPackageLocation}
-    PATH_VARS CMAKE_INSTALL_LIBDIR CMAKE_INSTALL_INCLUDEDIR ConfigPackageLocation
+    PATH_VARS CMAKE_INSTALL_LIBDIR CMAKE_INSTALL_INCLUDEDIR
 )
 
 install(EXPORT cascadeTargets
@@ -174,8 +152,8 @@ install(EXPORT cascadeTargets
 )
 
 install(FILES
-    "${CMAKE_CURRENT_BINARY_DIR}/cascade/cascadeConfig.cmake"
-    "${CMAKE_CURRENT_BINARY_DIR}/cascade/cascadeConfigVersion.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/cmake/cascadeConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/cmake/cascadeConfigVersion.cmake"
     DESTINATION ${ConfigPackageLocation}
 )
 
