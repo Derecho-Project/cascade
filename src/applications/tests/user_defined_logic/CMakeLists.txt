@@ -9,7 +9,7 @@ target_include_directories(console_printer_udl PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
 )
-add_dependencies(console_printer_udl cascade)
+target_link_libraries(console_printer_udl cascade)
 add_custom_command(TARGET console_printer_udl POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/console_printer_cfg
     ${CMAKE_CURRENT_BINARY_DIR}/console_printer_cfg

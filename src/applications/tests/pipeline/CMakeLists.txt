@@ -18,7 +18,7 @@ target_include_directories(pipeline_udl PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
 )
-add_dependencies(pipeline_udl cascade)
+target_link_libraries(pipeline_udl cascade)
 add_custom_command(TARGET pipeline_udl POST_BUILD
      COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/trigger_put_pipeline_cfg
      ${CMAKE_CURRENT_BINARY_DIR}/trigger_put_pipeline_cfg
