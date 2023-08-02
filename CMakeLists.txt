@@ -61,7 +61,6 @@ find_package(derecho CONFIG REQUIRED)
 # target_link_libraries), they will each automatically include the
 # Derecho headers from the location specified by that target
 if(derecho_FOUND)
-    message(STATUS "Found derecho in ${derecho_INCLUDE_DIRS}")
     include_directories(${derecho_INCLUDE_DIRS})
 endif()
 
