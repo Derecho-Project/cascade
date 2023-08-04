@@ -1036,21 +1036,19 @@ VT SignatureCascadeStore<KT, VT, IK, IV, ST>::make_backup_object(persistent::ver
     std::size_t new_body_size = object_plus_signature.blob.size
                                 + persistent_core.getSignatureSize()
                                 + sizeof(data_object_version);
-    uint8_t* new_body_buffer = new uint8_t[new_body_size];
-    std::memcpy(new_body_buffer, reinterpret_cast<uint8_t*>(&data_object_version), sizeof(data_object_version));
+    std::unique_ptr<uint8_t[]> new_body_buffer = std::make_unique<uint8_t[]>(new_body_size);
+    std::memcpy(new_body_buffer.get(), reinterpret_cast<uint8_t*>(&data_object_version), sizeof(data_object_version));
     std::size_t bytes_written = sizeof(data_object_version);
     persistent::version_t previous_signed_version = persistent::INVALID_VERSION;
     bool signature_found = persistent_core.getSignature(hash_object_version,
-                                                        new_body_buffer + bytes_written,
+                                                        new_body_buffer.get() + bytes_written,
                                                         previous_signed_version);
     if(!signature_found) {
         dbg_default_error("Signature not found for version {}, even though persistence has finished", hash_object_version);
     }
     bytes_written += persistent_core.getSignatureSize();
-    std::memcpy(new_body_buffer + bytes_written, object_plus_signature.blob.bytes, object_plus_signature.blob.size);
-    // Unnecessary copy because Blob can't take ownership of a buffer; it always copies it in
-    object_plus_signature.blob = Blob(new_body_buffer, new_body_size);
-    delete[] new_body_buffer;
+    std::memcpy(new_body_buffer.get() + bytes_written, object_plus_signature.blob.bytes, object_plus_signature.blob.size);
+    object_plus_signature.blob = Blob(std::move(new_body_buffer), new_body_size);
     debug_leave_func_with_value("{}", object_plus_signature);
     return object_plus_signature;
 }
@@ -1108,19 +1106,17 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::send_client_notification(
                                + mutils::bytes_size(previous_signed_version)
                                + mutils::bytes_size(previous_signature);
     // Message format: [message id], data version, hash version, signature data, previous signed version, previous signature
-    // Problem: Blob's data buffer can't be modified, so I have to copy the bytes into a temporary buffer, then copy them again into Blob
-    uint8_t* temp_buffer_for_blob = new uint8_t[message_size];
+    std::unique_ptr<uint8_t[]> blob_buffer = std::make_unique<uint8_t[]>(message_size);
     std::size_t body_offset = 0;
 #ifdef ENABLE_EVALUATION
-    body_offset += mutils::to_bytes(evaluation_message_id, temp_buffer_for_blob + body_offset);
+    body_offset += mutils::to_bytes(evaluation_message_id, blob_buffer.get() + body_offset);
 #endif
-    body_offset += mutils::to_bytes(data_object_version, temp_buffer_for_blob + body_offset);
-    body_offset += mutils::to_bytes(hash_object_version, temp_buffer_for_blob + body_offset);
-    body_offset += mutils::to_bytes(signature, temp_buffer_for_blob + body_offset);
-    body_offset += mutils::to_bytes(previous_signed_version, temp_buffer_for_blob + body_offset);
-    body_offset += mutils::to_bytes(previous_signature, temp_buffer_for_blob + body_offset);
-    Blob message_body(temp_buffer_for_blob, message_size);
-    delete[] temp_buffer_for_blob;
+    body_offset += mutils::to_bytes(data_object_version, blob_buffer.get() + body_offset);
+    body_offset += mutils::to_bytes(hash_object_version, blob_buffer.get() + body_offset);
+    body_offset += mutils::to_bytes(signature, blob_buffer.get() + body_offset);
+    body_offset += mutils::to_bytes(previous_signed_version, blob_buffer.get() + body_offset);
+    body_offset += mutils::to_bytes(previous_signature, blob_buffer.get() + body_offset);
+    Blob message_body(std::move(blob_buffer), message_size);
     // Construct and send a CascadeNotificationMessage in the same way as ServiceClient::notify
     CascadeNotificationMessage cascade_message(get_pathname<KT>(key), message_body);
     // TODO: redesign to avoid memory copies.

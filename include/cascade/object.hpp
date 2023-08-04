@@ -41,21 +41,65 @@ public:
     object_memory_mode_t   memory_mode;
 
 
-    // constructor - copy to own the data
-    Blob(const uint8_t* const b, const decltype(size) s);
+    /**
+     * Copy-in constructor: Copies buf_size bytes from the byte buffer pointed
+     * to by buf into Blob's own memory. This Blob now owns a copy of the data.
+     * @param buf A pointer to a byte buffer
+     * @param buf_size The size of the byte buffer
+     */
+    Blob(const uint8_t* const buf, const decltype(size) buf_size);
 
-    Blob(const uint8_t* b, const decltype(size) s, bool emplaced);
+    /**
+     * Copy-or-emplace constructor: If emplaced is true, constructs a Blob that
+     * points to the same memory as buf, but does not own it. In this case Blob
+     * will not free the memory in its destructor, assuming the caller still owns
+     * it. If emplaced is false, behaves exactly like the two-argument copy-in
+     * constructor above.
+     *
+     * @param buf A pointer to a byte buffer
+     * @param buf_size The size of the byte buffer
+     * @param emplaced True if the Blob should be constructed in "emplaced" mode
+     * where it does not own the memory its instance variables point to.
+     */
+    Blob(const uint8_t* buf, const decltype(size) buf_size, bool emplaced);
 
-    // generator constructor - data to be generated on serialization
+    /**
+     * Generator constructor: Accepts a function that will generate data, and the
+     * size of the data it expects to generate, but defers generating the data
+     * until the Blob is serialized.
+     *
+     * @param generator A Blob generator function
+     * @param s The number of bytes that the generator intends to generate
+     */
     Blob(const blob_generator_func_t& generator, const decltype(size) s);
 
-    // copy constructor - copy to own the data
+    /**
+     * "Raw move" constructor: Takes ownership of the data pointed to by buf.
+     * Like the move constructor, but used when buf is a byte buffer not already
+     * owned by a Blob. The caller must have a unique_ptr to the byte buffer to
+     * ensure the caller is the sole owner of the memory and will not attempt
+     * to use or free it after calling this constructor.
+     *
+     * @param buf A unique_ptr to a byte buffer
+     * @param buf_size The size of the byte buffer.
+     */
+    Blob(std::unique_ptr<uint8_t[]> buf, const decltype(size) buf_size);
+
+    /**
+     * Standard copy constructor: Copies the data from other into a new byte
+     * buffer owned by this Blob.
+     */
     Blob(const Blob& other);
 
-    // move constructor - accept the memory from another object
+    /**
+     * Standard move constructor: Takes ownership of the other Blob's byte
+     * buffer and leaves it with no byte buffer.
+     */
     Blob(Blob&& other);
 
-    // default constructor - no data at all
+    /**
+     * Default constructor: Creates a Blob with no data.
+     */
     Blob();
 
     // destructor

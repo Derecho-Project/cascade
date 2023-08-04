@@ -37,31 +37,29 @@ ObjectWithStringKey ObjectWithStringKey::IV;
 // static const std::size_t page_size = sysconf(_SC_PAGESIZE);
 // #define PAGE_ALIGNED_NEW(x) (new uint8_t[((x)+page_size-1)/page_size*page_size])
 
-Blob::Blob(const uint8_t* const b, const decltype(size) s) :
+Blob::Blob(const uint8_t* const buf, const decltype(size) buf_size) :
     bytes(nullptr), size(0), capacity(0), memory_mode(object_memory_mode_t::DEFAULT) {
-    if(s > 0) {
-        // uint8_t* t_bytes = PAGE_ALIGNED_NEW(s);
-        uint8_t* t_bytes = static_cast<uint8_t*>(malloc(s));
-        if (b != nullptr) {
-            memcpy(t_bytes, b, s);
+    if(buf_size > 0) {
+        uint8_t* t_bytes = new uint8_t[buf_size];
+        if (buf != nullptr) {
+            memcpy(t_bytes, buf, buf_size);
         } else {
-            bzero(t_bytes, s);
+            memset(t_bytes, 0, buf_size);
         }
         bytes = t_bytes;
-        size = s;
+        size = buf_size;
         capacity = size;
     }
 }
 
-Blob::Blob(const uint8_t* b, const decltype(size) s, bool emplaced) :
-    bytes(b), size(s), capacity(s), memory_mode((emplaced)?object_memory_mode_t::EMPLACED:object_memory_mode_t::DEFAULT) {
+Blob::Blob(const uint8_t* buf, const decltype(size) buf_size, bool emplaced) :
+    bytes(buf), size(buf_size), capacity(buf_size), memory_mode((emplaced)?object_memory_mode_t::EMPLACED:object_memory_mode_t::DEFAULT) {
     if ( (size>0) && (emplaced==false)) {
-        // uint8_t* t_bytes = PAGE_ALIGNED_NEW(s);
-        uint8_t* t_bytes = static_cast<uint8_t*>(malloc(s));
-        if (b != nullptr) {
-            memcpy(t_bytes, b, s);
+        uint8_t* t_bytes = new uint8_t[buf_size];
+        if (buf != nullptr) {
+            memcpy(t_bytes, buf, buf_size);
         } else {
-            bzero(t_bytes, s);
+            memset(t_bytes, 0, buf_size);
         }
         bytes = t_bytes;
     }
@@ -71,6 +69,9 @@ Blob::Blob(const uint8_t* b, const decltype(size) s, bool emplaced) :
     }
 }
 
+Blob::Blob(std::unique_ptr<uint8_t[]> buf, const decltype(size) buf_size) :
+    bytes(buf.release()), size(buf_size), capacity(buf_size), memory_mode(object_memory_mode_t::DEFAULT) {}
+
 Blob::Blob(const blob_generator_func_t& generator, const decltype(size) s):
     bytes(nullptr), size(s), capacity(0), blob_generator(generator), memory_mode(object_memory_mode_t::BLOB_GENERATOR) {
     // no data is generated here.
@@ -79,8 +80,8 @@ Blob::Blob(const blob_generator_func_t& generator, const decltype(size) s):
 Blob::Blob(const Blob& other) :
     bytes(nullptr), size(0), capacity(0), memory_mode(object_memory_mode_t::DEFAULT) {
     if(other.size > 0) {
-        uint8_t* t_bytes = static_cast<uint8_t*>(malloc(other.size));
-        if (memory_mode == object_memory_mode_t::BLOB_GENERATOR) {
+        uint8_t* t_bytes = new uint8_t[other.size];
+        if (other.memory_mode == object_memory_mode_t::BLOB_GENERATOR) {
             // instantiate data.
             auto number_bytes_generated = other.blob_generator(t_bytes,other.size);
             if (number_bytes_generated != other.size) {
@@ -112,7 +113,7 @@ Blob::Blob() : bytes(nullptr), size(0), capacity(0), memory_mode(object_memory_m
 
 Blob::~Blob() {
     if(bytes && (memory_mode == object_memory_mode_t::DEFAULT)) {
-        free(const_cast<void*>(reinterpret_cast<const void*>(bytes)));
+        delete[] bytes;
     }
 }
 
@@ -143,7 +144,8 @@ Blob& Blob::operator=(const Blob& other) {
 
     // 2) verify that this->capacity has enough memory;
     if (this->capacity < other.size) {
-        bytes = static_cast<uint8_t*>(realloc(const_cast<void*>(static_cast<const void*>(bytes)),other.size));
+        delete[] bytes;
+        bytes = new uint8_t[other.size];
         this->capacity = other.size;
     }
 
@@ -193,10 +195,10 @@ std::size_t Blob::bytes_size() const {
 void Blob::post_object(const std::function<void(uint8_t const* const, std::size_t)>& f) const {
     if (size > 0 && (memory_mode == object_memory_mode_t::BLOB_GENERATOR)) {
         // we have to instatiate the data. CAUTIOUS: this is inefficient. Please use BLOB_GENERATOR mode carefully.
-        uint8_t* local_bytes = static_cast<uint8_t*>(malloc(size));
+        uint8_t* local_bytes = new uint8_t[size];
         auto number_bytes_generated = blob_generator(local_bytes,size);
         if (number_bytes_generated != size) {
-            free(local_bytes);
+            delete[] local_bytes;
             dbg_default_error("Expecting {} bytes, but blob generator writes {} bytes.", size, number_bytes_generated);
             std::string exception_message("Expecting");
             throw std::runtime_error(std::string("Expecting ") + std::to_string(size)
@@ -205,7 +207,7 @@ void Blob::post_object(const std::function<void(uint8_t const* const, std::size_
         }
         f((uint8_t*)&size, sizeof(size));
         f(local_bytes, size);
-        free(local_bytes);
+        delete[] local_bytes;
     } else {
         f((uint8_t*)&size, sizeof(size));
         f(bytes, size);
