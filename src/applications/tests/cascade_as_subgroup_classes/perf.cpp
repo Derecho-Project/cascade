@@ -329,8 +329,8 @@ int do_client(int argc,char** args) {
     /** 1 - create external client group*/
     derecho::ExternalGroupClient<VCS,PCS> group;
 
-    uint64_t msg_size = derecho::getConfUInt64(CONF_SUBGROUP_DEFAULT_MAX_PAYLOAD_SIZE);
-    uint32_t my_node_id = derecho::getConfUInt32(CONF_DERECHO_LOCAL_ID);
+    uint64_t msg_size = derecho::getConfUInt64(derecho::Conf::SUBGROUP_DEFAULT_MAX_PAYLOAD_SIZE);
+    uint32_t my_node_id = derecho::getConfUInt32(derecho::Conf::DERECHO_LOCAL_ID);
 
     /** 2 - test both latency and bandwidth */
     if (is_persistent) {

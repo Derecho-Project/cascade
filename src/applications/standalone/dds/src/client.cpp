@@ -105,7 +105,7 @@ static bool run_pingpong_latency(
         uint32_t payload_size = sizeof(message_header_t);
 #else
         // reserve payload space.
-        uint32_t payload_size = derecho::getConfUInt32(CONF_SUBGROUP_DEFAULT_MAX_PAYLOAD_SIZE);
+        uint32_t payload_size = derecho::getConfUInt32(derecho::Conf::SUBGROUP_DEFAULT_MAX_PAYLOAD_SIZE);
         if (payload_size < 256) {
             payload_size = 0;
         } else {
@@ -206,7 +206,7 @@ static bool run_perftest(
         uint32_t payload_size = sizeof(message_header_t);
 #else
         // reserve payload space.
-        uint32_t payload_size = derecho::getConfUInt32(CONF_SUBGROUP_DEFAULT_MAX_PAYLOAD_SIZE);
+        uint32_t payload_size = derecho::getConfUInt32(derecho::Conf::SUBGROUP_DEFAULT_MAX_PAYLOAD_SIZE);
         if (payload_size < 256) {
             payload_size = 0;
         } else {
