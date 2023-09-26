@@ -30,4 +30,4 @@ target_include_directories(hyperscan_perf PRIVATE
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
-target_link_libraries(hyperscan_perf ${Hyperscan_LIBRARIES})
+target_link_libraries(hyperscan_perf ${Hyperscan_LIBRARIES} cascade)
