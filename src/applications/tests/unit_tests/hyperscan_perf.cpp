@@ -20,6 +20,13 @@
  */
 
 /**
+ * @brief tag
+ */
+#define TLT_HYPERSCAN_START     5000001
+#define xstr(a)                 str(a)
+#define str(a)                  #a
+
+/**
  * @brief Help string.
  */
 const char* help_string = 
@@ -28,6 +35,12 @@ const char* help_string =
     "Options:\n"
     "\t--(g)enerate-test-cases <num_entries>        generate test cases\n"
     "\t--(e)valuate <testcase file>                 evaluate test cases\n"
+    "\t                                             per-scan latency is available by enabling timestamp tag:" xstr(TLT_HYPERSCAN_START) "\n"
+    "\t                                             , by putting the following in derecho.cfg\n"
+    "\t                                             /////////\n"
+    "\t                                             [CASCADE]\n"
+    "\t                                             timestamp_tag_enabler = " xstr(TLT_HYPERSCAN_START) "\n"
+    "\t                                             ///////////////////////////////\n"
     "\t--(p)attern <regex>                          pattern for evaluation\n"
     "\t--(h)elp                                     help information\n"
     ;
@@ -59,73 +72,110 @@ void generate_test_cases(uint32_t num_test_cases) {
  * @param[in]   file            The test case filename.
  */
 void evaluate_test_cases(const std::string& pattern, const std::string& file) {
-    hs_database_t   *database;
-    hs_compile_error_t  *compile_err;
+    hs_database_t*      database;
+    hs_compile_error_t* compile_err;
+    std::FILE*          fp;
+    size_t              data_length;
+    int                 fd;
+    hs_scratch_t*       scratch = nullptr;
+    char*               line;
+    void*               test_cases;
+
+    std::cout << "evaluate with pattern:" << pattern << std::endl;
 
     // 0 - compile pattern
     if (hs_compile(pattern.c_str(), HS_FLAG_DOTALL, HS_MODE_BLOCK, NULL, &database,&compile_err) != HS_SUCCESS) {
         std::cerr << "ERROR: Unabled to compile patter \"" << pattern << "\":"
                   << compile_err->message << std::endl;
-        return;
+        goto error_group_0;
     }
     
     // 1 - get file length
-    std::FILE* fp = std::fopen(file.c_str(),"r");
+    fp = std::fopen(file.c_str(),"r");
     if (fp ==nullptr) {
         std::cerr << "Failed to open the file. Error:"
                   << std::strerror(errno) << std::endl;
-        return;
+        goto error_group_1;
     }
 
     if (std::fseek(fp, 0, SEEK_END) != 0) {
         std::cerr << "Failed to seek to the end of the file. Error:"
                   << std::strerror(errno) << std::endl;
-        std::fclose(fp);
-        return;
+        goto error_group_2;
     }
 
-    size_t data_length = ftell(fp);
+    data_length = ftell(fp);
     if (std::fseek(fp, 0, SEEK_SET) != 0) {
         std::cerr << "Failed to seek to the beginning of the file. Error:"
                   << std::strerror(errno) << std::endl;
-        std::fclose(fp);
-        return;
+        goto error_group_2;
     }
 
     std::fclose(fp);
 
     // 2 - mmap file
-    int fd = open(file.c_str(),O_RDONLY);
+    fd = open(file.c_str(),O_RDONLY);
     if (fd < 0) {
         std::cerr << "Failed to open file:" << file << " for read. Error:"
                   << std::strerror(errno) << std::endl;
-        return;
+        goto error_group_3;
     }
-    void* test_cases = mmap(nullptr,data_length,PROT_READ,MAP_PRIVATE,fd,0);
+    test_cases = mmap(nullptr,data_length,PROT_READ,MAP_PRIVATE,fd,0);
     if (test_cases == MAP_FAILED) {
         std::cerr << "Failed to mmap file:" << file << " for read. Error:"
                   << std::strerror(errno) << std::endl;
-        return;
+        goto error_group_4;
     }
 
-    // 3 - touch to load.
-    //TODO:
-    char *line;
+    // 3 - scan to load.
+    if (hs_alloc_scratch(database, &scratch) != HS_SUCCESS) {
+        std::cerr << "Failed to allocate scratch space. Error:"
+                  << std::strerror(errno) << std::endl;
+        goto error_group_5;
+    }
+
+    if (hs_scan(database, static_cast<const char*>(test_cases), data_length, 
+                0, scratch, nullptr, nullptr) != HS_SUCCESS) {
+        std::cerr << "hs_scan() failed during loading...exiting." << std::endl;
+        goto error_group_6;
+    }
+
+    // 4 - evaluate
     line = reinterpret_cast<char*>(test_cases);
     for (size_t pos = 0;pos < data_length; pos ++) {
         char* p = (reinterpret_cast<char*>(test_cases) + pos);
         if (*p == '\n') {
-            std::cout << std::string(line,p-line) << std::endl;
+            derecho::cascade::TimestampLogger::log(5000001,
+                    reinterpret_cast<uint64_t>(line),static_cast<uint64_t>(p-line),derecho::cascade::get_time_ns(false));
+            if (hs_scan(database, line, p-line, 0, scratch, nullptr,nullptr) != HS_SUCCESS ) {
+                std::cerr << "hs_scan() failed during evaluation...exiting." << std::endl;
+                goto error_group_5;
+            }
             line = p+1;
         }
     }
+    std::cout << "done." << std::endl;
+    derecho::cascade::TimestampLogger::flush("hs.tt");
     
-    // 4 - close file
-    if(munmap(test_cases,data_length) < 0) {
-        std::cerr << "Failed to unmap file:" << file << ". Error:"
-                  << std::strerror(errno) << std::endl;
+    // 4 - clean up.
+error_group_6:
+    hs_free_scratch(scratch);
+error_group_5:
+    if (munmap(test_cases,data_length) < 0) {
+        std::cerr << "Failed to unmap file:" << file << ".Error:"
+                 << std::strerror(errno) << std::endl;
     }
+error_group_4:
     close(fd);
+error_group_3:
+    hs_free_database(database);
+    return;
+error_group_2:
+    std::fclose(fp);
+error_group_1:
+    hs_free_database(database);
+error_group_0:
+    return;
 }
 
 /**
