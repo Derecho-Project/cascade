@@ -62,9 +62,6 @@ set(CMAKE_REQUIRED_DEFINITIONS -DFUSE_USE_VERSION=30)
 include(CheckIncludeFiles)
 include(CheckIncludeFileCXX)
 
-# stateful udl support
-set(HAS_STATEFUL_UDL_SUPPORT 1)
-
 # fuse
 CHECK_INCLUDE_FILES("fuse3/fuse.h;fuse3/fuse_lowlevel.h" HAS_FUSE)
 
@@ -152,12 +149,19 @@ install(FILES
     DESTINATION ${ConfigPackageLocation}
 )
 
+set (DOXYGEN_EXCLUDE src/applications src/service/cs src/service/python src/service/java)
+set (DOXYGEN_PROJECT_NUMBER ${cascade_VERSION})
+set (DOXYGEN_TAB_SIZE 4)
+set (DOXYGEN_WARNINGS NO)
+set (DOXYGEN_WARN_IF_UNDOCUMENTED NO)
+set (DOXYGEN_WARN_NO_PARAMDOC NO)
 if (DOXYGEN_FOUND)
     # create docs
     doxygen_add_docs(docs
+        ${CMAKE_SOURCE_DIR}/README.md
         ${CMAKE_SOURCE_DIR}/include
         ${CMAKE_SOURCE_DIR}/src
         ALL
-        # CONFIG_FILE ${CMAKE_SOURCE_DIR}/Doxyfile
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     )
 endif()
