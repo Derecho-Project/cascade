@@ -2208,9 +2208,7 @@ void CascadeContext<CascadeTypes...>::construct() {
                     dfg.id,
                     {vertex.second.pathname},
                     vertex.second.shard_dispatchers[i],
-#ifdef HAS_STATEFUL_UDL_SUPPORT
                     vertex.second.stateful[i],
-#endif
                     vertex.second.hooks[i],
                     vertex.second.uuids[i],
                     vertex.second.configurations[i].dump(),
@@ -2277,7 +2275,6 @@ void CascadeContext<CascadeTypes...>::construct() {
                 this->workhorse(i,stateless_action_queue_for_p2p);
             });
     }
-#ifdef HAS_STATEFUL_UDL_SUPPORT
     uint32_t num_stateful_multicast_workers = 0;
     uint32_t num_stateful_p2p_workers = 0;
     // 2.3 - initialize stateful multicast workers
@@ -2355,8 +2352,6 @@ void CascadeContext<CascadeTypes...>::construct() {
                 // worker id 0xFFFFFFFF is reserved for single thread
                 this->workhorse(0xFFFFFFFF,single_threaded_action_queue_for_p2p);
             });
-
-#endif//HAS_STATEFUL_UDL_SUPPORT
 }
 
 template <typename... CascadeTypes>
@@ -2449,7 +2444,6 @@ void CascadeContext<CascadeTypes...>::destroy() {
     }
     stateless_workhorses_for_multicast.clear();
     stateless_workhorses_for_p2p.clear();
-#ifdef HAS_STATEFUL_UDL_SUPPORT
     for (auto& queue: stateful_action_queues_for_multicast) {
         queue->notify_all();
     }
@@ -2474,7 +2468,6 @@ void CascadeContext<CascadeTypes...>::destroy() {
     if(single_threaded_workhorse_for_p2p.joinable()) {
         single_threaded_workhorse_for_p2p.join();
     }
-#endif//HAS_STATEFUL_UDL_SUPPORT
     dbg_default_trace("Cascade context@{:p} is destroyed.",static_cast<void*>(this));
 }
 
@@ -2488,9 +2481,7 @@ void CascadeContext<CascadeTypes...>::register_prefixes(
         const std::string& dfg_uuid,
         const std::unordered_set<std::string>& prefixes,
         const DataFlowGraph::VertexShardDispatcher shard_dispatcher,
-#ifdef HAS_STATEFUL_UDL_SUPPORT
         const DataFlowGraph::Statefulness stateful,
-#endif
         const DataFlowGraph::VertexHook hook,
         const std::string& user_defined_logic_id,
         const std::string& user_defined_logic_config,
@@ -2498,15 +2489,9 @@ void CascadeContext<CascadeTypes...>::register_prefixes(
         const std::unordered_map<std::string,bool>& outputs) {
     for (const auto& prefix:prefixes) {
         prefix_registry_ptr->atomically_modify(prefix,
-#ifdef HAS_STATEFUL_UDL_SUPPORT
             [&dfg_uuid,&prefix,&shard_dispatcher,&stateful,
              &hook,&user_defined_logic_id,&user_defined_logic_config,
              &ocdpo_ptr,&outputs] (const std::shared_ptr<prefix_entry_t>& entry){
-#else
-            [&dfg_uuid,&prefix,&shard_dispatcher,
-             &hook,&user_defined_logic_id,&user_defined_logic_config,
-             &ocdpo_ptr,&outputs] (const std::shared_ptr<prefix_entry_t>& entry){
-#endif
                 std::shared_ptr<prefix_entry_t> new_entry;
                 if (entry) {
                     new_entry = std::make_shared<prefix_entry_t>(*entry);
@@ -2523,9 +2508,7 @@ void CascadeContext<CascadeTypes...>::register_prefixes(
                     user_defined_logic_id,
                     user_defined_logic_config,
                     shard_dispatcher,
-#ifdef HAS_STATEFUL_UDL_SUPPORT
                     stateful,
-#endif
                     hook,ocdpo_ptr,outputs};
 
                 // insert it to new_entry
@@ -2567,15 +2550,10 @@ match_results_t CascadeContext<CascadeTypes...>::get_prefix_handlers(const std::
 }
 
 template <typename... CascadeTypes>
-#ifdef HAS_STATEFUL_UDL_SUPPORT
 bool CascadeContext<CascadeTypes...>::post(Action&& action, DataFlowGraph::Statefulness stateful, bool is_trigger) {
-#else
-bool CascadeContext<CascadeTypes...>::post(Action&& action, bool is_trigger) {
-#endif//HAS_STATEFUL_UDL_SUPPORT
     dbg_default_trace("Posting an action to Cascade context@{:p}.", static_cast<void*>(this));
     if (is_running) {
         if (is_trigger) {
-#ifdef HAS_STATEFUL_UDL_SUPPORT
             switch(stateful) {
             case DataFlowGraph::Statefulness::STATEFUL:
                 {
@@ -2584,17 +2562,13 @@ bool CascadeContext<CascadeTypes...>::post(Action&& action, bool is_trigger) {
                 }
                 break;
             case DataFlowGraph::Statefulness::STATELESS:
-#endif
                 stateless_action_queue_for_p2p.action_buffer_enqueue(std::move(action));
-#ifdef HAS_STATEFUL_UDL_SUPPORT
                 break;
             case DataFlowGraph::Statefulness::SINGLETHREADED:
                 single_threaded_action_queue_for_p2p.action_buffer_enqueue(std::move(action));
                 break;
             }
-#endif
         } else {
-#ifdef HAS_STATEFUL_UDL_SUPPORT
             switch(stateful) {
             case DataFlowGraph::Statefulness::STATEFUL:
                 {
@@ -2603,15 +2577,12 @@ bool CascadeContext<CascadeTypes...>::post(Action&& action, bool is_trigger) {
                 }
                 break;
             case DataFlowGraph::Statefulness::STATELESS:
-#endif
                 stateless_action_queue_for_multicast.action_buffer_enqueue(std::move(action));
-#ifdef HAS_STATEFUL_UDL_SUPPORT
                 break;
             case DataFlowGraph::Statefulness::SINGLETHREADED:
                 single_threaded_action_queue_for_multicast.action_buffer_enqueue(std::move(action));
                 break;
             }
-#endif
         }
     } else {
         dbg_default_warn("Failed to post to Cascade context@{:p} because it is not running.", static_cast<void*>(this));

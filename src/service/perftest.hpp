@@ -76,7 +76,8 @@ private:
 public:
     /**
      * Constructor
-     * @param capi
+     * @param[in]   capi
+     * @param[in]   port
      */
     PerfTestServer(ServiceClientAPI& capi, uint16_t port = PERFTEST_PORT);
 
@@ -165,7 +166,7 @@ public:
      * Single Shard Performance testing, using put with return
      * @param put_type
      * @param subgroup_index
-     * @param subgroup_shard
+     * @param shard_index
      * @param ec2cs
      *        Mapping from external client to a shard member.
      * @param read_write_ratio
