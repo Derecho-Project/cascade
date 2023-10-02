@@ -1,0 +1,30 @@
+[
+    {
+        "id": "65c398e8-a357-4ce7-ab2b-ab2e8c10a9f9",
+        "desc": "C#-defined DLL demonstration",
+        "graph": [
+            {
+                "pathname": "/dotnet_logic",
+                "shard_dispatcher_list": ["one"],
+                "user_defined_logic_list": ["3fc0bfc9-ae62-4b57-b39d-af3f83e7f429"],
+                "user_defined_logic_config_list": [
+                    {
+                        "csharp_relative_path": "../HelloWorld.dll",
+                        "module": "Cascade.HelloWorldUDL"
+                    }],
+                "destinations": [{}]
+            },
+            {
+                "pathname": "/dotnet_logic2",
+                "shard_dispatcher_list": ["one"],
+                "user_defined_logic_list": ["3fc0bfc9-ae62-4b57-b39d-af3f83e7f429"],
+                "user_defined_logic_config_list": [
+                    {
+                        "csharp_relative_path": "../GoodbyeWorldUDL.dll",
+                        "module": "Cascade.GoodbyeWorldUDL"
+                    }],
+                "destinations": [{}]
+            }
+        ]
+    }
+]
