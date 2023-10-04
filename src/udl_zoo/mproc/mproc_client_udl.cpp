@@ -8,7 +8,7 @@
 #include <memory>
 
 #include <cascade/user_defined_logic_interface.hpp>
-#include "mproc_connector.hpp"
+#include <cascade/mproc/mproc_service.hpp>
 
 namespace derecho {
 namespace cascade {
@@ -61,6 +61,7 @@ __attribute__ ((visibility ("default")))
 std::shared_ptr<OffCriticalDataPathObserver> get_observer(
     ICascadeContext* ctxt,const nlohmann::json& conf) {
     // TODO:
+    return nullptr;
 }
 
 /**

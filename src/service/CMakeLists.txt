@@ -35,7 +35,9 @@ add_custom_command(TARGET udl_signature POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/udl_signature.hpp ${CMAKE_BINARY_DIR}/include/cascade/detail/udl_signature.hpp
 )
 
-add_library(service OBJECT service.cpp data_flow_graph.cpp _user_defined_logic_interface.cpp)
+add_library(service OBJECT 
+    service.cpp data_flow_graph.cpp _user_defined_logic_interface.cpp
+    mproc/mproc_service.cpp)
 target_include_directories(service PRIVATE
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
