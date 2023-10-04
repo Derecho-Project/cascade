@@ -1,4 +1,7 @@
-#include "mproc_connector.hpp"
+#include <cinttypes>
+
+#include <cascade/mproc/mproc_service.hpp>
+#include <wsong/ipc/ring_buffer.hpp>
 
 namespace derecho {
 namespace cascade {
