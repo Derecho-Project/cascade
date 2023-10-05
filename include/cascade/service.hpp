@@ -1631,25 +1631,33 @@ namespace cascade {
      * 2 - a prefix registry.
      * 3 - a bounded Action buffer.
      */
-    using prefix_ocdpo_info_t = std::tuple<
-                        std::string,                                  // udl_id
-                        std::string,                                  // config string
-                        DataFlowGraph::VertexShardDispatcher,         // shard dispatcher
-                        DataFlowGraph::Statefulness,                  // is stateful/stateless/singlethreaded
-                        DataFlowGraph::VertexHook,                    // hook
-                        std::shared_ptr<OffCriticalDataPathObserver>, // ocdpo
-                        std::unordered_map<std::string,bool>          // output map{prefix->bool}
-                    >;
+
+    /**
+     * @struct prefix_ocdpo_info_t
+     * @brief   This is the information to live in the prefix tree.
+     */
+    using prefix_ocdpo_info_t = struct {
+        std::string     udl_id;
+        std::string     config_string;
+        DataFlowGraph::VertexExecutionEnvironment       execution_environment;
+        DataFlowGraph::VertexShardDispatcher            shard_dispatcher;
+        DataFlowGraph::Statefulness                     statefulness;
+        DataFlowGraph::VertexHook                       hook;
+        std::shared_ptr<OffCriticalDataPathObserver>    ocdpo;
+        std::unordered_map<std::string,bool>            output_map;
+    };
 
     struct PrefixOCDPOInfoHash {
         inline size_t operator() (const prefix_ocdpo_info_t& info) const {
-            return std::hash<std::string>{}(std::get<0>(info) + std::get<1>(info));
+            return std::hash<std::string>{}(info.udl_id + info.config_string);
         }
     };
 
     struct PrefixOCDPOInfoCompare {
         inline bool operator() (const prefix_ocdpo_info_t& l, const prefix_ocdpo_info_t& r) const {
-            return (std::get<0>(l) == std::get<0>(r)) && (std::get<1>(l) == std::get<1>(r));
+            return (l.udl_id == r.udl_id) && 
+                   (l.config_string == r.config_string) &&
+                   (l.execution_environment == r.execution_environment);
         }
     };
 
@@ -1771,6 +1779,8 @@ namespace cascade {
          * @param[in] dfg_uuid              - the dfg uuid
          * @param[in] prefixes              - the prefixes set
          * @param[in] shard_dispatcher      - the shard dispatcher
+         * @param[in] execution_environment - the execution environment
+         * @param[in] execution_environment_conf - the execution environment configuration
          * @param[in] stateful              - register a stateful udl
          * @param[in] hook                  - the hook for this ocdpo
          * @param[in] user_defined_logic_id - the UDL id, presumably an UUID string
@@ -1783,6 +1793,8 @@ namespace cascade {
         virtual void register_prefixes(const std::string& dfg_uuid,
                                        const std::unordered_set<std::string>& prefixes,
                                        const DataFlowGraph::VertexShardDispatcher shard_dispatcher,
+                                       const DataFlowGraph::VertexExecutionEnvironment execution_environment,
+                                       const std::string& execution_environment_conf,
                                        const DataFlowGraph::Statefulness stateful,
                                        const DataFlowGraph::VertexHook hook,
                                        const std::string& user_defined_logic_id,

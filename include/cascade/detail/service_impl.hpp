@@ -2208,6 +2208,8 @@ void CascadeContext<CascadeTypes...>::construct() {
                     dfg.id,
                     {vertex.second.pathname},
                     vertex.second.shard_dispatchers[i],
+                    vertex.second.execution_environment[i],
+                    vertex.second.execution_environment_conf[i].dump(),
                     vertex.second.stateful[i],
                     vertex.second.hooks[i],
                     vertex.second.uuids[i],
@@ -2478,18 +2480,20 @@ ServiceClient<CascadeTypes...>& CascadeContext<CascadeTypes...>::get_service_cli
 
 template <typename... CascadeTypes>
 void CascadeContext<CascadeTypes...>::register_prefixes(
-        const std::string& dfg_uuid,
-        const std::unordered_set<std::string>& prefixes,
-        const DataFlowGraph::VertexShardDispatcher shard_dispatcher,
-        const DataFlowGraph::Statefulness stateful,
-        const DataFlowGraph::VertexHook hook,
-        const std::string& user_defined_logic_id,
-        const std::string& user_defined_logic_config,
+        const std::string&                                  dfg_uuid,
+        const std::unordered_set<std::string>&              prefixes,
+        const DataFlowGraph::VertexShardDispatcher          shard_dispatcher,
+        const DataFlowGraph::VertexExecutionEnvironment     execution_environment,
+        const std::string&                                  execution_environment_config,
+        const DataFlowGraph::Statefulness                   stateful,
+        const DataFlowGraph::VertexHook                     hook,
+        const std::string&                                  user_defined_logic_id,
+        const std::string&                                  user_defined_logic_config,
         const std::shared_ptr<OffCriticalDataPathObserver>& ocdpo_ptr,
-        const std::unordered_map<std::string,bool>& outputs) {
+        const std::unordered_map<std::string,bool>&         outputs) {
     for (const auto& prefix:prefixes) {
         prefix_registry_ptr->atomically_modify(prefix,
-            [&dfg_uuid,&prefix,&shard_dispatcher,&stateful,
+            [&dfg_uuid,&prefix,&execution_environment,&shard_dispatcher,&stateful,
              &hook,&user_defined_logic_id,&user_defined_logic_config,
              &ocdpo_ptr,&outputs] (const std::shared_ptr<prefix_entry_t>& entry){
                 std::shared_ptr<prefix_entry_t> new_entry;
@@ -2504,12 +2508,15 @@ void CascadeContext<CascadeTypes...>::register_prefixes(
                     new_entry->emplace(dfg_uuid,prefix_ocdpo_info_set_t{});
                 }
                 // create prefix_ocdpo_info_t
-                prefix_ocdpo_info_t ocdpo_info{
-                    user_defined_logic_id,
-                    user_defined_logic_config,
-                    shard_dispatcher,
-                    stateful,
-                    hook,ocdpo_ptr,outputs};
+                prefix_ocdpo_info_t ocdpo_info = {
+                    .udl_id = user_defined_logic_id,
+                    .config_string = user_defined_logic_config,
+                    .execution_environment = execution_environment,
+                    .shard_dispatcher = shard_dispatcher,
+                    .statefulness = stateful,
+                    .hook = hook,
+                    .ocdpo = ocdpo_ptr,
+                    .output_map = outputs};
 
                 // insert it to new_entry
                 (*new_entry)[dfg_uuid].erase(ocdpo_info);
