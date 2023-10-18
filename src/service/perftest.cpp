@@ -167,7 +167,7 @@ bool PerfTestServer::eval_signature_put(uint64_t max_operation_per_second,
     debug_enter_func_with_args("max_ops={},duration={},subgroup_type_index={},subgroup_index={},shard_index={}",
                                max_operation_per_second, duration_secs, subgroup_type_index, subgroup_index, shard_index);
     // Synchronization data structures
-    uint32_t window_size = derecho::getConfUInt32(CONF_DERECHO_P2P_WINDOW_SIZE);
+    uint32_t window_size = derecho::getConfUInt32(derecho::Conf::DERECHO_P2P_WINDOW_SIZE);
     uint32_t window_slots = window_size * 2;
     std::mutex window_slots_mutex;
     std::condition_variable window_slots_cv;
@@ -710,7 +710,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         }
         // STEP 2 - prepare workload
         objects.clear();
-        uint32_t object_size = derecho::getConfUInt32((derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
+        uint32_t object_size = derecho::getConfUInt32((derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE));
         uint32_t num_distinct_objects = std::min(static_cast<uint64_t>(max_num_distinct_objects), max_workload_memory / object_size);
         make_workload<std::string, ObjectWithStringKey>(object_size, num_distinct_objects, "raw_key_", objects);
         int64_t sleep_us = (start_sec*1e9 - static_cast<int64_t>(get_walltime()))/1e3;
@@ -783,7 +783,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         // STEP 2 - prepare workload
         objects.clear();
         // Ensure the workload objects will fit in memory (for now, 16GB)
-        uint32_t object_size = derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
+        uint32_t object_size = derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
         // Result of min will never be larger than max_num_distinct_objects, so assigning it to uint32_t is safe
         uint32_t num_distinct_objects = std::min(static_cast<uint64_t>(max_num_distinct_objects), max_workload_memory / object_size);
         make_workload<std::string, ObjectWithStringKey>(object_size, num_distinct_objects,
