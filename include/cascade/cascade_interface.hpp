@@ -316,6 +316,7 @@ public:
      *
      * @param[in]   key     The key
      * @param[in]   ts_us   The timestamp in microsecond
+     * @param[in]   stable  return the stablized data
      *
      * @return  The size of serialized value.
      */
@@ -564,7 +565,7 @@ public:
      * @param[in]   prev_ver          The previous version
      * @param[in]   prev_ver_by_key   The previous version of the same key in VT object
      */
-    virtual void set_previous_version(persistent::version_t prev_ver, persistent::version_t perv_ver_by_key) const = 0;
+    virtual void set_previous_version(persistent::version_t prev_ver, persistent::version_t prev_ver_by_key) const = 0;
 };
 
 /**
@@ -585,7 +586,7 @@ class IVerifyPreviousVersion : public IKeepPreviousVersion {
 public:
 
     /**
-     * @brief   A callback on PresistentCascadeStore/VolatileCascadeStore::ordered_put().
+     * @brief   A callback on PresistentCascadeStore::ordered_put and VolatileCascadeStore::ordered_put.
      *
      * @param[in]   prev_ver          The previous version
      * @param[in]   prev_ver_by_key   The previous version of the same key in VT object
@@ -613,7 +614,7 @@ class IValidator {
 public:
 
     /**
-     * @brief   A callback on PersistentCascadeStore/VolatileCascadeStore::ordered_put().
+     * @brief   A callback on PersistentCascadeStore::ordered_put or VolatileCascadeStore::ordered_put.
      *
      * @param[in]   kv_map      The reference to the current shard state as a map from `KT` to `VT`.
      *

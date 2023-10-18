@@ -59,7 +59,7 @@ bool PerfTestServer::eval_put(uint64_t max_operation_per_second,
                               uint32_t shard_index) {
         // synchronization data structures
         // 1 - sending window and future queue
-        uint32_t                window_size = derecho::getConfUInt32(CONF_DERECHO_P2P_WINDOW_SIZE);
+        uint32_t                window_size = derecho::getConfUInt32(derecho::Conf::DERECHO_P2P_WINDOW_SIZE);
         uint32_t                window_slots = window_size*2;
         std::mutex              window_slots_mutex;
         std::condition_variable window_slots_cv;
@@ -458,7 +458,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
             user_specified_node_id);
         // STEP 2 - prepare workload
         objects.clear();
-        uint32_t object_size = derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
+        uint32_t object_size = derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
         uint32_t num_distinct_objects = std::min(static_cast<uint64_t>(max_num_distinct_objects), max_workload_memory / object_size);
         make_workload<std::string, ObjectWithStringKey>(object_size, num_distinct_objects, "raw_key_", objects);
         // STEP 3 - start experiment and log
@@ -506,7 +506,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
             user_specified_node_id);
         // STEP 2 - prepare workload
         objects.clear();
-        uint32_t object_size = derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
+        uint32_t object_size = derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
         uint32_t num_distinct_objects = std::min(static_cast<uint64_t>(max_num_distinct_objects), max_workload_memory / object_size);
         make_workload<std::string, ObjectWithStringKey>(object_size, num_distinct_objects, "raw_key_", objects);
         // STEP 3 - start experiment and log
@@ -554,7 +554,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
             user_specified_node_id);
         // STEP 2 - prepare workload
         objects.clear();
-        uint32_t object_size = derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
+        uint32_t object_size = derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
         uint32_t num_distinct_objects = std::min(static_cast<uint64_t>(max_num_distinct_objects), max_workload_memory / object_size);
         make_workload<std::string, ObjectWithStringKey>(object_size, num_distinct_objects, "raw_key_", objects);
         int64_t sleep_us = (start_sec * 1e9 - static_cast<int64_t>(get_walltime())) / 1e3;
@@ -607,7 +607,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         }
         // STEP 2 - prepare workload
         objects.clear();
-        uint32_t object_size = derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
+        uint32_t object_size = derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
         uint32_t num_distinct_objects = std::min(static_cast<uint64_t>(max_num_distinct_objects), max_workload_memory / object_size);
         make_workload<std::string, ObjectWithStringKey>(object_size, num_distinct_objects, object_pool_pathname + "/key_", objects);
         int64_t sleep_us = (start_sec*1e9 - static_cast<int64_t>(get_walltime()))/1e3;
@@ -659,7 +659,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         }
         // STEP 2 - prepare workload
         objects.clear();
-        uint32_t object_size = derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
+        uint32_t object_size = derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
         uint32_t num_distinct_objects = std::min(static_cast<uint64_t>(max_num_distinct_objects), max_workload_memory / object_size);
         make_workload<std::string, ObjectWithStringKey>(object_size, num_distinct_objects, "raw_key_", objects);
         int64_t sleep_us = (start_sec*1e9 - static_cast<int64_t>(get_walltime()))/1e3;
@@ -710,7 +710,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         }
         // STEP 2 - prepare workload
         objects.clear();
-        uint32_t object_size = derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
+        uint32_t object_size = derecho::getConfUInt32((derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
         uint32_t num_distinct_objects = std::min(static_cast<uint64_t>(max_num_distinct_objects), max_workload_memory / object_size);
         make_workload<std::string, ObjectWithStringKey>(object_size, num_distinct_objects, "raw_key_", objects);
         int64_t sleep_us = (start_sec*1e9 - static_cast<int64_t>(get_walltime()))/1e3;

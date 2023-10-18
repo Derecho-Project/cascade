@@ -143,7 +143,8 @@ public:
      * Report the latency statistics. The latecy is calculated between events of 'from_type' to events of 'to_type' for
      * each of the event id.
      *
-     * @param from_type     the start point
+     * @param[in]   from_type   the start point
+     * @param[in]   to_type     the end point
      *
      * @return          a 3-tuple for average latency (us), standard deviation (us), and count.
      */

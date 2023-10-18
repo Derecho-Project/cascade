@@ -58,6 +58,7 @@ public:
 };
 
 /**
+ * @brief UserDefinedLogicManager
  * The data path logic manager(UDLM) interface manages the UDLs using its ID. Ideally, UDLM knows where to get the
  * corresponding UDL from its ID. The current implementation manages all those UDLs in DLL files. In the future, the
  * UDLM will pull the UDLs from Cascade Metadata Service. We plan to introduce the "WrapperUDL" concept to allow UDL
@@ -68,17 +69,18 @@ template <typename... CascadeTypes>
 class UserDefinedLogicManager {
 public:
     /**
+     * @brief list_user_defined_logics
      * List all data path logics. The UDL object will post to udl_function.
-     * @param udl_func  - list_user_defined_logic feeds the udl_func with the UDLs one by one.
+     *
+     * @param[in] udl_func  - list_user_defined_logic feeds the udl_func with the UDLs one by one.
      */
     virtual void list_user_defined_logics(const std::function<void(const UserDefinedLogic<CascadeTypes...>&)>& udl_func) const = 0;
 
     /**
      * Get a shared ocdpo ptr by UDL id.
      *
-     * @param ctxt          - the CascadeContext
-     * @param udl_id        - The UDL id.
-     * @param udl_config    - a JSON configuration for this UDL.
+     * @param[in] udl_id        - The UDL id.
+     * @param[in] udl_config    - a JSON configuration for this UDL.
      *
      * @return a shared pointer to the ocdpo.
      */
@@ -87,12 +89,15 @@ public:
             const nlohmann::json& udl_config = nlohmann::json{}) = 0;
 
     /**
+     * @brief Destructor
      * A virtual destructor: we need this because the default destructor is not virtual.
      */
     virtual ~UserDefinedLogicManager();
 
     /**
-     * Factory
+     * @brief Factory
+     *
+     * @param[in]   ctxt        The cascade context
      *
      * @return the created data path logical manager
      */
