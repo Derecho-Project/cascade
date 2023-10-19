@@ -237,7 +237,7 @@ bool PerfTestServer::eval_trigger_put(uint64_t max_operation_per_second,
     return true;
 }
 
-bool PerfTestServer::eval_get(uint64_t log_depth,
+bool PerfTestServer::eval_get(uint32_t log_depth,
                               uint64_t max_operations_per_second,
                               uint64_t duration_secs,
                               uint32_t subgroup_type_index,
@@ -332,7 +332,7 @@ bool PerfTestServer::eval_get(uint64_t log_depth,
         oldest_object_versions.emplace_back(std::get<0>(object_version_tuple));
         dbg_default_debug("eval_get: Object {} got version {}, putting {} more versions in front of it", object.get_key_ref(), std::get<0>(object_version_tuple), log_depth);
         // Call put_and_forget repeatedly on the same object to give it multiple newer versions in the log, up to the depth needed
-        for(uint64_t i = 0; i < log_depth; ++i) {
+        for(uint32_t i = 0; i < log_depth; ++i) {
             if(subgroup_index == INVALID_SUBGROUP_INDEX || shard_index == INVALID_SHARD_INDEX) {
                 this->capi.put_and_forget(object);
             } else {
@@ -577,7 +577,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
                                             uint32_t shard_index,
                                             uint32_t member_selection_policy,
                                             uint32_t user_specified_node_id,
-                                            uint64_t log_depth,
+                                            uint32_t log_depth,
                                             uint64_t max_operations_per_second,
                                             int64_t start_sec,
                                             uint64_t duration_secs,
@@ -593,6 +593,8 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         objects.clear();
         uint32_t object_size = derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
         uint32_t num_distinct_objects = std::min(static_cast<uint64_t>(max_num_distinct_objects), max_workload_memory / object_size);
+        // Ensure adding log_depth versions to all the workload objects won't run out of log space, in case log_depth is large
+        num_distinct_objects = std::min(num_distinct_objects, derecho::getConfUInt32(derecho::Conf::PERS_MAX_LOG_ENTRY) / log_depth);
         make_workload<std::string, ObjectWithStringKey>(object_size, num_distinct_objects, "raw_key_", objects);
         // Wait for start time
         int64_t sleep_us = (start_sec * 1e9 - static_cast<int64_t>(get_walltime())) / 1e3;
@@ -782,7 +784,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
     server.bind("perf_get_to_objectpool", [this](const std::string& object_pool_pathname,
                                                  uint32_t member_selection_policy,
                                                  const std::vector<node_id_t>& user_specified_node_ids,
-                                                 uint64_t log_depth,
+                                                 uint32_t log_depth,
                                                  uint64_t max_operations_per_second,
                                                  int64_t start_sec,
                                                  uint64_t duration_secs,
@@ -806,6 +808,8 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         uint32_t object_size = derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
         // Result of min will never be larger than max_num_distinct_objects, so assigning it to uint32_t is safe
         uint32_t num_distinct_objects = std::min(static_cast<uint64_t>(max_num_distinct_objects), max_workload_memory / object_size);
+        // Ensure adding log_depth versions to all the workload objects won't run out of log space, in case log_depth is large
+        num_distinct_objects = std::min(num_distinct_objects, derecho::getConfUInt32(derecho::Conf::PERS_MAX_LOG_ENTRY) / log_depth);
         make_workload<std::string, ObjectWithStringKey>(object_size, num_distinct_objects,
                                                         object_pool_pathname + "/key_", objects);
         // Wait for start time

@@ -100,7 +100,7 @@ private:
      * @param shard_index Specific shard to target. If subgroup_index and shard_index are both invalid, the test will use the object pool API.
      * @return true if experiment completes successfully, false on error
      */
-    bool eval_get(uint64_t log_depth,
+    bool eval_get(uint32_t log_depth,
                   uint64_t max_operations_per_second,
                   uint64_t duration_secs,
                   uint32_t subgroup_type_index,
@@ -221,7 +221,7 @@ public:
     template<typename SubgroupType>
     bool perf_get(const std::string& object_pool_pathname,
                   ExternalClientToCascadeServerMapping client_server_mapping,
-                  uint64_t log_depth,
+                  uint32_t log_depth,
                   uint64_t ops_threshold,
                   uint64_t duration_secs,
                   const std::string& output_filename);
@@ -274,7 +274,7 @@ public:
     bool perf_get(uint32_t  subgroup_index,
                   uint32_t  shard_index,
                   ExternalClientToCascadeServerMapping client_server_mapping,
-                  uint64_t log_depth,
+                  uint32_t log_depth,
                   uint64_t ops_threshold,
                   uint64_t duration_secs,
                   const std::string& output_filename);
@@ -366,7 +366,7 @@ bool PerfTestClient::perf_put(PutType               put_type,
 template <typename SubgroupType>
 bool PerfTestClient::perf_get(const std::string& object_pool_pathname,
                               ExternalClientToCascadeServerMapping client_server_mapping,
-                              uint64_t log_depth,
+                              uint32_t log_depth,
                               uint64_t ops_threshold,
                               uint64_t duration_secs,
                               const std::string& output_filename) {
@@ -505,7 +505,7 @@ template <typename SubgroupType>
 bool PerfTestClient::perf_get(uint32_t subgroup_index,
                               uint32_t shard_index,
                               ExternalClientToCascadeServerMapping client_server_mapping,
-                              uint64_t log_depth,
+                              uint32_t log_depth,
                               uint64_t ops_threshold,
                               uint64_t duration_secs,
                               const std::string& output_filename) {
