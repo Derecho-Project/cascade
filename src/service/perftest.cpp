@@ -378,7 +378,7 @@ bool PerfTestServer::eval_get(uint64_t log_depth,
         // With either the object pool interface or the shard interface, further decide whether to request the current version or an old version
         if(subgroup_index == INVALID_SUBGROUP_INDEX || shard_index == INVALID_SHARD_INDEX) {
             if(log_depth == 0) {
-                future_appender(this->capi.get(objects.at(cur_object_index).get_key_ref()));
+                future_appender(this->capi.multi_get(objects.at(cur_object_index).get_key_ref()));
             } else {
                 future_appender(this->capi.get(objects.at(cur_object_index).get_key_ref(), oldest_object_versions.at(cur_object_index)));
             }
@@ -387,7 +387,7 @@ bool PerfTestServer::eval_get(uint64_t log_depth,
                 on_subgroup_type_index_with_return(
                         std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
                         future_appender,
-                        this->capi.template get, objects.at(cur_object_index).get_key_ref(), CURRENT_VERSION, true, subgroup_index, shard_index);
+                        this->capi.template multi_get, objects.at(cur_object_index).get_key_ref(), subgroup_index, shard_index);
             } else {
                 on_subgroup_type_index_with_return(
                         std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
@@ -544,6 +544,60 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
             TimestampLogger::flush(output_filename);
             return true;
         } else {
+            return false;
+        }
+    });
+
+    /**
+     * RPC function that runs perf_get on a specific shard
+     *
+     * @param subgroup_type_index
+     * @param subgroup_index
+     * @param shard_index
+     * @param member_selection_policy
+     * @param user_specified_node_id
+     * @param log_depth
+     * @param max_operations_per_second
+     * @param start_sec
+     * @param duration_secs
+     * @param output_filename
+     * @return true if experiment completed successfully, false if there was an error
+     */
+    server.bind("perf_get_to_shard", [this](uint32_t subgroup_type_index,
+                                            uint32_t subgroup_index,
+                                            uint32_t shard_index,
+                                            uint32_t member_selection_policy,
+                                            uint32_t user_specified_node_id,
+                                            uint64_t log_depth,
+                                            uint64_t max_operations_per_second,
+                                            int64_t start_sec,
+                                            uint64_t duration_secs,
+                                            const std::string& output_filename) {
+        // Set up the shard member selection policy
+        on_subgroup_type_index(std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
+                               this->capi.template set_member_selection_policy,
+                               subgroup_index,
+                               shard_index,
+                               static_cast<ShardMemberSelectionPolicy>(member_selection_policy),
+                               user_specified_node_id);
+        // Create workload objects
+        objects.clear();
+        make_workload<std::string, ObjectWithStringKey>(derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE), "raw_key_", objects);
+        // Wait for start time
+        int64_t sleep_us = (start_sec * 1e9 - static_cast<int64_t>(get_walltime())) / 1e3;
+        if(sleep_us > 1) {
+            usleep(sleep_us);
+        }
+        // Run experiment, then log timestamps
+        try {
+            if(this->eval_get(log_depth, max_operations_per_second, duration_secs, subgroup_type_index, subgroup_index, shard_index)) {
+                TimestampLogger::flush(output_filename);
+                return true;
+            } else {
+                return false;
+            }
+        } catch(const std::exception& e) {
+            std::cerr << "eval_get failed with exception: " << typeid(e).name() << ": " << e.what() << std::endl;
             return false;
         }
     });
