@@ -673,6 +673,40 @@ bool perftest(PerfTestClient& ptc,
     return ret;
 }
 
+// The object pool version of get perf test
+template <typename SubgroupType>
+bool perftest_get(PerfTestClient& ptc,
+                  const std::string& object_pool_pathname,
+                  ExternalClientToCascadeServerMapping ec2cs,
+                  uint64_t log_depth,
+                  uint64_t ops_threshold,
+                  uint64_t duration_secs,
+                  const std::string& output_filename) {
+    debug_enter_func_with_args("object_pool_pathname={},ec2cs={},log_depth={},ops_threshold={},duration_secs={},output_filename={}",
+                               object_pool_pathname, static_cast<uint32_t>(ec2cs), log_depth, ops_threshold, duration_secs, output_filename);
+    bool ret = ptc.template perf_get<SubgroupType>(object_pool_pathname, ec2cs, log_depth, ops_threshold, duration_secs, output_filename);
+    debug_leave_func();
+    return ret;
+}
+
+// The raw shard version of get perf test
+template <typename SubgroupType>
+bool perftest_get(PerfTestClient& ptc,
+                  uint32_t subgroup_index,
+                  uint32_t shard_index,
+                  ExternalClientToCascadeServerMapping ec2cs,
+                  uint64_t log_depth,
+                  uint64_t ops_threshold,
+                  uint64_t duration_secs,
+                  const std::string& output_filename) {
+    debug_enter_func_with_args("subgroup_index={},shard_index={},ec2cs={},log_depth={},ops_threshold={},duration_secs={},output_filename={}",
+                               subgroup_index, shard_index, static_cast<uint32_t>(ec2cs), log_depth, ops_threshold, duration_secs, output_filename);
+    bool ret = ptc.template perf_get<SubgroupType>(subgroup_index, shard_index, ec2cs, log_depth, ops_threshold, duration_secs, output_filename);
+    debug_leave_func();
+    return ret;
+}
+
+
 template <typename SubgroupType>
 bool perftest_ordered_put(ServiceClientAPI &capi,
                           uint32_t message_size,
@@ -1603,6 +1637,47 @@ std::vector<command_entry_t> commands =
         }
     },
     {
+        "perftest_op_get",
+        "Performance tester for get from an object pool.",
+        "perftest_op_get <type> <object pool pathname> <member selection policy> <log depth> <max rate> <duration> <client1> \n"
+            "type := " SUBGROUP_TYPE_LIST "\n"
+            "'member selection policy' refers how the external clients pick a member in a shard;\n"
+            "    Available options: FIXED|RANDOM|ROUNDROBIN;\n"
+            "'log depth' is the number of versions prior to the current version each get should request, 0 means to request the current version \n"
+            "'max rate' is the maximum number of operations in Operations per Second, 0 for best effort; \n"
+            "'duration' is the span of the whole experiment in seconds; \n"
+            "'client1' is a host[:port] pair representing the client. Currently only one client is supported. The port defaults to " + std::to_string(PERFTEST_PORT),
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens){
+            CHECK_FORMAT(cmd_tokens, 9);
+            std::string object_pool_pathname = cmd_tokens[2];
+            ExternalClientToCascadeServerMapping member_selection_policy = FIXED;
+            if (cmd_tokens[3] == "RANDOM") {
+                member_selection_policy = ExternalClientToCascadeServerMapping::RANDOM;
+            } else if (cmd_tokens[3] == "ROUNDROBIN") {
+                member_selection_policy = ExternalClientToCascadeServerMapping::ROUNDROBIN;
+            }
+            uint64_t log_depth = std::stoul(cmd_tokens[4], nullptr, 0);
+            uint64_t max_rate = std::stoul(cmd_tokens[5], nullptr, 0);
+            uint64_t duration_sec = std::stoul(cmd_tokens[6], nullptr, 0);
+
+            PerfTestClient ptc{capi};
+            uint32_t pos = 7;
+            while (pos < cmd_tokens.size()) {
+                std::string::size_type colon_pos = cmd_tokens[pos].find(':');
+                if (colon_pos == std::string::npos) {
+                    ptc.add_or_update_server(cmd_tokens[pos], PERFTEST_PORT);
+                } else {
+                    ptc.add_or_update_server(cmd_tokens[pos].substr(0, colon_pos),
+                                             static_cast<uint16_t>(std::stoul(cmd_tokens[pos].substr(colon_pos+1),nullptr,0)));
+                }
+                pos++;
+            }
+            bool ret = false;
+            on_subgroup_type(cmd_tokens[1], ret = perftest_get, ptc, object_pool_pathname, member_selection_policy, log_depth, max_rate, duration_sec, "timestamp.log");
+            return ret;
+        }
+    },
+    {
         "perftest_shard",
         "Performance Tester for put to a shard.",
         "perftest_shard <type> <put type> <subgroup index> <shard index> <member selection policy> <r/w ratio> <max rate> <duration in sec> <client1> [<client2>, ...] \n"
@@ -1652,6 +1727,50 @@ std::vector<command_entry_t> commands =
             }
             bool ret = false;
             on_subgroup_type(cmd_tokens[1], ret = perftest,ptc,put_type,subgroup_index,shard_index,member_selection_policy,read_write_ratio,max_rate,duration_sec,"output.log");
+            return ret;
+        }
+    },
+    {
+        "perftest_shard_get",
+        "Performance tester for get from a shard.",
+        "perfest_shard_get <type> <subgroup index> <shard index> <member selection policy> <log depth> <max rate> <duration> <client1>"
+            "type := " SUBGROUP_TYPE_LIST "\n"
+            "'member selection policy' refers how the external clients pick a member in a shard;\n"
+            "    Available options: FIXED|RANDOM|ROUNDROBIN;\n"
+            "'log depth' is the number of versions prior to the current version each get should request, 0 means to request the current version \n"
+            "'max rate' is the maximum number of operations in Operations per Second, 0 for best effort; \n"
+            "'duration' is the span of the whole experiment in seconds; \n"
+            "'client1' is a host[:port] pair representing the client. Currently only one client is supported. The port defaults to " + std::to_string(PERFTEST_PORT),
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+            CHECK_FORMAT(cmd_tokens, 9);
+
+            uint32_t subgroup_index = std::stoul(cmd_tokens[2], nullptr, 0);
+            uint32_t shard_index = std::stoul(cmd_tokens[3], nullptr, 0);
+
+            ExternalClientToCascadeServerMapping member_selection_policy = FIXED;
+            if (cmd_tokens[4] == "RANDOM") {
+                member_selection_policy = ExternalClientToCascadeServerMapping::RANDOM;
+            } else if (cmd_tokens[4] == "ROUNDROBIN") {
+                member_selection_policy = ExternalClientToCascadeServerMapping::ROUNDROBIN;
+            }
+            uint64_t log_depth = std::stoul(cmd_tokens[5], nullptr, 0);
+            uint64_t max_rate = std::stoul(cmd_tokens[6], nullptr, 0);
+            uint64_t duration_sec = std::stoul(cmd_tokens[7], nullptr, 0);
+
+            PerfTestClient ptc{capi};
+            uint32_t pos = 8;
+            while (pos < cmd_tokens.size()) {
+                std::string::size_type colon_pos = cmd_tokens[pos].find(':');
+                if (colon_pos == std::string::npos) {
+                    ptc.add_or_update_server(cmd_tokens[pos], PERFTEST_PORT);
+                } else {
+                    ptc.add_or_update_server(cmd_tokens[pos].substr(0, colon_pos),
+                                             static_cast<uint16_t>(std::stoul(cmd_tokens[pos].substr(colon_pos+1),nullptr,0)));
+                }
+                pos++;
+            }
+            bool ret = false;
+            on_subgroup_type(cmd_tokens[1], ret = perftest_get, ptc, subgroup_index, shard_index, member_selection_policy, log_depth, max_rate, duration_sec, "timestamp.log");
             return ret;
         }
     },
