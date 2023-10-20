@@ -27,7 +27,6 @@ template <typename KeyType>
 inline std::string get_pathname(const KeyType& key);
 
 #ifdef ENABLE_EVALUATION
-#define NUMBER_OF_DISTINCT_OBJECTS (4096)
 
 /**
  * This is a hidden API.

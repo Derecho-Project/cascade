@@ -349,7 +349,7 @@ bool PerfTestServer::eval_get(uint32_t log_depth,
     uint64_t next_ns = get_walltime();
     uint64_t end_ns = next_ns + duration_secs * 1000000000ull;
     uint64_t message_id = this->capi.get_my_id() * 1000000000ull;
-
+    const uint32_t num_distinct_objects = objects.size();
     while(true) {
         uint64_t now_ns = get_walltime();
         if(now_ns > end_ns) {
@@ -375,7 +375,7 @@ bool PerfTestServer::eval_get(uint32_t log_depth,
                     lock.unlock();
                     futures_cv.notify_one();
                 };
-        std::size_t cur_object_index = now_ns % NUMBER_OF_DISTINCT_OBJECTS;
+        std::size_t cur_object_index = now_ns % num_distinct_objects;
         // NOTE: Setting the message ID on the object won't do anything because we're doing a Get, not a Put
         TimestampLogger::log(TLT_READY_TO_SEND, my_node_id, message_id, get_walltime());
         // With either the object pool interface or the shard interface, further decide whether to request the current version or an old version
@@ -594,7 +594,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         uint32_t object_size = derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
         uint32_t num_distinct_objects = std::min(static_cast<uint64_t>(max_num_distinct_objects), max_workload_memory / object_size);
         // Ensure adding log_depth versions to all the workload objects won't run out of log space, in case log_depth is large
-        num_distinct_objects = std::min(num_distinct_objects, derecho::getConfUInt32(derecho::Conf::PERS_MAX_LOG_ENTRY) / log_depth);
+        num_distinct_objects = std::min(num_distinct_objects, derecho::getConfUInt32(derecho::Conf::PERS_MAX_LOG_ENTRY) / (log_depth + 1));
         make_workload<std::string, ObjectWithStringKey>(object_size, num_distinct_objects, "raw_key_", objects);
         // Wait for start time
         int64_t sleep_us = (start_sec * 1e9 - static_cast<int64_t>(get_walltime())) / 1e3;
@@ -809,7 +809,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         // Result of min will never be larger than max_num_distinct_objects, so assigning it to uint32_t is safe
         uint32_t num_distinct_objects = std::min(static_cast<uint64_t>(max_num_distinct_objects), max_workload_memory / object_size);
         // Ensure adding log_depth versions to all the workload objects won't run out of log space, in case log_depth is large
-        num_distinct_objects = std::min(num_distinct_objects, derecho::getConfUInt32(derecho::Conf::PERS_MAX_LOG_ENTRY) / log_depth);
+        num_distinct_objects = std::min(num_distinct_objects, derecho::getConfUInt32(derecho::Conf::PERS_MAX_LOG_ENTRY) / (log_depth + 1));
         make_workload<std::string, ObjectWithStringKey>(object_size, num_distinct_objects,
                                                         object_pool_pathname + "/key_", objects);
         // Wait for start time
