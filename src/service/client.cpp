@@ -678,7 +678,7 @@ template <typename SubgroupType>
 bool perftest_get(PerfTestClient& ptc,
                   const std::string& object_pool_pathname,
                   ExternalClientToCascadeServerMapping ec2cs,
-                  uint64_t log_depth,
+                  int32_t log_depth,
                   uint64_t ops_threshold,
                   uint64_t duration_secs,
                   const std::string& output_filename) {
@@ -695,7 +695,7 @@ bool perftest_get(PerfTestClient& ptc,
                   uint32_t subgroup_index,
                   uint32_t shard_index,
                   ExternalClientToCascadeServerMapping ec2cs,
-                  uint64_t log_depth,
+                  int32_t log_depth,
                   uint64_t ops_threshold,
                   uint64_t duration_secs,
                   const std::string& output_filename) {
@@ -1656,7 +1656,7 @@ std::vector<command_entry_t> commands =
             } else if (cmd_tokens[3] == "ROUNDROBIN") {
                 member_selection_policy = ExternalClientToCascadeServerMapping::ROUNDROBIN;
             }
-            uint64_t log_depth = std::stoul(cmd_tokens[4], nullptr, 0);
+            int32_t log_depth = std::stoi(cmd_tokens[4], nullptr, 0);
             uint64_t max_rate = std::stoul(cmd_tokens[5], nullptr, 0);
             uint64_t duration_sec = std::stoul(cmd_tokens[6], nullptr, 0);
 
@@ -1753,7 +1753,7 @@ std::vector<command_entry_t> commands =
             } else if (cmd_tokens[4] == "ROUNDROBIN") {
                 member_selection_policy = ExternalClientToCascadeServerMapping::ROUNDROBIN;
             }
-            uint64_t log_depth = std::stoul(cmd_tokens[5], nullptr, 0);
+            int32_t log_depth = std::stoi(cmd_tokens[5], nullptr, 0);
             uint64_t max_rate = std::stoul(cmd_tokens[6], nullptr, 0);
             uint64_t duration_sec = std::stoul(cmd_tokens[7], nullptr, 0);
 
