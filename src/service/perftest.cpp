@@ -237,7 +237,7 @@ bool PerfTestServer::eval_trigger_put(uint64_t max_operation_per_second,
     return true;
 }
 
-bool PerfTestServer::eval_get(uint32_t log_depth,
+bool PerfTestServer::eval_get(int32_t log_depth,
                               uint64_t max_operations_per_second,
                               uint64_t duration_secs,
                               uint32_t subgroup_type_index,
@@ -332,7 +332,7 @@ bool PerfTestServer::eval_get(uint32_t log_depth,
         oldest_object_versions.emplace_back(std::get<0>(object_version_tuple));
         dbg_default_debug("eval_get: Object {} got version {}, putting {} more versions in front of it", object.get_key_ref(), std::get<0>(object_version_tuple), log_depth);
         // Call put_and_forget repeatedly on the same object to give it multiple newer versions in the log, up to the depth needed
-        for(uint32_t i = 0; i < log_depth; ++i) {
+        for(int32_t i = 0; i < log_depth; ++i) {
             if(subgroup_index == INVALID_SUBGROUP_INDEX || shard_index == INVALID_SHARD_INDEX) {
                 this->capi.put_and_forget(object);
             } else {
@@ -380,17 +380,24 @@ bool PerfTestServer::eval_get(uint32_t log_depth,
         TimestampLogger::log(TLT_READY_TO_SEND, my_node_id, message_id, get_walltime());
         // With either the object pool interface or the shard interface, further decide whether to request the current version or an old version
         if(subgroup_index == INVALID_SUBGROUP_INDEX || shard_index == INVALID_SHARD_INDEX) {
-            if(log_depth == 0) {
+            if(log_depth == -1) {
                 future_appender(this->capi.multi_get(objects.at(cur_object_index).get_key_ref()));
+            } else if(log_depth == 0) {
+                future_appender(this->capi.get(objects.at(cur_object_index).get_key_ref(), CURRENT_VERSION));
             } else {
                 future_appender(this->capi.get(objects.at(cur_object_index).get_key_ref(), oldest_object_versions.at(cur_object_index)));
             }
         } else {
-            if(log_depth == 0) {
+            if(log_depth == -1) {
                 on_subgroup_type_index_with_return(
                         std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
                         future_appender,
                         this->capi.template multi_get, objects.at(cur_object_index).get_key_ref(), subgroup_index, shard_index);
+            } else if(log_depth == 0) {
+                on_subgroup_type_index_with_return(
+                        std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
+                        future_appender,
+                        this->capi.template get, objects.at(cur_object_index).get_key_ref(), CURRENT_VERSION, true, subgroup_index, shard_index);
             } else {
                 on_subgroup_type_index_with_return(
                         std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),

@@ -91,8 +91,10 @@ private:
      *
      * @param log_depth The number of versions in the past to request on each read.
      * The put() operations that run before starting the experiment will ensure
-     * there are at least this many versions in the log. 0 means to request the current version,
-     * and is the only supported option when the subgroup type is "volatile."
+     * there are at least this many versions in the log. 0 means to request the
+     * current version, while -1 means to call multi_get() (which does a multicast
+     * to ensure it gets the latest version) rather than get(). Log depths greater
+     * than 0 are not supported when the subgroup type is "volatile."
      * @param max_operations_per_second Maximum message rate
      * @param duration_secs Experiment duration in seconds
      * @param subgroup_type_index Index of the targeted subgroup type within the Cascade template parameters
@@ -100,7 +102,7 @@ private:
      * @param shard_index Specific shard to target. If subgroup_index and shard_index are both invalid, the test will use the object pool API.
      * @return true if experiment completes successfully, false on error
      */
-    bool eval_get(uint32_t log_depth,
+    bool eval_get(int32_t log_depth,
                   uint64_t max_operations_per_second,
                   uint64_t duration_secs,
                   uint32_t subgroup_type_index,
@@ -207,8 +209,9 @@ public:
      *        The policy for mapping external clients to shard members
      * @param log_depth
      *        The number of versions in the past to request in each get request.
-     *        0 means to request the current version, and is the only supported
-     *        value when SubgroupType is not PersistentCascadeStore.
+     *        0 means to request the current version, while -1 means to call
+     *        multi_get() to get the latest version. Depths greater than 0 are
+     *        not supported when SubgroupType is not PersistentCascadeStore.
      * @param ops_threshold
      *        The maximum number of operations per second to submit from each client
      * @param duration_secs
@@ -221,7 +224,7 @@ public:
     template<typename SubgroupType>
     bool perf_get(const std::string& object_pool_pathname,
                   ExternalClientToCascadeServerMapping client_server_mapping,
-                  uint32_t log_depth,
+                  int32_t log_depth,
                   uint64_t ops_threshold,
                   uint64_t duration_secs,
                   const std::string& output_filename);
@@ -259,8 +262,9 @@ public:
      *        The policy for mapping external clients to shard members
      * @param log_depth
      *        The number of versions in the past to request in each get request.
-     *        0 means to request the current version, and is the only supported
-     *        value when SubgroupType is not PersistentCascadeStore.
+     *        0 means to request the current version, while -1 means to call
+     *        multi_get() to get the latest version. Depths greater than 0 are
+     *        not supported when SubgroupType is not PersistentCascadeStore.
      * @param ops_threshold
      *        The maximum number of operations per second to submit from each client
      * @param duration_secs
@@ -274,7 +278,7 @@ public:
     bool perf_get(uint32_t  subgroup_index,
                   uint32_t  shard_index,
                   ExternalClientToCascadeServerMapping client_server_mapping,
-                  uint32_t log_depth,
+                  int32_t log_depth,
                   uint64_t ops_threshold,
                   uint64_t duration_secs,
                   const std::string& output_filename);
@@ -366,7 +370,7 @@ bool PerfTestClient::perf_put(PutType               put_type,
 template <typename SubgroupType>
 bool PerfTestClient::perf_get(const std::string& object_pool_pathname,
                               ExternalClientToCascadeServerMapping client_server_mapping,
-                              uint32_t log_depth,
+                              int32_t log_depth,
                               uint64_t ops_threshold,
                               uint64_t duration_secs,
                               const std::string& output_filename) {
@@ -505,7 +509,7 @@ template <typename SubgroupType>
 bool PerfTestClient::perf_get(uint32_t subgroup_index,
                               uint32_t shard_index,
                               ExternalClientToCascadeServerMapping client_server_mapping,
-                              uint32_t log_depth,
+                              int32_t log_depth,
                               uint64_t ops_threshold,
                               uint64_t duration_secs,
                               const std::string& output_filename) {
