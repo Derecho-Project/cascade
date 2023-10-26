@@ -476,7 +476,16 @@ bool PerfTestServer::eval_get_by_time(uint64_t ms_in_past,
                 }
             });
 
-
+    const uint32_t num_distinct_objects = objects.size();
+    // Put all the objects in the target subgroup once, so that the oldest timestamp isn't always just version 0
+    for(const auto& object : objects) {
+        if(subgroup_index == INVALID_SUBGROUP_INDEX || shard_index == INVALID_SHARD_INDEX) {
+            this->capi.put_and_forget(object);
+        } else {
+            on_subgroup_type_index(std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
+            this->capi.template put, object, subgroup_index, shard_index);
+        }
+    }
     // Put test objects in the target subgroup/object pool for ms_in_past milliseconds, and record the oldest timestamp
     // For now use a fixed rate of 1 put() every 10ms (i.e. 100 op/s), but we might want to make this configurable in the future
     std::queue<std::pair<std::size_t,derecho::QueryResults<derecho::cascade::version_tuple>>> put_futures_queue;
@@ -485,12 +494,11 @@ bool PerfTestServer::eval_get_by_time(uint64_t ms_in_past,
     const uint64_t timestamp_offset_us = 500;
     uint64_t next_put_ns = get_walltime();
     uint64_t put_end_ns = get_walltime() + ms_in_past * 1e6;
-    if(put_end_ns < next_put_ns + put_interval_ns * objects.size()) {
-        dbg_default_warn("eval_get_by_time: Requested ms_in_past ({}) is shorter than minimum time needed to put all objects once ({}). Increasing it to the minimum.", ms_in_past, (put_interval_ns * objects.size())/1e6);
-        put_end_ns = get_walltime() + (put_interval_ns * objects.size());
+    if(put_end_ns < next_put_ns + put_interval_ns * num_distinct_objects) {
+        dbg_default_warn("eval_get_by_time: Requested ms_in_past ({}) is shorter than minimum time needed to put all objects once ({}). Increasing it to the minimum.", ms_in_past, (put_interval_ns * num_distinct_objects)/1e6);
+        put_end_ns = get_walltime() + (put_interval_ns * num_distinct_objects);
     }
     std::size_t current_object = 0;
-    std::vector<uint64_t> timestamps_to_request(objects.size());
     while(true) {
         uint64_t now_ns = get_walltime();
         if(now_ns > put_end_ns) {
@@ -516,18 +524,24 @@ bool PerfTestServer::eval_get_by_time(uint64_t ms_in_past,
                     future_appender,
                     this->capi.template put, objects.at(current_object), subgroup_index, shard_index);
         }
-        current_object = (current_object + 1) % objects.size();
+        current_object = (current_object + 1) % num_distinct_objects;
     }
     dbg_default_info("eval_get_by_time: Finished all puts, collecting QueryResults");
+    // The first object to complete a put() is the one we will request on every get() since it is the right number of milliseconds in the past
+    uint64_t timestamp_to_request;
+    std::size_t object_to_request;
+    auto& first_put_replies = put_futures_queue.front().second.get();
+    object_to_request = put_futures_queue.front().first;
+    derecho::cascade::version_tuple first_object_version_tuple = first_put_replies.begin()->second.get();
+    dbg_default_debug("Object {} ms in the past is key {} with timestamp {}", ms_in_past, objects.at(object_to_request).get_key_ref(), std::get<1>(first_object_version_tuple));
+    timestamp_to_request = std::get<1>(first_object_version_tuple) + timestamp_offset_us;
+    put_futures_queue.pop();
+    // Wait for the other puts to complete
     while(put_futures_queue.size() > 0) {
         auto& replies = put_futures_queue.front().second.get();
         std::size_t object_index = put_futures_queue.front().first;
         derecho::cascade::version_tuple object_version_tuple = replies.begin()->second.get();
-        // If this is the first put() for this object, record its timestamp
-        if(timestamps_to_request[object_index] == 0) {
-            dbg_default_debug("Timestamp for first put of object {} is {}", objects.at(object_index).get_key_ref(), std::get<1>(object_version_tuple));
-            timestamps_to_request[object_index] = std::get<1>(object_version_tuple) + timestamp_offset_us;
-        }
+        dbg_default_debug("Put complete for {}, assigned timestamp was {}", objects.at(object_index).get_key_ref(), std::get<1>(object_version_tuple));
         put_futures_queue.pop();
     }
     dbg_default_info("eval_get_by_time: Puts complete, ready to start experiment");
@@ -537,7 +551,7 @@ bool PerfTestServer::eval_get_by_time(uint64_t ms_in_past,
     uint64_t next_ns = get_walltime();
     uint64_t end_ns = next_ns + duration_secs * 1000000000ull;
     uint64_t message_id = this->capi.get_my_id() * 1000000000ull;
-    const uint32_t num_distinct_objects = objects.size();
+
     while(true) {
         uint64_t now_ns = get_walltime();
         if(now_ns > end_ns) {
@@ -563,16 +577,15 @@ bool PerfTestServer::eval_get_by_time(uint64_t ms_in_past,
                     lock.unlock();
                     futures_cv.notify_one();
                 };
-        std::size_t cur_object_index = now_ns % num_distinct_objects;
         // NOTE: Setting the message ID on the object won't do anything because we're doing a Get, not a Put
         TimestampLogger::log(TLT_READY_TO_SEND, my_node_id, message_id, get_walltime());
         if(subgroup_index == INVALID_SUBGROUP_INDEX || shard_index == INVALID_SHARD_INDEX) {
-            future_appender(this->capi.get_by_time(objects.at(cur_object_index).get_key_ref(), timestamps_to_request.at(cur_object_index)));
+            future_appender(this->capi.get_by_time(objects.at(object_to_request).get_key_ref(), timestamp_to_request));
         } else {
             on_subgroup_type_index_with_return(
                     std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
                     future_appender,
-                    this->capi.template get_by_time, objects.at(cur_object_index).get_key_ref(), timestamps_to_request.at(cur_object_index), true, subgroup_index, shard_index);
+                    this->capi.template get_by_time, objects.at(object_to_request).get_key_ref(), timestamp_to_request, true, subgroup_index, shard_index);
         }
         TimestampLogger::log(TLT_EC_SENT, my_node_id, message_id, get_walltime());
         message_id++;
