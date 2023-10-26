@@ -326,7 +326,6 @@ public:
      *        How long each client should run the test for
      * @param output_filename
      *        The output file to write timestamps to after running the test
-     * @param output_filename
      * @return true for a successful run, false for a failed run
      */
     template <typename SubgroupType>
