@@ -109,6 +109,30 @@ private:
                   uint32_t subgroup_index=INVALID_SUBGROUP_INDEX,
                   uint32_t shard_index=INVALID_SHARD_INDEX);
 
+    /**
+     * Evaluate get_by_time operations. This function will first call put() at
+     * a steady rate to give each test object a history of at least the
+     * requested number of milliseconds, then call get_by_time() for the oldest
+     * timestamp associated with each key.
+     *
+     * @param ms_in_past The number of milliseconds in the past, relative to
+     * the time at which the setup phase finishes, to request in each
+     * get_by_time() call.
+     * @param max_operations_per_second Maximum rate at which to call
+     * get_by_time() during the experiment
+     * @param duration_secs Experiment duration in seconds
+     * @param subgroup_type_index Index of the targeted subgroup type within the Cascade template parameters
+     * @param subgroup_index Specific subgroup to target. If subgroup_index and shard_index are both invalid, the test will use the object pool API.
+     * @param shard_index Specific shard to target. If subgroup_index and shard_index are both invalid, the test will use the object pool API.
+     * @return true if experiment completes successfully, false on error
+     */
+    bool eval_get_by_time(uint64_t ms_in_past,
+                          uint64_t max_operations_per_second,
+                          uint64_t duration_secs,
+                          uint32_t subgroup_type_index,
+                          uint32_t subgroup_index = INVALID_SUBGROUP_INDEX,
+                          uint32_t shard_index = INVALID_SHARD_INDEX);
+
 public:
     /**
      * Constructor
@@ -282,6 +306,37 @@ public:
                   uint64_t ops_threshold,
                   uint64_t duration_secs,
                   const std::string& output_filename);
+
+    /**
+     * Single shard performance test of get_by_time. This can only be called on
+     * PersistentCascadeStore, since it's the only one that supports that method.
+     *
+     * @tparam SubgroupType The type of subgroup to test. Must be PersistentCascadeStore.
+     * @param subgroup_index
+     * @param shard_index
+     * @param client_server_mapping
+     *        The policy for mapping external clients to shard members
+     * @param ms_in_past
+     *        The number of milliseconds in the past, relative to the time at the
+     *        start of the experiment, to use as the timestamp to request for each
+     *        get_by_time().
+     * @param ops_threshold
+     *        The maximum number of operations per second to submit from each client
+     * @param duration_secs
+     *        How long each client should run the test for
+     * @param output_filename
+     *        The output file to write timestamps to after running the test
+     * @param output_filename
+     * @return true for a successful run, false for a failed run
+     */
+    template <typename SubgroupType>
+    bool perf_get_by_time(uint32_t subgroup_index,
+                          uint32_t shard_index,
+                          ExternalClientToCascadeServerMapping client_server_mapping,
+                          uint64_t ms_in_past,
+                          uint64_t ops_threshold,
+                          uint64_t duration_secs,
+                          const std::string& output_filename);
     /**
      * Destructor
      */
@@ -550,6 +605,63 @@ bool PerfTestClient::perf_get(uint32_t subgroup_index,
                                                         static_cast<uint32_t>(policy),
                                                         user_specified_node_ids.at(kv.first),
                                                         log_depth,
+                                                        ops_threshold,
+                                                        start_sec,
+                                                        duration_secs,
+                                                        output_filename));
+    }
+
+    ret = check_rpc_futures(std::move(futures));
+
+    // 3 - flush server timestamps
+    capi.template dump_timestamp<SubgroupType>(output_filename, subgroup_index, shard_index);
+
+    debug_leave_func();
+    return ret;
+}
+
+template <typename SubgroupType>
+bool PerfTestClient::perf_get_by_time(uint32_t subgroup_index,
+                                      uint32_t shard_index,
+                                      ExternalClientToCascadeServerMapping client_server_mapping,
+                                      uint64_t ms_in_past,
+                                      uint64_t ops_threshold,
+                                      uint64_t duration_secs,
+                                      const std::string& output_filename) {
+    bool ret = true;
+    // 1 - decides on shard membership policy for the "policy" and "user_specified_node_ids" argument for rpc calls.
+    ShardMemberSelectionPolicy policy = ShardMemberSelectionPolicy::Random;
+    std::map<std::pair<std::string, uint16_t>, node_id_t> user_specified_node_ids;
+    switch(client_server_mapping) {
+        case ExternalClientToCascadeServerMapping::FIXED: {
+            policy = ShardMemberSelectionPolicy::UserSpecified;
+            auto shard_members = capi.template get_shard_members<SubgroupType>(subgroup_index, shard_index);
+            uint32_t connection_index = 0;
+            for(const auto& kv : connections) {
+                user_specified_node_ids[kv.first] = shard_members.at(connection_index % shard_members.size());
+                connection_index++;
+            }
+        } break;
+        case ExternalClientToCascadeServerMapping::RANDOM:
+            policy = ShardMemberSelectionPolicy::Random;
+            break;
+        case ExternalClientToCascadeServerMapping::ROUNDROBIN:
+            policy = ShardMemberSelectionPolicy::RoundRobin;
+            break;
+    };
+    // 2 - send requests and wait for response
+    std::string rpc_cmd = "perf_get_by_time_to_shard";
+    int64_t start_sec = static_cast<int64_t>(get_walltime()) / 1e9 + 5;  // wait for 5 second so that the rpc servers are started.
+
+    std::map<std::pair<std::string, uint16_t>, std::future<RPCLIB_MSGPACK::object_handle>> futures;
+    for(auto& kv : connections) {
+        futures.emplace(kv.first, kv.second->async_call(rpc_cmd,
+                                                        capi.template get_subgroup_type_index<SubgroupType>(),
+                                                        subgroup_index,
+                                                        shard_index,
+                                                        static_cast<uint32_t>(policy),
+                                                        user_specified_node_ids.at(kv.first),
+                                                        ms_in_past,
                                                         ops_threshold,
                                                         start_sec,
                                                         duration_secs,

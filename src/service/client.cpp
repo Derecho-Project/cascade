@@ -706,6 +706,22 @@ bool perftest_get(PerfTestClient& ptc,
     return ret;
 }
 
+// Raw shard version of get_by_time perf test
+// Can only run on PersistentCascadeStore, so no template parameter
+bool perftest_get_by_time(PerfTestClient& ptc,
+                          uint32_t subgroup_index,
+                          uint32_t shard_index,
+                          ExternalClientToCascadeServerMapping ec2cs,
+                          uint64_t ms_in_past,
+                          uint64_t ops_threshold,
+                          uint64_t duration_secs,
+                          const std::string& output_filename) {
+    debug_enter_func_with_args("subgroup_index={},shard_index={},ec2cs={},ms_in_past={},ops_threshold={},duration_secs={},output_filename={}",
+                               subgroup_index, shard_index, static_cast<uint32_t>(ec2cs), ms_in_past, ops_threshold, duration_secs, output_filename);
+    bool ret = ptc.template perf_get_by_time<PersistentCascadeStoreWithStringKey>(subgroup_index, shard_index, ec2cs, ms_in_past, ops_threshold, duration_secs, output_filename);
+    debug_leave_func();
+    return ret;
+}
 
 template <typename SubgroupType>
 bool perftest_ordered_put(ServiceClientAPI &capi,
@@ -1771,6 +1787,54 @@ std::vector<command_entry_t> commands =
             }
             bool ret = false;
             on_subgroup_type(cmd_tokens[1], ret = perftest_get, ptc, subgroup_index, shard_index, member_selection_policy, log_depth, max_rate, duration_sec, "timestamp.log");
+            return ret;
+        }
+    },
+        {
+        "perftest_shard_get_by_time",
+        "Performance tester for get_by_time from a shard.",
+        "perfest_shard_get <type> <subgroup index> <shard index> <member selection policy> <time in past> <max rate> <duration> <client1>"
+            "type: must be PCSS because get_by_time is not supported for any other subgroup type \n"
+            "'member selection policy' refers how the external clients pick a member in a shard;\n"
+            "    Available options: FIXED|RANDOM|ROUNDROBIN;\n"
+            "'time in past' is the number of milliseconds prior to the start of the experiment that each get_by_time should request \n"
+            "'max rate' is the maximum number of operations in Operations per Second, 0 for best effort; \n"
+            "'duration' is the span of the whole experiment in seconds; \n"
+            "'client1' is a host[:port] pair representing the client. Currently only one client is supported. The port defaults to " + std::to_string(PERFTEST_PORT),
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+            CHECK_FORMAT(cmd_tokens, 9);
+            if(cmd_tokens[1] != "PCSS") {
+                print_red("Invalid subgroup type. Only Persistent Cascade Store supports get_by_time.");
+                return false;
+            }
+
+            uint32_t subgroup_index = std::stoul(cmd_tokens[2], nullptr, 0);
+            uint32_t shard_index = std::stoul(cmd_tokens[3], nullptr, 0);
+
+            ExternalClientToCascadeServerMapping member_selection_policy = FIXED;
+            if (cmd_tokens[4] == "RANDOM") {
+                member_selection_policy = ExternalClientToCascadeServerMapping::RANDOM;
+            } else if (cmd_tokens[4] == "ROUNDROBIN") {
+                member_selection_policy = ExternalClientToCascadeServerMapping::ROUNDROBIN;
+            }
+            uint64_t ms_in_past = std::stoul(cmd_tokens[5], nullptr, 0);
+            uint64_t max_rate = std::stoul(cmd_tokens[6], nullptr, 0);
+            uint64_t duration_sec = std::stoul(cmd_tokens[7], nullptr, 0);
+
+            PerfTestClient ptc{capi};
+            uint32_t pos = 8;
+            while (pos < cmd_tokens.size()) {
+                std::string::size_type colon_pos = cmd_tokens[pos].find(':');
+                if (colon_pos == std::string::npos) {
+                    ptc.add_or_update_server(cmd_tokens[pos], PERFTEST_PORT);
+                } else {
+                    ptc.add_or_update_server(cmd_tokens[pos].substr(0, colon_pos),
+                                             static_cast<uint16_t>(std::stoul(cmd_tokens[pos].substr(colon_pos+1),nullptr,0)));
+                }
+                pos++;
+            }
+            bool ret = false;
+            ret = perftest_get_by_time(ptc, subgroup_index, shard_index, member_selection_policy, ms_in_past, max_rate, duration_sec, "timestamp.log");
             return ret;
         }
     },

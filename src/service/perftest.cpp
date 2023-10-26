@@ -243,8 +243,8 @@ bool PerfTestServer::eval_get(int32_t log_depth,
                               uint32_t subgroup_type_index,
                               uint32_t subgroup_index,
                               uint32_t shard_index) {
-    debug_enter_func_with_args("max_ops={},duration={},subgroup_type_index={},subgroup_index={},shard_index={}",
-                               max_operations_per_second, duration_secs, subgroup_type_index, subgroup_index, shard_index);
+    debug_enter_func_with_args("log_depth={},max_ops={},duration={},subgroup_type_index={},subgroup_index={},shard_index={}",
+                               log_depth, max_operations_per_second, duration_secs, subgroup_type_index, subgroup_index, shard_index);
     // In case the test objects ever change type, use an alias for whatever type is in the objects vector
     using ObjectType = std::decay_t<decltype(objects[0])>;
     // Sending window variables
@@ -404,6 +404,171 @@ bool PerfTestServer::eval_get(int32_t log_depth,
                         future_appender,
                         this->capi.template get, objects.at(cur_object_index).get_key_ref(), oldest_object_versions.at(cur_object_index), true, subgroup_index, shard_index);
             }
+        }
+        TimestampLogger::log(TLT_EC_SENT, my_node_id, message_id, get_walltime());
+        message_id++;
+    }
+    dbg_default_info("eval_get: All messages sent, waiting for queries to complete");
+    // wait for all pending futures.
+    query_thread.join();
+    return true;
+}
+
+bool PerfTestServer::eval_get_by_time(uint64_t ms_in_past,
+                                      uint64_t max_operations_per_second,
+                                      uint64_t duration_secs,
+                                      uint32_t subgroup_type_index,
+                                      uint32_t subgroup_index,
+                                      uint32_t shard_index) {
+    debug_enter_func_with_args("ms_in_past={}max_ops={},duration={},subgroup_type_index={},subgroup_index={},shard_index={}",
+                               ms_in_past, max_operations_per_second, duration_secs, subgroup_type_index, subgroup_index, shard_index);
+    // In case the test objects ever change type, use an alias for whatever type is in the objects vector
+    using ObjectType = std::decay_t<decltype(objects[0])>;
+    // Sending window variables
+    uint32_t window_size = derecho::getConfUInt32(derecho::Conf::DERECHO_P2P_WINDOW_SIZE);
+    uint32_t window_slots = window_size * 2;
+    std::mutex window_slots_mutex;
+    std::condition_variable window_slots_cv;
+    // Result future queue, which pairs message IDs with a future for that message
+    std::queue<std::pair<uint64_t, derecho::QueryResults<const ObjectType>>> futures;
+    std::mutex futures_mutex;
+    std::condition_variable futures_cv;
+    std::condition_variable window_cv;
+    // All sent flag
+    std::atomic<bool> all_sent(false);
+    // Node ID, used for logger calls
+    const node_id_t my_node_id = this->capi.get_my_id();
+    // Future consuming thread
+    std::thread query_thread(
+            [&]() {
+                std::unique_lock<std::mutex> futures_lck{futures_mutex};
+                while(!all_sent || (futures.size() > 0)) {
+                    // Wait for the futures queue to be non-empty, then swap it with pending_futures
+                    using namespace std::chrono_literals;
+                    while(!futures_cv.wait_for(futures_lck, 500ms, [&futures, &all_sent] { return (futures.size() > 0) || all_sent; }))
+                        ;
+                    std::decay_t<decltype(futures)> pending_futures;
+                    futures.swap(pending_futures);
+                    futures_lck.unlock();
+                    //+---------------------------------------+
+                    //|             QUEUE UNLOCKED            |
+                    // wait for each future in pending_futures, leaving futures unlocked
+                    while(pending_futures.size() > 0) {
+                        auto& replies = pending_futures.front().second.get();
+                        uint64_t message_id = pending_futures.front().first;
+                        // Get only the first reply
+                        for(auto& reply : replies) {
+                            reply.second.get();
+                            TimestampLogger::log(TLT_EC_GET_FINISHED, my_node_id, message_id, get_walltime());
+                            break;
+                        }
+                        pending_futures.pop();
+                        {
+                            std::lock_guard<std::mutex> window_slots_lock{window_slots_mutex};
+                            window_slots++;
+                        }
+                        window_slots_cv.notify_one();
+                    }
+                    //|            QUEUE UNLOCKED             |
+                    //+---------------------------------------+
+                    // Acquire lock on futures queue
+                    futures_lck.lock();
+                }
+            });
+
+
+    // Put test objects in the target subgroup/object pool for ms_in_past milliseconds, and record the oldest timestamp
+    // For now use a fixed rate of 1 put() every 10ms (i.e. 100 op/s), but we might want to make this configurable in the future
+    std::queue<std::pair<std::size_t,derecho::QueryResults<derecho::cascade::version_tuple>>> put_futures_queue;
+    const uint64_t put_interval_ns = 1e7;
+    uint64_t next_put_ns = get_walltime();
+    uint64_t put_end_ns = get_walltime() + ms_in_past * 1e6;
+    if(put_end_ns < next_put_ns + put_interval_ns * objects.size()) {
+        dbg_default_warn("eval_get_by_time: Requested ms_in_past ({}) is shorter than minimum time needed to put all objects once ({}). Increasing it to the minimum.", ms_in_past, (put_interval_ns * objects.size())/1e6);
+        put_end_ns = get_walltime() + (put_interval_ns * objects.size());
+    }
+    std::size_t current_object = 0;
+    std::vector<uint64_t> timestamps_to_request(objects.size());
+    while(true) {
+        uint64_t now_ns = get_walltime();
+        if(now_ns > put_end_ns) {
+            break;
+        }
+        if(now_ns + 500 < next_put_ns) {
+            usleep((next_put_ns - now_ns - 500) / 1000);
+        }
+        next_put_ns += put_interval_ns;
+        // Note: No need to wait on a send window slot because this loop runs at a fixed rate (not user-supplied)
+        // that is always slow enough to not exhaust the P2P send window size
+
+        // Put the QueryResults on a queue to collect later, but no need to do it in a parallel thread
+        std::function<void(QueryResults<derecho::cascade::version_tuple>&&)> future_appender =
+                [&put_futures_queue, current_object](QueryResults<derecho::cascade::version_tuple>&& query_results){
+                    put_futures_queue.emplace(current_object,std::move(query_results));
+                };
+        if (subgroup_index == INVALID_SUBGROUP_INDEX || shard_index == INVALID_SHARD_INDEX) {
+            future_appender(this->capi.put(objects.at(current_object)));
+        } else {
+            on_subgroup_type_index_with_return(
+                    std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
+                    future_appender,
+                    this->capi.template put, objects.at(current_object), subgroup_index, shard_index);
+        }
+        current_object = (current_object + 1) % objects.size();
+    }
+    dbg_default_info("eval_get_by_time: Finished all puts, collecting QueryResults");
+    while(put_futures_queue.size() > 0) {
+        auto& replies = put_futures_queue.front().second.get();
+        std::size_t object_index = put_futures_queue.front().first;
+        derecho::cascade::version_tuple object_version_tuple = replies.begin()->second.get();
+        // If this is the first put() for this object, record its timestamp
+        if(timestamps_to_request[object_index] == 0) {
+            timestamps_to_request[object_index] = std::get<1>(object_version_tuple);
+        }
+    }
+    dbg_default_info("eval_get_by_time: Puts complete, ready to start experiment");
+
+    // Timing control variables for the get loop
+    uint64_t interval_ns = (max_operations_per_second == 0) ? 0 : static_cast<uint64_t>(1e9 / max_operations_per_second);
+    uint64_t next_ns = get_walltime();
+    uint64_t end_ns = next_ns + duration_secs * 1000000000ull;
+    uint64_t message_id = this->capi.get_my_id() * 1000000000ull;
+    const uint32_t num_distinct_objects = objects.size();
+    while(true) {
+        uint64_t now_ns = get_walltime();
+        if(now_ns > end_ns) {
+            all_sent.store(true);
+            break;
+        }
+        // we leave 500 ns for loop overhead.
+        if(now_ns + 500 < next_ns) {
+            usleep((next_ns - now_ns - 500) / 1000);
+        }
+        {
+            std::unique_lock<std::mutex> window_slots_lock{window_slots_mutex};
+            window_slots_cv.wait(window_slots_lock, [&window_slots] { return (window_slots > 0); });
+            window_slots--;
+        }
+        next_ns += interval_ns;
+        // Since each loop iteration creates its own future_appender, capture the message_id by copy
+        std::function<void(QueryResults<const ObjectType>&&)> future_appender =
+                [&futures, &futures_mutex, &futures_cv, message_id](
+                        QueryResults<const ObjectType>&& query_results) {
+                    std::unique_lock<std::mutex> lock{futures_mutex};
+                    futures.emplace(message_id, std::move(query_results));
+                    lock.unlock();
+                    futures_cv.notify_one();
+                };
+        std::size_t cur_object_index = now_ns % num_distinct_objects;
+        // NOTE: Setting the message ID on the object won't do anything because we're doing a Get, not a Put
+        TimestampLogger::log(TLT_READY_TO_SEND, my_node_id, message_id, get_walltime());
+        if(subgroup_index == INVALID_SUBGROUP_INDEX || shard_index == INVALID_SHARD_INDEX) {
+            future_appender(this->capi.get_by_time(objects.at(cur_object_index).get_key_ref(), timestamps_to_request.at(cur_object_index)));
+        } else {
+            on_subgroup_type_index_with_return(
+                    std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
+                    future_appender,
+                    this->capi.template get_by_time, objects.at(cur_object_index).get_key_ref(), timestamps_to_request.at(cur_object_index), true, subgroup_index, shard_index);
         }
         TimestampLogger::log(TLT_EC_SENT, my_node_id, message_id, get_walltime());
         message_id++;
@@ -613,6 +778,49 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         // Run experiment, then log timestamps
         try {
             if(this->eval_get(log_depth, max_operations_per_second, duration_secs, subgroup_type_index, subgroup_index, shard_index)) {
+                TimestampLogger::flush(output_filename);
+                return true;
+            } else {
+                return false;
+            }
+        } catch(const std::exception& e) {
+            std::cerr << "eval_get failed with exception: " << typeid(e).name() << ": " << e.what() << std::endl;
+            return false;
+        }
+    });
+
+    server.bind("perf_get_by_time_to_shard", [this](uint32_t subgroup_type_index,
+                                                    uint32_t subgroup_index,
+                                                    uint32_t shard_index,
+                                                    uint32_t member_selection_policy,
+                                                    uint32_t user_specified_node_id,
+                                                    uint64_t ms_in_past,
+                                                    uint64_t max_operations_per_second,
+                                                    int64_t start_sec,
+                                                    uint64_t duration_secs,
+                                                    const std::string& output_filename) {
+        // Set up the shard member selection policy
+        on_subgroup_type_index(std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
+                               this->capi.template set_member_selection_policy,
+                               subgroup_index,
+                               shard_index,
+                               static_cast<ShardMemberSelectionPolicy>(member_selection_policy),
+                               user_specified_node_id);
+        // Create workload objects
+        objects.clear();
+        uint32_t object_size = derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
+        uint32_t num_distinct_objects = std::min(static_cast<uint64_t>(max_num_distinct_objects), max_workload_memory / object_size);
+        // Ensure it's possible to do a put() to each object once in ms_in_past milliseconds at a rate of 10 ms per put
+        num_distinct_objects = std::min(static_cast<uint64_t>(num_distinct_objects), ms_in_past / 10);
+        make_workload<std::string, ObjectWithStringKey>(object_size, num_distinct_objects, "raw_key_", objects);
+        // Wait for start time
+        int64_t sleep_us = (start_sec * 1e9 - static_cast<int64_t>(get_walltime())) / 1e3;
+        if(sleep_us > 1) {
+            usleep(sleep_us);
+        }
+        // Run experiment, then log timestamps
+        try {
+            if(this->eval_get_by_time(ms_in_past, max_operations_per_second, duration_secs, subgroup_type_index, subgroup_index, shard_index)) {
                 TimestampLogger::flush(output_filename);
                 return true;
             } else {
