@@ -420,7 +420,7 @@ bool PerfTestServer::eval_get_by_time(uint64_t ms_in_past,
                                       uint32_t subgroup_type_index,
                                       uint32_t subgroup_index,
                                       uint32_t shard_index) {
-    debug_enter_func_with_args("ms_in_past={}max_ops={},duration={},subgroup_type_index={},subgroup_index={},shard_index={}",
+    debug_enter_func_with_args("ms_in_past={},max_ops={},duration={},subgroup_type_index={},subgroup_index={},shard_index={}",
                                ms_in_past, max_operations_per_second, duration_secs, subgroup_type_index, subgroup_index, shard_index);
     // In case the test objects ever change type, use an alias for whatever type is in the objects vector
     using ObjectType = std::decay_t<decltype(objects[0])>;
@@ -481,6 +481,8 @@ bool PerfTestServer::eval_get_by_time(uint64_t ms_in_past,
     // For now use a fixed rate of 1 put() every 10ms (i.e. 100 op/s), but we might want to make this configurable in the future
     std::queue<std::pair<std::size_t,derecho::QueryResults<derecho::cascade::version_tuple>>> put_futures_queue;
     const uint64_t put_interval_ns = 1e7;
+    // Offset to add to each timestamp received in reply from put() before using as the timestamp to request. This accounts for slight differences in timestamps assigned at each replica
+    const uint64_t timestamp_offset_us = 500;
     uint64_t next_put_ns = get_walltime();
     uint64_t put_end_ns = get_walltime() + ms_in_past * 1e6;
     if(put_end_ns < next_put_ns + put_interval_ns * objects.size()) {
@@ -503,10 +505,10 @@ bool PerfTestServer::eval_get_by_time(uint64_t ms_in_past,
 
         // Put the QueryResults on a queue to collect later, but no need to do it in a parallel thread
         std::function<void(QueryResults<derecho::cascade::version_tuple>&&)> future_appender =
-                [&put_futures_queue, current_object](QueryResults<derecho::cascade::version_tuple>&& query_results){
-                    put_futures_queue.emplace(current_object,std::move(query_results));
+                [&put_futures_queue, current_object](QueryResults<derecho::cascade::version_tuple>&& query_results) {
+                    put_futures_queue.emplace(current_object, std::move(query_results));
                 };
-        if (subgroup_index == INVALID_SUBGROUP_INDEX || shard_index == INVALID_SHARD_INDEX) {
+        if(subgroup_index == INVALID_SUBGROUP_INDEX || shard_index == INVALID_SHARD_INDEX) {
             future_appender(this->capi.put(objects.at(current_object)));
         } else {
             on_subgroup_type_index_with_return(
@@ -523,8 +525,10 @@ bool PerfTestServer::eval_get_by_time(uint64_t ms_in_past,
         derecho::cascade::version_tuple object_version_tuple = replies.begin()->second.get();
         // If this is the first put() for this object, record its timestamp
         if(timestamps_to_request[object_index] == 0) {
-            timestamps_to_request[object_index] = std::get<1>(object_version_tuple);
+            dbg_default_debug("Timestamp for first put of object {} is {}", objects.at(object_index).get_key_ref(), std::get<1>(object_version_tuple));
+            timestamps_to_request[object_index] = std::get<1>(object_version_tuple) + timestamp_offset_us;
         }
+        put_futures_queue.pop();
     }
     dbg_default_info("eval_get_by_time: Puts complete, ready to start experiment");
 
