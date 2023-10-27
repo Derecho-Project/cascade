@@ -27,6 +27,12 @@ public:
      * This prevents the client from running out of RAM creating large objects.
      */
     static constexpr uint64_t max_workload_memory = 16 * 1073741824L;
+    /**
+     * The number of milliseconds between put() updates in the setup phase of
+     * the get_by_time tests. This determines how many log entries (updates)
+     * correspond to one second of timestamps.
+     */
+    static const uint32_t get_by_time_put_interval = 10;
 private:
     ServiceClientAPI&   capi;
     ::rpc::server       server;
@@ -252,6 +258,35 @@ public:
                   uint64_t ops_threshold,
                   uint64_t duration_secs,
                   const std::string& output_filename);
+
+    /**
+     * Object Pool get_by_time performance test. This can only be called on
+     * PersistentCascadeStore, since that's the only type that supports get_by_time.
+     *
+     * @tparam SubgroupType The type of subgroup to test. Must be PersistentCascadeStore.
+     * @param object_pool_pathname
+     *        The object pool to test
+     * @param client_server_mapping
+     *        The policy for mapping external clients to shard members
+     * @param ms_in_past
+     *        The number of milliseconds in the past, relative to the time at the
+     *        start of the experiment, to use as the timestamp to request for each
+     *        get_by_time().
+     * @param ops_threshold
+     *        The maximum number of operations per second to submit from each client
+     * @param duration_secs
+     *        How long each client should run the test for
+     * @param output_filename
+     *        The output file to write timestamps to after running the test
+     * @return true for a successful run, false for a failed run
+     */
+    template <typename SubgroupType>
+    bool perf_get_by_time(const std::string& object_pool_pathname,
+                          ExternalClientToCascadeServerMapping client_server_mapping,
+                          uint64_t ms_in_past,
+                          uint64_t ops_threshold,
+                          uint64_t duration_secs,
+                          const std::string& output_filename);
     /**
      * Single Shard Performance testing, using put with return
      * @param put_type
@@ -473,6 +508,72 @@ bool PerfTestClient::perf_get(const std::string& object_pool_pathname,
                                                         static_cast<uint32_t>(policy),
                                                         user_specified_node_ids.at(kv.first),
                                                         log_depth,
+                                                        ops_threshold,
+                                                        start_sec,
+                                                        duration_secs,
+                                                        output_filename));
+    }
+
+    ret = check_rpc_futures(std::move(futures));
+
+    // 3 - flush server timestamps
+    capi.template dump_timestamp(output_filename, object_pool_pathname);
+
+    debug_leave_func();
+    return ret;
+}
+
+template <typename SubgroupType>
+bool PerfTestClient::perf_get_by_time(const std::string& object_pool_pathname,
+                                      ExternalClientToCascadeServerMapping client_server_mapping,
+                                      uint64_t ms_in_past,
+                                      uint64_t ops_threshold,
+                                      uint64_t duration_secs,
+                                      const std::string& output_filename) {
+    debug_enter_func_with_args("object_pool_pathname={},ec2cs={},ms_in_past={},ops_threshold={},duration_secs={},output_filename={}",
+                               object_pool_pathname, static_cast<uint32_t>(client_server_mapping), ms_in_past, ops_threshold, duration_secs, output_filename);
+    bool ret = true;
+    // 1 - decide on shard membership policy for the "policy" and "user_specified_node_ids" argument for rpc calls
+    ShardMemberSelectionPolicy policy = ShardMemberSelectionPolicy::Random;
+    auto object_pool = capi.find_object_pool(object_pool_pathname);
+    if(!object_pool.is_valid() || object_pool.is_null()) {
+        throw derecho::derecho_exception("Cannot find object pool:" + object_pool_pathname);
+    }
+    uint32_t number_of_shards = capi.get_number_of_shards<SubgroupType>(object_pool.subgroup_index);
+    std::map<std::pair<std::string, uint16_t>, std::vector<node_id_t>> user_specified_node_ids;
+    for(const auto& kv : connections) {
+        user_specified_node_ids.emplace(kv.first, std::vector<node_id_t>{number_of_shards});
+    }
+    switch(client_server_mapping) {
+        case ExternalClientToCascadeServerMapping::FIXED:
+            policy = ShardMemberSelectionPolicy::UserSpecified;
+            for(uint32_t shard_index = 0; shard_index < number_of_shards; shard_index++) {
+                auto shard_members = capi.template get_shard_members<SubgroupType>(object_pool.subgroup_index, shard_index);
+                uint32_t connection_index = 0;
+                for(const auto& kv : connections) {
+                    user_specified_node_ids[kv.first].at(shard_index) = shard_members.at(connection_index % shard_members.size());
+                    connection_index++;
+                }
+            }
+            break;
+        case ExternalClientToCascadeServerMapping::RANDOM:
+            policy = ShardMemberSelectionPolicy::Random;
+            break;
+        case ExternalClientToCascadeServerMapping::ROUNDROBIN:
+            policy = ShardMemberSelectionPolicy::RoundRobin;
+            break;
+    };
+    // 2 - send requests and wait for response
+    std::string rpc_cmd = "perf_get_by_time_to_objectpool";
+    int64_t start_sec = static_cast<int64_t>(get_walltime()) / 1e9 + 5;  // wait for 5 second so that the rpc servers are started.
+
+    std::map<std::pair<std::string, uint16_t>, std::future<RPCLIB_MSGPACK::object_handle>> futures;
+    for(auto& kv : connections) {
+        futures.emplace(kv.first, kv.second->async_call(rpc_cmd,
+                                                        object_pool_pathname,
+                                                        static_cast<uint32_t>(policy),
+                                                        user_specified_node_ids.at(kv.first),
+                                                        ms_in_past,
                                                         ops_threshold,
                                                         start_sec,
                                                         duration_secs,

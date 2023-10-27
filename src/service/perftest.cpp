@@ -489,7 +489,7 @@ bool PerfTestServer::eval_get_by_time(uint64_t ms_in_past,
     // Put test objects in the target subgroup/object pool for ms_in_past milliseconds, and record the oldest timestamp
     // For now use a fixed rate of 1 put() every 10ms (i.e. 100 op/s), but we might want to make this configurable in the future
     std::queue<std::pair<std::size_t, derecho::QueryResults<derecho::cascade::version_tuple>>> put_futures_queue;
-    const uint64_t put_interval_ns = 1e7;
+    const uint64_t put_interval_ns = get_by_time_put_interval * 1e6;
     // Offset to add to each timestamp received in reply from put() before using as the timestamp to request. This accounts for slight differences in timestamps assigned at each replica
     const uint64_t timestamp_offset_us = 100;
     uint64_t next_put_ns = get_walltime();
@@ -825,6 +825,10 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         }
     });
 
+    /**
+     * RPC function that runs perf_get_by_time on a specific shard
+     * @return true if the experiment completed successfully, false if there was an error
+     */
     server.bind("perf_get_by_time_to_shard", [this](uint32_t subgroup_type_index,
                                                     uint32_t subgroup_index,
                                                     uint32_t shard_index,
@@ -847,7 +851,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         uint32_t object_size = derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
         uint32_t num_distinct_objects = std::min(static_cast<uint64_t>(max_num_distinct_objects), max_workload_memory / object_size);
         // Ensure it's possible to do a put() to each object once in ms_in_past milliseconds at a rate of 10 ms per put
-        num_distinct_objects = std::min(static_cast<uint64_t>(num_distinct_objects), ms_in_past / 10);
+        num_distinct_objects = std::min(static_cast<uint64_t>(num_distinct_objects), ms_in_past / get_by_time_put_interval);
         make_workload<std::string, ObjectWithStringKey>(object_size, num_distinct_objects, "raw_key_", objects);
         // Wait for start time
         int64_t sleep_us = (start_sec * 1e9 - static_cast<int64_t>(get_walltime())) / 1e3;
@@ -1037,7 +1041,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
     server.bind("perf_get_to_objectpool", [this](const std::string& object_pool_pathname,
                                                  uint32_t member_selection_policy,
                                                  const std::vector<node_id_t>& user_specified_node_ids,
-                                                 uint32_t log_depth,
+                                                 int32_t log_depth,
                                                  uint64_t max_operations_per_second,
                                                  int64_t start_sec,
                                                  uint64_t duration_secs,
@@ -1082,6 +1086,54 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
             }
         } catch(const std::exception& e) {
             std::cerr << "eval_get failed with exception: " << typeid(e).name() << ": " << e.what() << std::endl;
+            return false;
+        }
+    });
+
+    server.bind("perf_get_by_time_to_objectpool", [this](const std::string& object_pool_pathname,
+                                                         uint32_t member_selection_policy,
+                                                         const std::vector<node_id_t>& user_specified_node_ids,
+                                                         uint64_t ms_in_past,
+                                                         uint64_t max_operations_per_second,
+                                                         int64_t start_sec,
+                                                         uint64_t duration_secs,
+                                                         const std::string& output_filename) {
+        auto object_pool = this->capi.find_object_pool(object_pool_pathname);
+        uint32_t number_of_shards;
+        // Set up the shard member selection policy
+        std::type_index object_pool_type_index = std::decay_t<decltype(capi)>::subgroup_type_order.at(object_pool.subgroup_type_index);
+        on_subgroup_type_index(object_pool_type_index,
+                               number_of_shards = this->capi.template get_number_of_shards, object_pool.subgroup_index);
+        if(user_specified_node_ids.size() < number_of_shards) {
+            throw derecho::derecho_exception(std::string("the size of 'user_specified_node_ids' argument does not match shard number."));
+        }
+        for(uint32_t shard_index = 0; shard_index < number_of_shards; shard_index++) {
+            on_subgroup_type_index(object_pool_type_index,
+                                   this->capi.template set_member_selection_policy, object_pool.subgroup_index, shard_index, static_cast<ShardMemberSelectionPolicy>(member_selection_policy), user_specified_node_ids.at(shard_index));
+        }
+        // Create workload objects
+        objects.clear();
+        uint32_t object_size = derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
+        uint32_t num_distinct_objects = std::min(static_cast<uint64_t>(max_num_distinct_objects), max_workload_memory / object_size);
+        // Ensure it's possible to do a put() to each object once in ms_in_past milliseconds at a rate of 10 ms per put
+        num_distinct_objects = std::min(static_cast<uint64_t>(num_distinct_objects), ms_in_past / get_by_time_put_interval);
+        make_workload<std::string, ObjectWithStringKey>(object_size, num_distinct_objects,
+                                                        object_pool_pathname + "/key_", objects);
+        // Wait for start time
+        int64_t sleep_us = (start_sec * 1e9 - static_cast<int64_t>(get_walltime())) / 1e3;
+        if(sleep_us > 1) {
+            usleep(sleep_us);
+        }
+        // Run experiment, then log timestamps
+        try {
+            if(this->eval_get_by_time(ms_in_past, max_operations_per_second, duration_secs, object_pool.subgroup_type_index)) {
+                TimestampLogger::flush(output_filename);
+                return true;
+            } else {
+                return false;
+            }
+        } catch(const std::exception& e) {
+            std::cerr << "eval_get_by_time failed with exception: " << typeid(e).name() << ": " << e.what() << std::endl;
             return false;
         }
     });
