@@ -483,19 +483,19 @@ bool PerfTestServer::eval_get_by_time(uint64_t ms_in_past,
             this->capi.put_and_forget(object);
         } else {
             on_subgroup_type_index(std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
-            this->capi.template put, object, subgroup_index, shard_index);
+                                   this->capi.template put_and_forget, object, subgroup_index, shard_index);
         }
     }
     // Put test objects in the target subgroup/object pool for ms_in_past milliseconds, and record the oldest timestamp
     // For now use a fixed rate of 1 put() every 10ms (i.e. 100 op/s), but we might want to make this configurable in the future
-    std::queue<std::pair<std::size_t,derecho::QueryResults<derecho::cascade::version_tuple>>> put_futures_queue;
+    std::queue<std::pair<std::size_t, derecho::QueryResults<derecho::cascade::version_tuple>>> put_futures_queue;
     const uint64_t put_interval_ns = 1e7;
     // Offset to add to each timestamp received in reply from put() before using as the timestamp to request. This accounts for slight differences in timestamps assigned at each replica
-    const uint64_t timestamp_offset_us = 500;
+    const uint64_t timestamp_offset_us = 100;
     uint64_t next_put_ns = get_walltime();
     uint64_t put_end_ns = get_walltime() + ms_in_past * 1e6;
     if(put_end_ns < next_put_ns + put_interval_ns * num_distinct_objects) {
-        dbg_default_warn("eval_get_by_time: Requested ms_in_past ({}) is shorter than minimum time needed to put all objects once ({}). Increasing it to the minimum.", ms_in_past, (put_interval_ns * num_distinct_objects)/1e6);
+        dbg_default_warn("eval_get_by_time: Requested ms_in_past ({}) is shorter than minimum time needed to put all objects once ({}). Increasing it to the minimum.", ms_in_past, (put_interval_ns * num_distinct_objects) / 1e6);
         put_end_ns = get_walltime() + (put_interval_ns * num_distinct_objects);
     }
     std::size_t current_object = 0;
@@ -537,14 +537,33 @@ bool PerfTestServer::eval_get_by_time(uint64_t ms_in_past,
     timestamp_to_request = std::get<1>(first_object_version_tuple) + timestamp_offset_us;
     put_futures_queue.pop();
     // Wait for the other puts to complete
+    persistent::version_t last_object_version;
+    std::size_t last_object_put;
     while(put_futures_queue.size() > 0) {
         auto& replies = put_futures_queue.front().second.get();
         std::size_t object_index = put_futures_queue.front().first;
         derecho::cascade::version_tuple object_version_tuple = replies.begin()->second.get();
         dbg_default_debug("Put complete for {}, assigned timestamp was {}", objects.at(object_index).get_key_ref(), std::get<1>(object_version_tuple));
+        if(put_futures_queue.size() == 1) {
+            last_object_put = object_index;
+            last_object_version = std::get<0>(object_version_tuple);
+        }
         put_futures_queue.pop();
     }
-    dbg_default_info("eval_get_by_time: Puts complete, ready to start experiment");
+    dbg_default_info("eval_get_by_time: Puts complete, performing a stable get for version {} to wait for persistence", last_object_version);
+
+    // Do a stable get() of the version associated with the last object, and wait for the reply, to ensure all the puts have finished persisting
+    if(subgroup_index == INVALID_SUBGROUP_INDEX || shard_index == INVALID_SHARD_INDEX) {
+        auto query_results = this->capi.get(objects.at(last_object_put).get_key_ref(), last_object_version, true);
+        query_results.get().begin()->second.get();
+    } else {
+        // No real need to do on_subgroup_type_index because get_by_time only works with a single subgroup type anyway
+        auto query_results = this->capi.template get<PersistentCascadeStoreWithStringKey>(
+                objects.at(last_object_put).get_key_ref(), last_object_version, true, subgroup_index, shard_index);
+        query_results.get().begin()->second.get();
+    }
+
+    dbg_default_info("eval_get_by_time: Target version is stable, ready to start experiment");
 
     // Timing control variables for the get loop
     uint64_t interval_ns = (max_operations_per_second == 0) ? 0 : static_cast<uint64_t>(1e9 / max_operations_per_second);
