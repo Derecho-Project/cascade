@@ -201,6 +201,7 @@ const VT PersistentCascadeStore<KT, VT, IK, IV, ST>::get_by_time(const KT& key, 
 
     // get_global_stability_frontier return nano seconds.
     if(ts_us > subgroup_handle.compute_global_stability_frontier() / 1000) {
+        dbg_default_debug("Stability frontier is {} but requested timestamp is {}", subgroup_handle.compute_global_stability_frontier() / 1000, ts_us);
         dbg_default_warn("Cannot get data at a time in the future.");
         return *IV;
     }
