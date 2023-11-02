@@ -2551,6 +2551,8 @@ match_results_t CascadeContext<CascadeTypes...>::get_prefix_handlers(const std::
 
 template <typename... CascadeTypes>
 bool CascadeContext<CascadeTypes...>::post(Action&& action, DataFlowGraph::Statefulness stateful, bool is_trigger) {
+    static uint32_t trigger_rrcnt = 0;
+    static uint32_t multicast_rrcnt = 0;
     dbg_default_trace("Posting an action to Cascade context@{:p}.", static_cast<void*>(this));
     if (is_running) {
         if (is_trigger) {
@@ -2562,7 +2564,8 @@ bool CascadeContext<CascadeTypes...>::post(Action&& action, DataFlowGraph::State
                 }
                 break;
             case DataFlowGraph::Statefulness::STATELESS:
-                stateless_action_queue_for_p2p.action_buffer_enqueue(std::move(action));
+                // stateless_action_queue_for_p2p.action_buffer_enqueue(std::move(action));
+                stateful_action_queues_for_p2p[trigger_rrcnt++ % stateful_action_queues_for_p2p.size()]->action_buffer_enqueue(std::move(action));
                 break;
             case DataFlowGraph::Statefulness::SINGLETHREADED:
                 single_threaded_action_queue_for_p2p.action_buffer_enqueue(std::move(action));
@@ -2577,7 +2580,8 @@ bool CascadeContext<CascadeTypes...>::post(Action&& action, DataFlowGraph::State
                 }
                 break;
             case DataFlowGraph::Statefulness::STATELESS:
-                stateless_action_queue_for_multicast.action_buffer_enqueue(std::move(action));
+                // stateless_action_queue_for_multicast.action_buffer_enqueue(std::move(action));
+                stateful_action_queues_for_multicast[multicast_rrcnt++ % stateful_action_queues_for_multicast.size()]->action_buffer_enqueue(std::move(action));
                 break;
             case DataFlowGraph::Statefulness::SINGLETHREADED:
                 single_threaded_action_queue_for_multicast.action_buffer_enqueue(std::move(action));

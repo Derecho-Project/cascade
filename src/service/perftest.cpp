@@ -462,7 +462,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         }
         // STEP 2 - prepare workload
         objects.clear();
-        make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
+        make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),object_pool_pathname+"/key_",objects);
         int64_t sleep_us = (start_sec*1e9 - static_cast<int64_t>(get_walltime()))/1e3;
         if (sleep_us > 1) {
             usleep(sleep_us);
@@ -511,7 +511,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         }
         // STEP 2 - prepare workload
         objects.clear();
-        make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
+        make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),object_pool_pathname+"/key_",objects);
         int64_t sleep_us = (start_sec*1e9 - static_cast<int64_t>(get_walltime()))/1e3;
         if (sleep_us > 1) {
             usleep(sleep_us);
