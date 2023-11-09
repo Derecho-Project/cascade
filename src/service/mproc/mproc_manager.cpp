@@ -28,6 +28,7 @@ int mproc_main(int argc, char** argv) {
             std::unordered_map<std::string,bool>
                             edges,
             key_t           shm_key) {
+
             return std::tuple<uint32_t,std::string,std::string,key_t>{0,"SUCCESS","n/a",0};
         }
     );
