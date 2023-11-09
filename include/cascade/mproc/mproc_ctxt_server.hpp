@@ -1,6 +1,6 @@
 /**
  * @file mproc_ctxt_server.hpp
- * @brief The interface for mproc connector.
+ * @brief The interface for running an mproc ctxt server.
  */
 #include <sys/types.h>
 
@@ -20,7 +20,19 @@ namespace cascade {
  */
 template <typename... CascadeTypes>
 class MProcCtxtServer {
+private:
+    /**
+     * @fn MProcCtxtServer()
+     * @brief The MProcCtxtServer constructor
+     */
+    MProcCtxtServer();
 public:
+    /**
+     * @fn ~MProcCtxtServer()
+     * @brief The MProcCtxtServer destructor
+     */
+    virtual ~MProcCtxtServer();
+
     /**
      * @fn std::unique_ptr<MProcCtxtServer<CascadeTypes...>> create(CascadeContext<CascadeTypes...>*)
      * @param[in]   cascade_ctxt    The cascade context.

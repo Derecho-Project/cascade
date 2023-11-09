@@ -49,6 +49,9 @@ find_package(derecho CONFIG REQUIRED)
 # json
 find_package(nlohmann_json 3.9.1 REQUIRED)
 
+# provides the import target rpclib::rpc
+find_package(rpclib 2.3.0 REQUIRED)
+
 # Hyperscan, which isn't packaged correctly and needs a custom Find module
 find_package(Hyperscan REQUIRED)
 if(Hyperscan_FOUND)
@@ -72,11 +75,6 @@ CHECK_INCLUDE_FILE_CXX("boolinq/boolinq.h" HAS_BOOLINQ)
 set (ENABLE_EVALUATION 1)
 set (DUMP_TIMESTAMP_WORKAROUND 1)
 
-if (ENABLE_EVALUATION)
-    # provides the import target rpclib::rpc
-    find_package(rpclib 2.3.0 REQUIRED)
-endif()
-
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/cascade/config.h)
 
 add_subdirectory(src/core)
@@ -99,6 +97,7 @@ target_link_libraries(cascade
     spdlog::spdlog
     mutils::mutils
     OpenSSL::Crypto
+    rpclib::rpc
     ${Hyperscan_LIBRARIES})
 set_target_properties(cascade PROPERTIES
     SOVERSION ${cascade_VERSION}

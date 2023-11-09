@@ -8,7 +8,7 @@
 #include <memory>
 
 #include <cascade/user_defined_logic_interface.hpp>
-#include <cascade/mproc/mproc_service.hpp>
+#include "mproc_udl_client.hpp"
 
 namespace derecho {
 namespace cascade {
