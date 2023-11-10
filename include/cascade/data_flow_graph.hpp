@@ -128,24 +128,28 @@ public:
     enum VertexShardDispatcher {
         ONE,
         ALL,
+        UNKNOWN_SD=0xffff
     };
 
     enum VertexExecutionEnvironment {
         PTHREAD,
         PROCESS,
         DOCKER,
+        UNKNOWN_EE = 0xffff
     };
 
     enum VertexHook {
         TRIGGER_PUT,
         ORDERED_PUT,
         BOTH,
+        UNKNOWN_H = 0xffff
     };
 
     enum Statefulness {
         STATEFUL,
         STATELESS,
         SINGLETHREADED,
+        UNKNOWN_S = 0xffff
     };
 
     // the Hex UUID
