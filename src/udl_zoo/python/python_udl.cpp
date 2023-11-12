@@ -1,3 +1,4 @@
+#include <cascade/config.h>
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
@@ -32,9 +33,6 @@
 
 namespace derecho{
 namespace cascade{
-
-
-using emit_func_t = std::function<void(const std::string&, const Blob&)>;
 
 #define MY_UUID     "6cfe8f64-3a1d-11ed-8e7e-0242ac110006"
 #define MY_DESC     "The python wrapper UDL."
@@ -99,8 +97,7 @@ private:
                 const std::string*  key_string_ptr;
                 const ObjectWithStringKey*
                                     object_ptr;
-                const emit_func_t*
-                                    emit_ptr;
+                const emit_func_t*  emit_ptr;
                 DefaultCascadeContextType*
                                     typed_ctxt;
                 uint32_t      worker_id;
@@ -668,7 +665,7 @@ private:
             ret = true;
         }
 
-        return false;
+        return ret;
     }
 
     /* context service interface */
@@ -683,6 +680,8 @@ private:
     }
     /*
      * Emit a key/value pair
+     * TODO: The emit API should use a dict argument for extra metadata like version, timestamp, previous versions, 
+     * message ID etc...
      *
      * The emit python signature:
      * def emit(key,value):
@@ -724,7 +723,15 @@ private:
         /* STEP 3: Call _emit_func. */
         uint8_t * data = reinterpret_cast<uint8_t*>(PyArray_DATA(ndarray));
         Blob blob_wrapper(data, static_cast<std::size_t>(PyArray_NBYTES(ndarray)), true);
-        (*_emit_func)(std::string(key),blob_wrapper);
+        (*_emit_func)(std::string(key),
+                      CURRENT_VERSION,  // from version
+                      get_time_us(),    // timestamp
+                      CURRENT_VERSION,  // previous version
+                      CURRENT_VERSION,  // previous version by key
+#ifdef ENABLE_EVALUATION
+                      0,                // Message ID
+#endif
+                      blob_wrapper);
         
         Py_RETURN_NONE;
     }

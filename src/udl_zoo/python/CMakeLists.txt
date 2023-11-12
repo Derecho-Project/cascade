@@ -16,18 +16,18 @@ set(python_udl_VERSION 1.0)
 # find_package(cascade CONFIG REQUIRED)
 find_package(Python3 3.10.0 REQUIRED COMPONENTS Interpreter Development Development.Module Development.Embed NumPy QUIET)
 
-if (Python_Development_FOUND)
+if (Python3_FOUND)
 
     # Configurations
     set(ENABLE_PYTHON_GIL_SWITCH 1)
-    configure_file(${CMAKE_SOURCE_DIR}/config.h.in ${CMAKE_BINARY_DIR}/config.h)
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/config.h)
     
     add_library(python_udl SHARED python_udl.cpp)
     target_include_directories(python_udl PRIVATE
         $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
         $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
-        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}>
-        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
     )
     target_link_libraries(python_udl cascade Python3::Python Python3::NumPy)
     add_dependencies(python_udl cascade)

@@ -24,7 +24,7 @@ if (DOTNET_CMD)
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         )
         target_link_libraries(member_client_cs cascade)
-        add_dependencies(member_client_cs cascade)
+        add_dependencies(member_client_cs cascade external_client_cs) # avoid parallelly building member_client and external client.
 
         install(TARGETS external_client_cs RUNTIME DESTINATION ${CMAKE_INSTALL_LIBDIR})
         install(TARGETS member_client_cs RUNTIME DESTINATION ${CMAKE_INSTALL_LIBDIR})
