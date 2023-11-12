@@ -80,6 +80,7 @@ public:
      * @fn run_server
      * @brief   start a server process
      * @param[in]   arg     The UDL argument.
+     * @param[in]   wait    If wait is true, we don't create a separate thread. Otherwise, we run server in a separate thread.
      * @return  Returning 0 means the mproc udl server is finished. Non-zero value 
      *          is the pid of the mproc udl server process.
      */

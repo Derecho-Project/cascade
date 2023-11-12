@@ -131,10 +131,8 @@ class CSharpOCDPO : public DefaultOffCriticalDataPathObserver {
     }
 
     static std::string get_current_working_dir() {
-        // source:
-        // https://stackoverflow.com/questions/4807629/how-do-i-find-the-current-directory
-        std::string cwd("\0", FILENAME_MAX + 1);
-        return getcwd(&cwd[0], cwd.capacity());
+        char buf[FILENAME_MAX+1];
+        return std::string{getcwd(buf,FILENAME_MAX + 1)};
     }
 };
 
