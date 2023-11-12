@@ -62,6 +62,9 @@ namespace cascade {
     template <typename... CascadeTypes>
     class CascadeContext;
 
+    template <typename... CascadeTypes>
+    class ExecutionEngine;
+
     /* The Action to be defined later */
     struct Action;
     /**
@@ -256,8 +259,7 @@ namespace cascade {
         /**
          * The CascadeContext
          */
-        std::unique_ptr<CascadeContext<CascadeTypes...>> context;
-
+        std::unique_ptr<ExecutionEngine<CascadeTypes...>> context;
         /**
          * Singleton pointer
          */
@@ -1636,7 +1638,7 @@ namespace cascade {
      * @struct prefix_ocdpo_info_t
      * @brief   This is the information to live in the prefix tree.
      */
-    using prefix_ocdpo_info_t = struct {
+    using prefix_ocdpo_info_t = struct _prefix_ocdpo_info {
         std::string     udl_id;
         std::string     config_string;
         DataFlowGraph::VertexExecutionEnvironment       execution_environment;
@@ -1648,17 +1650,31 @@ namespace cascade {
     };
 
     struct PrefixOCDPOInfoHash {
-        inline size_t operator() (const prefix_ocdpo_info_t& info) const {
+        // inline size_t operator() (const prefix_ocdpo_info_t& info) const {
+        size_t operator() (const prefix_ocdpo_info_t& info) const {
             return std::hash<std::string>{}(info.udl_id + info.config_string);
         }
     };
 
     struct PrefixOCDPOInfoCompare {
-        inline bool operator() (const prefix_ocdpo_info_t& l, const prefix_ocdpo_info_t& r) const {
+        // inline bool operator() (const prefix_ocdpo_info_t& l, const prefix_ocdpo_info_t& r) const {
+        bool operator() (const prefix_ocdpo_info_t& l, const prefix_ocdpo_info_t& r) const {
             return (l.udl_id == r.udl_id) && 
                    (l.config_string == r.config_string) &&
                    (l.execution_environment == r.execution_environment);
         }
+    };
+
+    template <typename... CascadeTypes>
+    class CascadeContext:public ICascadeContext {
+    public:
+        /**
+         * get the reference to encapsulated service client handle.
+         * The reference is valid only after construct() is called.
+         *
+         * @return a reference to service client.
+         */
+        virtual ServiceClient<CascadeTypes...>& get_service_client_ref() const = 0;
     };
 
     using prefix_ocdpo_info_set_t = std::unordered_set<prefix_ocdpo_info_t,PrefixOCDPOInfoHash,PrefixOCDPOInfoCompare>;
@@ -1667,8 +1683,9 @@ namespace cascade {
                                 prefix_ocdpo_info_set_t
                            >;
     using match_results_t = std::unordered_map<std::string,prefix_entry_t>;
+
     template <typename... CascadeTypes>
-    class CascadeContext: public ICascadeContext {
+    class ExecutionEngine: public CascadeContext<CascadeTypes...> {
     private:
         struct action_queue {
             struct Action           action_buffer[ACTION_BUFFER_SIZE];
@@ -1722,7 +1739,7 @@ namespace cascade {
         /**
          * Constructor
          */
-        CascadeContext();
+        ExecutionEngine();
         /**
          * construct the resources from Derecho configuration.
          *
@@ -1742,7 +1759,7 @@ namespace cascade {
          *
          * @return a reference to service client.
          */
-        ServiceClient<CascadeTypes...>& get_service_client_ref() const;
+        virtual ServiceClient<CascadeTypes...>& get_service_client_ref() const;
         /**
          * We give up the following on-demand loading mechanism:
          * ==============================================================================================================
@@ -1839,8 +1856,8 @@ namespace cascade {
         /**
          * Destructor
          */
-        virtual ~CascadeContext();
-    };//CascadeContext
+        virtual ~ExecutionEngine();
+    };//ExecutionEngine/
 } // cascade
 } // derecho
 

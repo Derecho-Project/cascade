@@ -134,7 +134,9 @@ public:
     enum VertexExecutionEnvironment {
         PTHREAD,
         PROCESS,
+        MPROCESS,   /// multiple processes
         DOCKER,
+        MDOCKER,    /// multiple docker containers
         UNKNOWN_EE = 0xffff
     };
 

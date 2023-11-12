@@ -1,4 +1,4 @@
-find_package(Python 3.6 COMPONENTS Interpreter Development QUIET)
+find_package(Python 3.10 COMPONENTS Interpreter Development QUIET)
 find_package(pybind11 QUIET)
 
 if (pybind11_FOUND)

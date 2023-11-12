@@ -44,8 +44,8 @@ class CascadeServiceCDPO : public CriticalDataPathObserver<CascadeType> {
         if constexpr(std::is_convertible<typename CascadeType::KeyType, std::string>::value) {
             using namespace derecho::cascade;
 
-            auto* ctxt = dynamic_cast<
-                    CascadeContext<
+            auto* engine = dynamic_cast<
+                    ExecutionEngine<
                             VolatileCascadeStoreWithStringKey,
                             PersistentCascadeStoreWithStringKey,
                             TriggerCascadeNoStoreWithStringKey>*>(cascade_ctxt);
@@ -55,7 +55,7 @@ class CascadeServiceCDPO : public CriticalDataPathObserver<CascadeType> {
                 // important: we need to keep the trailing PATH_SEPARATOR
                 prefix = key.substr(0, pos + 1);
             }
-            auto handlers = ctxt->get_prefix_handlers(prefix);
+            auto handlers = engine->get_prefix_handlers(prefix);
             if(handlers.empty()) {
                 return;
             }
@@ -63,8 +63,8 @@ class CascadeServiceCDPO : public CriticalDataPathObserver<CascadeType> {
             bool new_actions = false;
             bool has_mproc_udl = false;
             {
-                auto shard_members = ctxt->get_service_client_ref().template get_shard_members<CascadeType>(sgidx, shidx);
-                bool icare = (shard_members[std::hash<std::string>{}(key) % shard_members.size()] == ctxt->get_service_client_ref().get_my_id());
+                auto shard_members = engine->get_service_client_ref().template get_shard_members<CascadeType>(sgidx, shidx);
+                bool icare = (shard_members[std::hash<std::string>{}(key) % shard_members.size()] == engine->get_service_client_ref().get_my_id());
                 for(auto& per_prefix : handlers) {
                     // per_prefix.first is the matching prefix
                     // per_prefix.second is an object of prefix_entry_t
@@ -144,13 +144,13 @@ class CascadeServiceCDPO : public CriticalDataPathObserver<CascadeType> {
                         apei.info.stateful = oi.statefulness;
 #endif
                         TimestampLogger::log(TLT_ACTION_POST_START,
-                                             ctxt->get_service_client_ref().get_my_id(),
+                                             engine->get_service_client_ref().get_my_id(),
                                              dynamic_cast<const IHasMessageID*>(&value)->get_message_id(),
                                              get_time_ns(),
                                              apei.uint64_val);
-                        ctxt->post(std::move(action), oi.statefulness, is_trigger);
+                        engine->post(std::move(action), oi.statefulness, is_trigger);
                         TimestampLogger::log(TLT_ACTION_POST_END,
-                                             ctxt->get_service_client_ref().get_my_id(),
+                                             engine->get_service_client_ref().get_my_id(),
                                              dynamic_cast<const IHasMessageID*>(&value)->get_message_id(),
                                              get_time_ns(),
                                              apei.uint64_val);

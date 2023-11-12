@@ -44,3 +44,4 @@ add_custom_command(TARGET csharp_udl POST_BUILD
             ${CMAKE_CURRENT_SOURCE_DIR}/api/ReflectionLogic.cs
     COMMENT "prepare csharp_udl configuration"
 )
+add_dependencies(csharp_udl cascade)
