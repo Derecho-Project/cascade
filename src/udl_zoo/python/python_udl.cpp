@@ -421,7 +421,7 @@ public:
                                 }
                         
                                 // test if entry_class_type is a subclass of Type UserDefinedLogical.
-                                if (PythonOCDPO::is_valid_observer_type(reinterpret_cast<PyTypeObject*>(entry_class_type))) {
+                                if (!PythonOCDPO::is_valid_observer_type(reinterpret_cast<PyTypeObject*>(entry_class_type))) {
                                     dbg_default_error("Error: {} is not a subclass of derecho.cascade.udl.UserDefinedLogic. {}:{}",
                                             class_name, __FILE__, __LINE__);
                                     res.success = false;
