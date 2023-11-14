@@ -64,6 +64,7 @@ target_include_directories(server PRIVATE
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
 )
 target_link_libraries(server cascade dl pthread)
+target_link_options(server PUBLIC -rdynamic)
 set_target_properties(server PROPERTIES OUTPUT_NAME cascade_server)
 add_custom_command(TARGET server POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/cfg
