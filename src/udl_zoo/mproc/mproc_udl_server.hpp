@@ -9,8 +9,11 @@
 #include <memory>
 #include <atomic>
 #include <nlohmann/json.hpp>
-
 #include <wsong/ipc/ring_buffer.hpp>
+
+#include <cascade/config.h>
+#include <cascade/service_types.hpp>
+#include <cascade/service_client_api.hpp>
 #include <cascade/user_defined_logic_interface.hpp>
 #include <cascade/mproc/mproc_ctxt_client.hpp>
 #include <cascade/mproc/mproc_manager_api.hpp>
@@ -24,9 +27,12 @@ using json = nlohmann::json;
  * @brief The mproc udl server argument
  */
 struct mproc_udl_server_arg_t {
-    std::string     cwd = ".";
+    /**
+     * @brief the application current working directory. The 'udl_dll.cfg' file is expected here.
+     */
+    std::string     app_cwd = ".";
     std::string     objectpool_path;
-    std::string     udl;
+    std::string     udl_uuid;
     json            udl_conf;
     DataFlowGraph::VertexExecutionEnvironment
                     exe_env = DataFlowGraph::VertexExecutionEnvironment::UNKNOWN_EE;
@@ -39,24 +45,18 @@ struct mproc_udl_server_arg_t {
 };
 
 /**
- * TODO:
- */
-class MProcContext {
-};
-
-/**
  * @class MProcUDLServer mproc_udl_server.hpp "mproc_udl_server.hpp"
  * @brief the UDL server.
  */
-class MProcUDLServer {
+class MProcUDLServer : DefaultCascadeContextType {
 private:
     std::shared_ptr<OffCriticalDataPathObserver>    ocdpo;              /// the observer
-    std::unique_ptr<wsong::ipc::RingBuffer>         object_commit_rb;   /// 1c1p, as consumer
-    std::unique_ptr<wsong::ipc::RingBuffer>         ctxt_request_rb;    /// 1cnp, as producer
-    std::unique_ptr<wsong::ipc::RingBuffer>         ctxt_response_rb;   /// 1c1p, as consumer
+    std::unique_ptr<wsong::ipc::RingBuffer>         object_commit_rb;   /// Single Consumer Single Producer(scsp),
+                                                                        /// as consumer
+    std::unique_ptr<wsong::ipc::RingBuffer>         ctxt_request_rb;    /// scmp, as producer
+    std::unique_ptr<wsong::ipc::RingBuffer>         ctxt_response_rb;   /// scsp, as consumer
     std::vector<std::thread>                        upcall_thread_pool; /// upcall thread pool
     std::atomic<bool>                               stop_flag;          /// stop flag
-    std::unique_ptr<MProcContext>                   ctxt;               /// cascade context
     /**
      * @fn MProcUDLServer()
      * @brief   The constructor.
@@ -71,6 +71,7 @@ private:
      */
     virtual void start(bool wait);
 public:
+    virtual ServiceClient<CASCADE_SUBGROUP_TYPE_LIST>& get_service_client_ref() const override;
     /**
      * @fn ~MProcUDLServer()
      * @brief   The destructor.

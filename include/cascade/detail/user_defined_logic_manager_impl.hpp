@@ -127,22 +127,16 @@ UserDefinedLogicManager<CascadeTypes...>::~UserDefinedLogicManager() {
 
 template <typename... CascadeTypes>
 class DLLFileManager: public UserDefinedLogicManager<CascadeTypes...> {
-private:
+protected:
     /* a table for all the UDLs */
     std::unordered_map<std::string,std::unique_ptr<UserDefinedLogic<CascadeTypes...>>> udl_map;
     CascadeContext<CascadeTypes...>* cascade_context;
     /**
      * Load DLL files from configuration file.
-     * The default configuration file for DLLFileManager is udl_dlls.config
-     * Its looks like
-     * =====================
-     * dll_folder_1/udl_a.so
-     * dll_folder_2/udl_b.so
-     * dll_folder_2/udl_c.so
-     * =====================
      */
-    void load_and_initialize_dlls(CascadeContext<CascadeTypes...>* ctxt) {
-        std::ifstream config(UDL_DLLS_CONFIG);
+    virtual void load_and_initialize_dlls(CascadeContext<CascadeTypes...>* ctxt,
+            const char* udl_dlls_conf) {
+        std::ifstream config(udl_dlls_conf);
         //step 1: test if UDL_DLLS_CONFIG exists or not.
         if (!config.good()) {
             dbg_default_warn("{} failed because {} does not exist or is not readable.", __PRETTY_FUNCTION__, UDL_DLLS_CONFIG);
@@ -162,21 +156,32 @@ private:
         }
     }
 public:
-    /* constructor */
-    DLLFileManager(CascadeContext<CascadeTypes...>* ctxt):
+    /**
+     * constructor
+     * @param[in]   ctxt            The Cascade Context
+     * @param[in]   udl_dlls_conf   The UDL DLL configuration, The default configuration file for DLLFileManager is
+     *                              udl_dlls.config
+     *                              The format is a list of udl dll file paths like the following
+     *                              =====================
+     *                              dll_folder_1/udl_a.so
+     *                              dll_folder_2/udl_b.so
+     *                              dll_folder_2/udl_c.so
+     *                              =====================
+     */
+    DLLFileManager(CascadeContext<CascadeTypes...>* ctxt, const char* udl_dlls_conf = UDL_DLLS_CONFIG):
         cascade_context(ctxt) {
         dbg_default_trace("{}:{} DLLFileManager constructor is called.", __FILE__, __LINE__);
-        load_and_initialize_dlls(ctxt);
+        load_and_initialize_dlls(ctxt,udl_dlls_conf);
     }
 
     //@override
-    void list_user_defined_logics(const std::function<void(const UserDefinedLogic<CascadeTypes...>&)>& udl_func) const {
+    virtual void list_user_defined_logics(const std::function<void(const UserDefinedLogic<CascadeTypes...>&)>& udl_func) const {
         for (auto& kv: udl_map) {
             udl_func(*kv.second);
         }
     }
     //@override
-    std::shared_ptr<OffCriticalDataPathObserver> get_observer(
+    virtual std::shared_ptr<OffCriticalDataPathObserver> get_observer(
             const std::string& udl_id,
             const nlohmann::json& udl_config = nlohmann::json{}) {
         if (udl_map.find(udl_id)!=udl_map.end()) {

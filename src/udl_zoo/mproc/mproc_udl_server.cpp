@@ -3,6 +3,10 @@
 namespace derecho {
 namespace cascade {
 
+template <typename... CascadeTypes>
+class MProcUDLManager : public DLLFileManager<CascadeTypes...> {
+};
+
 MProcUDLServer::MProcUDLServer(const struct mproc_udl_server_arg_t& arg):
     stop_flag(false) {
     //TODO
@@ -14,6 +18,10 @@ MProcUDLServer::MProcUDLServer(const struct mproc_udl_server_arg_t& arg):
 
 void MProcUDLServer::start(bool wait) {
     //TODO
+}
+
+ServiceClient<CASCADE_SUBGROUP_TYPE_LIST>& MProcUDLServer::get_service_client_ref() const {
+    throw derecho_exception{"To be implemented."};
 }
 
 MProcUDLServer::~MProcUDLServer() {
