@@ -20,7 +20,7 @@ target_include_directories(mproc_client_udl PRIVATE
 target_link_libraries(mproc_client_udl cascade mproc_udl_client libwsong::ipc)
 add_dependencies(mproc_client_udl cascade mproc_udl_client)
 
-add_executable(mproc_server mproc_server.cpp mproc_udl_server.cpp)
+add_executable(mproc_server mproc_server.cpp)
 target_include_directories(mproc_server PRIVATE
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
