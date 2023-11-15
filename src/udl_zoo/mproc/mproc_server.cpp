@@ -185,7 +185,7 @@ int mproc_server_main(int argc, char** argv) {
     }
 
     // step 3 - run server
-    MProcUDLServer::run_server(mproc_server_args);
+    MProcUDLServer<CASCADE_SUBGROUP_TYPE_LIST>::run_server(mproc_server_args);
     
     // step 4 - steup kill handler.
     GlobalStates::initialize();

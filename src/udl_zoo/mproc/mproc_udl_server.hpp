@@ -1,3 +1,4 @@
+#pragma once
 /**
  * @file mproc_udl_server.hpp
  * @brief The interface for mproc udl server.
@@ -28,19 +29,46 @@ using json = nlohmann::json;
  */
 struct mproc_udl_server_arg_t {
     /**
-     * @brief the application current working directory. The 'udl_dll.cfg' file is expected here.
+     * The application current working directory. The 'udl_dll.cfg' file is expected here.
      */
     std::string     app_cwd = ".";
+    /**
+     * The object pool path
+     */
     std::string     objectpool_path;
+    /**
+     * UDL uuid
+     */
     std::string     udl_uuid;
+    /**
+     * UDL configuration
+     */
     json            udl_conf;
+    /**
+     * Execution environment type
+     */
     DataFlowGraph::VertexExecutionEnvironment
                     exe_env = DataFlowGraph::VertexExecutionEnvironment::UNKNOWN_EE;
+    /**
+     * Execution environment configuration
+     */
     json            exe_env_conf;
+    /**
+     * Statefulness of the UDL
+     */
     DataFlowGraph::Statefulness
                     statefulness = DataFlowGraph::Statefulness::UNKNOWN_S;
+    /**
+     * Number of threads
+     */
     uint32_t        num_threads;
+    /**
+     * Output
+     */
     json            edges;
+    /**
+     * Ringbuffers for communication.
+     */
     json            rbkeys;
 };
 
@@ -48,8 +76,11 @@ struct mproc_udl_server_arg_t {
  * @class MProcUDLServer mproc_udl_server.hpp "mproc_udl_server.hpp"
  * @brief the UDL server.
  */
-class MProcUDLServer : DefaultCascadeContextType {
+template <typename ... CascadeTypes>
+class MProcUDLServer : CascadeContext<CascadeTypes...> {
 private:
+    std::unique_ptr<UserDefinedLogicManager<CascadeTypes...>>
+                                                    user_defined_logic_manager; /// User defined logic manager;
     std::shared_ptr<OffCriticalDataPathObserver>    ocdpo;              /// the observer
     std::unique_ptr<wsong::ipc::RingBuffer>         object_commit_rb;   /// Single Consumer Single Producer(scsp),
                                                                         /// as consumer
@@ -71,7 +102,7 @@ private:
      */
     virtual void start(bool wait);
 public:
-    virtual ServiceClient<CASCADE_SUBGROUP_TYPE_LIST>& get_service_client_ref() const override;
+    virtual ServiceClient<CascadeTypes...>& get_service_client_ref() const override;
     /**
      * @fn ~MProcUDLServer()
      * @brief   The destructor.
@@ -93,3 +124,5 @@ public:
 
 }
 }
+
+#include "mproc_udl_server_impl.hpp"
