@@ -13,6 +13,12 @@
 #define CONF_PCS_UINT64KEY_LAYOUT "CASCADE/PERSISTENTCASCADESTORE/UINT64/layout"
 #define CONF_PCS_STRINGKEY_LAYOUT "CASCADE/PERSISTENTCASCADESTORE/STRING/layout"
 
+#define CASCADE_SUBGROUP_TYPE_LIST  \
+    VolatileCascadeStoreWithStringKey, \
+    PersistentCascadeStoreWithStringKey, \
+    TriggerCascadeNoStoreWithStringKey
+                                    
+
 namespace derecho {
 namespace cascade {
 
@@ -35,18 +41,12 @@ using TriggerCascadeNoStoreWithStringKey = TriggerCascadeNoStore<
                                                 &ObjectWithStringKey::IK,
                                                 &ObjectWithStringKey::IV>;
 
-using DefaultServiceType = Service<VolatileCascadeStoreWithStringKey,
-                                   PersistentCascadeStoreWithStringKey,
-                                   TriggerCascadeNoStoreWithStringKey>;
+using DefaultServiceType = Service<CASCADE_SUBGROUP_TYPE_LIST>;
 
-using DefaultCascadeContextType = CascadeContext<VolatileCascadeStoreWithStringKey,
-                                                 PersistentCascadeStoreWithStringKey,
-                                                 TriggerCascadeNoStoreWithStringKey>;
+using DefaultCascadeContextType = CascadeContext<CASCADE_SUBGROUP_TYPE_LIST>;
 
-using DefaultObjectPoolMetadataType = ObjectPoolMetadata<
-                                                VolatileCascadeStoreWithStringKey,
-                                                PersistentCascadeStoreWithStringKey,
-                                                TriggerCascadeNoStoreWithStringKey>;
+using DefaultObjectPoolMetadataType = ObjectPoolMetadata<CASCADE_SUBGROUP_TYPE_LIST>;
+
 template <>
 inline DefaultObjectPoolMetadataType create_null_object_cb<
                                         std::string,

@@ -58,10 +58,11 @@ void signal_handler(int signal) {
 }
 
 const char* help_string = 
-    "\t--cwd,-c     The working directory, if not the current working directory.\n"
+    "\t--app_cwd,-c The working directory, if not the current working directory.\n"
     "\t--objectpool_path,-p\n"
     "\t             The object pool path for the UDL.\n"
-    "\t--udl,-u     The uuid of the UDL.\n"
+    "\t--udl_uuid,-u\n"
+    "\t             The uuid of the UDL.\n"
     "\t--udl_conf,-U\n"
     "\t             The UDL configuration in json format.\n"
     "\t--execution_environment,-e\n"
@@ -101,9 +102,9 @@ void print_help(const char* command) {
 int mproc_server_main(int argc, char** argv) {
     // step 1 - collect options
     static struct option long_options[] = {
-        {"cwd",                         required_argument,  0,  'c'},
+        {"app_cwd",                     required_argument,  0,  'c'},
         {"objectpool_path",             required_argument,  0,  'p'},
-        {"udl",                         required_argument,  0,  'u'},
+        {"udl_uuid",                    required_argument,  0,  'u'},
         {"udl_conf",                    required_argument,  0,  'U'},
         {"execution_environment",       required_argument,  0,  'e'},
         {"execution_environment_conf",  required_argument,  0,  'E'},
@@ -127,13 +128,13 @@ int mproc_server_main(int argc, char** argv) {
 
         switch (c) {
         case 'c':
-            mproc_server_args.cwd = optarg;
+            mproc_server_args.app_cwd = optarg;
             break;
         case 'p':
             mproc_server_args.objectpool_path = optarg;
             break;
         case 'u':
-            mproc_server_args.udl = optarg;
+            mproc_server_args.udl_uuid = optarg;
             break;
         case 'U':
             mproc_server_args.udl_conf = json::parse(optarg);
