@@ -2,11 +2,14 @@
 #include <csignal>
 #include <iostream>
 #include <atomic>
+#include <filesystem>
 #include <nlohmann/json.hpp>
 #include <unistd.h>
 #include <getopt.h>
 
 #include "mproc_udl_server.hpp"
+
+namespace fs = std::filesystem;
 
 namespace derecho {
 namespace cascade {
@@ -185,6 +188,7 @@ int mproc_server_main(int argc, char** argv) {
     }
 
     // step 3 - run server
+    fs::current_path(fs::path(mproc_server_args.app_cwd));
     MProcUDLServer<CASCADE_SUBGROUP_TYPE_LIST>::run_server(mproc_server_args);
     
     // step 4 - steup kill handler.
