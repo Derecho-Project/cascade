@@ -6,8 +6,11 @@ namespace cascade {
 template <typename ... CascadeTypes>
 MProcUDLServer<CascadeTypes...>::MProcUDLServer(const struct mproc_udl_server_arg_t& arg):
     stop_flag(false) {
-    //TODO
     // 1 - load udl to this->ocdpo
+    this->user_defined_logic_manager = UserDefinedLogicManager<CascadeTypes...>::create(this);
+    this->ocdpo =
+        std::move(this->user_defined_logic_manager->get_observer(arg.udl_uuid,arg.udl_conf));
+    //TODO
     // 2 - attach to three ringbuffers
     // 3 - initialize mproc_ctxt
     // 4 - start the upcall thread pool
