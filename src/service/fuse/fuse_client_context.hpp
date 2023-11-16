@@ -626,7 +626,7 @@ public:
     }
 
     /** Helper function: 
-     *   @object_pool_pathname: the object pool pathname to parse
+     *   @param[in] object_pool_pathname: the object pool pathname to parse
      *   @return:  next level pathname
      *   e.g. if cur_pathname is "/a", for object_pool_pathname "/a/b/c" this function returns "/a/b"
      */

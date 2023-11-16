@@ -38,13 +38,13 @@ using FuseClientContextType = FuseClientContext<VolatileCascadeStoreWithStringKe
 
 static void fs_init(void* userdata, struct fuse_conn_info *conn) {
     dbg_default_trace("entering {}.",__func__);
-    if (derecho::hasCustomizedConfKey(CONF_LAYOUT_JSON_LAYOUT)) {
-      FCC(userdata)->initialize(json::parse(derecho::getConfString(CONF_LAYOUT_JSON_LAYOUT)));
-    } else if (derecho::hasCustomizedConfKey(CONF_LAYOUT_JSON_LAYOUT_FILE)){
+    if (derecho::hasCustomizedConfKey(derecho::Conf::LAYOUT_JSON_LAYOUT)) {
+      FCC(userdata)->initialize(json::parse(derecho::getConfString(derecho::Conf::LAYOUT_JSON_LAYOUT)));
+    } else if (derecho::hasCustomizedConfKey(derecho::Conf::LAYOUT_JSON_LAYOUT_FILE)){
         nlohmann::json layout_array;
-        std::ifstream json_file(derecho::getAbsoluteFilePath(derecho::getConfString(CONF_LAYOUT_JSON_LAYOUT_FILE)));
+        std::ifstream json_file(derecho::getAbsoluteFilePath(derecho::getConfString(derecho::Conf::LAYOUT_JSON_LAYOUT_FILE)));
         if (!json_file) {
-	    dbg_default_error("Cannot load json configuration from file: {}", derecho::getAbsoluteFilePath(derecho::getConfString(CONF_LAYOUT_JSON_LAYOUT_FILE)));
+	    dbg_default_error("Cannot load json configuration from file: {}", derecho::getAbsoluteFilePath(derecho::getConfString(derecho::Conf::LAYOUT_JSON_LAYOUT_FILE)));
             throw derecho::derecho_exception("Cannot load json configuration from file.");
         }
         json_file >> layout_array;

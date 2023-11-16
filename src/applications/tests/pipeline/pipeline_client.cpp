@@ -96,7 +96,7 @@ int main(int argc, char** argv) {
     std::string member_selection_policy = argv[3];
     uint64_t max_rate_ops = std::stoul(argv[4]);
     uint64_t duration_sec = std::stoul(argv[5]);
-    uint64_t payload_size = derecho::getConfUInt64(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
+    uint64_t payload_size = derecho::getConfUInt64(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
 
     // 1 - create the workload.
     std::vector<ObjectWithStringKey> objects;

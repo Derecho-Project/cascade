@@ -51,7 +51,7 @@ bool PerfTestServer::eval_put(uint64_t max_operation_per_second,
                               uint32_t shard_index) {
         // synchronization data structures
         // 1 - sending window and future queue
-        uint32_t                window_size = derecho::getConfUInt32(CONF_DERECHO_P2P_WINDOW_SIZE);
+        uint32_t                window_size = derecho::getConfUInt32(derecho::Conf::DERECHO_P2P_WINDOW_SIZE);
         uint32_t                window_slots = window_size*2;
         std::mutex              window_slots_mutex;
         std::condition_variable window_slots_cv;
@@ -273,7 +273,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
             user_specified_node_id);
         // STEP 2 - prepare workload
         objects.clear();
-        make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
+        make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
         // STEP 3 - start experiment and log
         int64_t sleep_us = (start_sec*1e9 - static_cast<int64_t>(get_walltime()))/1e3;
         if (sleep_us > 1) {
@@ -319,7 +319,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
             user_specified_node_id);
         // STEP 2 - prepare workload
         objects.clear();
-        make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
+        make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
         // STEP 3 - start experiment and log
         int64_t sleep_us = (start_sec*1e9 - static_cast<int64_t>(get_walltime()))/1e3;
         if (sleep_us > 1) {
@@ -365,7 +365,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
             user_specified_node_id);
         // STEP 2 - prepare workload
         objects.clear();
-        make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
+        make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
         int64_t sleep_us = (start_sec*1e9 - static_cast<int64_t>(get_walltime()))/1e3;
         if (sleep_us > 1) {
             usleep(sleep_us);
@@ -415,7 +415,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         }
         // STEP 2 - prepare workload
         objects.clear();
-        make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),object_pool_pathname+"/key_",objects);
+        make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),object_pool_pathname+"/key_",objects);
         int64_t sleep_us = (start_sec*1e9 - static_cast<int64_t>(get_walltime()))/1e3;
         if (sleep_us > 1) {
             usleep(sleep_us);
@@ -464,7 +464,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         }
         // STEP 2 - prepare workload
         objects.clear();
-        make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
+        make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),object_pool_pathname+"/key_",objects);
         int64_t sleep_us = (start_sec*1e9 - static_cast<int64_t>(get_walltime()))/1e3;
         if (sleep_us > 1) {
             usleep(sleep_us);
@@ -513,7 +513,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         }
         // STEP 2 - prepare workload
         objects.clear();
-        make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(CONF_DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),"raw_key_",objects);
+        make_workload<std::string,ObjectWithStringKey>(derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE),object_pool_pathname+"/key_",objects);
         int64_t sleep_us = (start_sec*1e9 - static_cast<int64_t>(get_walltime()))/1e3;
         if (sleep_us > 1) {
             usleep(sleep_us);

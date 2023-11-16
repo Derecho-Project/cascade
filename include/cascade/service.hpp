@@ -73,14 +73,15 @@ namespace cascade {
     public:
         /**
          * This function has to be re-entrant/thread-safe.
-         * @param sender            The sender id
-         * @param full_key_string   The full key string
-         * @param prefix            The matching prefix length key_string.subtring(0,prefix) returns the prefix.
+         * @param[in] sender            The sender id
+         * @param[in] full_key_string   The full key string
+         * @param[in] prefix_length     The matching prefix length key_string.subtring(0,prefix_length) returns the prefix.
          *                          Please note that the trailing '/' is included.
-         * @param version           The version of the key
-         * @param value_ptr         The raw value pointer
-         * @param ctxt              The CascadeContext
-         * @param worker_id         The off critical data path worker id.
+         * @param[in] version           The version of the key
+         * @param[in] value_ptr         The raw value pointer
+         * @param[in] outputs           The object pool output should go
+         * @param[in] ctxt              The CascadeContext
+         * @param[in] worker_id         The off critical data path worker id.
          */
         virtual void operator() (const node_id_t sender,
                                  const std::string& full_key_string,
@@ -130,7 +131,7 @@ namespace cascade {
         std::unordered_map<std::string,bool>           outputs;
         /**
          * Move constructor
-         * @param other     The input Action object
+         * @param[in] other     The input Action object
          */
         Action(Action&& other):
             sender(other.sender),
@@ -142,10 +143,13 @@ namespace cascade {
             outputs(std::move(other.outputs)) {}
         /**
          * Constructor
-         * @param   _key_string
-         * @param   _version
-         * @param   _ocdpo_ptr const reference rvalue
-         * @param   _value_ptr
+         * @param[in]   _sender
+         * @param[in]   _key_string
+         * @param[in]   _prefix_length
+         * @param[in]   _version
+         * @param[in]   _ocdpo_ptr const reference rvalue
+         * @param[in]   _value_ptr
+         * @param[in]   _outputs
          */
         Action(const node_id_t              _sender = INVALID_NODE_ID,
                const std::string&           _key_string = "",
@@ -169,11 +173,15 @@ namespace cascade {
         Action& operator = (const Action&) = delete;
         /**
          *  fire the action.
-         *  @param ctxt
-         *  @param worker_id
+         *  @param[in] ctxt
+         *  @param[in] worker_id
          */
         inline void fire(ICascadeContext* ctxt,uint32_t worker_id) {
             if (value_ptr && ocdpo_ptr) {
+                TimestampLogger::log(TLT_ACTION_FIRE_START,
+                                     0,
+                                     dynamic_cast<const IHasMessageID*>(value_ptr.get())->get_message_id(),
+                                     get_time_ns(), 0);
                 dbg_default_trace("In {}: [worker_id={}] action is fired.", __PRETTY_FUNCTION__, worker_id);
                 (*ocdpo_ptr)(sender,key_string,prefix_length,version,value_ptr.get(),outputs,ctxt,worker_id);
             }
@@ -210,9 +218,9 @@ namespace cascade {
          * The constructor will load the configuration, start the service thread.
          * Constructor is hidden for singleton.
          *
-         * @param dsms deserialization managers
-         * @param metadata_service_factory
-         * @param factories: subgroup factories.
+         * @param[in] dsms deserialization managers
+         * @param[in] metadata_service_factory
+         * @param[in] factories: subgroup factories.
          */
         Service(const std::vector<DeserializationContext*>& dsms,
                 derecho::cascade::Factory<CascadeMetadataService<CascadeTypes...>> metadata_service_factory,
@@ -266,9 +274,9 @@ namespace cascade {
          * Start the singleton service
          * Please make sure only one thread call start. We do not defense such an incorrect usage.
          *
-         * @param dsms
-         * @param metadata_factory - factory for the metadata service.
-         * @param factories - the factories to create objects.
+         * @param[in] dsms
+         * @param[in] metadata_factory - factory for the metadata service.
+         * @param[in] factories - the factories to create objects.
          */
         static void start(const std::vector<DeserializationContext*>& dsms,
                           derecho::cascade::Factory<CascadeMetadataService<CascadeTypes...>> metadata_factory,
@@ -474,7 +482,7 @@ namespace cascade {
             ObjectPoolMetadata<CascadeTypes...> opm;
             /**
              * The constructor
-             * @param _opm object pool metadata
+             * @param[in] _opm object pool metadata
              */
             ObjectPoolMetadataCacheEntry(const ObjectPoolMetadata<CascadeTypes...>& _opm);
 
@@ -485,7 +493,7 @@ namespace cascade {
 
             /**
              * Convert a key string to corresponding affinity set string.
-             * @param key_string
+             * @param[in] key_string
              *
              * @return affinity set string
              */
@@ -504,10 +512,10 @@ namespace cascade {
 
         /**
          * Pick a member by a given a policy.
-         * @param subgroup_index
-         * @param shard_index
-         * @param key_for_hashing   - only for KeyHashing policy, ignored otherwise.
-         * @param retry             - if true, refresh the member_cache.
+         * @param[in] subgroup_index
+         * @param[in] shard_index
+         * @param[in] key_for_hashing   - only for KeyHashing policy, ignored otherwise.
+         * @param[in] retry             - if true, refresh the member_cache.
          */
         template <typename SubgroupType, typename KeyTypeForHashing>
         node_id_t pick_member_by_policy(uint32_t subgroup_index,
@@ -517,8 +525,8 @@ namespace cascade {
 
         /**
          * Refresh(or fill) a member cache entry.
-         * @param subgroup_index
-         * @param shard_index
+         * @param[in] subgroup_index
+         * @param[in] shard_index
          */
         template <typename SubgroupType>
         void refresh_member_cache_entry(uint32_t subgroup_index, uint32_t shard_index);
@@ -543,7 +551,7 @@ namespace cascade {
         /**
          * The Constructor
          * We prevent calling the constructor explicitly, because the ServiceClient is a singleton.
-         * @param _group_ptr The caller can pass a pointer pointing to a derecho group object. If the pointer is
+         * @param[in] _group_ptr The caller can pass a pointer pointing to a derecho group object. If the pointer is
          *                   valid, the implementation will reply on the group object instead of creating an external
          *                   client to communicate with group members.
          */
@@ -612,14 +620,14 @@ namespace cascade {
     public:
         /**
          * This get_number_of_shards() overload the typed version.
-         * @param subgroup_type_index   - the type index of the subrgoup type.
-         * @param subgroup_index        - the subgroup index in the given type.
+         * @param[in] subgroup_type_index   - the type index of the subrgoup type.
+         * @param[in] subgroup_index        - the subgroup index in the given type.
          */
         uint32_t get_number_of_shards(uint32_t subgroup_type_index, uint32_t subgroup_index) const;
 
         /**
          * This get_number_of_shards(), pick subgroup using object pool pathname.
-         * @param object_pool_pathname  - the object pool name
+         * @param[in] object_pool_pathname  - the object pool name
          */
         uint32_t get_number_of_shards(const std::string& object_pool_pathname);
 
@@ -627,10 +635,10 @@ namespace cascade {
          * Member selection policy control API.
          * - set_member_selection_policy updates the member selection policies.
          * - get_member_selection_policy read the member selection policies.
-         * @param subgroup_index
-         * @param shard_index
-         * @param policy
-         * @param user_specified_node_id
+         * @param[in] subgroup_index
+         * @param[in] shard_index
+         * @param[in] policy
+         * @param[in] user_specified_node_id
          * @return get_member_selection_policy returns a 2-tuple of policy and user_specified_node_id.
          */
         template <typename SubgroupType>
@@ -644,7 +652,7 @@ namespace cascade {
         /**
          * "put" writes an object to a given subgroup/shard.
          *
-         * @param object            the object to write.
+         * @param[in] object            the object to write.
          *                          User provided SubgroupType::ObjectType must have the following two members:
          *                          - SubgroupType::ObjectType::key of SubgroupType::KeyType, which must be set to a
          *                            valid key.
@@ -654,8 +662,8 @@ namespace cascade {
          *                            of the version and timestamp meaning what is the latest version/timestamp the caller
          *                            has seen. Cascade will reject the write if the corresponding key has been updated
          *                            already. TODO: should we make it an optional feature?
-         * @param subugroup_index   the subgroup index of CascadeType
-         * @param shard_index       the shard index.
+         * @param[in] subgroup_index   the subgroup index of CascadeType
+         * @param[in] shard_index       the shard index.
          *
          * @return a future to the version and timestamp of the put operation.
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
@@ -665,11 +673,12 @@ namespace cascade {
                 uint32_t subgroup_index, uint32_t shard_index);
         /**
          * "type_recursive_put" is a helper function for internal use only.
-         * @type_index              the index of the subgroup type in the CascadeTypes... list. And the FirstType,
+         * @param[in]   type_index  the index of the subgroup type in the CascadeTypes... list. And the FirstType,
          *                          SecondType, ..., RestTypes should be in the same order.
-         * @object                  the object to write
-         * @subgroup_index          the subgroup index in the subgroup type designated by type_index
-         * @shard_index             the shard index
+         * @param[in]   object      the object to write
+         * @param[in]   subgroup_index
+         *                          the subgroup index in the subgroup type designated by type_index
+         * @param[in]   shard_index the shard index
          *
          * @return a future to the version and timestamp of the put operation.
          */
@@ -690,7 +699,7 @@ namespace cascade {
     public:
         /**
          * object pool version
-         * @param object            the object to write, the object pool is extracted from the object key.
+         * @param[in] object            the object to write, the object pool is extracted from the object key.
          *
          * @return a future to the version and timestamp of the put operation.
          */
@@ -700,7 +709,7 @@ namespace cascade {
         /**
          * "put_and_forget" writes an object to a given subgroup/shard, but no return value.
          *
-         * @param object            the object to write.
+         * @param[in] object            the object to write.
          *                          User provided SubgroupType::ObjectType must have the following two members:
          *                          - SubgroupType::ObjectType::key of SubgroupType::KeyType, which must be set to a
          *                            valid key.
@@ -710,8 +719,8 @@ namespace cascade {
          *                            of the version and timestamp meaning what is the latest version/timestamp the caller
          *                            has seen. Cascade will reject the write if the corresponding key has been updated
          *                            already. TODO: should we make it an optional feature?
-         * @param subugroup_index   the subgroup index of CascadeType
-         * @param shard_index       the shard index.
+         * @param[in] subgroup_index   the subgroup index of CascadeType
+         * @param[in] shard_index       the shard index.
          */
         template <typename SubgroupType>
         void put_and_forget(const typename SubgroupType::ObjectType& object,
@@ -719,11 +728,12 @@ namespace cascade {
 
         /**
          * "type_recursive_put_and_forget" is a helper function for internal use only.
-         * @type_index              the index of the subgroup type in the CascadeTypes... list. and the FirstType,
+         * @param[in] type_index    the index of the subgroup type in the CascadeTypes... list. and the FirstType,
          *                          SecondType, .../ RestTypes should be in the same order.
-         * @object                  the object to write
-         * @subgroup_index          the subgroup index in the subgroup type designated by type_index
-         * @shard_index             the shard index
+         * @param[in] object        the object to write
+         * @param[in] subgroup_index    
+         *                          the subgroup index in the subgroup type designated by type_index
+         * @param[in] shard_index   the shard index
          */
     protected:
         template <typename ObjectType, typename FirstType, typename SecondType, typename... RestTypes>
@@ -742,7 +752,7 @@ namespace cascade {
     public:
         /**
          * object pool version
-         * @param object    the object to write, the object pool is extracted from the object key.
+         * @param[in] object    the object to write, the object pool is extracted from the object key.
          */
         template <typename ObjectType>
         void put_and_forget(const ObjectType& object);
@@ -750,9 +760,9 @@ namespace cascade {
         /**
          * "trigger_put" writes an object to a given subgroup/shard.
          *
-         * @param object            the object to write.
-         * @param subugroup_index   the subgroup index of CascadeType
-         * @param shard_index       the shard index.
+         * @param[in] object            the object to write.
+         * @param[in] subgroup_index   the subgroup index of CascadeType
+         * @param[in] shard_index       the shard index.
          *
          * @return a void future.
          */
@@ -762,11 +772,14 @@ namespace cascade {
 
         /**
          * "type_recursive_trigger_put" is a helper function for internal use only.
-         * @type_index              the index of the subgroup type in the CascadeTypes... list. and the FirstType,
+         * @param[in]   type_index  the index of the subgroup type in the CascadeTypes... list. and the FirstType,
          *                          SecondType, .../ RestTypes should be in the same order.
-         * @object                  the object to write
-         * @subgroup_index          the subgroup index in the subgroup type designated by type_index
-         * @shard_index             the shard index
+         * @param[in]   object      the object to write
+         * @param[in]   subgroup_index
+         *                          the subgroup index in the subgroup type designated by type_index
+         * @param[in] shard_index   the shard index
+         *
+         * @return future
          */
     protected:
         template <typename ObjectType, typename FirstType, typename SecondType, typename... RestTypes>
@@ -785,7 +798,7 @@ namespace cascade {
     public:
         /**
          * object pool version
-         * @param object    the object to write, the object pool is extracted from the object key.
+         * @param[in] object    the object to write, the object pool is extracted from the object key.
          */
         template <typename ObjectType>
         derecho::rpc::QueryResults<void> trigger_put(const ObjectType& object);
@@ -797,9 +810,9 @@ namespace cascade {
          * we agree that QueryResults<void> should reflect exceptions or errors either on local or remote side, which is
          * not enabled so far. TODO: Track exception in derecho::rpc::QueryResults<void>
          *
-         * @param object            the object to write.
-         * @param subugroup_index   the subgroup index of CascadeType
-         * @param nodes             node ids for the set of nodes.
+         * @param[in] object            the object to write.
+         * @param[in] subgroup_index    the subgroup index of CascadeType
+         * @param[in] nodes_and_futures map from node ids to futures.
          *
          * @return an array of void futures, which length is nodes.size()
          */
@@ -811,9 +824,9 @@ namespace cascade {
         /**
          * "remove" deletes an object with the given key.
          *
-         * @param key               the object key
-         * @param subugroup_index   the subgroup index of CascadeType
-         * @param shard_index       the shard index.
+         * @param[in] key               the object key
+         * @param[in] subgroup_index   the subgroup index of CascadeType
+         * @param[in] shard_index       the shard index.
          *
          * @return a future to the version and timestamp of the put operation.
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
@@ -824,11 +837,11 @@ namespace cascade {
 
         /**
          * "type_recursive_remove" is a helper function for internal use only.
-         * @type_index              the index of the subgroup type in the CascadeTypes... list. and the FirstType,
+         * @param[in]   type_index              the index of the subgroup type in the CascadeTypes... list. and the FirstType,
          *                          SecondType, .../ RestTypes should be in the same order.
-         * @key                     the key
-         * @subgroup_index          the subgroup index in the subgroup type designated by type_index
-         * @shard_index             the shard index
+         * @param[in]   key                     the key
+         * @param[in]   subgroup_index          the subgroup index in the subgroup type designated by type_index
+         * @param[in]   shard_index             the shard index
          *
          * @return a future to the version and timestamp of the put operation.
          */
@@ -849,6 +862,9 @@ namespace cascade {
     public:
         /**
          * object pool version
+         * @param[in]   key             the object key
+         *
+         * @return  returns a future
          */
         template <typename KeyType>
         derecho::rpc::QueryResults<version_tuple> remove(const KeyType& key);
@@ -856,13 +872,13 @@ namespace cascade {
         /**
          * "get" retrieve the object of a given key
          *
-         * @param key               the object key
-         * @param version           if version is CURRENT_VERSION, this "get" will fire a ordered send to get the latest
+         * @param[in] key               the object key
+         * @param[in] version           if version is CURRENT_VERSION, this "get" will fire a ordered send to get the latest
          *                          state of the key. Otherwise, it will try to read the key's state at version.
-         * @param stable            if true, get only report the version whose persistent data is safe, meaning the
+         * @param[in] stable            if true, get only report the version whose persistent data is safe, meaning the
          *                          persistent data is persisted on all replicas.
-         * @param subugroup_index   the subgroup index of CascadeType
-         * @param shard_index       the shard index.
+         * @param[in] subgroup_index   the subgroup index of CascadeType
+         * @param[in] shard_index       the shard index.
          *
          * @return a future to the retrieved object.
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
@@ -876,13 +892,13 @@ namespace cascade {
                 uint32_t shard_index = 0);
         /**
          * "type_recursive_get" is a helper function for internal use only.
-         * @param type_index        the index of the subgroup type in the CascadeTypes... list. and the FirstType,
+         * @param[in] type_index        the index of the subgroup type in the CascadeTypes... list. and the FirstType,
          *                          SecondType, .../ RestTypes should be in the same order.
-         * @param key               the key
-         * @param version           the version
-         * @param stable            stable or not?
-         * @param subgroup_index    the subgroup index in the subgroup type designated by type_index
-         * @param shard_index       the shard index
+         * @param[in] key               the key
+         * @param[in] version           the version
+         * @param[in] stable            stable or not?
+         * @param[in] subgroup_index    the subgroup index in the subgroup type designated by type_index
+         * @param[in] shard_index       the shard index
          *
          * @return a future for the object.
          */
@@ -917,9 +933,9 @@ namespace cascade {
         /**
          * "multi_get" retrieve the object of a given key, this operation involves atomic broadcast
          *
-         * @param key               the object key
-         * @param subugroup_index   the subgroup index of CascadeType
-         * @param shard_index       the shard index.
+         * @param[in] key               the object key
+         * @param[in] subgroup_index   the subgroup index of CascadeType
+         * @param[in] shard_index       the shard index.
          *
          * @return a future to the retrieved object.
          */
@@ -929,11 +945,11 @@ namespace cascade {
 
         /**
          * "type_recursive_multi_get"   is a helper function for internal use only.
-         * @type_index                  the index of the subgroup type in the CascadeTypes... list. and the FirstType,
+         * @param[in]   type_index      the index of the subgroup type in the CascadeTypes... list. and the FirstType,
          *                              SecondType, .../ RestTypes should be in the same order.
-         * @key                         the key
-         * @subgroup_index              the subgroup index in the subgroup type designated by type_index
-         * @shard_index                 the shard index
+         * @param[in]   key             the key
+         * @param[in]   subgroup_index  the subgroup index in the subgroup type designated by type_index
+         * @param[in]   shard_index     the shard index
          *
          * @return a future for the object.
          */
@@ -962,11 +978,11 @@ namespace cascade {
         /**
          * "get_by_time" retrieve the object of a given key
          *
-         * @param key               the object key
-         * @param ts_us             Wall clock time in microseconds.
-         * @param stable            stable get or not
-         * @param subugroup_index   the subgroup index of CascadeType
-         * @param shard_index       the shard index.
+         * @param[in] key               the object key
+         * @param[in] ts_us             Wall clock time in microseconds.
+         * @param[in] stable            stable get or not
+         * @param[in] subgroup_index   the subgroup index of CascadeType
+         * @param[in] shard_index       the shard index.
          *
          * @return a future to the retrieved object.
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
@@ -981,13 +997,13 @@ namespace cascade {
 
         /**
          * "type_recursive_get_by_time" is a helper function for internal use only.
-         * @param type_index        the index of the subgroup type in the CascadeTypes... list. and the FirstType,
+         * @param[in] type_index        the index of the subgroup type in the CascadeTypes... list. and the FirstType,
          *                          SecondType, .../ RestTypes should be in the same order.
-         * @param key               the key
-         * @param ts_us             Wall clock time in microseconds.
-         * @param stable            stable get or not
-         * @param subgroup_index    the subgroup index in the subgroup type designated by type_index
-         * @param shard_index       the shard index
+         * @param[in] key               the key
+         * @param[in] ts_us             Wall clock time in microseconds.
+         * @param[in] stable            stable get or not
+         * @param[in] subgroup_index    the subgroup index in the subgroup type designated by type_index
+         * @param[in] shard_index       the shard index
          *
          * @return a future for the object.
          */
@@ -1023,12 +1039,12 @@ namespace cascade {
         /**
          * "get_size" retrieve size of the object of a given key
          *
-         * @param key               the object key
-         * @param version           if version is CURRENT_VERSION, this "get" will fire a ordered send to get the latest
+         * @param[in] key               the object key
+         * @param[in] version           if version is CURRENT_VERSION, this "get" will fire a ordered send to get the latest
          *                          state of the key. Otherwise, it will try to read the key's state at version.
-         * @param stable            stable get or not
-         * @param subugroup_index   the subgroup index of CascadeType
-         * @param shard_index       the shard index.
+         * @param[in] stable            stable get or not
+         * @param[in] subgroup_index   the subgroup index of CascadeType
+         * @param[in] shard_index       the shard index.
          *
          * @return a future to the retrieved size.
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
@@ -1043,13 +1059,13 @@ namespace cascade {
 
         /**
          * "type_recursive_get_size" is a helper function for internal use only.
-         * @param type_index        the index of the subgroup type in the CascadeTypes... list. and the FirstType,
+         * @param[in] type_index        the index of the subgroup type in the CascadeTypes... list. and the FirstType,
          *                          SecondType, .../ RestTypes should be in the same order.
-         * @param key               the key
-         * @param version           version
-         * @param stable            stable get size or not
-         * @param subgroup_index    the subgroup index in the subgroup type designated by type_index
-         * @param shard_index       the shard index
+         * @param[in] key               the key
+         * @param[in] version           version
+         * @param[in] stable            stable get size or not
+         * @param[in] subgroup_index    the subgroup index in the subgroup type designated by type_index
+         * @param[in] shard_index       the shard index
          *
          * @return a future for the object.
          */
@@ -1085,9 +1101,9 @@ namespace cascade {
         /**
          * "multi_get_size" retrieve size of the object of a given key
          *
-         * @param key               the object key
-         * @param subugroup_index   the subgroup index of CascadeType
-         * @param shard_index       the shard index.
+         * @param[in] key               the object key
+         * @param[in] subgroup_index   the subgroup index of CascadeType
+         * @param[in] shard_index       the shard index.
          *
          * @return a future to the retrieved size.
          */
@@ -1098,11 +1114,11 @@ namespace cascade {
 
         /**
          * "type_recursive_multi_get_size" is a helper function for internal use only.
-         * @param type_index        the index of the subgroup type in the CascadeTypes... list. and the FirstType,
+         * @param[in] type_index        the index of the subgroup type in the CascadeTypes... list. and the FirstType,
          *                          SecondType, .../ RestTypes should be in the same order.
-         * @param key               the key
-         * @param subgroup_index    the subgroup index in the subgroup type designated by type_index
-         * @param shard_index       the shard index
+         * @param[in] key               the key
+         * @param[in] subgroup_index    the subgroup index in the subgroup type designated by type_index
+         * @param[in] shard_index       the shard index
          *
          * @return a future for the object.
          */
@@ -1131,11 +1147,11 @@ namespace cascade {
         /**
          * "get_size_by_time" retrieve size of the object of a given key
          *
-         * @param key               the object key
-         * @param ts_us             Wall clock time in microseconds.
-         * @param stable            stable get or not
-         * @param subugroup_index   the subgroup index of CascadeType
-         * @param shard_index       the shard index.
+         * @param[in] key               the object key
+         * @param[in] ts_us             Wall clock time in microseconds.
+         * @param[in] stable            stable get or not
+         * @param[in] subgroup_index   the subgroup index of CascadeType
+         * @param[in] shard_index       the shard index.
          *
          * @return a future to the retrieved size.
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
@@ -1150,13 +1166,13 @@ namespace cascade {
 
         /**
          * "type_recursive_get_size" is a helper function for internal use only.
-         * @param type_index        the index of the subgroup type in the CascadeTypes... list. and the FirstType,
+         * @param[in] type_index        the index of the subgroup type in the CascadeTypes... list. and the FirstType,
          *                          SecondType, .../ RestTypes should be in the same order.
-         * @param key               the key
-         * @param ts_us             Wall clock time in microseconds.
-         * @param stable            stable get or not
-         * @param subgroup_index    the subgroup index in the subgroup type designated by type_index
-         * @param shard_index       the shard index
+         * @param[in] key               the key
+         * @param[in] ts_us             Wall clock time in microseconds.
+         * @param[in] stable            stable get or not
+         * @param[in] subgroup_index    the subgroup index in the subgroup type designated by type_index
+         * @param[in] shard_index       the shard index
          *
          * @return a future for the object.
          */
@@ -1192,11 +1208,11 @@ namespace cascade {
         /**
          * "list_keys" retrieve the list of keys in a shard
          *
-         * @param version           if version is CURRENT_VERSION, this "get" will fire a ordered send to get the latest
+         * @param[in] version           if version is CURRENT_VERSION, this "get" will fire a ordered send to get the latest
          *                          state of the key. Otherwise, it will try to read the key's state at version.
-         * @param stable            stable or not
-         * @param subugroup_index   the subgroup index of CascadeType
-         * @param shard_index       the shard index.
+         * @param[in] stable            stable or not
+         * @param[in] subgroup_index   the subgroup index of CascadeType
+         * @param[in] shard_index       the shard index.
          *
          * @return a future to the retrieved object.
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
@@ -1226,9 +1242,13 @@ namespace cascade {
             __list_keys(const persistent::version_t& version, const bool stable, const std::string& object_pool_pathname);
     public:
         /**
-         * object pool version
-         * @param version               if version is
-         * @param object_pool_pathname  the object pathname
+         * @brief object pool version
+         *
+         * @param[in] version               if version is
+         * @param[in] stable                is stable or not
+         * @param[in] object_pool_pathname  the object pathname
+         *
+         * @return a vector of keys.
          */
         auto list_keys(const persistent::version_t& version, const bool stable, const std::string& object_pool_pathname);
 
@@ -1239,8 +1259,8 @@ namespace cascade {
         /**
          * "multi_list_keys" retrieve the list of keys in a shard
          *
-         * @param subugroup_index   the subgroup index of CascadeType
-         * @param shard_index       the shard index.
+         * @param[in] subgroup_index   the subgroup index of CascadeType
+         * @param[in] shard_index       the shard index.
          *
          * @return a future to the retrieved object.
          */
@@ -1264,17 +1284,17 @@ namespace cascade {
     public:
         /**
          * object pool version
-         * @param object_pool_pathname  the object pathname
+         * @param[in] object_pool_pathname  the object pathname
          */
         auto multi_list_keys(const std::string& object_pool_pathname);
 
         /**
          * "list_keys_by_time" retrieve the list of keys in a shard
          *
-         * @param ts_us             Wall clock time in microseconds.
-         * @param stable
-         * @param subugroup_index   the subgroup index of CascadeType
-         * @param shard_index       the shard index.
+         * @param[in] ts_us             Wall clock time in microseconds.
+         * @param[in] stable
+         * @param[in] subgroup_index   the subgroup index of CascadeType
+         * @param[in] shard_index       the shard index.
          *
          * @return a future to the retrieved object.
          */
@@ -1304,8 +1324,9 @@ namespace cascade {
     public:
         /**
         * object pool version
-        * @param ts_us                  timestamp
-        * @param object_pool_pathname   the object pathname
+        * @param[in] ts_us                  timestamp
+        * @param[in] stable                 stable flag
+        * @param[in] object_pool_pathname   the object pathname
         */
         auto list_keys_by_time(const uint64_t& ts_us, const bool stable, const std::string& object_pool_pathname);
 
@@ -1318,11 +1339,11 @@ namespace cascade {
          * Object Pool Management API: create object pool
          *
          * @tparam SubgroupType     Type of the subgroup for the created object pool
-         * @param  pathname         Object pool's pathname as identifier.
-         * @param  subgroup_index   Index of the subgroup
-         * @param  sharding_policy  The default sharding policy for this object pool
-         * @param  object_locations The set of special object locations.
-         * @param  affinity_set_regex
+         * @param[in]  pathname         Object pool's pathname as identifier.
+         * @param[in]  subgroup_index   Index of the subgroup
+         * @param[in]  sharding_policy  The default sharding policy for this object pool
+         * @param[in]  object_locations The set of special object locations.
+         * @param[in]  affinity_set_regex
          *                          The affinity set regex.
          *
          * @return a future to the version and timestamp of the put operation.
@@ -1337,7 +1358,7 @@ namespace cascade {
         /**
          * ObjectPoolManagement API: remote object pool
          *
-         * @param  pathname         Object pool pathname
+         * @param[in]  pathname         Object pool pathname
          *
          * @return a future to the version and timestamp of the put operation.
          */
@@ -1346,8 +1367,8 @@ namespace cascade {
         /**
          * ObjectPoolManagement API: find object pool
          *
-         * @param  pathname         Object pool pathname
-         * @param  rlck             shared lock, which needs to be hold.
+         * @param[in]  pathname         Object pool pathname
+         * @param[in]  rlck             shared lock, which needs to be hold.
          *
          * @return the object pool metadata
          */
@@ -1357,7 +1378,7 @@ namespace cascade {
         /**
          * ObjectPoolManagement API: find object pool
          *
-         * @param  pathname         Object pool pathname
+         * @param[in]  pathname         Object pool pathname
          *
          * @return the object pool metadata
          */
@@ -1366,7 +1387,7 @@ namespace cascade {
         /**
          * ObjectPoolManagement API: find object pool and affinity_set from key
          *
-         * @param  key              The key of an object.
+         * @param[in]  key              The key of an object.
          *
          * @return the object pool metadata along with the affinity set string
          */
@@ -1377,8 +1398,8 @@ namespace cascade {
         /**
          * ObjectPoolManagement API: list all the object pools by pathnames
          *
-         * @param include_deleted   show deleted pools with an exclaimation point(!).
-         * @param refresh           false for cached object ids, true for refreshed ids.
+         * @param[in] include_deleted   show deleted pools with an exclaimation point(!).
+         * @param[in] refresh           false for cached object ids, true for refreshed ids.
          *
          * @return the pool ids.
          */
@@ -1389,8 +1410,8 @@ namespace cascade {
          * by the new one.
          *
          * @tparam SubgroupType     The Subgroup Type
-         * @param handler           The handler to reigster
-         * @param subgroup_index    Index of the subgroup
+         * @param[in] handler           The handler to reigster
+         * @param[in] subgroup_index    Index of the subgroup
          *
          * @return true if a previous notification handler is replaced.
          */
@@ -1424,8 +1445,8 @@ namespace cascade {
          * replaced by the new one.
          *
          * @tparam SubgroupType         The Subgroup Type
-         * @param handler               The handler to reigster
-         * @param object_pool_pathname  To with object pool is this handler registered.
+         * @param[in] handler               The handler to reigster
+         * @param[in] object_pool_pathname  To with object pool is this handler registered.
          *
          * @return true if a previous notification handler is replaced.
          */
@@ -1437,9 +1458,9 @@ namespace cascade {
          * Send a notification message to an external client.
          *
          * @tparam SubgroupType     The Subgroup Type
-         * @param msg               The message to send
-         * @param subgroup_index    The subgroup index
-         * @param client_id         The node id of the external client to be notified
+         * @param[in] msg               The message to send
+         * @param[in] subgroup_index    The subgroup index
+         * @param[in] client_id         The node id of the external client to be notified
          */
         template <typename SubgroupType>
         void notify(const Blob& msg,
@@ -1469,9 +1490,9 @@ namespace cascade {
         /**
          * Send a notification message to an external client.
          *
-         * @param msg                   The messgae to send
-         * @param object_pool_pathname  In which object_pool the notification is in.
-         * @param client_id             The client id
+         * @param[in] msg                   The messgae to send
+         * @param[in] object_pool_pathname  In which object_pool the notification is in.
+         * @param[in] client_id             The client id
          */
         void notify(const Blob& msg,
                 const std::string& object_pool_pathname,
@@ -1481,9 +1502,9 @@ namespace cascade {
         /**
          * Dump the timestamp log entries into a file on each of the nodes in a shard.
          *
-         * @param filename         - the output filename
-         * @param subgroup_index   - the subgroup index
-         * @param shard_index      - the shard index
+         * @param[in] filename         - the output filename
+         * @param[in] subgroup_index   - the subgroup index
+         * @param[in] shard_index      - the shard index
          *
          * @return query results
          */
@@ -1493,16 +1514,16 @@ namespace cascade {
         /**
          * The object store version:
          *
-         * @param filename             -   the filename
-         * @param object_pool_pathname -   the object pool pathname
+         * @param[in] filename             -   the filename
+         * @param[in] object_pool_pathname -   the object pool pathname
          */
         void dump_timestamp(const std::string& filename, const std::string& object_pool_pathname);
 
         /**
          * Dump the timestamp log entries into a file on each of the nodes in a subgroup.
          *
-         * @param filename         - the output filename
-         * @param subgroup_index   - the subgroup index
+         * @param[in] filename         - the output filename
+         * @param[in] subgroup_index   - the subgroup index
          */
         template <typename SubgroupType>
         void dump_timestamp(const uint32_t subgroup_index, const std::string& filename);
@@ -1519,10 +1540,10 @@ namespace cascade {
         /**
          * Dump the timestamp log entries into a file on a specific node.
          *
-         * @param filename         - the output filename
-         * @param subgroup_index   - the subgroup index
-         * @param shard_index      - the shard index
-         * @param node_id          - the given node id.
+         * @param[in] filename         - the output filename
+         * @param[in] subgroup_index   - the subgroup index
+         * @param[in] shard_index      - the shard index
+         * @param[in] node_id          - the given node id.
          *
          * @return a vector of query results.
          */
@@ -1534,11 +1555,11 @@ namespace cascade {
          * Evaluate the ordered put performance inside a shard. Please note that those put does not involve the
          * external client data path.
          *
-         * @param message_size      - the message size for the shard. TODO: we should be able to retrieve the maximum
+         * @param[in] message_size      - the message size for the shard. TODO: we should be able to retrieve the maximum
          *                            message size from SubgroupType, subgroup_index and shard_index. How?
-         * @param duration_sec      - the duration of the test in seconds.
-         * @param subgroup_index    - the subgroup index
-         * @param shard_index       - the shard index
+         * @param[in] duration_sec      - the duration of the test in seconds.
+         * @param[in] subgroup_index    - the subgroup index
+         * @param[in] shard_index       - the shard index
          *
          * @return the value in ops.
          */
@@ -1563,7 +1584,7 @@ namespace cascade {
         /**
          * Initialize the service_client_single_ptr singleton with a cascade service. This can only be called once
          * before any get_service_client() is called.
-         * @param _group_ptr The caller can pass a pointer pointing to a derecho group object. If the pointer is
+         * @param[in] _group_ptr The caller can pass a pointer pointing to a derecho group object. If the pointer is
          *                   valid, the implementation will reply on the group object instead of creating an external
          *                   client to communicate with group members.
          */
@@ -1620,9 +1641,7 @@ namespace cascade {
                         std::string,                                  // udl_id
                         std::string,                                  // config string
                         DataFlowGraph::VertexShardDispatcher,         // shard dispatcher
-#ifdef HAS_STATEFUL_UDL_SUPPORT
                         DataFlowGraph::Statefulness,                  // is stateful/stateless/singlethreaded
-#endif//HAS_STATEFUL_UDL_SUPPORT
                         DataFlowGraph::VertexHook,                    // hook
                         std::shared_ptr<OffCriticalDataPathObserver>, // ocdpo
                         std::unordered_map<std::string,bool>          // output map{prefix->bool}
@@ -1663,12 +1682,10 @@ namespace cascade {
             inline void notify_all();
         };
         /** action (ring) buffer control */
-#ifdef HAS_STATEFUL_UDL_SUPPORT
         std::vector<std::unique_ptr<struct action_queue>> stateful_action_queues_for_multicast;
         std::vector<std::unique_ptr<struct action_queue>> stateful_action_queues_for_p2p;
         struct action_queue single_threaded_action_queue_for_multicast;
         struct action_queue single_threaded_action_queue_for_p2p;
-#endif//HAS_STATEFUL_UDL_SUPPORT
         struct action_queue stateless_action_queue_for_multicast;
         struct action_queue stateless_action_queue_for_p2p;
 
@@ -1683,19 +1700,17 @@ namespace cascade {
         /** the off-critical data path worker thread pools */
         std::vector<std::thread> stateless_workhorses_for_multicast;
         std::vector<std::thread> stateless_workhorses_for_p2p;
-#ifdef HAS_STATEFUL_UDL_SUPPORT
         std::vector<std::thread> stateful_workhorses_for_multicast;
         std::vector<std::thread> stateful_workhorses_for_p2p;
         std::thread              single_threaded_workhorse_for_multicast;
         std::thread              single_threaded_workhorse_for_p2p;
-#endif//HAS_STATEFUL_UDL_SUPPORT
         /**
          * destroy the context, to be called in destructor
          */
         void destroy();
         /**
          * off critical data path workhorse
-         * @param _1 the task id, started from 0 to (OFF_CRITICAL_DATA_PATH_THREAD_POOL_SIZE-1)
+         * @param[in] _1 the task id, started from 0 to (OFF_CRITICAL_DATA_PATH_THREAD_POOL_SIZE-1)
          */
         void workhorse(uint32_t,struct action_queue&);
 
@@ -1716,7 +1731,7 @@ namespace cascade {
          * CascadeContext singleton needs to be initialized in main() by calling CascadeContext::construct(). Moreover, it
          * needs the off critical data path handler from main();
          *
-         * @param group_ptr                         The group handle
+         * @param[in] group_ptr                         The group handle
          */
         void construct();
         /**
@@ -1746,17 +1761,6 @@ namespace cascade {
          * - unregister_prefix() deletes a corresponding prefix from registry.
          * - get_prefix_handler() returns a raw pointer to the handler.
          *
-         * @param prefixes  a list of vectors to pre-register.
-         * @param prefix    a prefix to register.
-         * @param ocdpo_ptr the data path observer, nullptr for preregistration.
-         *
-         * @return get_prefix_handler returns the OffCriticalDataPathObserver it holds for the corresponding prefix. If
-         * the prefix is not registered, it will return nullptr.
-         *
-        virtual void preregister_prefixes(const std::vector<std::string>& prefixes);
-        virtual void register_prefix(const std::string& prefix, const std::shared_ptr<OffCriticalDataPathObserver>& ocdpo_ptr = nullptr);
-        virtual void unregister_prefix(const std::string& prefix);
-        virtual OffCriticalDataPathObserver* get_prefix_handler(const std::string& prefix);
          * =============================================================================================================
          * Now we agree on the new design that the prefix is assumed to be registered before the critical data path saw
          * some data coming. Without a lock guarding prefix registry in the critical data path, it's a little bit tricky
@@ -1770,24 +1774,22 @@ namespace cascade {
         /**
          * Register a ocdpo of a given application designated by dfg uuid to a set of prefixes
          *
-         * @param dfg_uuid              - the dfg uuid
-         * @param prefixes              - the prefixes set
-         * @param user_defined_logic_hook
-         *                              - the hook for this ocdpo
-         * @param shard_dispatcher      - the shard dispatcher
-         * @param user_defined_logic_id - the UDL id, presumably an UUID string
-         * @param user_defined_logic_config
+         * @param[in] dfg_uuid              - the dfg uuid
+         * @param[in] prefixes              - the prefixes set
+         * @param[in] shard_dispatcher      - the shard dispatcher
+         * @param[in] stateful              - register a stateful udl
+         * @param[in] hook                  - the hook for this ocdpo
+         * @param[in] user_defined_logic_id - the UDL id, presumably an UUID string
+         * @param[in] user_defined_logic_config
          *                              - the UDL configuration.
-         * @param ocdpo_ptr             - the data path observer
-         * @param outputs               - the outputs are a map from another prefix to put type (true for trigger put,
+         * @param[in] ocdpo_ptr             - the data path observer
+         * @param[in] outputs               - the outputs are a map from another prefix to put type (true for trigger put,
          *                                false for put).
          */
         virtual void register_prefixes(const std::string& dfg_uuid,
                                        const std::unordered_set<std::string>& prefixes,
                                        const DataFlowGraph::VertexShardDispatcher shard_dispatcher,
-#ifdef HAS_STATEFUL_UDL_SUPPORT
                                        const DataFlowGraph::Statefulness stateful,
-#endif
                                        const DataFlowGraph::VertexHook hook,
                                        const std::string& user_defined_logic_id,
                                        const std::string& user_defined_logic_config,
@@ -1796,13 +1798,13 @@ namespace cascade {
         /**
          * Unregister all prefixes of an application
          *
-         * @param dfg_uuid              - the uuid of the dfg
+         * @param[in] dfg_uuid              - the uuid of the dfg
          */
         virtual void unregister_prefixes(const std::string& dfg_uuid);
         /**
          * Get the prefix handlers registered for a prefix
          *
-         * @param prefix                - the prefix
+         * @param[in] prefix                - the prefix
          *
          * @return the unordered map of observers registered to this prefix.
          */
@@ -1811,18 +1813,14 @@ namespace cascade {
         /**
          * post an action to the Context for processing.
          *
-         * @param action        The action
-         * @param stateful      If the action is stateful|stateless|singlethreaded
-         * @param is_trigger    True for trigger, meaning the action will be processed in the workhorses for p2p send
+         * @param[in] action        The action
+         * @param[in] stateful      If the action is stateful|stateless|singlethreaded
+         * @param[in] is_trigger    True for trigger, meaning the action will be processed in the workhorses for p2p send
          *
          * @return  true for a successful post, false for failure. The current only reason for failure is to post to a
          *          context already shut down.
          */
-#ifdef HAS_STATEFUL_UDL_SUPPORT
         virtual bool post(Action&& action, DataFlowGraph::Statefulness stateful, bool is_trigger);
-#else
-        virtual bool post(Action&& action, bool is_trigger);
-#endif//HAS_STATEFUL_UDL_SUPPORT
 
         /**
          * Get the stateless action queue length

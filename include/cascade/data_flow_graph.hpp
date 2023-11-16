@@ -131,10 +131,8 @@ public:
         // The optional shard dispatcher configuration
         // shard_dispatchers
         std::vector<VertexShardDispatcher> shard_dispatchers;
-#ifdef HAS_STATEFUL_UDL_SUPPORT
         // stateful
         std::vector<Statefulness> stateful;
-#endif
         // hooks
         std::vector<VertexHook> hooks;
         // The optional initialization string for each UUID
@@ -151,9 +149,7 @@ public:
                 out << indent << "\t{\n";
                 out << indent << "\t\tuuid:" << uuids[i] << "\n";
                 out << indent << "\t\tdispatcher:" << shard_dispatchers[i] << "\n";
-#ifdef HAS_STATEFUL_UDL_SUPPORT
                 out << indent << "\t\tstateful:" << stateful[i] << "\n";
-#endif
                 out << indent << "\t\thook:" << hooks[i] << "\n";
                 out << indent << "\t\tconfiguration:" << configurations[i] << "\n";
                 out << indent << "\t\tedges:" << "\n";

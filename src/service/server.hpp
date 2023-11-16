@@ -73,11 +73,7 @@ class CascadeServiceCDPO : public CriticalDataPathObserver<CascadeType> {
                         for(auto oiit = dfg_ocdpos.second.begin(); oiit != dfg_ocdpos.second.end();) {
                             // each oi is a 6/7-tuple of
                             // (0)udl_id, (1)config_string, (2)shard dispatcher, [(3)stateful], (4)hook, (5)ocdpo, and (6)outputs;
-#ifdef HAS_STATEFUL_UDL_SUPPORT
                             DataFlowGraph::VertexHook hook = std::get<4>(*oiit);
-#else
-                            DataFlowGraph::VertexHook hook = std::get<3>(*oiit);
-#endif
                             if((hook != DataFlowGraph::VertexHook::BOTH) && (
                                 (hook == DataFlowGraph::VertexHook::ORDERED_PUT && is_trigger) ||
                                 (hook == DataFlowGraph::VertexHook::TRIGGER_PUT && !is_trigger))) {
@@ -132,17 +128,9 @@ class CascadeServiceCDPO : public CriticalDataPathObserver<CascadeType> {
                                 key,
                                 per_prefix.first.size(),
                                 value.get_version(),
-#ifdef HAS_STATEFUL_UDL_SUPPORT
                                 std::get<5>(oi),  // ocdpo
-#else
-                                std::get<4>(oi),  // ocdpo
-#endif
                                 value_ptr,
-#ifdef HAS_STATEFUL_UDL_SUPPORT
                                 std::get<6>(oi)  // outputs
-#else
-                                std::get<5>(oi)  // outputs
-#endif
                         );
 
 #ifdef ENABLE_EVALUATION
@@ -151,21 +139,15 @@ class CascadeServiceCDPO : public CriticalDataPathObserver<CascadeType> {
                         apei.info.is_trigger = is_trigger;
 #endif
 
-#ifdef HAS_STATEFUL_UDL_SUPPORT
 #ifdef ENABLE_EVALUATION
                         apei.info.stateful = std::get<3>(oi);
-#endif
 #endif
                         TimestampLogger::log(TLT_ACTION_POST_START,
                                              ctxt->get_service_client_ref().get_my_id(),
                                              dynamic_cast<const IHasMessageID*>(&value)->get_message_id(),
                                              get_time_ns(),
                                              apei.uint64_val);
-#ifdef HAS_STATEFUL_UDL_SUPPORT
                         ctxt->post(std::move(action), std::get<3>(oi), is_trigger);
-#else
-                        ctxt->post(std::move(action), is_trigger);
-#endif//HAS_STATEFUL_UDL_SUPPORT
                         TimestampLogger::log(TLT_ACTION_POST_END,
                                              ctxt->get_service_client_ref().get_my_id(),
                                              dynamic_cast<const IHasMessageID*>(&value)->get_message_id(),
