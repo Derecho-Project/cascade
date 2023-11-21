@@ -1750,16 +1750,15 @@ derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::create
         throw derecho::derecho_exception(std::string("Create object pool failed because SubgroupType is invalid:")+typeid(SubgroupType).name());
     }
     ObjectPoolMetadata<CascadeTypes...> opm(pathname,subgroup_type_index,subgroup_index,sharding_policy,object_locations,affinity_set_regex,false);
-
-    // insert new entry in the cache
-    ServiceClient<CascadeTypes...>::ObjectPoolMetadataCacheEntry opm_entry(opm);
-    std::unique_lock<std::shared_mutex> wlck(object_pool_metadata_cache_mutex);
-    if (object_pool_metadata_cache.find(pathname)!=object_pool_metadata_cache.end()) {
+    // clear local cache entry.
+    std::shared_lock<std::shared_mutex> rlck(object_pool_metadata_cache_mutex);
+    if (object_pool_metadata_cache.find(pathname)==object_pool_metadata_cache.end()) {
+        rlck.unlock();
+    } else {
+        rlck.unlock();
+        std::unique_lock<std::shared_mutex> wlck(object_pool_metadata_cache_mutex);
         object_pool_metadata_cache.erase(pathname);
     }
-    object_pool_metadata_cache.emplace(pathname,opm_entry);
-    wlck.unlock();
-
     // determine the shard index by hashing
     uint32_t metadata_service_shard_index = std::hash<std::string>{}(pathname) % this->template get_number_of_shards<CascadeMetadataService<CascadeTypes...>>(METADATA_SERVICE_SUBGROUP_INDEX);
 
