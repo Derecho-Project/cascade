@@ -1729,7 +1729,8 @@ namespace cascade {
         void destroy();
         /**
          * off critical data path workhorse
-         * @param[in] _1 the task id, started from 0 to (OFF_CRITICAL_DATA_PATH_THREAD_POOL_SIZE-1)
+         * @param[in] _1 The task id, started from 0 to (OFF_CRITICAL_DATA_PATH_THREAD_POOL_SIZE-1)
+         * @param[in] _2 The action queue
          */
         void workhorse(uint32_t,struct action_queue&);
 
