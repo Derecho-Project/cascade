@@ -1720,7 +1720,7 @@ void ServiceClient<CascadeTypes...>::refresh_object_pool_metadata_cache() {
     std::unordered_map<std::string,ObjectPoolMetadataCacheEntry> refreshed_metadata;
     uint32_t num_shards = this->template get_number_of_shards<CascadeMetadataService<CascadeTypes...>>(METADATA_SERVICE_SUBGROUP_INDEX);
     for(uint32_t shard=0;shard<num_shards;shard++) {
-        auto results = this->template list_keys<CascadeMetadataService<CascadeTypes...>>(CURRENT_VERSION,true,METADATA_SERVICE_SUBGROUP_INDEX,shard);
+        auto results = this->template multi_list_keys<CascadeMetadataService<CascadeTypes...>>(METADATA_SERVICE_SUBGROUP_INDEX,shard);
         for (auto& reply : results.get()) { // only once
             for(auto& key: reply.second.get()) { // iterate over keys
                 // we only read the stable version.
