@@ -1,7 +1,8 @@
 #pragma once
+#include "cascade/utils.hpp"
+
 #include <stdexcept>
 #include <cstring>
-#include <cascade/utils.hpp>
 
 namespace derecho {
 namespace cascade {
@@ -94,7 +95,7 @@ void PrefixRegistry<T, separator>::atomically_modify(const std::string& prefix, 
 
     auto components = str_tokenizer(prefix,true,separator);
     std::lock_guard<std::mutex> lck(prefix_tree_mutex);
-    
+
     TreeNode* ptn = &prefix_tree;
     for (const auto& comp:components) {
         if (ptn->children.find(comp) == ptn->children.end()) {
@@ -143,7 +144,7 @@ void PrefixRegistry<T, separator>::TreeNode::dump(std::ostream& out, const std::
         out << "nullptr";
     }
     out <<"; children:" << children.size() << ";}";
-} 
+}
 
 #ifdef PREFIX_REGISTRY_DEBUG
 template <typename T, char separator>
@@ -202,7 +203,7 @@ void PrefixRegistry<T, separator>::collect_values_for_prefixes(
         prefix = prefix + comp + separator;
         if (ptn->children.find(comp) == ptn->children.end()) {
             break;
-        } 
+        }
         ptn = ptn->children.at(comp).get();
         if (ptn->value) {
             collector(prefix,ptn->value);

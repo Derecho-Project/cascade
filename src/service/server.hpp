@@ -1,10 +1,10 @@
 #pragma once
 
-#include <cascade/cascade.hpp>
-#include <cascade/object.hpp>
-#include <cascade/service.hpp>
-#include <cascade/service_types.hpp>
-#include <cascade/utils.hpp>
+#include "cascade/cascade.hpp"
+#include "cascade/object.hpp"
+#include "cascade/service.hpp"
+#include "cascade/service_types.hpp"
+#include "cascade/utils.hpp"
 
 #include <string>
 #include <type_traits>
@@ -71,11 +71,11 @@ class CascadeServiceCDPO : public CriticalDataPathObserver<CascadeType> {
                         // dfg_ocdpos.first is dfg_id
                         // dfg_ocdpos.second is a set of ocdpo info object of type prefix_ocdpo_info_t.
                         for(auto oiit = dfg_ocdpos.second.begin(); oiit != dfg_ocdpos.second.end();) {
-                            // each oi is a 6/7-tuple of 
+                            // each oi is a 6/7-tuple of
                             // (0)udl_id, (1)config_string, (2)shard dispatcher, [(3)stateful], (4)hook, (5)ocdpo, and (6)outputs;
                             DataFlowGraph::VertexHook hook = std::get<4>(*oiit);
                             if((hook != DataFlowGraph::VertexHook::BOTH) && (
-                                (hook == DataFlowGraph::VertexHook::ORDERED_PUT && is_trigger) || 
+                                (hook == DataFlowGraph::VertexHook::ORDERED_PUT && is_trigger) ||
                                 (hook == DataFlowGraph::VertexHook::TRIGGER_PUT && !is_trigger))) {
                                 // not my hook, skip it.
                                 oiit = dfg_ocdpos.second.erase(oiit);
@@ -121,7 +121,7 @@ class CascadeServiceCDPO : public CriticalDataPathObserver<CascadeType> {
                     // dfg_ocdpos.first is dfg_id
                     // dfg_ocdpos.second is a set of ocdpo info object of type prefix_ocdpo_info_t.
                     for (const auto& oi : dfg_ocdpos.second) {
-                        // each oi is a 6/7-tuple of 
+                        // each oi is a 6/7-tuple of
                         // (0)udl_id, (1)config_string, (2)shard dispatcher, [(3)stateful], (4)hook, (5)ocdpo, and (6)outputs;
                         Action action(
                                 sender_id,
@@ -132,13 +132,13 @@ class CascadeServiceCDPO : public CriticalDataPathObserver<CascadeType> {
                                 value_ptr,
                                 std::get<6>(oi)  // outputs
                         );
-    
+
 #ifdef ENABLE_EVALUATION
                         ActionPostExtraInfo apei;
                         apei.uint64_val = 0;
                         apei.info.is_trigger = is_trigger;
 #endif
-    
+
 #ifdef ENABLE_EVALUATION
                         apei.info.stateful = std::get<3>(oi);
 #endif

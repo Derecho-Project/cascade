@@ -1,7 +1,9 @@
-#include <cascade/object.hpp>
+#include "cascade/object.hpp"
+
 #include <derecho/persistent/detail/PersistLog.hpp>
-#include <unistd.h>
+
 #include <stdlib.h>
+#include <unistd.h>
 
 namespace derecho {
 namespace cascade {
@@ -85,7 +87,7 @@ Blob::Blob(const Blob& other) :
             if (number_bytes_generated != other.size) {
                 dbg_default_error("Expecting {} bytes, but blob generator writes {} bytes.", other.size, number_bytes_generated);
                 std::string exception_message("Expecting");
-                throw std::runtime_error(std::string("Expecting ") + std::to_string(other.size) 
+                throw std::runtime_error(std::string("Expecting ") + std::to_string(other.size)
                         + " bytes, but blob generator writes "
                         + std::to_string(number_bytes_generated) + " bytes.");
             }
@@ -99,7 +101,7 @@ Blob::Blob(const Blob& other) :
     }
 }
 
-Blob::Blob(Blob&& other) : 
+Blob::Blob(Blob&& other) :
     bytes(other.bytes), size(other.size), capacity(other.size),
     blob_generator(other.blob_generator), memory_mode(other.memory_mode) {
     other.bytes = nullptr;
@@ -144,7 +146,7 @@ Blob& Blob::operator=(const Blob& other) {
     if (this->capacity < other.size) {
         bytes = static_cast<uint8_t*>(realloc(const_cast<void*>(static_cast<const void*>(bytes)),other.size));
         this->capacity = other.size;
-    } 
+    }
 
     // 3) update this->size; copy data, if there is any.
     this->size = other.size;
@@ -154,7 +156,7 @@ Blob& Blob::operator=(const Blob& other) {
             if (number_bytes_generated != other.size) {
                 dbg_default_error("Expecting {} bytes, but blob generator writes {} bytes.", other.size, number_bytes_generated);
                 std::string exception_message("Expecting");
-                throw std::runtime_error(std::string("Expecting ") + std::to_string(other.size) 
+                throw std::runtime_error(std::string("Expecting ") + std::to_string(other.size)
                         + " bytes, but blob generator writes "
                         + std::to_string(number_bytes_generated) + " bytes.");
             }
@@ -174,7 +176,7 @@ std::size_t Blob::to_bytes(uint8_t* v) const {
             if (number_bytes_generated != size) {
                 dbg_default_error("Expecting {} bytes, but blob generator writes {} bytes.", size, number_bytes_generated);
                 std::string exception_message("Expecting");
-                throw std::runtime_error(std::string("Expecting ") + std::to_string(size) 
+                throw std::runtime_error(std::string("Expecting ") + std::to_string(size)
                         + " bytes, but blob generator writes "
                         + std::to_string(number_bytes_generated) + " bytes.");
             }
@@ -198,7 +200,7 @@ void Blob::post_object(const std::function<void(uint8_t const* const, std::size_
             free(local_bytes);
             dbg_default_error("Expecting {} bytes, but blob generator writes {} bytes.", size, number_bytes_generated);
             std::string exception_message("Expecting");
-            throw std::runtime_error(std::string("Expecting ") + std::to_string(size) 
+            throw std::runtime_error(std::string("Expecting ") + std::to_string(size)
                     + " bytes, but blob generator writes "
                     + std::to_string(number_bytes_generated) + " bytes.");
         }
@@ -237,7 +239,7 @@ bool ObjectWithUInt64Key::is_valid() const {
 
 // constructor 0 : copy constructor
 ObjectWithUInt64Key::ObjectWithUInt64Key(const uint64_t _key,
-                                         const Blob& _blob) : 
+                                         const Blob& _blob) :
     version(persistent::INVALID_VERSION),
     timestamp_us(0),
     previous_version(INVALID_VERSION),
@@ -264,7 +266,7 @@ ObjectWithUInt64Key::ObjectWithUInt64Key(
     timestamp_us(_timestamp_us),
     previous_version(_previous_version),
     previous_version_by_key(_previous_version_by_key),
-    key(_key), 
+    key(_key),
     blob(_blob.bytes,_blob.size,emplaced) {}
 
 // constructor 1 : copy consotructor
@@ -456,7 +458,7 @@ std::size_t ObjectWithUInt64Key::to_bytes(uint8_t* v) const {
 }
 
 std::size_t ObjectWithUInt64Key::bytes_size() const {
-    return 
+    return
 #ifdef ENABLE_EVALUATION
            mutils::bytes_size(message_id) +
 #endif
@@ -588,7 +590,7 @@ bool ObjectWithStringKey::is_valid() const {
 }
 
 // constructor 0 : copy constructor
-ObjectWithStringKey::ObjectWithStringKey(const std::string& _key, 
+ObjectWithStringKey::ObjectWithStringKey(const std::string& _key,
                                          const Blob& _blob) :
 #ifdef ENABLE_EVALUATION
     message_id(0),
@@ -618,12 +620,12 @@ ObjectWithStringKey::ObjectWithStringKey(
     timestamp_us(_timestamp_us),
     previous_version(_previous_version),
     previous_version_by_key(_previous_version_by_key),
-    key(_key), 
+    key(_key),
     blob(_blob.bytes,_blob.size,emplaced) {}
 
 // constructor 1 : copy consotructor
 ObjectWithStringKey::ObjectWithStringKey(const std::string& _key,
-                                         const uint8_t* const _b, 
+                                         const uint8_t* const _b,
                                          const std::size_t _s) :
 #ifdef ENABLE_EVALUATION
     message_id(0),
@@ -653,7 +655,7 @@ ObjectWithStringKey::ObjectWithStringKey(
     timestamp_us(_timestamp_us),
     previous_version(_previous_version),
     previous_version_by_key(_previous_version_by_key),
-    key(_key), 
+    key(_key),
     blob(_b, _s) {}
 
 // constructor 2 : move constructor
@@ -681,7 +683,7 @@ ObjectWithStringKey::ObjectWithStringKey(const ObjectWithStringKey& other) :
     blob(other.blob) {}
 
 // constructor 4 : default invalid constructor
-ObjectWithStringKey::ObjectWithStringKey() : 
+ObjectWithStringKey::ObjectWithStringKey() :
 #ifdef ENABLE_EVALUATION
     message_id(0),
 #endif

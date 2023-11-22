@@ -1,7 +1,8 @@
 #pragma once
-#include <hs/hs.h>
 #include "object.hpp"
 #include "utils.hpp"
+
+#include <hs/hs.h>
 
 namespace derecho {
 namespace cascade {
@@ -33,7 +34,7 @@ class ObjectPoolMetadata : public mutils::ByteRepresentable
                            ,public ICascadeObject<std::string,ObjectPoolMetadata<CascadeTypes...>>
                            ,public IKeepTimestamp
                            ,public IValidator<std::string,ObjectPoolMetadata<CascadeTypes...>>
-                           ,public IVerifyPreviousVersion 
+                           ,public IVerifyPreviousVersion
 #ifdef ENABLE_EVALUATION
                            ,public IHasMessageID
 #endif
@@ -408,7 +409,7 @@ bool ObjectPoolMetadata<CascadeTypes...>::check_pathname_format(const std::strin
     if (pathname.empty()) {
         return true; // empty string is allowed to represent an invalid Metadata object.
     }
-    if ((pathname.front() != PATH_SEPARATOR) || 
+    if ((pathname.front() != PATH_SEPARATOR) ||
         (pathname.back() == PATH_SEPARATOR) ||
         (pathname.find(' ') != std::string::npos) ||
         (pathname.find('\t') != std::string::npos) ||

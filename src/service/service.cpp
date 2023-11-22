@@ -1,11 +1,11 @@
-#include <cascade/cascade.hpp>
-#include <cascade/service.hpp>
+#include "cascade/cascade.hpp"
+#include "cascade/service.hpp"
 
 namespace derecho {
 namespace cascade {
 
-/** 
- * cpu/gpu list examples: 
+/**
+ * cpu/gpu list examples:
  * cpu_cores = 0,1,2,3
  * cpu_cores = 0,1-5,6,8
  * cpu_cores = 0-15

@@ -1,8 +1,10 @@
+#include "cascade/data_flow_graph.hpp"
+#include "cascade/service.hpp"
+
 #include <derecho/utils/logger.hpp>
-#include <cascade/data_flow_graph.hpp>
-#include <iostream>
+
 #include <fstream>
-#include <cascade/service.hpp>
+#include <iostream>
 
 namespace derecho {
 namespace cascade {
@@ -61,7 +63,7 @@ DataFlowGraph::DataFlowGraph(const json& dfg_conf):
             }
 
             // edges
-            std::map<std::string,std::string> dest = 
+            std::map<std::string,std::string> dest =
                 (*it)[DFG_JSON_DESTINATIONS].at(i).get<std::map<std::string,std::string>>();
 
             dfgv.edges.emplace_back(std::unordered_map<std::string,bool>{});
