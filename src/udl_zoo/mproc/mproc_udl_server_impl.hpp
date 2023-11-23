@@ -1,13 +1,18 @@
 #pragma once
 
+#include <chrono>
+using namespace std::chrono;
+
 namespace derecho {
 namespace cascade {
 
-template <typename ... CascadeTypes>
-MProcUDLServer<CascadeTypes...>::MProcUDLServer(const struct mproc_udl_server_arg_t& arg):
+template <typename FirstCascadeType, typename ... RestCascadeTypes>
+MProcUDLServer<FirstCascadeType,RestCascadeTypes...>::MProcUDLServer(const struct mproc_udl_server_arg_t& arg):
+    statefulness(arg.statefulness),
+    preset_worker_id(arg.worker_id),
     stop_flag(false) {
     // 1 - load udl to this->ocdpo
-    this->user_defined_logic_manager = UserDefinedLogicManager<CascadeTypes...>::create(this);
+    this->user_defined_logic_manager = UserDefinedLogicManager<FirstCascadeType,RestCascadeTypes...>::create(this);
     this->ocdpo =
         std::move(this->user_defined_logic_manager->get_observer(arg.udl_uuid,arg.udl_conf));
     // 2- create thread pool
@@ -39,31 +44,84 @@ MProcUDLServer<CascadeTypes...>::MProcUDLServer(const struct mproc_udl_server_ar
             },worker_id));
         }
     }
-
-    //TODO
-    // 3 - attach to three ringbuffers
-    // 4 - initialize mproc_ctxt
+    // 3 - attach to ring buffer
+    if (arg.rbkeys.size() != 3) {
+        throw derecho_exception("mproc udl server arg is invalid: expecting 3 ring buffer keys");
+    }
+    this->object_commit_rb  = wsong::ipc::RingBuffer::get_ring_buffer(arg.rbkeys[0].template get<key_t>());
+    /* TODO
+    this->ctxt_request_rb   = wsong::ipc::RingBuffer::get_ring_buffer(arg.rbkeys[1].template get<key_t>());
+    this->ctxt_response_rb  = wsong::ipc::RingBuffer::get_ring_buffer(arg.rbkeys[2].template get<key_t>());
+    */
 }
 
-template <typename ... CascadeTypes>
-void MProcUDLServer<CascadeTypes...>::process(uint32_t worker_id, const ObjectCommitRequest& request) {
+template <typename FirstCascadeType, typename ... RestCascadeTypes>
+void MProcUDLServer<FirstCascadeType,RestCascadeTypes...>::process(uint32_t worker_id, const ObjectCommitRequest& request) {
     // TODO
 }
 
-template <typename ... CascadeTypes>
-void MProcUDLServer<CascadeTypes...>::start(bool wait) {
-    //TODO
+template <typename FirstCascadeType, typename ... RestCascadeTypes>
+void MProcUDLServer<FirstCascadeType, RestCascadeTypes...>::pump_request() {
+    uint8_t     request_bytes[OBJECT_COMMIT_REQUEST_SIZE] __attribute__((aligned(PAGE_SIZE)));
+    uint32_t    next_worker = 0;
+    while(!stop_flag) {
+        try {
+            this->object_commit_rb->consume(reinterpret_cast<void*>(request_bytes),OBJECT_COMMIT_REQUEST_SIZE,1s);
+        } catch (const wsong::ws_timeout_exp& toex) {
+            continue;
+        }
+
+        ObjectCommitRequest* req = reinterpret_cast<ObjectCommitRequest*>(request_bytes);
+
+        if (request_queues.size()) {
+            switch(this->statefulness) {
+            case DataFlowGraph::Statefulness::STATEFUL:
+                next_worker = (std::hash<std::string>{}(*req->get_key_string())) % request_queues.size();
+                break;
+            default:
+                next_worker = (next_worker+1) % request_queues.size();
+            }
+
+            std::unique_lock queue_lock(*this->request_queue_locks[next_worker]);
+            request_queues[next_worker].push(*req); // TODO: this can be improved. No need to copy a whole page.
+            queue_lock.unlock();
+            request_queue_cvs[next_worker]->notify_one();
+        } else {
+            // handle it here
+            process(preset_worker_id,*req);
+        }
+    }
 }
 
-template <typename ... CascadeTypes>
-ServiceClient<CascadeTypes...>& MProcUDLServer<CascadeTypes...>::get_service_client_ref() const {
+template <typename FirstCascadeType, typename ... RestCascadeTypes>
+void MProcUDLServer<FirstCascadeType,RestCascadeTypes...>::start(bool wait) {
+    if (wait) {
+        pump_request();
+    } else {
+        pump_thread = std::thread(&MProcUDLServer<FirstCascadeType,RestCascadeTypes...>::pump_request,this);
+    }
+}
+
+template <typename FirstCascadeType, typename ... RestCascadeTypes>
+ServiceClient<FirstCascadeType,RestCascadeTypes...>& MProcUDLServer<FirstCascadeType,RestCascadeTypes...>::get_service_client_ref() const {
     throw derecho_exception{"To be implemented."};
 }
 
-template <typename ... CascadeTypes>
-MProcUDLServer<CascadeTypes...>::~MProcUDLServer() {
+template <typename FirstCascadeType, typename ... RestCascadeTypes>
+MProcUDLServer<FirstCascadeType,RestCascadeTypes...>::~MProcUDLServer() {
+    this->stop_flag.store(true);
+
+    // 1 - stop threads
+    if (pump_thread.joinable()) {
+        pump_thread.join();
+    }
+    for (auto& t: upcall_thread_pool) {
+        if (t.joinable()) {
+            t.join();
+        }
+    }
+
     //TODO
-    // 1 - stop
     // 2 - destroy mproc_ctxt
     // 3 - detach ring buffers
     // 4 - unload ocdpo

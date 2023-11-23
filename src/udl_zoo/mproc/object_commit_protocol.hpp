@@ -48,9 +48,13 @@ public:
      */
     key_t           shm_key;
     /**
+     * @brief The offset of serialized output edges in the rest array
+     */
+    uint16_t        output_edges_offset;
+    /**
      * @brief The offset of seriealized object in `rest`, valid ONLY when OBJECT_COMMIT_REQUEST_MEMORY_INLINE is set.
      */
-    uint32_t        inline_object_offset;
+    uint16_t        inline_object_offset;
     /**
      * @brief Offset in the shared memory region, valid ONLY when OBJECT COMMIT_REQUEST_MEMORY_SHM is set.
      */
@@ -58,6 +62,7 @@ public:
     /**
      * @brief Space for the serialized fields.
      * Currently, two serialized object is stored here as byte array:
+     * - a `std::string` object, representing the key, followed by
      * - an `std::unordered_map<std::string,bool>` object, representing the output edges of this UDL, possibly followed
      *   by
      * - an `ObjectType` object, if the flags attribute says the object is in the inline memory:
@@ -100,7 +105,16 @@ public:
      * @return  A unique pointer holding the unordered map from path to trigger_put flag.
      */
     inline std::unique_ptr<std::unordered_map<std::string,bool>> get_output() {
-        return mutils::from_bytes<std::unordered_map<std::string,bool>>(nullptr,this->rest);
+        return mutils::from_bytes<std::unordered_map<std::string,bool>>(nullptr,this->rest+output_edges_offset);
+    }
+    /**
+     * @fn std::unique_ptr<std::string> get_key_string()
+     * @brief   Get the key string
+     *
+     * @return A unique pointer holding the key string.
+     */
+    inline std::unique_ptr<std::string> get_key_string() {
+        return mutils::from_bytes<std::string>(nullptr,this->rest);
     }
 } __attribute__ ((packed,aligned(CACHELINE_SIZE)));
 

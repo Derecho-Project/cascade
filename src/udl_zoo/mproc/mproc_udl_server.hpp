@@ -67,34 +67,68 @@ struct mproc_udl_server_arg_t {
      */
     uint32_t        num_threads;
     /**
+     * Preset worker id
+     */
+    uint32_t        worker_id;
+    /**
      * Output
      */
     json            edges;
     /**
-     * Ringbuffers for communication.
+     * Three keys of Ringbuffers for communication.
+     * 1 - object_commit_rb
+     * 2 - ctxt_request_rb
+     * 3 - ctxt_response_rb
      */
     json            rbkeys;
 };
 
 /**
+ * @fn constexpr bool have_same_object_type()
+ * @tparam  CascadeType     Cascade Type
+ * @return  true if CascadeType(s) has the same ObjectType, otherwise false.
+ */
+template <typename CascadeType>
+constexpr bool have_same_object_type() {
+    return true;
+}
+
+/**
+ * @fn constexpr bool have_same_object_type()
+ * @tparam  FirstCascadeType
+ * @tparam  SecondCascadeType
+ * @tparam  RestCascadeTypes
+ * @return  true if CascadeType(s) has the same ObjectType, otherwise false.
+ */
+template <typename FirstCascadeType, typename SecondCascadeType, typename ... RestCascadeTypes>
+constexpr bool have_same_object_type() {
+    return std::is_same<typename FirstCascadeType::ObjectType, typename SecondCascadeType::ObjectType>::value &&
+           have_same_object_type<SecondCascadeType,RestCascadeTypes...>();
+}
+
+/**
  * @class MProcUDLServer mproc_udl_server.hpp "mproc_udl_server.hpp"
  * @brief the UDL server.
  */
-template <typename ... CascadeTypes>
-class MProcUDLServer : CascadeContext<CascadeTypes...> {
+template <typename FirstCascadeType, typename ... RestCascadeTypes>
+class MProcUDLServer : CascadeContext<FirstCascadeType, RestCascadeTypes...> {
+    static_assert(have_same_object_type<FirstCascadeType,RestCascadeTypes...>());
 protected:
-    std::unique_ptr<UserDefinedLogicManager<CascadeTypes...>>
+    std::unique_ptr<UserDefinedLogicManager<FirstCascadeType,RestCascadeTypes...>>
                                                     user_defined_logic_manager; /// User defined logic manager;
     std::shared_ptr<OffCriticalDataPathObserver>    ocdpo;              /// the observer
     std::unique_ptr<wsong::ipc::RingBuffer>         object_commit_rb;   /// Single Consumer Single Producer(scsp),
                                                                         /// as consumer
     std::unique_ptr<wsong::ipc::RingBuffer>         ctxt_request_rb;    /// scmp, as producer
     std::unique_ptr<wsong::ipc::RingBuffer>         ctxt_response_rb;   /// scsp, as consumer
+    DataFlowGraph::Statefulness                     statefulness;       /// statefulness
+    uint32_t                                        preset_worker_id;   /// only used when arg.num_threads = 1
     std::vector<std::queue<ObjectCommitRequest>>    request_queues;     /// request queues
     std::vector<std::unique_ptr<std::mutex>>        request_queue_locks;/// locks
     std::vector<std::unique_ptr<std::condition_variable>>
                                                     request_queue_cvs;  /// condition variables
     std::vector<std::thread>                        upcall_thread_pool; /// upcall thread pool
+    std::thread                                     pump_thread;        /// the pump thread
     std::atomic<bool>                               stop_flag;          /// stop flag
     /**
      * @fn MProcUDLServer(const struct mproc_udl_server_arg_t&)
@@ -103,21 +137,25 @@ protected:
      */
     MProcUDLServer(const struct mproc_udl_server_arg_t& arg);
     /**
+     * @fn void pump_request()
+     * @brief   Start pump request from ringbuffer to thread pool.
+     */
+    virtual void pump_request();
+    /**
      * @fn void start(bool)
      * @brief   Start the UDL server process.
      * @param[in]   wait    Should we wait until it finishes
-     * @return  The id of the started process.
      */
-    virtual void start(bool wait);
+    void start(bool wait);
     /**
      * @fn void process(uint32_t, const ObjectCommitRequest&)
      * @brief   process the object commit request
      * @param[in]   worker_id   The id of the worker
      * @param[in]   request     The request
      */
-    virtual void process(uint32_t worker_id,const ObjectCommitRequest& request);
+    void process(uint32_t worker_id,const ObjectCommitRequest& request);
 public:
-    virtual ServiceClient<CascadeTypes...>& get_service_client_ref() const override;
+    virtual ServiceClient<FirstCascadeType,RestCascadeTypes...>& get_service_client_ref() const override;
     /**
      * @fn ~MProcUDLServer()
      * @brief   The destructor.
