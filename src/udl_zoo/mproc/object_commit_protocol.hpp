@@ -8,6 +8,7 @@
 #include <cascade/config.h>
 #include <cascade/cascade.hpp>
 #include <memory>
+#include <type_traits>
 #include <wsong/ipc/ring_buffer.hpp>
 
 namespace derecho {
@@ -18,12 +19,16 @@ namespace cascade {
 #define OBJECT_COMMIT_REQUEST_MEMORY_INLINE (0x0000000000000000L)
 #define OBJECT_COMMIT_REQUEST_MEMORY_SHMEM  (0x0000000000000001L)
 
+#define DEFINE_OBJECT_COMMIT_REQUEST(ocr)   \
+    uint8_t     __## ocr ## _buf__[OBJECT_COMMIT_REQUEST_SIZE] __attribute__((aligned(CACHELINE_SIZE))); \
+    ObjectCommitRequestHeader* ocr = reinterpret_cast<ObjectCommitRequestHeader>(__ ## ocr ## _buf__);
+
 /**
- * @brief ObjectCommitRequest class template
+ * @brief ObjectCommitRequestHeader class template
  *
  * This class relies on the `SharedMemory` singlton class for zero-copy support(`get_object_nocopy`).
  */
-class ObjectCommitRequest {
+class ObjectCommitRequestHeader {
 public:
     /**
      * @brief The sender's id.
@@ -50,11 +55,15 @@ public:
     /**
      * @brief The offset of serialized output edges in the rest array
      */
-    uint16_t        output_edges_offset;
+    uint32_t        output_edges_offset;
     /**
      * @brief The offset of seriealized object in `rest`, valid ONLY when OBJECT_COMMIT_REQUEST_MEMORY_INLINE is set.
      */
-    uint16_t        inline_object_offset;
+    uint32_t        inline_object_offset;
+    /**
+     * @brief The offset of the padding bytes.
+     */
+    uint32_t        padding_offset;
     /**
      * @brief Offset in the shared memory region, valid ONLY when OBJECT COMMIT_REQUEST_MEMORY_SHM is set.
      */
@@ -66,10 +75,30 @@ public:
      * - an `std::unordered_map<std::string,bool>` object, representing the output edges of this UDL, possibly followed
      *   by
      * - an `ObjectType` object, if the flags attribute says the object is in the inline memory:
-     *   `this->flags` & `OBJECT_COMMIT_REQUEST_MEMORY_MASK` == `OBJECT_COMMIT_REQUEST_MEMORY_SHMEM`
+     *   `this->flags` & `OBJECT_COMMIT_REQUEST_MEMORY_MASK` == `OBJECT_COMMIT_REQUEST_MEMORY_SHMEM`, followed by
+     * - padding bytes.
      */
-    uint8_t         rest[];         
-
+    uint8_t         rest[];
+    /**
+     * @fn size_t total_size()
+     * @brief
+     * @return  The total size of the commit request
+     */
+    inline size_t total_size() const {
+        return sizeof(ObjectCommitRequestHeader) + this->padding_offset;
+    }
+    /**
+     * @fn ObjectCommitRequestHeader& copy_from (const ObjectCommitRequestHeader& rhs)
+     * @brief evaluator
+     * @param[in]   rhs     The other object
+     * @return A reference to this object
+     */
+    inline ObjectCommitRequestHeader& copy_from(const ObjectCommitRequestHeader& rhs) {
+        size_t copy_size = rhs.total_size();
+        assert(copy_size <= OBJECT_COMMIT_REQUEST_SIZE);
+        std::memcpy(this,&rhs,copy_size);
+        return *this;
+    }
     /**
      * @fn std::unique_ptr<ObjectType> get_object_copy()
      * @brief   Get the object from the Request.
@@ -118,8 +147,10 @@ public:
     }
 } __attribute__ ((packed,aligned(CACHELINE_SIZE)));
 
+static_assert(std::is_trivially_copyable_v<ObjectCommitRequestHeader> == true);
+
 template<typename ObjectType>
-std::unique_ptr<ObjectType> ObjectCommitRequest::get_object_copy() {
+std::unique_ptr<ObjectType> ObjectCommitRequestHeader::get_object_copy() {
     if ((this->flags & OBJECT_COMMIT_REQUEST_MEMORY_MASK) == OBJECT_COMMIT_REQUEST_MEMORY_INLINE) {
         return mutils::from_bytes<ObjectType>(nullptr,this->rest + this->inline_object_offset);
     } else {
@@ -128,7 +159,7 @@ std::unique_ptr<ObjectType> ObjectCommitRequest::get_object_copy() {
 }
 
 template<typename ObjectType>
-mutils::context_ptr<ObjectType> ObjectCommitRequest::get_object_nocopy() {
+mutils::context_ptr<ObjectType> ObjectCommitRequestHeader::get_object_nocopy() {
     if ((this->flags & OBJECT_COMMIT_REQUEST_MEMORY_MASK) == OBJECT_COMMIT_REQUEST_MEMORY_INLINE) {
         return mutils::from_bytes_noalloc<ObjectType>(nullptr,this->rest + this->inline_object_offset);
     } else {
@@ -136,7 +167,7 @@ mutils::context_ptr<ObjectType> ObjectCommitRequest::get_object_nocopy() {
     }
 }
 
-static_assert(sizeof(ObjectCommitRequest) <= OBJECT_COMMIT_REQUEST_SIZE);
+static_assert(sizeof(ObjectCommitRequestHeader) <= OBJECT_COMMIT_REQUEST_SIZE);
 
 }
 }

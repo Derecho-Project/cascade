@@ -28,6 +28,7 @@ template <typename FirstCascadeType,typename ... RestCascadeTypes>
 class MProcUDLClient {
     static_assert(have_same_object_type<FirstCascadeType,RestCascadeTypes...>());
 private:
+    std::unique_ptr<wsong::ipc::RingBuffer>     object_commit_rb;   /// object commit ring buffer
     /**
      * @fn MProcUDLClient()
      * @brief The constructor.
@@ -37,18 +38,24 @@ private:
 public:
     /**
      * @fn submit(const node_id_t,const std::string&, const std::string&, const ObjectWithStringKey&, uint32_t)
-     * @brief submit an object to the user API.
-     * @param[in] sender                The sender id.
-     * @param[in] object_pool_pathname  The object pool pathname
-     * @param[in] key_string            The key inside the object pool's domain
-     * @param[in] object                The immutable object live in the trmporary buffer shared by mutiple worker threads.
-     * @param[in] worker_id             The off critical data path worker id.
+     * @brief submit an object to the user API. The parameters match that of OffCriticalDataPath API.
+     * @param[in]   sender                  The sender id.
+     * @param[in]   full_key_string
+     * @param[in]   prefix_length
+     * @param[in]   version
+     * @param[in]   value
+     * @param[in]   outputs
+     * @param[in]   worker_id
      */
     virtual void submit(
         const node_id_t             sender,
-        const std::string&          object_pool_pathname,
-        const std::string&          key_string,
-        const ObjectWithStringKey&  object,
+        const std::string&          full_key_string,
+        const uint32_t              prefix_length,
+        persistent::version_t       version,
+        const mutils::ByteRepresentable* const
+                                    value,
+        const std::unordered_map<std::string,bool>&
+                                    outputs,
         uint32_t                    worker_id);
     /**
      * @fn ~MProcUDLClient()
@@ -58,9 +65,11 @@ public:
     /**
      * @fn create()
      * @brief Create an mproc client instance.
-     * TODO: what information to submit?
+     * @param[in]   object_commit_rb    The object commit ring buffer key.
+     * @return  A unique pointer to created MProcUDLClient object.
+     * @throws  If creation failed, throw an exception of type derecho::derecho_exception.
      */
-    static std::unique_ptr<MProcUDLClient<FirstCascadeType,RestCascadeTypes...>> create();
+    static std::unique_ptr<MProcUDLClient<FirstCascadeType,RestCascadeTypes...>> create(const key_t object_commit_rb);
 };
 
 }
