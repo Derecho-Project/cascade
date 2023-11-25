@@ -100,7 +100,7 @@ protected:
     std::unique_ptr<wsong::ipc::RingBuffer>         ctxt_response_rb;   /// scsp, as consumer
     DataFlowGraph::Statefulness                     statefulness;       /// statefulness
     uint32_t                                        preset_worker_id;   /// only used when arg.num_threads = 1
-    std::vector<std::queue<ObjectCommitRequest>>    request_queues;     /// request queues
+    std::vector<std::queue<ObjectCommitRequestHeader>>    request_queues;     /// request queues
     std::vector<std::unique_ptr<std::mutex>>        request_queue_locks;/// locks
     std::vector<std::unique_ptr<std::condition_variable>>
                                                     request_queue_cvs;  /// condition variables
@@ -125,12 +125,12 @@ protected:
      */
     void start(bool wait);
     /**
-     * @fn void process(uint32_t, const ObjectCommitRequest&)
+     * @fn void process(uint32_t, const ObjectCommitRequestHeader&)
      * @brief   process the object commit request
      * @param[in]   worker_id   The id of the worker
      * @param[in]   request     The request
      */
-    void process(uint32_t worker_id,const ObjectCommitRequest& request);
+    void process(uint32_t worker_id,const ObjectCommitRequestHeader& request);
 public:
     virtual ServiceClient<FirstCascadeType,RestCascadeTypes...>& get_service_client_ref() const override;
     /**

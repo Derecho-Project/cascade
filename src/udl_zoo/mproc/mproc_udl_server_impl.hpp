@@ -19,7 +19,7 @@ MProcUDLServer<FirstCascadeType,RestCascadeTypes...>::MProcUDLServer(const struc
     if (arg.num_threads > 1) {
         for (uint32_t worker_id=0;worker_id<arg.num_threads;worker_id ++) {
             // 2.1 - queue
-            this->request_queues.emplace_back(std::queue<ObjectCommitRequest>{});
+            this->request_queues.emplace_back(std::queue<ObjectCommitRequestHeader>{});
             // 2.2 - locks
             this->request_queue_locks.emplace_back(std::make_unique<std::mutex>());
             // 2.3 - condition variables
@@ -33,7 +33,7 @@ MProcUDLServer<FirstCascadeType,RestCascadeTypes...>::MProcUDLServer(const struc
                         [this,worker_id](){return this->stop_flag || this->request_queues[worker_id].size();
                     });
 
-                    std::queue<ObjectCommitRequest> ocrs = std::move(request_queues[worker_id]);
+                    std::queue<ObjectCommitRequestHeader> ocrs = std::move(request_queues[worker_id]);
                     queue_lock.unlock();
 
                     while (ocrs.size()) {
@@ -56,7 +56,7 @@ MProcUDLServer<FirstCascadeType,RestCascadeTypes...>::MProcUDLServer(const struc
 }
 
 template <typename FirstCascadeType, typename ... RestCascadeTypes>
-void MProcUDLServer<FirstCascadeType,RestCascadeTypes...>::process(uint32_t worker_id, const ObjectCommitRequest& request) {
+void MProcUDLServer<FirstCascadeType,RestCascadeTypes...>::process(uint32_t worker_id, const ObjectCommitRequestHeader& request) {
     // TODO
 }
 
@@ -71,7 +71,7 @@ void MProcUDLServer<FirstCascadeType, RestCascadeTypes...>::pump_request() {
             continue;
         }
 
-        ObjectCommitRequest* req = reinterpret_cast<ObjectCommitRequest*>(request_bytes);
+        ObjectCommitRequestHeader* req = reinterpret_cast<ObjectCommitRequestHeader*>(request_bytes);
 
         if (request_queues.size()) {
             switch(this->statefulness) {
