@@ -104,6 +104,7 @@ void MProcUDLServer<FirstCascadeType,RestCascadeTypes...>::start(bool wait) {
 
 template <typename FirstCascadeType, typename ... RestCascadeTypes>
 ServiceClient<FirstCascadeType,RestCascadeTypes...>& MProcUDLServer<FirstCascadeType,RestCascadeTypes...>::get_service_client_ref() const {
+    //TODO
     throw derecho_exception{"To be implemented."};
 }
 
@@ -120,11 +121,8 @@ MProcUDLServer<FirstCascadeType,RestCascadeTypes...>::~MProcUDLServer() {
             t.join();
         }
     }
-
-    //TODO
-    // 2 - destroy mproc_ctxt
-    // 3 - detach ring buffers
-    // 4 - unload ocdpo
+    // 2 - destroy mproc_ctxt TODO
+    // 3 - unload ocdpo: automatically in destructor
 }
 
 }

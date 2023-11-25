@@ -84,29 +84,6 @@ struct mproc_udl_server_arg_t {
 };
 
 /**
- * @fn constexpr bool have_same_object_type()
- * @tparam  CascadeType     Cascade Type
- * @return  true if CascadeType(s) has the same ObjectType, otherwise false.
- */
-template <typename CascadeType>
-constexpr bool have_same_object_type() {
-    return true;
-}
-
-/**
- * @fn constexpr bool have_same_object_type()
- * @tparam  FirstCascadeType
- * @tparam  SecondCascadeType
- * @tparam  RestCascadeTypes
- * @return  true if CascadeType(s) has the same ObjectType, otherwise false.
- */
-template <typename FirstCascadeType, typename SecondCascadeType, typename ... RestCascadeTypes>
-constexpr bool have_same_object_type() {
-    return std::is_same<typename FirstCascadeType::ObjectType, typename SecondCascadeType::ObjectType>::value &&
-           have_same_object_type<SecondCascadeType,RestCascadeTypes...>();
-}
-
-/**
  * @class MProcUDLServer mproc_udl_server.hpp "mproc_udl_server.hpp"
  * @brief the UDL server.
  */

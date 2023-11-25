@@ -43,7 +43,30 @@
 
 namespace derecho {
 namespace cascade {
-    /* Cascade Factory type*/
+    /**
+     * @fn constexpr bool have_same_object_type()
+     * @tparam  CascadeType     Cascade Type
+     * @return  true if CascadeType(s) has the same ObjectType, otherwise false.
+     */
+    template <typename CascadeType>
+    constexpr bool have_same_object_type() {
+        return true;
+    }
+    
+    /**
+     * @fn constexpr bool have_same_object_type()
+     * @tparam  FirstCascadeType
+     * @tparam  SecondCascadeType
+     * @tparam  RestCascadeTypes
+     * @return  true if CascadeType(s) has the same ObjectType, otherwise false.
+     */
+    template <typename FirstCascadeType, typename SecondCascadeType, typename ... RestCascadeTypes>
+    constexpr bool have_same_object_type() {
+        return std::is_same<typename FirstCascadeType::ObjectType, typename SecondCascadeType::ObjectType>::value &&
+               have_same_object_type<SecondCascadeType,RestCascadeTypes...>();
+    }
+
+    /** Cascade Factory type*/
     template <typename CascadeType>
     using Factory = std::function<std::unique_ptr<CascadeType>(persistent::PersistentRegistry*, subgroup_id_t subgroup_id, ICascadeContext*)>;
 
@@ -210,6 +233,9 @@ namespace cascade {
      */
     template <typename... CascadeTypes>
     class Service {
+
+        static_assert(have_same_object_type<CascadeTypes...>());
+
         /**
          * Constructor
          * The constructor will load the configuration, start the service thread.
@@ -432,6 +458,7 @@ namespace cascade {
 
     template <typename... CascadeTypes>
     class ServiceClient {
+        static_assert(have_same_object_type<CascadeTypes...>());
     private:
         // default caller as an external client.
         std::unique_ptr<derecho::ExternalGroupClient<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>> external_group_ptr;
