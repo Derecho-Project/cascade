@@ -58,6 +58,7 @@ MProcUDLServer<FirstCascadeType,RestCascadeTypes...>::MProcUDLServer(const struc
 template <typename FirstCascadeType, typename ... RestCascadeTypes>
 void MProcUDLServer<FirstCascadeType,RestCascadeTypes...>::process(uint32_t worker_id, const ObjectCommitRequestHeader& request) {
     // TODO
+    dbg_default_trace("One request to be handled.");
 }
 
 template <typename FirstCascadeType, typename ... RestCascadeTypes>
@@ -72,6 +73,7 @@ void MProcUDLServer<FirstCascadeType, RestCascadeTypes...>::pump_request() {
         }
 
         ObjectCommitRequestHeader* req = reinterpret_cast<ObjectCommitRequestHeader*>(request_bytes);
+        dbg_default_trace("Object commit request of {} bytes retrieved.", req->total_size());
 
         if (request_queues.size()) {
             switch(this->statefulness) {

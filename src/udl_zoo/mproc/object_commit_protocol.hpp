@@ -168,6 +168,5 @@ mutils::context_ptr<ObjectType> ObjectCommitRequestHeader::get_object_nocopy() {
 }
 
 static_assert(sizeof(ObjectCommitRequestHeader) <= OBJECT_COMMIT_REQUEST_SIZE);
-
 }
 }
