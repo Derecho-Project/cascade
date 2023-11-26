@@ -57,8 +57,17 @@ MProcUDLServer<FirstCascadeType,RestCascadeTypes...>::MProcUDLServer(const struc
 
 template <typename FirstCascadeType, typename ... RestCascadeTypes>
 void MProcUDLServer<FirstCascadeType,RestCascadeTypes...>::process(uint32_t worker_id, const ObjectCommitRequestHeader& request) {
-    // TODO
-    dbg_default_trace("One request to be handled.");
+    dbg_default_trace("Handle it to OCDPO.");
+    (*this->ocdpo)(
+        request.sender_id,
+        *request.get_key_string(),
+        request.prefix_length,
+        request.version,
+        request.get_object_nocopy<typename FirstCascadeType::ObjectType>().get(),
+        *request.get_output(),
+        this,
+        worker_id);
+    dbg_default_trace("OCDPO Finished.");
 }
 
 template <typename FirstCascadeType, typename ... RestCascadeTypes>
