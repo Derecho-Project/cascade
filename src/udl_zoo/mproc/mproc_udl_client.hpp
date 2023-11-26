@@ -32,9 +32,9 @@ private:
     /**
      * @fn MProcUDLClient()
      * @brief The constructor.
-     * @param[in]   object_commit_rb    The ringbuffer for object commit.
+     * @param[in]   object_commit_rbkey The ringbuffer for object commit.
      */
-    MProcUDLClient(const key_t object_commit_rb);
+    MProcUDLClient(const key_t object_commit_rbkey);
 public:
     /**
      * @fn submit(const node_id_t,const std::string&, const std::string&, const ObjectWithStringKey&, uint32_t)
@@ -65,11 +65,11 @@ public:
     /**
      * @fn create()
      * @brief Create an mproc client instance.
-     * @param[in]   object_commit_rb    The object commit ring buffer key.
+     * @param[in]   object_commit_rbkey The object commit ring buffer key.
      * @return  A unique pointer to created MProcUDLClient object.
      * @throws  If creation failed, throw an exception of type derecho::derecho_exception.
      */
-    static std::unique_ptr<MProcUDLClient<FirstCascadeType,RestCascadeTypes...>> create(const key_t object_commit_rb);
+    static std::unique_ptr<MProcUDLClient<FirstCascadeType,RestCascadeTypes...>> create(const key_t object_commit_rbkey);
 };
 
 }
