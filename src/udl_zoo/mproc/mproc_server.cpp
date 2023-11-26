@@ -80,7 +80,8 @@ const char* help_string =
     "\t--rbkeys,-r\n"
     "\t             The ring buffer keys in json array format in the order of 1) object submit ring buffer, \n"
     "\t             2) context request ring buffer, 3) context response ring buffer. \n"
-    "\t             For example: [\"0x8364712\",\"0x4d25ecce\",\"0x4d22874a\"]. \n"
+    "\t             For example: [2882339107,2882339108,2882339107]. \n"
+    "\t             Please notice that HEX key format is not supported in the current json library.\n"
     "\t--help,-h    Print this message.\n";
 
 /**
@@ -189,8 +190,9 @@ int mproc_server_main(int argc, char** argv) {
 
     // step 3 - run server
     fs::current_path(fs::path(mproc_server_args.app_cwd));
+    dbg_default_trace("Starting mproc server...");
     MProcUDLServer<CASCADE_SUBGROUP_TYPE_LIST>::run_server(mproc_server_args);
-    
+    dbg_default_trace("mproc server started.");
     // step 4 - steup kill handler.
     GlobalStates::initialize();
     std::signal(SIGINT, signal_handler);
