@@ -2,6 +2,7 @@
  * @file mproc_udl.cpp
  * @brief   Multi-process UDL stub.
  */
+#include <derecho/persistent/PersistentInterface.hpp>
 #include <string>
 #include <cstring>
 #include <chrono>
@@ -42,26 +43,68 @@ __attribute__ ((visibility ("default"))) std::string get_description() {
 }
 
 /**
+ * @class MProcOCDPO mproc_udl.cpp
+ * @brief Implementation of the multi-process udl stub.
+ */
+class MProcOCDPO : public OffCriticalDataPathObserver {
+private:
+    std::unique_ptr<MProcUDLClient<CASCADE_SUBGROUP_TYPE_LIST>> client;
+public:
+    /**
+     * @fn MProcOCDPO()
+     * @brief The constructor.
+     * @param[in]   rbkey   The object commit ring buffer key.
+     */
+    MProcOCDPO (const key_t rbkey) {
+        client = MProcUDLClient<CASCADE_SUBGROUP_TYPE_LIST>::create(rbkey);
+    }
+
+    /**
+     * @fn ~MProcOCDPO()
+     * @brief The destructor.
+     */
+    virtual ~MProcOCDPO() {
+        // the client will destruct itself.
+    }
+
+    virtual void operator () (
+        const node_id_t         sender_id,
+        const std::string&      full_key_string,
+        const uint32_t          prefix_length,
+        persistent::version_t   version,
+        const mutils::ByteRepresentable* const
+                                value_ptr,
+        const std::unordered_map<std::string,bool>&
+                                outputs,
+        ICascadeContext*        , // ctxt is not used here.
+        uint32_t                worker_id) override {
+        client->submit(sender_id,full_key_string,prefix_length,version,value_ptr,outputs,worker_id);
+    }
+};
+
+/**
  * @fn void initialize(ICascadeContext* ctxt)
  * @brief DLL global initializer.
  * @param[in] ctxt      An Opaque pointer to the CascadeContext object.
  */
 __attribute__ ((visibility ("default"))) void initialize(ICascadeContext* ctxt) {
-    // TODO:
+    // nothing to do.
 }
 
 /**
  * @fn std::shared_ptr<OffCriticalDataPathObserver> get_observer(
  *         ICascadeContext* ctxt,const nlohmann::json& conf)
  * @brief Generate a new observer with given configuration.
+ * @param[in]   ctxt    Context
  * @param[in]   conf    The configuration for the mproc udl stub.
  * @return  A shared pointer to the observer.
  */
 __attribute__ ((visibility ("default")))
 std::shared_ptr<OffCriticalDataPathObserver> get_observer(
     ICascadeContext* ctxt,const nlohmann::json& conf) {
-    // TODO:
-    return nullptr;
+    // TODO: Information about the UDL server should be passed in through conf.
+    // Right now, we just hard-coded it.
+    return std::make_shared<MProcOCDPO>(0x4d25ecce);
 }
 
 /**
@@ -70,27 +113,8 @@ std::shared_ptr<OffCriticalDataPathObserver> get_observer(
  * @param[in] ctxt      An Opaque pointer to the CascadeContext object.
  */
 __attribute__((visibility ("default"))) void release(ICascadeContext* ctxt) {
-    // TODO:
+    // nothing to do.
 }
-
-/**
- * @class MProcOCDPO mproc_udl.cpp
- * @brief Implementation of the multi-process udl stub.
- */
-class MProcOCDPO : public DefaultOffCriticalDataPathObserver {
-public:
-    /**
-     * @fn MProcOCDPO()
-     * @brief The constructor.
-     */
-    MProcOCDPO () {}
-    /**
-     * @fn ~MProcOCDPO()
-     * @brief The destructor.
-     */
-    virtual ~MProcOCDPO() {}
-};
-
 
 
 }

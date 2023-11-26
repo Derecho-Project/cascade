@@ -1,11 +1,12 @@
 #pragma once
+
 namespace derecho {
 namespace cascade {
 
 template <typename FirstCascadeType,typename ... RestCascadeTypes>
-MProcUDLClient<FirstCascadeType,RestCascadeTypes...>::MProcUDLClient(const key_t object_commit_rb) {
+MProcUDLClient<FirstCascadeType,RestCascadeTypes...>::MProcUDLClient(const key_t object_commit_rbkey) {
     try {
-        object_commit_rb = wsong::ipc::RingBuffer::get_ring_buffer(object_commit_rb);
+        object_commit_rb = wsong::ipc::RingBuffer::get_ring_buffer(object_commit_rbkey);
     } catch (const wsong::ws_exp& wse) {
         throw derecho::derecho_exception(wse.what());
     }
@@ -61,8 +62,9 @@ MProcUDLClient<FirstCascadeType,RestCascadeTypes...>::~MProcUDLClient() {
 
 template <typename FirstCascadeType,typename ... RestCascadeTypes>
 std::unique_ptr<MProcUDLClient<FirstCascadeType,RestCascadeTypes...>>
-MProcUDLClient<FirstCascadeType,RestCascadeTypes...>::create(const key_t object_commit_rb) {
-    return std::make_unique<MProcUDLClient<FirstCascadeType,RestCascadeTypes...>(object_commit_rb)>;
+MProcUDLClient<FirstCascadeType,RestCascadeTypes...>::create(const key_t object_commit_rbkey) {
+    auto* client = new MProcUDLClient<FirstCascadeType,RestCascadeTypes...>(object_commit_rbkey);
+    return std::unique_ptr<MProcUDLClient<FirstCascadeType,RestCascadeTypes...>>(client);
 }
 
 }

@@ -21,7 +21,7 @@ namespace cascade {
 
 #define DEFINE_OBJECT_COMMIT_REQUEST(ocr)   \
     uint8_t     __## ocr ## _buf__[OBJECT_COMMIT_REQUEST_SIZE] __attribute__((aligned(CACHELINE_SIZE))); \
-    ObjectCommitRequestHeader* ocr = reinterpret_cast<ObjectCommitRequestHeader>(__ ## ocr ## _buf__);
+    ObjectCommitRequestHeader* ocr = reinterpret_cast<ObjectCommitRequestHeader*>(__ ## ocr ## _buf__);
 
 /**
  * @brief ObjectCommitRequestHeader class template
