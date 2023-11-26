@@ -52,7 +52,7 @@ void MProcUDLClient<FirstCascadeType,RestCascadeTypes...>::submit(
                                     request->inline_object_offset) +
                                 request->inline_object_offset;
     // STEP 3 - commit
-    this->object_commit_rb->produce(reinterpret_cast<void*>(&request),request->total_size(),0);
+    this->object_commit_rb->produce(reinterpret_cast<void*>(request),request->total_size(),0);
 }
 
 template <typename FirstCascadeType,typename ... RestCascadeTypes>
