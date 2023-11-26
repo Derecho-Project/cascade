@@ -110,7 +110,7 @@ public:
      * @return  A unique pointer holding the object.
      */
     template<typename ObjectType>
-    std::unique_ptr<ObjectType>      get_object_copy();
+    std::unique_ptr<ObjectType>      get_object_copy() const;
     /**
      * @fn mutils::context_ptr<ObjectType>  get_object_nocopy()
      * @brief   Get the object from the Request without copy.
@@ -126,14 +126,14 @@ public:
      * @return A context pointer holding the object.
      */
     template <typename ObjectType>
-    mutils::context_ptr<ObjectType>  get_object_nocopy();
+    mutils::context_ptr<ObjectType>  get_object_nocopy() const;
     /**
      * @fn std::unordered_map<std::string,bool> get_output()
      * @brief   Get the output edges
      *
      * @return  A unique pointer holding the unordered map from path to trigger_put flag.
      */
-    inline std::unique_ptr<std::unordered_map<std::string,bool>> get_output() {
+    inline std::unique_ptr<std::unordered_map<std::string,bool>> get_output() const {
         return mutils::from_bytes<std::unordered_map<std::string,bool>>(nullptr,this->rest+output_edges_offset);
     }
     /**
@@ -142,7 +142,7 @@ public:
      *
      * @return A unique pointer holding the key string.
      */
-    inline std::unique_ptr<std::string> get_key_string() {
+    inline std::unique_ptr<std::string> get_key_string() const {
         return mutils::from_bytes<std::string>(nullptr,this->rest);
     }
 } __attribute__ ((packed,aligned(CACHELINE_SIZE)));
@@ -150,7 +150,7 @@ public:
 static_assert(std::is_trivially_copyable_v<ObjectCommitRequestHeader> == true);
 
 template<typename ObjectType>
-std::unique_ptr<ObjectType> ObjectCommitRequestHeader::get_object_copy() {
+std::unique_ptr<ObjectType> ObjectCommitRequestHeader::get_object_copy() const {
     if ((this->flags & OBJECT_COMMIT_REQUEST_MEMORY_MASK) == OBJECT_COMMIT_REQUEST_MEMORY_INLINE) {
         return mutils::from_bytes<ObjectType>(nullptr,this->rest + this->inline_object_offset);
     } else {
@@ -159,7 +159,7 @@ std::unique_ptr<ObjectType> ObjectCommitRequestHeader::get_object_copy() {
 }
 
 template<typename ObjectType>
-mutils::context_ptr<ObjectType> ObjectCommitRequestHeader::get_object_nocopy() {
+mutils::context_ptr<ObjectType> ObjectCommitRequestHeader::get_object_nocopy() const {
     if ((this->flags & OBJECT_COMMIT_REQUEST_MEMORY_MASK) == OBJECT_COMMIT_REQUEST_MEMORY_INLINE) {
         return mutils::from_bytes_noalloc<ObjectType>(nullptr,this->rest + this->inline_object_offset);
     } else {
