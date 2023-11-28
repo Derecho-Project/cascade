@@ -2204,20 +2204,40 @@ void ExecutionEngine<CascadeTypes...>::construct() {
     for (auto& dfg:dfgs) {
         for (auto& vertex:dfg.vertices) {
             for (uint32_t i=0; i<vertex.second.uuids.size(); i++) {
-                register_prefixes(
-                    dfg.id,
-                    {vertex.second.pathname},
-                    vertex.second.shard_dispatchers[i],
-                    vertex.second.execution_environment[i],
-                    vertex.second.execution_environment_conf[i].dump(),
-                    vertex.second.stateful[i],
-                    vertex.second.hooks[i],
-                    vertex.second.uuids[i],
-                    vertex.second.configurations[i].dump(),
-                    user_defined_logic_manager->get_observer(
+                if (vertex.second.execution_environment[i] == DataFlowGraph::VertexExecutionEnvironment::PTHREAD) {
+                    // runs inside cascade address space: less secure but faster.
+                    register_prefixes(
+                        dfg.id,
+                        {vertex.second.pathname},
+                        vertex.second.shard_dispatchers[i],
+                        vertex.second.execution_environment[i],
+                        vertex.second.execution_environment_conf[i].dump(),
+                        vertex.second.stateful[i],
+                        vertex.second.hooks[i],
                         vertex.second.uuids[i],
-                        vertex.second.configurations[i]),
-                    vertex.second.edges[i]);
+                        vertex.second.configurations[i].dump(),
+                        user_defined_logic_manager->get_observer(
+                            vertex.second.uuids[i],
+                            vertex.second.configurations[i]),
+                        vertex.second.edges[i]);
+                } else {
+                    // runs inside a different address space: with a little overhead but more secure.
+                    // TODO: hardwired UUID for prototyping. Use udl packaing/manager later.
+                    register_prefixes(
+                        dfg.id,
+                        {vertex.second.pathname},
+                        vertex.second.shard_dispatchers[i],
+                        vertex.second.execution_environment[i],
+                        vertex.second.execution_environment_conf[i].dump(),
+                        vertex.second.stateful[i],
+                        vertex.second.hooks[i],
+                        "fb6458a8-60cb-11ee-b058-0242ac110003", //vertex.second.uuids[i],
+                        vertex.second.configurations[i].dump(),
+                        user_defined_logic_manager->get_observer(
+                            "fb6458a8-60cb-11ee-b058-0242ac110003",
+                            vertex.second.configurations[i]),
+                        vertex.second.edges[i]);
+                }
             }
         }
     }
