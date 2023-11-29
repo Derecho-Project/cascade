@@ -27,7 +27,6 @@ template <typename KeyType>
 inline std::string get_pathname(const KeyType& key);
 
 #ifdef ENABLE_EVALUATION
-#define NUMBER_OF_DISTINCT_OBJECTS (4096)
 
 /**
  * This is a hidden API.
@@ -45,12 +44,12 @@ struct TestVTConstructor {
 };
 
 template <typename KT, typename VT>
-void make_workload(uint32_t payload_size, const KT& key_prefix, std::vector<VT>& objects) {
+void make_workload(uint32_t payload_size, uint32_t num_distinct_objects, const KT& key_prefix, std::vector<VT>& objects) {
     if constexpr(TestVTConstructor<KT, VT>::value) {
         const uint32_t buf_size = payload_size - 128 - sizeof(key_prefix);
         uint8_t* buf = (uint8_t*)malloc(buf_size);
         memset(buf, 'A', buf_size);
-        for(uint32_t i = 0; i < NUMBER_OF_DISTINCT_OBJECTS; i++) {
+        for(uint32_t i = 0; i < num_distinct_objects; i++) {
             if constexpr(std::is_convertible_v<KT, std::string>) {
                 objects.emplace_back(key_prefix + std::to_string(i), buf, buf_size);
             } else if constexpr(std::is_integral_v<KT>) {
