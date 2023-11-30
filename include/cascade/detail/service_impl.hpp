@@ -1720,7 +1720,7 @@ void ServiceClient<CascadeTypes...>::refresh_object_pool_metadata_cache() {
     std::unordered_map<std::string,ObjectPoolMetadataCacheEntry> refreshed_metadata;
     uint32_t num_shards = this->template get_number_of_shards<CascadeMetadataService<CascadeTypes...>>(METADATA_SERVICE_SUBGROUP_INDEX);
     for(uint32_t shard=0;shard<num_shards;shard++) {
-        auto results = this->template list_keys<CascadeMetadataService<CascadeTypes...>>(CURRENT_VERSION,true,METADATA_SERVICE_SUBGROUP_INDEX,shard);
+        auto results = this->template multi_list_keys<CascadeMetadataService<CascadeTypes...>>(METADATA_SERVICE_SUBGROUP_INDEX,shard);
         for (auto& reply : results.get()) { // only once
             for(auto& key: reply.second.get()) { // iterate over keys
                 // we only read the stable version.
@@ -2578,6 +2578,8 @@ match_results_t ExecutionEngine<CascadeTypes...>::get_prefix_handlers(const std:
 
 template <typename... CascadeTypes>
 bool ExecutionEngine<CascadeTypes...>::post(Action&& action, DataFlowGraph::Statefulness stateful, bool is_trigger) {
+    static uint32_t trigger_rrcnt = 0;
+    static uint32_t multicast_rrcnt = 0;
     dbg_default_trace("Posting an action to Cascade context@{:p}.", static_cast<void*>(this));
     if (is_running) {
         if (is_trigger) {
@@ -2590,7 +2592,8 @@ bool ExecutionEngine<CascadeTypes...>::post(Action&& action, DataFlowGraph::Stat
                 break;
             case DataFlowGraph::Statefulness::STATELESS:
             case DataFlowGraph::Statefulness::UNKNOWN_S: // default
-                stateless_action_queue_for_p2p.action_buffer_enqueue(std::move(action));
+                // stateless_action_queue_for_p2p.action_buffer_enqueue(std::move(action));
+                stateful_action_queues_for_p2p[trigger_rrcnt++ % stateful_action_queues_for_p2p.size()]->action_buffer_enqueue(std::move(action));
                 break;
             case DataFlowGraph::Statefulness::SINGLETHREADED:
                 single_threaded_action_queue_for_p2p.action_buffer_enqueue(std::move(action));
@@ -2606,7 +2609,8 @@ bool ExecutionEngine<CascadeTypes...>::post(Action&& action, DataFlowGraph::Stat
                 break;
             case DataFlowGraph::Statefulness::STATELESS:
             case DataFlowGraph::Statefulness::UNKNOWN_S: // default
-                stateless_action_queue_for_multicast.action_buffer_enqueue(std::move(action));
+                // stateless_action_queue_for_multicast.action_buffer_enqueue(std::move(action));
+                stateful_action_queues_for_multicast[multicast_rrcnt++ % stateful_action_queues_for_multicast.size()]->action_buffer_enqueue(std::move(action));
                 break;
             case DataFlowGraph::Statefulness::SINGLETHREADED:
                 single_threaded_action_queue_for_multicast.action_buffer_enqueue(std::move(action));
