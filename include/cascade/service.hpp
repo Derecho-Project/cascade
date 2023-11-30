@@ -43,7 +43,30 @@
 
 namespace derecho {
 namespace cascade {
-    /* Cascade Factory type*/
+    /**
+     * @fn constexpr bool have_same_object_type()
+     * @tparam  CascadeType     Cascade Type
+     * @return  true if CascadeType(s) has the same ObjectType, otherwise false.
+     */
+    template <typename CascadeType>
+    constexpr bool have_same_object_type() {
+        return true;
+    }
+    
+    /**
+     * @fn constexpr bool have_same_object_type()
+     * @tparam  FirstCascadeType
+     * @tparam  SecondCascadeType
+     * @tparam  RestCascadeTypes
+     * @return  true if CascadeType(s) has the same ObjectType, otherwise false.
+     */
+    template <typename FirstCascadeType, typename SecondCascadeType, typename ... RestCascadeTypes>
+    constexpr bool have_same_object_type() {
+        return std::is_same<typename FirstCascadeType::ObjectType, typename SecondCascadeType::ObjectType>::value &&
+               have_same_object_type<SecondCascadeType,RestCascadeTypes...>();
+    }
+
+    /** Cascade Factory type*/
     template <typename CascadeType>
     using Factory = std::function<std::unique_ptr<CascadeType>(persistent::PersistentRegistry*, subgroup_id_t subgroup_id, ICascadeContext*)>;
 
@@ -61,6 +84,9 @@ namespace cascade {
     /* The cascade context to be defined later */
     template <typename... CascadeTypes>
     class CascadeContext;
+
+    template <typename... CascadeTypes>
+    class ExecutionEngine;
 
     /* The Action to be defined later */
     struct Action;
@@ -211,6 +237,9 @@ namespace cascade {
      */
     template <typename... CascadeTypes>
     class Service {
+
+        static_assert(have_same_object_type<CascadeTypes...>());
+
         /**
          * Constructor
          * The constructor will load the configuration, start the service thread.
@@ -260,8 +289,7 @@ namespace cascade {
         /**
          * The CascadeContext
          */
-        std::unique_ptr<CascadeContext<CascadeTypes...>> context;
-
+        std::unique_ptr<ExecutionEngine<CascadeTypes...>> context;
         /**
          * Singleton pointer
          */
@@ -434,6 +462,7 @@ namespace cascade {
 
     template <typename... CascadeTypes>
     class ServiceClient {
+        static_assert(have_same_object_type<CascadeTypes...>());
     private:
         // default caller as an external client.
         std::unique_ptr<derecho::ExternalGroupClient<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>> external_group_ptr;
@@ -1635,26 +1664,48 @@ namespace cascade {
      * 2 - a prefix registry.
      * 3 - a bounded Action buffer.
      */
-    using prefix_ocdpo_info_t = std::tuple<
-                        std::string,                                  // udl_id
-                        std::string,                                  // config string
-                        DataFlowGraph::VertexShardDispatcher,         // shard dispatcher
-                        DataFlowGraph::Statefulness,                  // is stateful/stateless/singlethreaded
-                        DataFlowGraph::VertexHook,                    // hook
-                        std::shared_ptr<OffCriticalDataPathObserver>, // ocdpo
-                        std::unordered_map<std::string,bool>          // output map{prefix->bool}
-                    >;
+
+    /**
+     * @struct prefix_ocdpo_info_t
+     * @brief   This is the information to live in the prefix tree.
+     */
+    using prefix_ocdpo_info_t = struct _prefix_ocdpo_info {
+        std::string     udl_id;
+        std::string     config_string;
+        DataFlowGraph::VertexExecutionEnvironment       execution_environment;
+        DataFlowGraph::VertexShardDispatcher            shard_dispatcher;
+        DataFlowGraph::Statefulness                     statefulness;
+        DataFlowGraph::VertexHook                       hook;
+        std::shared_ptr<OffCriticalDataPathObserver>    ocdpo;
+        std::unordered_map<std::string,bool>            output_map;
+    };
 
     struct PrefixOCDPOInfoHash {
-        inline size_t operator() (const prefix_ocdpo_info_t& info) const {
-            return std::hash<std::string>{}(std::get<0>(info) + std::get<1>(info));
+        // inline size_t operator() (const prefix_ocdpo_info_t& info) const {
+        size_t operator() (const prefix_ocdpo_info_t& info) const {
+            return std::hash<std::string>{}(info.udl_id + info.config_string);
         }
     };
 
     struct PrefixOCDPOInfoCompare {
-        inline bool operator() (const prefix_ocdpo_info_t& l, const prefix_ocdpo_info_t& r) const {
-            return (std::get<0>(l) == std::get<0>(r)) && (std::get<1>(l) == std::get<1>(r));
+        // inline bool operator() (const prefix_ocdpo_info_t& l, const prefix_ocdpo_info_t& r) const {
+        bool operator() (const prefix_ocdpo_info_t& l, const prefix_ocdpo_info_t& r) const {
+            return (l.udl_id == r.udl_id) && 
+                   (l.config_string == r.config_string) &&
+                   (l.execution_environment == r.execution_environment);
         }
+    };
+
+    template <typename... CascadeTypes>
+    class CascadeContext:public ICascadeContext {
+    public:
+        /**
+         * get the reference to encapsulated service client handle.
+         * The reference is valid only after construct() is called.
+         *
+         * @return a reference to service client.
+         */
+        virtual ServiceClient<CascadeTypes...>& get_service_client_ref() const = 0;
     };
 
     using prefix_ocdpo_info_set_t = std::unordered_set<prefix_ocdpo_info_t,PrefixOCDPOInfoHash,PrefixOCDPOInfoCompare>;
@@ -1663,8 +1714,9 @@ namespace cascade {
                                 prefix_ocdpo_info_set_t
                            >;
     using match_results_t = std::unordered_map<std::string,prefix_entry_t>;
+
     template <typename... CascadeTypes>
-    class CascadeContext: public ICascadeContext {
+    class ExecutionEngine: public CascadeContext<CascadeTypes...> {
     private:
         struct action_queue {
             struct Action           action_buffer[ACTION_BUFFER_SIZE];
@@ -1708,7 +1760,8 @@ namespace cascade {
         void destroy();
         /**
          * off critical data path workhorse
-         * @param[in] _1 the task id, started from 0 to (OFF_CRITICAL_DATA_PATH_THREAD_POOL_SIZE-1)
+         * @param[in] _1 The task id, started from 0 to (OFF_CRITICAL_DATA_PATH_THREAD_POOL_SIZE-1)
+         * @param[in] _2 The action queue
          */
         void workhorse(uint32_t,struct action_queue&);
 
@@ -1718,7 +1771,7 @@ namespace cascade {
         /**
          * Constructor
          */
-        CascadeContext();
+        ExecutionEngine();
         /**
          * construct the resources from Derecho configuration.
          *
@@ -1738,7 +1791,7 @@ namespace cascade {
          *
          * @return a reference to service client.
          */
-        ServiceClient<CascadeTypes...>& get_service_client_ref() const;
+        virtual ServiceClient<CascadeTypes...>& get_service_client_ref() const;
         /**
          * We give up the following on-demand loading mechanism:
          * ==============================================================================================================
@@ -1775,6 +1828,8 @@ namespace cascade {
          * @param[in] dfg_uuid              - the dfg uuid
          * @param[in] prefixes              - the prefixes set
          * @param[in] shard_dispatcher      - the shard dispatcher
+         * @param[in] execution_environment - the execution environment
+         * @param[in] execution_environment_conf - the execution environment configuration
          * @param[in] stateful              - register a stateful udl
          * @param[in] hook                  - the hook for this ocdpo
          * @param[in] user_defined_logic_id - the UDL id, presumably an UUID string
@@ -1787,6 +1842,8 @@ namespace cascade {
         virtual void register_prefixes(const std::string& dfg_uuid,
                                        const std::unordered_set<std::string>& prefixes,
                                        const DataFlowGraph::VertexShardDispatcher shard_dispatcher,
+                                       const DataFlowGraph::VertexExecutionEnvironment execution_environment,
+                                       const std::string& execution_environment_conf,
                                        const DataFlowGraph::Statefulness stateful,
                                        const DataFlowGraph::VertexHook hook,
                                        const std::string& user_defined_logic_id,
@@ -1831,8 +1888,8 @@ namespace cascade {
         /**
          * Destructor
          */
-        virtual ~CascadeContext();
-    };//CascadeContext
+        virtual ~ExecutionEngine();
+    };//ExecutionEngine/
 } // cascade
 } // derecho
 

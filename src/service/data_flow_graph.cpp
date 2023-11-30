@@ -33,6 +33,21 @@ DataFlowGraph::DataFlowGraph(const json& dfg_conf):
                     DataFlowGraph::VertexShardDispatcher::ALL : DataFlowGraph::VertexShardDispatcher::ONE;
             }
 
+            // execution environment
+            if (it->contains(DFG_JSON_EXECUTION_ENVIRONMENT_LIST)) {
+                if ((*it)[DFG_JSON_EXECUTION_ENVIRONMENT_LIST].at(i)["mode"].get<std::string>() == "process") {
+                    dfgv.execution_environment.emplace_back(DataFlowGraph::VertexExecutionEnvironment::PROCESS);
+                } else if ((*it)[DFG_JSON_EXECUTION_ENVIRONMENT_LIST].at(i)["mode"].get<std::string>() == "docker") {
+                    dfgv.execution_environment.emplace_back(DataFlowGraph::VertexExecutionEnvironment::DOCKER);
+                } else {
+                    dfgv.execution_environment.emplace_back(DataFlowGraph::VertexExecutionEnvironment::PTHREAD);
+                }
+                dfgv.execution_environment_conf.emplace_back((*it)[DFG_JSON_EXECUTION_ENVIRONMENT_LIST].at(i));
+            } else {
+                dfgv.execution_environment.emplace_back(DataFlowGraph::VertexExecutionEnvironment::PTHREAD);
+                dfgv.execution_environment_conf.emplace_back(json{});
+            }
+
             // stateful
             dfgv.stateful.emplace_back(DataFlowGraph::Statefulness::STATEFUL);
             if (it->contains(DFG_JSON_UDL_STATEFUL_LIST)) {
