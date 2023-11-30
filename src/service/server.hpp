@@ -44,8 +44,8 @@ class CascadeServiceCDPO : public CriticalDataPathObserver<CascadeType> {
         if constexpr(std::is_convertible<typename CascadeType::KeyType, std::string>::value) {
             using namespace derecho::cascade;
 
-            auto* ctxt = dynamic_cast<
-                    CascadeContext<
+            auto* engine = dynamic_cast<
+                    ExecutionEngine<
                             VolatileCascadeStoreWithStringKey,
                             PersistentCascadeStoreWithStringKey,
                             TriggerCascadeNoStoreWithStringKey>*>(cascade_ctxt);
@@ -55,15 +55,16 @@ class CascadeServiceCDPO : public CriticalDataPathObserver<CascadeType> {
                 // important: we need to keep the trailing PATH_SEPARATOR
                 prefix = key.substr(0, pos + 1);
             }
-            auto handlers = ctxt->get_prefix_handlers(prefix);
+            auto handlers = engine->get_prefix_handlers(prefix);
             if(handlers.empty()) {
                 return;
             }
             // filter for normal put (put/put_and_forget)
             bool new_actions = false;
+            bool has_mproc_udl = false;
             {
-                auto shard_members = ctxt->get_service_client_ref().template get_shard_members<CascadeType>(sgidx, shidx);
-                bool icare = (shard_members[std::hash<std::string>{}(key) % shard_members.size()] == ctxt->get_service_client_ref().get_my_id());
+                auto shard_members = engine->get_service_client_ref().template get_shard_members<CascadeType>(sgidx, shidx);
+                bool icare = (shard_members[std::hash<std::string>{}(key) % shard_members.size()] == engine->get_service_client_ref().get_my_id());
                 for(auto& per_prefix : handlers) {
                     // per_prefix.first is the matching prefix
                     // per_prefix.second is an object of prefix_entry_t
@@ -71,21 +72,22 @@ class CascadeServiceCDPO : public CriticalDataPathObserver<CascadeType> {
                         // dfg_ocdpos.first is dfg_id
                         // dfg_ocdpos.second is a set of ocdpo info object of type prefix_ocdpo_info_t.
                         for(auto oiit = dfg_ocdpos.second.begin(); oiit != dfg_ocdpos.second.end();) {
-                            // each oi is a 6/7-tuple of 
-                            // (0)udl_id, (1)config_string, (2)shard dispatcher, [(3)stateful], (4)hook, (5)ocdpo, and (6)outputs;
-                            DataFlowGraph::VertexHook hook = std::get<4>(*oiit);
-                            if((hook != DataFlowGraph::VertexHook::BOTH) && (
-                                (hook == DataFlowGraph::VertexHook::ORDERED_PUT && is_trigger) || 
-                                (hook == DataFlowGraph::VertexHook::TRIGGER_PUT && !is_trigger))) {
+                            if((oiit->hook != DataFlowGraph::VertexHook::BOTH) && (
+                                (oiit->hook == DataFlowGraph::VertexHook::ORDERED_PUT && is_trigger) || 
+                                (oiit->hook == DataFlowGraph::VertexHook::TRIGGER_PUT && !is_trigger))) {
                                 // not my hook, skip it.
                                 oiit = dfg_ocdpos.second.erase(oiit);
                             } else if (is_trigger) {
                                 new_actions = true;
+                                if (oiit->execution_environment != 
+                                    DataFlowGraph::VertexExecutionEnvironment::PTHREAD) {
+                                    has_mproc_udl = true;
+                                }
                                 oiit++;
                             } else {
                                 // matched ordered put data path
                                 // test dispatcher:
-                                switch(std::get<2>(*oiit)) {
+                                switch(oiit->shard_dispatcher) {
                                     case DataFlowGraph::VertexShardDispatcher::ONE:
                                         if(icare) {
                                             new_actions = true;
@@ -111,7 +113,8 @@ class CascadeServiceCDPO : public CriticalDataPathObserver<CascadeType> {
             if(!new_actions) {
                 return;
             }
-            // copy data
+            // copy data TODO: test has_mproc_udl, if has_mproc_udl == true, copy it to shared space,
+            // otherwise, use simple make_shared() call.
             auto value_ptr = std::make_shared<typename CascadeType::ObjectType>(value);
             // create actions
             for(auto& per_prefix : handlers) {
@@ -121,16 +124,14 @@ class CascadeServiceCDPO : public CriticalDataPathObserver<CascadeType> {
                     // dfg_ocdpos.first is dfg_id
                     // dfg_ocdpos.second is a set of ocdpo info object of type prefix_ocdpo_info_t.
                     for (const auto& oi : dfg_ocdpos.second) {
-                        // each oi is a 6/7-tuple of 
-                        // (0)udl_id, (1)config_string, (2)shard dispatcher, [(3)stateful], (4)hook, (5)ocdpo, and (6)outputs;
                         Action action(
                                 sender_id,
                                 key,
                                 per_prefix.first.size(),
                                 value.get_version(),
-                                std::get<5>(oi),  // ocdpo
+                                oi.ocdpo,  // ocdpo
                                 value_ptr,
-                                std::get<6>(oi)  // outputs
+                                oi.output_map  // outputs
                         );
     
 #ifdef ENABLE_EVALUATION
@@ -140,16 +141,16 @@ class CascadeServiceCDPO : public CriticalDataPathObserver<CascadeType> {
 #endif
     
 #ifdef ENABLE_EVALUATION
-                        apei.info.stateful = std::get<3>(oi);
+                        apei.info.stateful = oi.statefulness;
 #endif
                         TimestampLogger::log(TLT_ACTION_POST_START,
-                                             ctxt->get_service_client_ref().get_my_id(),
+                                             engine->get_service_client_ref().get_my_id(),
                                              dynamic_cast<const IHasMessageID*>(&value)->get_message_id(),
                                              get_time_ns(),
                                              apei.uint64_val);
-                        ctxt->post(std::move(action), std::get<3>(oi), is_trigger);
+                        engine->post(std::move(action), oi.statefulness, is_trigger);
                         TimestampLogger::log(TLT_ACTION_POST_END,
-                                             ctxt->get_service_client_ref().get_my_id(),
+                                             engine->get_service_client_ref().get_my_id(),
                                              dynamic_cast<const IHasMessageID*>(&value)->get_message_id(),
                                              get_time_ns(),
                                              apei.uint64_val);

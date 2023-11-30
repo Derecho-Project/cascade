@@ -1,0 +1,43 @@
+[
+    {
+        "id": "1f348790-3eda-11ed-8f86-0242ac110006",
+        "desc": "ConsolePrinter Python DFG",
+        "graph": [
+            {
+                "pathname": "/console_printer",
+                "shard_dispatcher_list": ["one"],
+                "user_defined_logic_list": ["6cfe8f64-3a1d-11ed-8e7e-0242ac110006"],
+                "user_defined_logic_stateful_list": ["singlethreaded"],
+                "user_defined_logic_config_list": [
+                    {
+                        "python_path":["python_udls"],
+                        "module":"sample_udls",
+                        "entry_class":"ConsolePrinterUDL",
+                        "udl_conf_key1":"1",
+                        "udl_conf_key2":"2",
+                        "udl_conf_key3":"3"
+                    }],
+                "destinations": [{}]
+            }
+        ]
+    },
+    {
+        "id": "59533e56-3fb3-11ed-b134-0242ac110006",
+        "desc": "Word Count Python DFG",
+        "graph": [
+            {
+                "pathname": "/word_count/mapper",
+                "shard_dispatcher_list": ["one"],
+                "user_defined_logic_list": ["6cfe8f64-3a1d-11ed-8e7e-0242ac110006"],
+                "user_defined_logic_stateful_list": ["singlethreaded"],
+                "user_defined_logic_config_list": [
+                    {
+                        "python_path":["python_udls"],
+                        "module":"sample_udls",
+                        "entry_class":"WordCountMapper"
+                    }],
+                "destinations": [{}]
+            }
+        ]
+    }
+]

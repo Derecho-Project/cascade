@@ -1,0 +1,19 @@
+[
+    {
+        "id": "403b7f26-c9f8-4cd3-8d9f-8db20eaa3c24",
+        "desc": "C# CosmosDB CRUD demonstration",
+        "graph": [
+            {
+                "pathname": "/cosmos_db_create",
+                "shard_dispatcher_list": ["one"],
+                "user_defined_logic_list": ["3fc0bfc9-ae62-4b57-b39d-af3f83e7f429"],
+                "user_defined_logic_config_list": [
+                    {
+                        "csharp_relative_path": "../../../bin/Release/net6.0/cosmosdbexample.dll",
+                        "module": "GatewayLib.CosmosDBCreateUDL"
+                    }],
+                "destinations": [{}]
+            }           
+        ]
+    }
+]
