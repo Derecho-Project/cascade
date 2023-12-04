@@ -36,9 +36,17 @@ DataFlowGraph::DataFlowGraph(const json& dfg_conf):
             // execution environment
             if (it->contains(DFG_JSON_EXECUTION_ENVIRONMENT_LIST)) {
                 if ((*it)[DFG_JSON_EXECUTION_ENVIRONMENT_LIST].at(i)["mode"].get<std::string>() == "process") {
+#ifdef ENABLE_MPROC
                     dfgv.execution_environment.emplace_back(DataFlowGraph::VertexExecutionEnvironment::PROCESS);
+#else
+                    throw derecho::derecho_exception("MPROC is disabled, which the 'process' UDL mode relies on.");
+#endif
                 } else if ((*it)[DFG_JSON_EXECUTION_ENVIRONMENT_LIST].at(i)["mode"].get<std::string>() == "docker") {
+#ifdef ENABLE_MPROC
                     dfgv.execution_environment.emplace_back(DataFlowGraph::VertexExecutionEnvironment::DOCKER);
+#else
+                    throw derecho::derecho_exception("MPROC is disabled, which the 'docker' UDL mode relies on.");
+#endif
                 } else {
                     dfgv.execution_environment.emplace_back(DataFlowGraph::VertexExecutionEnvironment::PTHREAD);
                 }
