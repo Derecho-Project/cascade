@@ -2221,6 +2221,7 @@ void ExecutionEngine<CascadeTypes...>::construct() {
                             vertex.second.configurations[i]),
                         vertex.second.edges[i]);
                 } else {
+#ifdef ENABLE_MPROC
                     // runs inside a different address space: with a little overhead but more secure.
                     // TODO: hardwired UUID for prototyping. Use udl packaing/manager later.
                     register_prefixes(
@@ -2237,6 +2238,9 @@ void ExecutionEngine<CascadeTypes...>::construct() {
                             "fb6458a8-60cb-11ee-b058-0242ac110003",
                             vertex.second.configurations[i]),
                         vertex.second.edges[i]);
+#else
+                    throw derecho_exception("MPROC is disabled, which is required by execution environment other than PTHREAD");
+#endif
                 }
             }
         }

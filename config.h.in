@@ -1,5 +1,6 @@
 #cmakedefine HAS_FUSE
 #cmakedefine HAS_BOOLINQ
 #cmakedefine ENABLE_EVALUATION
+#cmakedefine ENABLE_MPROC
 #cmakedefine DUMP_TIMESTAMP_WORKAROUND
 #define PATH_SEPARATOR '/'
