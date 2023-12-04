@@ -32,10 +32,12 @@ target_include_directories(hyperscan_perf PRIVATE
 )
 target_link_libraries(hyperscan_perf ${Hyperscan_LIBRARIES} cascade)
 
-add_executable(mproc_manager_tester mproc_manager_tester.cpp)
-target_include_directories(mproc_manager_tester PRIVATE
-    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-)
-target_link_libraries(mproc_manager_tester cascade)
+if (MPROC_ENABLED)
+    add_executable(mproc_manager_tester mproc_manager_tester.cpp)
+    target_include_directories(mproc_manager_tester PRIVATE
+        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    )
+    target_link_libraries(mproc_manager_tester cascade)
+endif()

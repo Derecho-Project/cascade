@@ -58,6 +58,12 @@ if(Hyperscan_FOUND)
     include_directories(${Hyperscan_INCLUDE_DIRS})
 endif()
 
+# detect libwsong library, which is required for the mproc feature
+find_package(libwsong QUIET)
+if (libwsong_FOUND)
+    set(ENABLE_MPROC 1)
+endif()
+
 # Doxygen, optional to generate documentation HTML
 find_package(Doxygen)
 
