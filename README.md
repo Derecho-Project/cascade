@@ -10,21 +10,29 @@ Cascade is a C++17 cloud application framework powered by optimized RDMA data pa
 Please refer to our [paper](https://arxiv.org/pdf/2311.17329) for detailed information.
 
 # Release status
-As of December 2023, Cascade has the status of a high-quality beta: publically available and useable, but not as stable as we intend for our v1.0 release.  Derecho, used by Cascade, is more mature, with significant use since its initial release in April 2019.
+As of December 2023, Cascade has the status of a high-quality beta: publicaly available and useable. The current version in `master` branch allows the development of sophisticated Cascade applications using C/C++ and Python, the deployment and performance evaluation in environment with or without RDMA support. But it is not as stable as we intend for v1.0 release. Derecho, used by Cascade, is more mature, with significant use since its initial release in April 2019.  In January 2024 we anticipate a v1.0 general release of Cascade.
 
-## Stable Features in v1.0
-
-## Experimental Features in v1.0
+## Plan for v1.0
+In January 2024 we anticipate a v1.0 general release of Cascade, which is a stable version of the current `master` branch. We are working on the regression test right now. Although we focus on the core function in these release, many experimental features are available in v1.0 is available for test for those who are interested.
+- C# support for both K/V store client and User-Defined Logic(UDL) development.
+- Java language support for K/V store client development.
+- A fuse file system API for easy read-only access to Cascade data.
+- A high performance collective communication library called [DCCL](https://github.com/derecho-project/dccl) similar to NCCL/RCCL, which is planned to be merged in Cascade later.
+- An object grouping mechanism called "affinity set", by which data colocation can be finetuned for optimized performance.
 
 ## Features Planned for v1.1
+Soon after, we are planning a new release v1.1 with some additional features we are constructing right now. One highlight is the support for UDL in separate processes/docker containers for with end-to-end zero copy data paths, which improves the security by isolating untrusted application code, and release the power of parallelism for Python UDLs which is contained by Python's GIL. Besides that, we plan to include the full affinity set feature and a sophisticated scheduler for cases where a compute cluster is shared. The following features might (still) be in 'experimental' state in v1.1
+- DPDK support, which provides performance improvement over TCP in non-RDMA environments.
+- A fuse file system API for read/write access.
+- DCCL
 
 ## Features Planned for v1.2
 
-In January 2024 we anticipate a v1.0 general release of Cascade, followed soon after by a v1.1 release with some additional functionality that will include support for user-defined AI logic in docker containers with end-to-end zero copy data paths, an automated grouping mechanism for "related" objects, a sophisticated scheduler for cases where a compute cluster is shared, a Derecho collectives communication library called DCCL, a POSIX file system and support for DPDK.   By early summer in 2024, we anticipate a v1.2 release that would include enhanced scheduling to cover streaming scenarios and support for "split" computations, in which one AI DFG spans nodes on an edge cluster and nodes in a cloud hosted framework.
+By early summer of 2024, we anticipate a v1.2 release that would include enhanced scheduling to cover streaming scenarios and support for "split" computations, in which one AI DFG spans nodes on an edge cluster and nodes in a cloud-hosted framework. The experimental features in v1.1 are planned to become standard features.
 
-Many of the v1.1 features exist today and are part of the main v1.0 branch, but are still at an experimental stage of development.  These include the affinity grouping mechanism, an event-by-event version of the Navigator scheduler, the DCCL library, and a mostly-complete version of the POSIX file system.   By the time of the v1.1 release, those features will be more heavily tested, and the v1.2 features will be at that same preliminary stage of maturity.  DPDK support will become available either in v1.1 or v1.2 (the decision has not yet been made).
+Besides, we are expecting a new set of zero-copy optimizations to be included in this release, including the GPUDirect accelerated datapath and the zero-copy multicast mechanism. Also, feasibility improvements including application packaging, dynamic application management, and monitoring capabilities are planned in future releases.
 
-We recommend coordinating with Weijia Song if you plan to experiment with beta features of the system.  Anyone planning to do so should also commit to posting issues on the GitHub issue tracker in the event of a bug, with a minimal example that triggers the problem (as few lines of code as you can manage).  
+We recommend coordinating with [Weijia Song](mailto:songweijia@gmail.com) if you plan to experiment with beta features of the system.  Anyone planning to do so should also commit to posting issues on the GitHub issue tracker in the event of a bug, with a minimal example that triggers the problem (as few lines of code as you can manage).  
 
 # Using Cascade
 - Cascade can be used both as a service, and as a software library
