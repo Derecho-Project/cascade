@@ -7,8 +7,18 @@ Cascade is a C++17 cloud application framework powered by optimized RDMA data pa
 - Users can configure the application layout using the group, subgroup, and shard concepts deriving from [Derecho](http://github.com/Derecho-Project/derecho).
 - Cascade derives the same fault-tolerance model from [Derecho](http://github.com/Derecho-Project/derecho).
 
+Please refer to our [paper](https://arxiv.org/pdf/2311.17329) for detailed information.
+
 # Release status
 As of December 2023, Cascade has the status of a high-quality beta: publically available and useable, but not as stable as we intend for our v1.0 release.  Derecho, used by Cascade, is more mature, with significant use since its initial release in April 2019.
+
+## Stable Features in v1.0
+
+## Experimental Features in v1.0
+
+## Features Planned for v1.1
+
+## Features Planned for v1.2
 
 In January 2024 we anticipate a v1.0 general release of Cascade, followed soon after by a v1.1 release with some additional functionality that will include support for user-defined AI logic in docker containers with end-to-end zero copy data paths, an automated grouping mechanism for "related" objects, a sophisticated scheduler for cases where a compute cluster is shared, a Derecho collectives communication library called DCCL, a POSIX file system and support for DPDK.   By early summer in 2024, we anticipate a v1.2 release that would include enhanced scheduling to cover streaming scenarios and support for "split" computations, in which one AI DFG spans nodes on an edge cluster and nodes in a cloud hosted framework.
 
