@@ -86,6 +86,13 @@ private:
      * happen before the SignatureCascadeStore starts receiving messages.
      */
     mutable std::unique_ptr<wan_agent::WanAgent> wanagent;
+
+    /**
+     * A socket connected to an external client over a WAN connection, if one has contacted this replica.
+     * Only used if this replica is at the backup site. Initialized once, by a thread started in the
+     * constructor, with the first external client that contacts this node on the configured remote_client_port.
+     */
+    std::unique_ptr<tcp::socket> remote_client_socket;
     /**
      * A copy of the acknowledgement table reported by WanAgent, which maps each backup site ID
      * to the most recent message number acknowledged by that site. This is needed to supply to WanAgent's
@@ -106,6 +113,12 @@ private:
     CriticalDataPathObserver<SignatureCascadeStore<KT, VT, IK, IV>>* cascade_watcher_ptr;
     /** Cascade context (off-critical-path manager) */
     ICascadeContext* cascade_context_ptr;
+    /**
+     * The thread that listens for a connection from a remote external client and initializes
+     * remote_client_socket. Only runs if this node is on the backup site, and exits after the
+     * client connects.
+     */
+    std::thread remote_client_init_thread;
 
     version_tuple internal_ordered_put(const VT& value);
     /**
@@ -127,6 +140,20 @@ private:
     void send_client_notification(node_id_t client_id, const KT& key, persistent::version_t hash_object_version,
                                   persistent::version_t data_object_version,
                                   uint64_t evaluation_message_id = 0) const;
+
+    /**
+     * Sends the connected remote client, if any, a notification indicating that
+     * the specified object has reached global persistence and been signed at the
+     * backup site.
+     *
+     * @param key The key identifying the hash object
+     * @param data_object_version The version of the data object corresponding to
+     * the hash object that has just been signed
+     * @param evaluation_message_id The message ID associated with the put request
+     * that originally placed the data object in the primary site.
+     */
+    void send_remote_client_notification(const KT& key, persistent::version_t data_object_version,
+                                         uint64_t evaluation_message_id = 0);
 
     /**
      * Sends a message to the backup sites via WanAgent that includes a hash

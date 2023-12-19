@@ -19,6 +19,7 @@ namespace cascade {
 #define TLT_READY_TO_SEND       (11000)
 #define TLT_EC_SENT             (12000)
 #define TLT_EC_SIGNATURE_NOTIFY (12002)
+#define TLT_EC_SIGNATURE_BACKUP (12003)
 
 /////////////////////////////////////////////////////
 // PerfTestClient/PerfTestServer implementation    //
@@ -166,6 +167,18 @@ bool PerfTestServer::eval_signature_put(uint64_t max_operation_per_second,
                                         uint32_t shard_index) {
     debug_enter_func_with_args("max_ops={},duration={},subgroup_type_index={},subgroup_index={},shard_index={}",
                                max_operation_per_second, duration_secs, subgroup_type_index, subgroup_index, shard_index);
+    // Data structures for tracking signature notifications from the backup site
+    bool enable_backup_site = false;
+    ip_addr_t backup_site_node_ip;
+    uint16_t backup_site_port;
+    bool all_backed_up = false;
+    std::mutex backup_mutex;
+    std::condition_variable all_backed_up_cv;
+    if(derecho::hasCustomizedConfKey(CASCADE_BACKUP_SITE_IP)) {
+        enable_backup_site = true;
+        backup_site_node_ip = derecho::getConfString(CASCADE_BACKUP_SITE_IP);
+        backup_site_port = derecho::getConfUInt16(CASCADE_REMOTE_CLIENT_PORT);
+    }
     // Synchronization data structures
     uint32_t window_size = derecho::getConfUInt32(derecho::Conf::DERECHO_P2P_WINDOW_SIZE);
     uint32_t window_slots = window_size * 2;
@@ -249,6 +262,35 @@ bool PerfTestServer::eval_signature_put(uint64_t max_operation_per_second,
                 dbg_default_debug("All puts complete, last version is {}", last_put_version);
             });
 
+    // Thread that listens for signature-finished notifications from the backup site
+    std::thread backup_notifications_thread(
+            [&]() {
+                if(!enable_backup_site)
+                    return;
+
+                tcp::socket backup_site_connection(backup_site_node_ip, backup_site_port);
+                dbg_default_info("eval_signature_put: Connected to backup site at {}:{}", backup_site_node_ip, backup_site_port);
+                while(!all_backed_up) {
+                    // Each message contains the version number and message ID
+                    uint64_t message_id;
+                    persistent::version_t data_object_version;
+                    std::size_t message_size = sizeof(uint64_t) + sizeof(persistent::version_t);
+                    uint8_t message_buffer[message_size];
+                    backup_site_connection.read(message_buffer, message_size);
+                    // Record the time once read completes
+                    uint64_t now_timestamp = get_walltime();
+                    std::memcpy(&message_id, message_buffer, sizeof(message_id));
+                    std::memcpy(&data_object_version, message_buffer + sizeof(message_id), sizeof(data_object_version));
+                    TimestampLogger::log(TLT_EC_SIGNATURE_BACKUP, my_node_id, message_id, now_timestamp, data_object_version);
+                    dbg_default_debug("Notification from backup site for message {}, data version {}", message_id, data_object_version);
+                    if(all_sent && message_id == last_message_id) {
+                        std::lock_guard backed_up_lock(backup_mutex);
+                        all_backed_up = true;
+                        all_backed_up_cv.notify_all();
+                    }
+                }
+            });
+
     // Subscribe to notifications for all the test objects' keys
     for(const auto& test_object : objects) {
         std::string data_object_path = test_object.get_key_ref();
@@ -322,6 +364,13 @@ bool PerfTestServer::eval_signature_put(uint64_t max_operation_per_second,
     // Wait for the last signature notification to arrive
     std::unique_lock signature_lock(signatures_mutex);
     all_signed_cv.wait(signature_lock, [&]() { return all_signed; });
+    signature_lock.release();
+    // Wait for the last backup notification to arrive
+    if(enable_backup_site) {
+        std::unique_lock backup_lock(backup_mutex);
+        all_backed_up_cv.wait(backup_lock, [&](){ return all_backed_up; });
+    }
+
     // Unsubscribe from signature notifications, so that the next iteration of the test won't subscribe again for the same keys
     dbg_default_info("eval_signature_put: Finished, unsubscribing from notifications");
     for(const auto& test_object : objects) {

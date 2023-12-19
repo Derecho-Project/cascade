@@ -776,7 +776,14 @@ SignatureCascadeStore<KT, VT, IK, IV, ST>::SignatureCascadeStore(
           persistent_core(pr, true),  // enable signatures
           data_to_hash_version(pr, false),
           cascade_watcher_ptr(cw),
-          cascade_context_ptr(cc) {}
+          cascade_context_ptr(cc) {
+    if(backup_enabled && !is_primary_site) {
+        remote_client_init_thread = std::thread([this]() {
+            tcp::connection_listener server_socket(derecho::getConfUInt16(CASCADE_REMOTE_CLIENT_PORT));
+            remote_client_socket = std::make_unique<tcp::socket>(server_socket.accept());
+        });
+    }
+}
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 SignatureCascadeStore<KT, VT, IK, IV, ST>::SignatureCascadeStore(
@@ -797,7 +804,14 @@ SignatureCascadeStore<KT, VT, IK, IV, ST>::SignatureCascadeStore(
           backup_ack_table(std::move(deserialized_ack_table)),
           wanagent_message_ids(std::move(deserialized_wanagent_message_ids)),
           cascade_watcher_ptr(cw),
-          cascade_context_ptr(cc) {}
+          cascade_context_ptr(cc) {
+    if(backup_enabled && !is_primary_site) {
+        remote_client_init_thread = std::thread([this]() {
+            tcp::connection_listener server_socket(derecho::getConfUInt16(CASCADE_REMOTE_CLIENT_PORT));
+            remote_client_socket = std::make_unique<tcp::socket>(server_socket.accept());
+        });
+    }
+}
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 SignatureCascadeStore<KT, VT, IK, IV, ST>::SignatureCascadeStore()
@@ -1070,6 +1084,22 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::send_to_wan_agent(persistent::ve
     derecho::Replicated<SignatureCascadeStore>& subgroup_handle = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index);
     subgroup_handle.template ordered_send<RPC_NAME(record_wan_message_id)>(
             message_num, object_plus_signature.get_key_ref(), hash_object_version, data_object_version);
+    debug_leave_func();
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+void SignatureCascadeStore<KT, VT, IK, IV, ST>::send_remote_client_notification(const KT& key, persistent::version_t data_object_version,
+                                                                                uint64_t evaluation_message_id) {
+    debug_enter_func_with_args("key={}, data_object_version={}, message_id={}", key, data_object_version, evaluation_message_id);
+    std::size_t message_size = mutils::bytes_size(data_object_version)
+                               + mutils::bytes_size(evaluation_message_id);
+    std::unique_ptr<uint8_t[]> message_buffer = std::make_unique<uint8_t[]>(message_size);
+    std::size_t message_offset = 0;
+    message_offset += mutils::to_bytes(evaluation_message_id, message_buffer.get() + message_offset);
+    message_offset += mutils::to_bytes(data_object_version, message_buffer.get() + message_offset);
+    if(remote_client_socket) {
+        remote_client_socket->write(message_buffer.get(), message_size);
+    }
     debug_leave_func();
 }
 

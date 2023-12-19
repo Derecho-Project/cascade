@@ -15,6 +15,8 @@ namespace cascade {
 #define PERFTEST_PORT               (18720)
 #define INVALID_SUBGROUP_INDEX      (std::numeric_limits<uint32_t>::max())
 #define INVALID_SHARD_INDEX         (std::numeric_limits<uint32_t>::max())
+// A conf file string only used on the perftest client, to tell it which server to contact on the backup site
+#define CASCADE_BACKUP_SITE_IP      "CASCADE/backup_site_ip"
 
 class PerfTestServer {
 public:
