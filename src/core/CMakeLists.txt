@@ -6,7 +6,5 @@ target_include_directories(core
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_DIR}>
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
-    INTERFACE
-    $<BUILD_INTERFACE:derecho::derecho>
 )
 target_link_libraries(core PUBLIC derecho::derecho)
