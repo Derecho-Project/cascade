@@ -1,5 +1,3 @@
-find_program(DOTNET_CMD dotnet)
-
 if (DOTNET_CMD)
     execute_process(COMMAND ${DOTNET_CMD} --version OUTPUT_VARIABLE DOTNET_VER OUTPUT_STRIP_TRAILING_WHITESPACE)
     execute_process(COMMAND bash "-c" "echo ${DOTNET_VER} | sed 's/\\./ /g' | awk '{print $1}'" OUTPUT_VARIABLE DOTNET_MAJOR_VER OUTPUT_STRIP_TRAILING_WHITESPACE)
