@@ -115,7 +115,7 @@ set_target_properties(cascade PROPERTIES
     SOVERSION ${cascade_VERSION}
     VERSION ${cascade_build_VERSION}
 )
-add_dependencies(cascade core)
+add_dependencies(cascade core service utils)
 #    utils core)
 
 # make install
