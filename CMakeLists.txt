@@ -58,6 +58,9 @@ if(Hyperscan_FOUND)
     include_directories(${Hyperscan_INCLUDE_DIRS})
 endif()
 
+# dotnet
+find_program(DOTNET_CMD dotnet)
+
 # detect libwsong library, which is required for the mproc feature
 find_package(libwsong QUIET)
 if (libwsong_FOUND)
@@ -101,6 +104,7 @@ add_library(cascade SHARED
 #    $<TARGET_OBJECTS:utils>)
 
 target_link_libraries(cascade
+    PUBLIC
     derecho::derecho
     spdlog::spdlog
     mutils::mutils
