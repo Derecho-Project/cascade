@@ -81,7 +81,7 @@ mkdir ${build_path}
 cd ${build_path}
 cmake ${cmake_defs} ..
 NPROC=`nproc`
-if [ $NRPOC -lt 2 ]; then
+if [ $NPROC -lt 2 ]; then
     NPROC=2
 fi
 make -j `expr $NPROC - 1` 2>err.log
