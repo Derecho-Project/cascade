@@ -6,6 +6,8 @@ project(notification_udl CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+find_package(cascade CONFIG REQUIRED)
+
 add_library(notification_udl SHARED notification_udl.cpp)
 target_include_directories(notification_udl PRIVATE
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
@@ -13,6 +15,7 @@ target_include_directories(notification_udl PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
 )
+target_link_libraries(notification_udl derecho::cascade)
 add_custom_command(TARGET notification_udl POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/cfg
         ${CMAKE_CURRENT_BINARY_DIR}/cfg
