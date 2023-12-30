@@ -17,10 +17,6 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -Wall --ggdb -gdwarf-3 -
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Wall -DEVALUATION -fcompare-debug-second")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -Wall -ggdb -gdwarf-3")
 
-find_package(nlohmann_json 3.2.0 REQUIRED)
-find_package(OpenSSL REQUIRED)
-find_package(spdlog 1.3.1 REQUIRED)
-find_package(derecho CONFIG REQUIRED)
 find_package(cascade CONFIG REQUIRED)
 
 include(CheckIncludeFileCXX)
