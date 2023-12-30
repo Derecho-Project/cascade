@@ -14,7 +14,7 @@ set(python_udl_VERSION 1.0)
 # find_package(spdlog 1.3.1 REQUIRED)
 # find_package(derecho CONFIG REQUIRED)
 # find_package(cascade CONFIG REQUIRED)
-find_package(Python3 3.10.0 REQUIRED COMPONENTS Interpreter Development Development.Module Development.Embed NumPy QUIET)
+find_package(Python3 3.10.0 QUIET COMPONENTS Interpreter Development Development.Module Development.Embed NumPy)
 
 if (Python3_FOUND)
 
