@@ -812,6 +812,8 @@ ssize_t find_command(const std::vector<command_entry_t>& command_list, const std
 }
 
 
+inline bool do_command(ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens);
+
 bool shell_is_active = true;
 #define SUBGROUP_TYPE_LIST "VCSS|PCSS|TCSS"
 #define SHARD_MEMBER_SELECTION_POLICY_LIST "FirstMember|LastMember|Random|FixedRandom|RoundRobin|KeyHashing|UserSpecified"
@@ -850,6 +852,29 @@ std::vector<command_entry_t> commands =
         "quit",
         [](ServiceClientAPI&,const std::vector<std::string>& cmd_tokens) {
             shell_is_active = false;
+            return true;
+        }
+    },
+    {
+        "script",
+        "Run a client script composed of command separated by lines",
+        "script <script_file1> [script_File2,script_File3,...]",
+        [](ServiceClientAPI& capi,const std::vector<std::string>& cmd_tokens){
+            CHECK_FORMAT(cmd_tokens,2);
+            for(size_t fidx = 1; fidx < cmd_tokens.size(); fidx++) {
+                std::ifstream iscript(cmd_tokens[fidx]);
+                char command_buffer[4096];
+                while(iscript.getline(command_buffer,4096)) {
+                    std::string cmd_str(command_buffer);
+                    auto tokens = tokenize(cmd_str, " ");
+                    if (tokens[0].at(0) == '#') {
+                        continue;
+                    }
+                    if (do_command(capi, tokenize(cmd_str," ")) == false) {
+                        return false;
+                    }
+                }
+            }
             return true;
         }
     },
@@ -1946,12 +1971,14 @@ std::vector<command_entry_t> commands =
 #endif
 };
 
-inline void do_command(ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+inline bool do_command(ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+    bool ret = false;
     try {
         ssize_t command_index = find_command(commands, cmd_tokens[0]);
         if (command_index>=0) {
             if (commands.at(command_index).handler(capi,cmd_tokens)) {
                 std::cout << "-> Succeeded." << std::endl;
+                ret = true;
             } else {
                 std::cout << "-> Failed." << std::endl;
             }
@@ -1963,6 +1990,7 @@ inline void do_command(ServiceClientAPI& capi, const std::vector<std::string>& c
     } catch (...) {
         print_red ("Unknown exception caught.");
     }
+    return ret;
 }
 
 void interactive_test(ServiceClientAPI& capi) {
