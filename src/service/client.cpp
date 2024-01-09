@@ -2008,12 +2008,12 @@ void interactive_test(ServiceClientAPI& capi) {
     std::cout << "Client exits." << std::endl;
 }
 
-void detached_test(ServiceClientAPI& capi, int argc, char** argv) {
+bool detached_test(ServiceClientAPI& capi, int argc, char** argv) {
     std::vector<std::string> cmd_tokens;
     for(int i=1;i<argc;i++) {
         cmd_tokens.emplace_back(argv[i]);
     }
-    do_command(capi, cmd_tokens);
+    return do_command(capi, cmd_tokens);
 }
 
 int main(int argc,char** argv) {
@@ -2029,7 +2029,8 @@ int main(int argc,char** argv) {
         // by default, we use the interactive shell.
         interactive_test(capi);
     } else {
-        detached_test(capi,argc,argv);
+        if (!detached_test(capi,argc,argv))
+            return -1;
     }
     return 0;
 }
