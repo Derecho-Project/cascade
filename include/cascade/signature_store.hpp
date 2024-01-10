@@ -113,6 +113,8 @@ private:
     CriticalDataPathObserver<SignatureCascadeStore<KT, VT, IK, IV>>* cascade_watcher_ptr;
     /** Cascade context (off-critical-path manager) */
     ICascadeContext* cascade_context_ptr;
+    /** Flag to tell the remote client thread to stop listening and shut down */
+    std::atomic<bool> thread_shutdown;
     /**
      * The thread that listens for a connection from a remote external client and initializes
      * remote_client_socket. Only runs if this node is on the backup site, and exits after the

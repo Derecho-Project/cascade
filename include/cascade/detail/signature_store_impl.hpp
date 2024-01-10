@@ -776,11 +776,21 @@ SignatureCascadeStore<KT, VT, IK, IV, ST>::SignatureCascadeStore(
           persistent_core(pr, true),  // enable signatures
           data_to_hash_version(pr, false),
           cascade_watcher_ptr(cw),
-          cascade_context_ptr(cc) {
+          cascade_context_ptr(cc),
+          thread_shutdown(false) {
     if(backup_enabled && !is_primary_site) {
         remote_client_init_thread = std::thread([this]() {
             tcp::connection_listener server_socket(derecho::getConfUInt16(CASCADE_REMOTE_CLIENT_PORT));
-            remote_client_socket = std::make_unique<tcp::socket>(server_socket.accept());
+            dbg_default_debug("Listening for a remote client on port {}", derecho::getConfUInt16(CASCADE_REMOTE_CLIENT_PORT));
+            while(!thread_shutdown) {
+                // Return every 1 second to check if thread_shutdown has been set to true
+                std::optional<tcp::socket> client_connection = server_socket.try_accept(1000);
+                if(client_connection) {
+                    remote_client_socket = std::make_unique<tcp::socket>(std::move(*client_connection));
+                    thread_shutdown = true;
+                    dbg_default_debug("Got a remote client connection from {}", remote_client_socket->get_remote_ip());
+                }
+            }
         });
     }
 }
@@ -804,11 +814,21 @@ SignatureCascadeStore<KT, VT, IK, IV, ST>::SignatureCascadeStore(
           backup_ack_table(std::move(deserialized_ack_table)),
           wanagent_message_ids(std::move(deserialized_wanagent_message_ids)),
           cascade_watcher_ptr(cw),
-          cascade_context_ptr(cc) {
+          cascade_context_ptr(cc),
+          thread_shutdown(false) {
     if(backup_enabled && !is_primary_site) {
         remote_client_init_thread = std::thread([this]() {
             tcp::connection_listener server_socket(derecho::getConfUInt16(CASCADE_REMOTE_CLIENT_PORT));
-            remote_client_socket = std::make_unique<tcp::socket>(server_socket.accept());
+            dbg_default_debug("Listening for a remote client on port {}", derecho::getConfUInt16(CASCADE_REMOTE_CLIENT_PORT));
+            while(!thread_shutdown) {
+                // Return every 1 second to check if thread_shutdown has been set to true
+                std::optional<tcp::socket> client_connection = server_socket.try_accept(1000);
+                if(client_connection) {
+                    remote_client_socket = std::make_unique<tcp::socket>(std::move(*client_connection));
+                    thread_shutdown = true;
+                    dbg_default_debug("Got a remote client connection from {}", remote_client_socket->get_remote_ip());
+                }
+            }
         });
     }
 }
@@ -827,10 +847,16 @@ SignatureCascadeStore<KT, VT, IK, IV, ST>::SignatureCascadeStore()
           data_to_hash_version(nullptr),
           wanagent(nullptr),
           cascade_watcher_ptr(nullptr),
-          cascade_context_ptr(nullptr) {}
+          cascade_context_ptr(nullptr),
+          thread_shutdown(false) {}
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-SignatureCascadeStore<KT, VT, IK, IV, ST>::~SignatureCascadeStore() {}
+SignatureCascadeStore<KT, VT, IK, IV, ST>::~SignatureCascadeStore() {
+    thread_shutdown = true;
+    if(remote_client_init_thread.joinable()) {
+        remote_client_init_thread.join();
+    }
+}
 
 /* --- New methods only in SignatureCascadeStore, not copied from PersistentCascadeStore --- */
 
@@ -864,10 +890,12 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::new_view_callback(const View& ne
                 break;
             }
         }
+        dbg_default_debug("Creating WanAgent...");
         wanagent = wan_agent::WanAgent::create(
                 wan_agent_config,
                 [this](const std::map<wan_agent::site_id_t, uint64_t>& ack_table) { wan_stability_callback(ack_table); },
                 [this](uint32_t sender, const uint8_t* msg, size_t size) { wan_message_callback(sender, msg, size); });
+        dbg_default_debug("WanAgent created successfully");
         return;
     }
     // Otherwise, update WanAgent's leader (to equal the shard leader) and determine if this node just became the leader
@@ -1098,6 +1126,7 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::send_remote_client_notification(
     message_offset += mutils::to_bytes(evaluation_message_id, message_buffer.get() + message_offset);
     message_offset += mutils::to_bytes(data_object_version, message_buffer.get() + message_offset);
     if(remote_client_socket) {
+        dbg_default_debug("Sending notification message to client at {}", remote_client_socket->get_remote_ip());
         remote_client_socket->write(message_buffer.get(), message_size);
     }
     debug_leave_func();
