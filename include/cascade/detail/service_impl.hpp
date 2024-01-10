@@ -1724,7 +1724,7 @@ void ServiceClient<CascadeTypes...>::refresh_object_pool_metadata_cache() {
         for (auto& reply : results.get()) { // only once
             for(auto& key: reply.second.get()) { // iterate over keys
                 // we only read the stable version.
-                auto opm_result = this->template get<CascadeMetadataService<CascadeTypes...>>(key,CURRENT_VERSION,true,METADATA_SERVICE_SUBGROUP_INDEX,shard);
+                auto opm_result = this->template get<CascadeMetadataService<CascadeTypes...>>(key,CURRENT_VERSION,false,METADATA_SERVICE_SUBGROUP_INDEX,shard);
                 for (auto& opm_reply:opm_result.get()) { // only once
                     refreshed_metadata.emplace(key,opm_reply.second.get());
                     break;
