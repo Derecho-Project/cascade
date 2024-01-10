@@ -1,3 +1,2 @@
 #cmakedefine Python3_VERSION_MAJOR "@Python3_VERSION_MAJOR@"
 #cmakedefine Python3_VERSION_MINOR "@Python3_VERSION_MINOR@"
-#cmakedefine01 ENABLE_PYTHON_GIL_SWTICH

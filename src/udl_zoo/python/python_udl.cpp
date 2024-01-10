@@ -680,15 +680,23 @@ private:
     }
     /*
      * Emit a key/value pair
-     * TODO: The emit API should use a dict argument for extra metadata like version, timestamp, previous versions, 
-     * message ID etc...
      *
      * The emit python signature:
-     * def emit(key,value):
+     * def emit(key,value,**kwargs):
      *     '''
      *     emit an object to the next stage of the pipeline.
      *     key      -- (string) the key
      *     value    -- (numpy array of any shape) the value of the object
+     *
+     *     optional keys:
+     *     version                  -- (int) the version of the emitted object
+     *     timestamp_us             -- (int) the timestamp of the emitted object, default value is 0.
+     *     previous_version         -- (int) the previous version of the emitted object, default value is INVALID_VERSION
+     *     previous_version_by_key  -- (int) the previous version of the same key of the emitted object, default value is
+     *                                 INVALID_VERSION
+     *     message_id               -- (int) the message id of the key. default value is 0. This id is only valid when
+     *                                 ENABLE_EVALUATION is defined.
+     *
      *
      *     return value is None
      *     '''
@@ -700,7 +708,7 @@ private:
      * @param kwargs
      *
      */
-    static PyObject* emit(PyObject* self, PyObject* args, PyObject*) {
+    static PyObject* emit(PyObject* self, PyObject* args, PyObject* kwargs) {
         /* STEP 1: Raise an assertion exception, in case _emit_func is not set. */
         if (_emit_func == nullptr) {
             Py_INCREF(PyExc_AssertionError);
@@ -711,9 +719,41 @@ private:
         /* STEP 2: Extract the parameters and call _emit_func. */
         char* key = nullptr;
         PyObject* value = nullptr;
-        if (!PyArg_ParseTuple(args,"sO:Emitting to next stage of the pipeline", &key, &value)) {
+        persistent::version_t version = INVALID_VERSION;
+        uint64_t              timestamp_us = 0;
+        persistent::version_t previous_version = INVALID_VERSION;
+        persistent::version_t previous_version_by_key = INVALID_VERSION;
+#ifdef ENABLE_EVALUATION
+        uint64_t              message_id = 0;
+#endif
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wwrite-strings"
+        static char* kwlist[] = {
+                                 "key"
+                                 ,"value"
+                                 ,"version"
+                                 ,"timestamp_us"
+                                 ,"previous_version"
+                                 ,"previous_version_by_key"
+#ifdef ENABLE_EVALUATION
+                                 ,"message_id"
+#endif
+                                 ,nullptr
+                                };
+#pragma GCC diagnostic pop
+        if (!PyArg_ParseTupleAndKeywords(args,kwargs,
+#ifdef ENABLE_EVALUATION
+                                         "sO|LKLLK", kwlist,
+                                         &key, &value, &version, &timestamp_us, &previous_version, &previous_version_by_key, &message_id
+#else
+                                         "sO|LKLL", kwlist,
+                                         &key, &value, &version, &timestamp_us, &previous_version, &previous_version_by_key
+
+#endif
+                    )) {
             return nullptr;
         }
+
         if (!PyArray_Check(value)) {
             PyErr_SetString(PyExc_AssertionError,
                     "The second argument, value, is NOT a NumPy array!");
@@ -723,15 +763,16 @@ private:
         /* STEP 3: Call _emit_func. */
         uint8_t * data = reinterpret_cast<uint8_t*>(PyArray_DATA(ndarray));
         Blob blob_wrapper(data, static_cast<std::size_t>(PyArray_NBYTES(ndarray)), true);
-        (*_emit_func)(std::string(key),
-                      CURRENT_VERSION,  // from version
-                      get_time_us(),    // timestamp
-                      CURRENT_VERSION,  // previous version
-                      CURRENT_VERSION,  // previous version by key
+
+        (*_emit_func)(std::string(key)
+                     ,version
+                     ,timestamp_us
+                     ,previous_version
+                     ,previous_version_by_key
 #ifdef ENABLE_EVALUATION
-                      0,                // Message ID
+                     ,message_id
 #endif
-                      blob_wrapper);
+                     ,blob_wrapper);
         
         Py_RETURN_NONE;
     }
