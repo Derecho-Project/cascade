@@ -21,6 +21,10 @@ set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/Modules")
 
 include(GNUInstallDirs)
 
+if ( NOT DEFINED CMAKE_INSTALL_BINDIR )
+    set( CMAKE_INSTALL_BINDIR bin )
+endif ()
+
 if ( NOT DEFINED CMAKE_INSTALL_LIBDIR )
     set( CMAKE_INSTALL_LIBDIR lib )
 endif ()
