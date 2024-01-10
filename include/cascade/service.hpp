@@ -1359,6 +1359,7 @@ namespace cascade {
 
         /**
          * Object Pool Management API: refresh object pool cache
+         * We load 'unstable' (commited by may not persisted) metadata here.
          */
         void refresh_object_pool_metadata_cache();
 
