@@ -13,7 +13,7 @@ target_include_directories(udl_signature PRIVATE
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
-target_link_libraries(udl_signature derecho::derecho)
+target_link_libraries(udl_signature derecho::derecho wanagent::wanagent)
 set_target_properties(udl_signature PROPERTIES
     PREFIX  _
     OUTPUT_NAME dummy
@@ -41,7 +41,7 @@ target_include_directories(service PRIVATE
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
-target_link_libraries(service derecho::derecho)
+target_link_libraries(service derecho::derecho wanagent::wanagent)
 add_dependencies(service udl_signature)
 
 add_executable(server server.cpp)
@@ -95,7 +95,7 @@ target_include_directories(sha_hash_udl PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
 )
-target_link_libraries(sha_hash_udl derecho::derecho OpenSSL::Crypto)
+target_link_libraries(sha_hash_udl derecho::derecho OpenSSL::Crypto wanagent::wanagent)
 add_dependencies(sha_hash_udl cascade)
 
 # install
