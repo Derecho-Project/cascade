@@ -777,23 +777,8 @@ SignatureCascadeStore<KT, VT, IK, IV, ST>::SignatureCascadeStore(
           data_to_hash_version(pr, false),
           cascade_watcher_ptr(cw),
           cascade_context_ptr(cc),
-          thread_shutdown(false) {
-    if(backup_enabled && !is_primary_site) {
-        remote_client_init_thread = std::thread([this]() {
-            tcp::connection_listener server_socket(derecho::getConfUInt16(CASCADE_REMOTE_CLIENT_PORT));
-            dbg_default_debug("Listening for a remote client on port {}", derecho::getConfUInt16(CASCADE_REMOTE_CLIENT_PORT));
-            while(!thread_shutdown) {
-                // Return every 1 second to check if thread_shutdown has been set to true
-                std::optional<tcp::socket> client_connection = server_socket.try_accept(1000);
-                if(client_connection) {
-                    remote_client_socket = std::make_unique<tcp::socket>(std::move(*client_connection));
-                    thread_shutdown = true;
-                    dbg_default_debug("Got a remote client connection from {}", remote_client_socket->get_remote_ip());
-                }
-            }
-        });
-    }
-}
+          thread_shutdown(false),
+          thread_started(false) {}
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 SignatureCascadeStore<KT, VT, IK, IV, ST>::SignatureCascadeStore(
@@ -815,23 +800,8 @@ SignatureCascadeStore<KT, VT, IK, IV, ST>::SignatureCascadeStore(
           wanagent_message_ids(std::move(deserialized_wanagent_message_ids)),
           cascade_watcher_ptr(cw),
           cascade_context_ptr(cc),
-          thread_shutdown(false) {
-    if(backup_enabled && !is_primary_site) {
-        remote_client_init_thread = std::thread([this]() {
-            tcp::connection_listener server_socket(derecho::getConfUInt16(CASCADE_REMOTE_CLIENT_PORT));
-            dbg_default_debug("Listening for a remote client on port {}", derecho::getConfUInt16(CASCADE_REMOTE_CLIENT_PORT));
-            while(!thread_shutdown) {
-                // Return every 1 second to check if thread_shutdown has been set to true
-                std::optional<tcp::socket> client_connection = server_socket.try_accept(1000);
-                if(client_connection) {
-                    remote_client_socket = std::make_unique<tcp::socket>(std::move(*client_connection));
-                    thread_shutdown = true;
-                    dbg_default_debug("Got a remote client connection from {}", remote_client_socket->get_remote_ip());
-                }
-            }
-        });
-    }
-}
+          thread_shutdown(false),
+          thread_started(false) {}
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 SignatureCascadeStore<KT, VT, IK, IV, ST>::SignatureCascadeStore()
@@ -848,7 +818,8 @@ SignatureCascadeStore<KT, VT, IK, IV, ST>::SignatureCascadeStore()
           wanagent(nullptr),
           cascade_watcher_ptr(nullptr),
           cascade_context_ptr(nullptr),
-          thread_shutdown(false) {}
+          thread_shutdown(false),
+          thread_started(false) {}
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 SignatureCascadeStore<KT, VT, IK, IV, ST>::~SignatureCascadeStore() {
@@ -864,6 +835,23 @@ template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void SignatureCascadeStore<KT, VT, IK, IV, ST>::new_view_callback(const View& new_view) {
     if(!backup_enabled) {
         return;
+    }
+    // If this is the very first new-view callback, start the remote-client listening thread
+    if(!is_primary_site && !thread_started) {
+        remote_client_init_thread = std::thread([this]() {
+            thread_started = true;
+            tcp::connection_listener server_socket(derecho::getConfUInt16(CASCADE_REMOTE_CLIENT_PORT));
+            dbg_default_debug("Listening for a remote client on port {}", derecho::getConfUInt16(CASCADE_REMOTE_CLIENT_PORT));
+            while(!thread_shutdown) {
+                // Return every 1 second to check if thread_shutdown has been set to true
+                std::optional<tcp::socket> client_connection = server_socket.try_accept(1000);
+                if(client_connection) {
+                    remote_client_socket = std::make_unique<tcp::socket>(std::move(*client_connection));
+                    thread_shutdown = true;
+                    dbg_default_debug("Got a remote client connection from {}", remote_client_socket->get_remote_ip());
+                }
+            }
+        });
     }
     uint32_t my_shard_num = new_view.my_subgroups.at(subgroup_id);
     const SubView& my_shard_view = new_view.subgroup_shard_views.at(subgroup_id).at(my_shard_num);

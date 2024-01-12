@@ -115,6 +115,8 @@ private:
     ICascadeContext* cascade_context_ptr;
     /** Flag to tell the remote client thread to stop listening and shut down */
     std::atomic<bool> thread_shutdown;
+    /** Flag to indicate when the remote client thread has started, so it's only created once */
+    std::atomic<bool> thread_started;
     /**
      * The thread that listens for a connection from a remote external client and initializes
      * remote_client_socket. Only runs if this node is on the backup site, and exits after the
@@ -239,6 +241,13 @@ public:
      * shard leader changed in the new view. In the very first new-view callback,
      * this also creates the WanAgent (the WanAgent can't be created until we know
      * the initial view).
+     *
+     * If this node is on the backup site and the remote-client listening thread
+     * hasn't been started, this callback starts it. Note that the thread can't be
+     * started in a constructor because a new copy of this replicated object might
+     * need to replace an existing copy (during state transfer), in which case we
+     * need to wait for the old object to be destroyed before starting the new
+     * object's thread.
      *
      * @param new_view The View installed by Derecho
      */
@@ -459,6 +468,8 @@ public:
                           ICascadeContext* context = nullptr);
     // Dummy constructor needed by client_stub_factory
     SignatureCascadeStore();
+    // Make sure this doesn't get copied
+    SignatureCascadeStore(const SignatureCascadeStore&) = delete;
 
     virtual ~SignatureCascadeStore();
 };
