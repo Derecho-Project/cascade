@@ -262,21 +262,35 @@ bool PerfTestServer::eval_signature_put(uint64_t max_operation_per_second,
                 dbg_default_debug("All puts complete, last version is {}", last_put_version);
             });
 
+    // Connect to the backup site in the main thread, ensuring the connection completes before continuing
+    std::unique_ptr<tcp::socket> backup_site_connection;
+    if(enable_backup_site) {
+        backup_site_connection = std::make_unique<tcp::socket>(backup_site_node_ip, backup_site_port);
+        dbg_default_info("eval_signature_put: Connected to backup site at {}:{}", backup_site_node_ip, backup_site_port);
+    }
+
     // Thread that listens for signature-finished notifications from the backup site
     std::thread backup_notifications_thread(
             [&]() {
                 if(!enable_backup_site)
                     return;
 
-                tcp::socket backup_site_connection(backup_site_node_ip, backup_site_port);
-                dbg_default_info("eval_signature_put: Connected to backup site at {}:{}", backup_site_node_ip, backup_site_port);
                 while(!all_backed_up) {
                     // Each message contains the version number and message ID
                     uint64_t message_id;
                     persistent::version_t data_object_version;
                     std::size_t message_size = sizeof(uint64_t) + sizeof(persistent::version_t);
                     uint8_t message_buffer[message_size];
-                    backup_site_connection.read(message_buffer, message_size);
+                    try  {
+                        backup_site_connection->read(message_buffer, message_size);
+                    } catch (tcp::socket_error& ex) {
+                        dbg_default_error("Lost connection to backup site! Socket error: {}", ex.what());
+                        dbg_default_info("eval_signature_put: Attempting to reconnect to backup site");
+                        backup_site_connection = std::make_unique<tcp::socket>(backup_site_node_ip, backup_site_port);
+                        dbg_default_info("eval_signature_put: Connected to backup site at {}:{}", backup_site_node_ip, backup_site_port);
+                        // Loop to try the read again
+                        continue;
+                    }
                     // Record the time once read completes
                     uint64_t now_timestamp = get_walltime();
                     std::memcpy(&message_id, message_buffer, sizeof(message_id));

@@ -122,7 +122,7 @@ private:
      * remote_client_socket. Only runs if this node is on the backup site, and exits after the
      * client connects.
      */
-    std::thread remote_client_init_thread;
+    std::thread remote_client_listen_thread;
 
     version_tuple internal_ordered_put(const VT& value);
     /**

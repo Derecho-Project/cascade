@@ -833,8 +833,8 @@ SignatureCascadeStore<KT, VT, IK, IV, ST>::SignatureCascadeStore()
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 SignatureCascadeStore<KT, VT, IK, IV, ST>::~SignatureCascadeStore() {
     thread_shutdown = true;
-    if(remote_client_init_thread.joinable()) {
-        remote_client_init_thread.join();
+    if(remote_client_listen_thread.joinable()) {
+        remote_client_listen_thread.join();
     }
 }
 
@@ -847,7 +847,7 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::new_view_callback(const View& ne
     }
     // If this is the very first new-view callback, start the remote-client listening thread
     if(!is_primary_site && !thread_started) {
-        remote_client_init_thread = std::thread([this]() {
+        remote_client_listen_thread = std::thread([this]() {
             thread_started = true;
             tcp::connection_listener server_socket(derecho::getConfUInt16(CASCADE_REMOTE_CLIENT_PORT));
             dbg_default_debug("Listening for a remote client on port {}", derecho::getConfUInt16(CASCADE_REMOTE_CLIENT_PORT));
@@ -855,9 +855,11 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::new_view_callback(const View& ne
                 // Return every 1 second to check if thread_shutdown has been set to true
                 std::optional<tcp::socket> client_connection = server_socket.try_accept(1000);
                 if(client_connection) {
-                    remote_client_socket = std::make_unique<tcp::socket>(std::move(*client_connection));
-                    thread_shutdown = true;
                     dbg_default_debug("Got a remote client connection from {}", remote_client_socket->get_remote_ip());
+                    if(remote_client_socket) {
+                        dbg_default_debug("WARNING: A remote client is already connected. Closing the old connection to accept the new one.");
+                    }
+                    remote_client_socket = std::make_unique<tcp::socket>(std::move(*client_connection));
                 }
             }
         });
@@ -1124,7 +1126,12 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::send_remote_client_notification(
     message_offset += mutils::to_bytes(data_object_version, message_buffer.get() + message_offset);
     if(remote_client_socket) {
         dbg_default_debug("Sending notification message to client at {}", remote_client_socket->get_remote_ip());
-        remote_client_socket->write(message_buffer.get(), message_size);
+        try {
+            remote_client_socket->write(message_buffer.get(), message_size);
+        } catch (tcp::socket_error& ex) {
+            dbg_default_debug("Lost connection to client at {}. Socket error: {}", remote_client_socket->get_remote_ip(), ex.what());
+            remote_client_socket.reset();
+        }
     }
     debug_leave_func();
 }
