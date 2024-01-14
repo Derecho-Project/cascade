@@ -855,7 +855,7 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::new_view_callback(const View& ne
                 // Return every 1 second to check if thread_shutdown has been set to true
                 std::optional<tcp::socket> client_connection = server_socket.try_accept(1000);
                 if(client_connection) {
-                    dbg_default_debug("Got a remote client connection from {}", remote_client_socket->get_remote_ip());
+                    dbg_default_debug("Got a remote client connection from {}", client_connection->get_remote_ip());
                     if(remote_client_socket) {
                         dbg_default_debug("WARNING: A remote client is already connected. Closing the old connection to accept the new one.");
                     }
