@@ -383,6 +383,7 @@ bool PerfTestServer::eval_signature_put(uint64_t max_operation_per_second,
     if(enable_backup_site) {
         std::unique_lock backup_lock(backup_mutex);
         all_backed_up_cv.wait(backup_lock, [&](){ return all_backed_up; });
+        backup_notifications_thread.join();
     }
 
     // Unsubscribe from signature notifications, so that the next iteration of the test won't subscribe again for the same keys
