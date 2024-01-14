@@ -834,6 +834,8 @@ template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 SignatureCascadeStore<KT, VT, IK, IV, ST>::~SignatureCascadeStore() {
     thread_shutdown = true;
     if(remote_client_listen_thread.joinable()) {
+        // Same workaround as in view_manager: Open a loopback connection so the blocking accept() will return
+        tcp::socket dummy_connection("localhost", derecho::getConfUInt16(CASCADE_REMOTE_CLIENT_PORT));
         remote_client_listen_thread.join();
     }
 }
@@ -852,14 +854,15 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::new_view_callback(const View& ne
             tcp::connection_listener server_socket(derecho::getConfUInt16(CASCADE_REMOTE_CLIENT_PORT));
             dbg_default_debug("Listening for a remote client on port {}", derecho::getConfUInt16(CASCADE_REMOTE_CLIENT_PORT));
             while(!thread_shutdown) {
-                // Return every 1 second to check if thread_shutdown has been set to true
-                std::optional<tcp::socket> client_connection = server_socket.try_accept(1000);
-                if(client_connection) {
-                    dbg_default_debug("Got a remote client connection from {}", client_connection->get_remote_ip());
+                try {
+                    tcp::socket client_connection = server_socket.accept();
+                    dbg_default_debug("Got a remote client connection from {}", client_connection.get_remote_ip());
                     if(remote_client_socket) {
                         dbg_default_debug("WARNING: A remote client is already connected. Closing the old connection to accept the new one.");
                     }
-                    remote_client_socket = std::make_unique<tcp::socket>(std::move(*client_connection));
+                    remote_client_socket = std::make_unique<tcp::socket>(std::move(client_connection));
+                } catch(tcp::connection_failure& ex) {
+                    dbg_default_warn("Connection failure when attempting to accept a remote client connection. what(): ", ex.what());
                 }
             }
         });
