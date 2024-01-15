@@ -1256,6 +1256,31 @@ std::vector<command_entry_t> commands =
         }
     },
     {
+        "op_get_file",
+        "Get an object from an object pool (by version.) and save it to file.",
+        "op_get_file <file> <key> <stable> [ version(default:current version) ]\n"
+            "stable := 0|1  using stable data or not.\n"
+            "Please note that cascade automatically decides the object pool path using the key's prefix.",
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+            CHECK_FORMAT(cmd_tokens,4);
+            bool stable = static_cast<bool>(std::stoi(cmd_tokens[3],nullptr,0));
+            persistent::version_t version = CURRENT_VERSION;
+            if (cmd_tokens.size() >= 5) {
+                version = static_cast<persistent::version_t>(std::stol(cmd_tokens[4],nullptr,0));
+            }
+            auto res = capi.get(cmd_tokens[2],version,stable);
+            for (auto& reply_future:res.get()) {\
+                auto reply = reply_future.second.get();\
+                std::cout << "node(" << reply_future.first << ") replied with value:" << reply << std::endl;\
+                // write blob to file
+                std::ofstream of(cmd_tokens[1]);
+                of.write(reinterpret_cast<const char*>(reply.blob.bytes),reply.blob.size);
+                of.close();
+            }
+            return true;
+        }
+    },
+    {
         "get_by_time",
         "Get an object (by timestamp in microseconds).",
         "get_by_time <type> <key> <subgroup_index> <shard_index> <timestamp in us> <stable>\n"
