@@ -36,11 +36,11 @@ add_custom_command(TARGET udl_signature POST_BUILD
 )
 
 if (ENABLE_MPROC)
-add_library(service OBJECT 
+add_library(service OBJECT
     service.cpp data_flow_graph.cpp _user_defined_logic_interface.cpp
     mproc/mproc_manager_client.cpp)
 else ()
-add_library(service OBJECT 
+add_library(service OBJECT
     service.cpp data_flow_graph.cpp _user_defined_logic_interface.cpp)
 endif()
 target_include_directories(service PRIVATE
@@ -93,20 +93,6 @@ if(ENABLE_EVALUATION)
     target_link_libraries(client rpclib::rpc)
 endif()
 set_target_properties(client PROPERTIES OUTPUT_NAME cascade_client)
-
-# add_executable(chain_client chain_client.cpp perftest.cpp)
-# target_include_directories(chain_client PRIVATE
-#     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
-#     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
-#     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-#     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
-# )
-# target_link_libraries(chain_client cascade ${Readline_LIBRARIES})
-# if(ENABLE_EVALUATION)
-#     target_link_libraries(chain_client rpclib::rpc)
-# endif()
-# set_target_properties(chain_client PROPERTIES OUTPUT_NAME cascadechain_client)
-
 
 add_library(sha_hash_udl SHARED sha_hash_udl.cpp)
 target_include_directories(sha_hash_udl PRIVATE

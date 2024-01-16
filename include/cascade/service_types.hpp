@@ -66,13 +66,5 @@ inline DefaultObjectPoolMetadataType create_null_object_cb<
     return opm;
 }
 
-// Specializations for CascadeChain, if we decide to make it a different type of service from the default
-// For now, these will not be used, and we'll just add SignatureCascadeStore to the default service
-using ChainServiceType = Service<PersistentCascadeStoreWithStringKey,
-                                 SignatureCascadeStoreWithStringKey>;
-
-using ChainContextType = CascadeContext<PersistentCascadeStoreWithStringKey,
-                                        SignatureCascadeStoreWithStringKey>;
-
 } // namespace cascade
 } // namespace derecho
