@@ -79,7 +79,7 @@ public:
         }
     }
 
-private:    
+private:
     /* request type to python thread */
     struct python_request_t {
         enum {
@@ -343,7 +343,7 @@ public:
                             dbg_default_trace("{}:{} calling the handler.", __FILE__,__LINE__);
                             PyObject* ret = PyObject_Call(req.request.execute_ocdpo.handler_ptr,targs,kwargs);
                             if (ret == nullptr) {
-                                dbg_default_error("Exception raised in user application. {}:{}", 
+                                dbg_default_error("Exception raised in user application. {}:{}",
                                         __FILE__,__LINE__);
                                 PyErr_Print();
                                 res.success = false;
@@ -351,7 +351,7 @@ public:
                             } else {
                                 Py_DECREF(ret);
                             }
-                    
+
                             Py_DECREF(kwargs);
 #ifdef  ENABLE_EVALUATION
                             Py_DECREF(py_message_id);
@@ -366,7 +366,7 @@ public:
                             Py_DECREF(py_pathname);
                             Py_DECREF(py_sender);
                             Py_DECREF(targs);
-                   
+
                             res.success = true;
                             dbg_default_trace("{}:{} User processing function returned.", __FILE__,__LINE__);
                         }
@@ -408,9 +408,9 @@ public:
                             if (conf_ptr->contains(PYUDL_CONF_ENTRY_CLASS)) {
                                 std::string class_name = (*conf_ptr)[PYUDL_CONF_ENTRY_CLASS].get<std::string>();
                                 dbg_default_trace("{}:{} create python handler object from class:{}",__FILE__,__LINE__,class_name);
-                        
+
                                 // we assure py_module will be valid because STEP 2 succeeded.
-                                auto py_module = PythonOCDPO::get_module(module_name.c_str()); 
+                                auto py_module = PythonOCDPO::get_module(module_name.c_str());
                                 auto entry_class_type = PyObject_GetAttrString(py_module,class_name.c_str());
                                 if (entry_class_type == nullptr || !PyType_Check(entry_class_type)) {
                                     dbg_default_error("Failed loading python udl entry class:{}.{}. {}:{}",
@@ -419,7 +419,7 @@ public:
                                     res.success = false;
                                     break;
                                 }
-                        
+
                                 // test if entry_class_type is a subclass of Type UserDefinedLogical.
                                 if (!PythonOCDPO::is_valid_observer_type(reinterpret_cast<PyTypeObject*>(entry_class_type))) {
                                     dbg_default_error("Error: {} is not a subclass of derecho.cascade.udl.UserDefinedLogic. {}:{}",
@@ -427,7 +427,7 @@ public:
                                     res.success = false;
                                     break;
                                 }
-                                
+
                                 // create object
                                 std::string conf_str = to_string(*conf_ptr);
                                 auto conf_arg = Py_BuildValue("s",conf_str.c_str());
@@ -441,7 +441,7 @@ public:
                                 auto pargs = PyTuple_New(1);
                                 PyTuple_SetItem(pargs,0,conf_arg);
                                 python_ocdpo = PyObject_Call(entry_class_type,pargs,nullptr);
-                        
+
                                 Py_DECREF(pargs);
                                 // Py_DECREF(conf_arg); <-- don't do this: conf_arg has been 'stolen' by PyTuple_SetItem()
                                 if (python_ocdpo == nullptr) {
@@ -473,13 +473,13 @@ public:
                                 break;
                             }
                             dbg_default_trace("{}:{} ocdpo handler method is created @{:p}", __FILE__,__LINE__,static_cast<void*>(python_ocdpo_handler));
-                        
+
                             res.ocdpo = std::make_shared<PythonOCDPO>(python_ocdpo,python_ocdpo_handler,dynamic_cast<DefaultCascadeContextType*>(ctxt));
                             res.success = true;
                         }
                         break;
                     }
-                    
+
                     dbg_default_trace("{}:{} [PYTHON] Finished processing request (type:{} sequence:{}), response.success={}",
                             __FILE__,__LINE__,req.type,req.sequence_num,res.success);
 
@@ -719,10 +719,10 @@ private:
         /* STEP 2: Extract the parameters and call _emit_func. */
         char* key = nullptr;
         PyObject* value = nullptr;
-        persistent::version_t version = INVALID_VERSION;
+        persistent::version_t version = persistent::INVALID_VERSION;
         uint64_t              timestamp_us = 0;
-        persistent::version_t previous_version = INVALID_VERSION;
-        persistent::version_t previous_version_by_key = INVALID_VERSION;
+        persistent::version_t previous_version = persistent::INVALID_VERSION;
+        persistent::version_t previous_version_by_key = persistent::INVALID_VERSION;
 #ifdef ENABLE_EVALUATION
         uint64_t              message_id = 0;
 #endif
@@ -773,7 +773,7 @@ private:
                      ,message_id
 #endif
                      ,blob_wrapper);
-        
+
         Py_RETURN_NONE;
     }
 
@@ -819,14 +819,14 @@ PyModuleDef PythonOCDPO::context_module      = {
     nullptr, nullptr, nullptr, nullptr
 };
 
-/* 
- * This will only be called once 
+/*
+ * This will only be called once
  */
 void initialize(ICascadeContext* ctxt) {
     PythonOCDPO::initialize();
 }
 
-/* 
+/*
  * This will be called for each UDL(PythonOCDPO) instance.
  */
 std::shared_ptr<OffCriticalDataPathObserver> get_observer(
