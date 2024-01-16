@@ -5,6 +5,10 @@
         "graph": [
             {
                 "pathname": "/pool0",
+                "execution_environment": [
+                    {"mode":"pthread"},
+                    {"mode":"process","shared_space_size":"2M"}
+                ],
                 "user_defined_logic_list": [
                     "4e4ecc86-9b3c-11eb-b70c-0242ac110002",
                     "4f0373a2-9b3c-11eb-a651-0242ac110002"

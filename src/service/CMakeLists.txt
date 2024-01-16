@@ -35,7 +35,14 @@ add_custom_command(TARGET udl_signature POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/udl_signature.hpp ${CMAKE_BINARY_DIR}/include/cascade/detail/udl_signature.hpp
 )
 
-add_library(service OBJECT service.cpp data_flow_graph.cpp _user_defined_logic_interface.cpp)
+if (ENABLE_MPROC)
+add_library(service OBJECT 
+    service.cpp data_flow_graph.cpp _user_defined_logic_interface.cpp
+    mproc/mproc_manager_client.cpp)
+else ()
+add_library(service OBJECT 
+    service.cpp data_flow_graph.cpp _user_defined_logic_interface.cpp)
+endif()
 target_include_directories(service PRIVATE
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
@@ -43,6 +50,18 @@ target_include_directories(service PRIVATE
 )
 target_link_libraries(service derecho::derecho wanagent::wanagent)
 add_dependencies(service udl_signature)
+
+if (ENABLE_MPROC)
+add_executable(mproc_manager mproc/mproc_manager.cpp)
+target_include_directories(mproc_manager PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
+)
+target_link_libraries(mproc_manager rpclib::rpc dl pthread)
+set_target_properties(mproc_manager PROPERTIES OUTPUT_NAME cascade_mproc_manager)
+endif()
 
 add_executable(server server.cpp)
 target_include_directories(server PRIVATE
@@ -52,6 +71,7 @@ target_include_directories(server PRIVATE
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
 )
 target_link_libraries(server cascade dl pthread)
+target_link_options(server PUBLIC -rdynamic)
 set_target_properties(server PROPERTIES OUTPUT_NAME cascade_server)
 add_custom_command(TARGET server POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/cfg

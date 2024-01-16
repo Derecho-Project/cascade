@@ -40,7 +40,7 @@ Service<CascadeTypes...>::Service(const std::vector<DeserializationContext*>& ds
     // STEP 1 - load configuration
     derecho::SubgroupInfo si{derecho::make_subgroup_allocator<CascadeMetadataService<CascadeTypes...>,CascadeTypes...>()};
     // STEP 2 - setup cascade context
-    context = std::make_unique<CascadeContext<CascadeTypes...>>();
+    context = std::make_unique<ExecutionEngine<CascadeTypes...>>();
     std::vector<DeserializationContext*> new_dsms(dsms);
     new_dsms.emplace_back(context.get());
     // STEP 3 - create derecho group
@@ -2105,11 +2105,11 @@ void ServiceClient<CascadeTypes...>::refresh_object_pool_metadata_cache() {
     std::unordered_map<std::string,ObjectPoolMetadataCacheEntry> refreshed_metadata;
     uint32_t num_shards = this->template get_number_of_shards<CascadeMetadataService<CascadeTypes...>>(METADATA_SERVICE_SUBGROUP_INDEX);
     for(uint32_t shard=0;shard<num_shards;shard++) {
-        auto results = this->template list_keys<CascadeMetadataService<CascadeTypes...>>(CURRENT_VERSION,true,METADATA_SERVICE_SUBGROUP_INDEX,shard);
+        auto results = this->template multi_list_keys<CascadeMetadataService<CascadeTypes...>>(METADATA_SERVICE_SUBGROUP_INDEX,shard);
         for (auto& reply : results.get()) { // only once
             for(auto& key: reply.second.get()) { // iterate over keys
                 // we only read the stable version.
-                auto opm_result = this->template get<CascadeMetadataService<CascadeTypes...>>(key,CURRENT_VERSION,true,METADATA_SERVICE_SUBGROUP_INDEX,shard);
+                auto opm_result = this->template get<CascadeMetadataService<CascadeTypes...>>(key,CURRENT_VERSION,false,METADATA_SERVICE_SUBGROUP_INDEX,shard);
                 for (auto& opm_reply:opm_result.get()) { // only once
                     refreshed_metadata.emplace(key,opm_reply.second.get());
                     break;
@@ -2602,14 +2602,15 @@ ServiceClient<CascadeTypes...>& ServiceClient<CascadeTypes...>::get_service_clie
 #endif//__WITHOUT_SERVICE_SINGLETONS__
 
 template <typename... CascadeTypes>
-CascadeContext<CascadeTypes...>::CascadeContext() : persistence_observer(std::make_unique<PersistenceObserver>()) {
+ExecutionEngine<CascadeTypes...>::ExecutionEngine()
+        : persistence_observer(std::make_unique<PersistenceObserver>()) {
     stateless_action_queue_for_multicast.initialize();
     stateless_action_queue_for_p2p.initialize();
     prefix_registry_ptr = std::make_shared<PrefixRegistry<prefix_entry_t, PATH_SEPARATOR>>();
 }
 
 template <typename... CascadeTypes>
-void CascadeContext<CascadeTypes...>::construct() {
+void ExecutionEngine<CascadeTypes...>::construct() {
     // 1 - create data path logic loader and register the prefixes. Ideally, this part should be done in the control
     // plane, where a centralized controller should issue the control messages to do load/unload.
     // TODO: implement the control plane.
@@ -2618,18 +2619,44 @@ void CascadeContext<CascadeTypes...>::construct() {
     for (auto& dfg:dfgs) {
         for (auto& vertex:dfg.vertices) {
             for (uint32_t i=0; i<vertex.second.uuids.size(); i++) {
-                register_prefixes(
-                    dfg.id,
-                    {vertex.second.pathname},
-                    vertex.second.shard_dispatchers[i],
-                    vertex.second.stateful[i],
-                    vertex.second.hooks[i],
-                    vertex.second.uuids[i],
-                    vertex.second.configurations[i].dump(),
-                    user_defined_logic_manager->get_observer(
+                if (vertex.second.execution_environment[i] == DataFlowGraph::VertexExecutionEnvironment::PTHREAD) {
+                    // runs inside cascade address space: less secure but faster.
+                    register_prefixes(
+                        dfg.id,
+                        {vertex.second.pathname},
+                        vertex.second.shard_dispatchers[i],
+                        vertex.second.execution_environment[i],
+                        vertex.second.execution_environment_conf[i].dump(),
+                        vertex.second.stateful[i],
+                        vertex.second.hooks[i],
                         vertex.second.uuids[i],
-                        vertex.second.configurations[i]),
-                    vertex.second.edges[i]);
+                        vertex.second.configurations[i].dump(),
+                        user_defined_logic_manager->get_observer(
+                            vertex.second.uuids[i],
+                            vertex.second.configurations[i]),
+                        vertex.second.edges[i]);
+                } else {
+#ifdef ENABLE_MPROC
+                    // runs inside a different address space: with a little overhead but more secure.
+                    // TODO: hardwired UUID for prototyping. Use udl packaing/manager later.
+                    register_prefixes(
+                        dfg.id,
+                        {vertex.second.pathname},
+                        vertex.second.shard_dispatchers[i],
+                        vertex.second.execution_environment[i],
+                        vertex.second.execution_environment_conf[i].dump(),
+                        vertex.second.stateful[i],
+                        vertex.second.hooks[i],
+                        "fb6458a8-60cb-11ee-b058-0242ac110003", //vertex.second.uuids[i],
+                        vertex.second.configurations[i].dump(),
+                        user_defined_logic_manager->get_observer(
+                            "fb6458a8-60cb-11ee-b058-0242ac110003",
+                            vertex.second.configurations[i]),
+                        vertex.second.edges[i]);
+#else
+                    throw derecho_exception("MPROC is disabled, which is required by execution environment other than PTHREAD");
+#endif
+                }
             }
         }
     }
@@ -2644,7 +2671,7 @@ void CascadeContext<CascadeTypes...>::construct() {
         num_stateless_multicast_workers = derecho::getConfUInt32(CASCADE_CONTEXT_NUM_STATELESS_WORKERS_MULTICAST);
     }
     for (uint32_t i=0;i<num_stateless_multicast_workers;i++) {
-        // off_critical_data_path_thread_pool.emplace_back(std::thread(&CascadeContext<CascadeTypes...>::workhorse,this,i));
+        // off_critical_data_path_thread_pool.emplace_back(std::thread(&ExecutionEngine<CascadeTypes...>::workhorse,this,i));
         stateless_workhorses_for_multicast.emplace_back(
             [this,i](){
                 // set cpu affinity
@@ -2670,7 +2697,7 @@ void CascadeContext<CascadeTypes...>::construct() {
         num_stateless_p2p_workers = derecho::getConfUInt32(CASCADE_CONTEXT_NUM_STATELESS_WORKERS_P2P);
     }
     for (uint32_t i=0;i<num_stateless_p2p_workers;i++) {
-        // off_critical_data_path_thread_pool.emplace_back(std::thread(&CascadeContext<CascadeTypes...>::workhorse,this,i));
+        // off_critical_data_path_thread_pool.emplace_back(std::thread(&ExecutionEngine<CascadeTypes...>::workhorse,this,i));
         stateless_workhorses_for_p2p.emplace_back(
             [this,i](){
                 // set cpu affinity
@@ -2769,7 +2796,7 @@ void CascadeContext<CascadeTypes...>::construct() {
 }
 
 template <typename... CascadeTypes>
-void CascadeContext<CascadeTypes...>::workhorse(uint32_t worker_id, struct action_queue& aq) {
+void ExecutionEngine<CascadeTypes...>::workhorse(uint32_t worker_id, struct action_queue& aq) {
     pthread_setname_np(pthread_self(), ("cs_ctxt_t" + std::to_string(worker_id)).c_str());
     dbg_default_trace("Cascade context workhorse[{}] started", worker_id);
     while(is_running) {
@@ -2790,7 +2817,7 @@ void CascadeContext<CascadeTypes...>::workhorse(uint32_t worker_id, struct actio
 }
 
 template <typename... CascadeTypes>
-void CascadeContext<CascadeTypes...>::action_queue::initialize() {
+void ExecutionEngine<CascadeTypes...>::action_queue::initialize() {
     action_buffer_head.store(0);
     action_buffer_tail.store(0);
 }
@@ -2803,7 +2830,7 @@ void CascadeContext<CascadeTypes...>::action_queue::initialize() {
 
 /* There is only one thread that enqueues. */
 template <typename... CascadeTypes>
-void CascadeContext<CascadeTypes...>::action_queue::action_buffer_enqueue(Action&& action) {
+void ExecutionEngine<CascadeTypes...>::action_queue::action_buffer_enqueue(Action&& action) {
     std::unique_lock<std::mutex> lck(action_buffer_slot_mutex);
     while (ACTION_BUFFER_IS_FULL) {
         dbg_default_warn("In {}: Critical data path waits for 10 ms. The action buffer is full! You are sending too fast or the UDL workers are too slow. This can cause a soft deadlock.", __PRETTY_FUNCTION__);
@@ -2817,7 +2844,7 @@ void CascadeContext<CascadeTypes...>::action_queue::action_buffer_enqueue(Action
 
 /* All worker threads dequeues. */
 template <typename... CascadeTypes>
-Action CascadeContext<CascadeTypes...>::action_queue::action_buffer_dequeue(std::atomic<bool>& is_running) {
+Action ExecutionEngine<CascadeTypes...>::action_queue::action_buffer_dequeue(std::atomic<bool>& is_running) {
     std::unique_lock<std::mutex> lck(action_buffer_data_mutex);
     while (ACTION_BUFFER_IS_EMPTY && is_running) {
         action_buffer_data_cv.wait_for(lck,10ms,[this,&is_running]{return (!ACTION_BUFFER_IS_EMPTY) || (!is_running);});
@@ -2835,13 +2862,13 @@ Action CascadeContext<CascadeTypes...>::action_queue::action_buffer_dequeue(std:
 
 /* shutdown the action buffer */
 template <typename... CascadeTypes>
-void CascadeContext<CascadeTypes...>::action_queue::notify_all() {
+void ExecutionEngine<CascadeTypes...>::action_queue::notify_all() {
     action_buffer_data_cv.notify_all();
     action_buffer_slot_cv.notify_all();
 }
 
 template <typename... CascadeTypes>
-void CascadeContext<CascadeTypes...>::destroy() {
+void ExecutionEngine<CascadeTypes...>::destroy() {
     dbg_default_trace("Destroying Cascade context@{:p}.",static_cast<void*>(this));
     is_running.store(false);
     stateless_action_queue_for_multicast.notify_all();
@@ -2886,30 +2913,32 @@ void CascadeContext<CascadeTypes...>::destroy() {
 }
 
 template <typename... CascadeTypes>
-ServiceClient<CascadeTypes...>& CascadeContext<CascadeTypes...>::get_service_client_ref() const {
+ServiceClient<CascadeTypes...>& ExecutionEngine<CascadeTypes...>::get_service_client_ref() const {
     return ServiceClient<CascadeTypes...>::get_service_client();
 }
 
 
 template <typename... CascadeTypes>
-PersistenceObserver& CascadeContext<CascadeTypes...>::get_persistence_observer() const {
+PersistenceObserver& ExecutionEngine<CascadeTypes...>::get_persistence_observer() const {
     return *persistence_observer;
 }
 
 template <typename... CascadeTypes>
-void CascadeContext<CascadeTypes...>::register_prefixes(
-        const std::string& dfg_uuid,
-        const std::unordered_set<std::string>& prefixes,
-        const DataFlowGraph::VertexShardDispatcher shard_dispatcher,
-        const DataFlowGraph::Statefulness stateful,
-        const DataFlowGraph::VertexHook hook,
-        const std::string& user_defined_logic_id,
-        const std::string& user_defined_logic_config,
+void ExecutionEngine<CascadeTypes...>::register_prefixes(
+        const std::string&                                  dfg_uuid,
+        const std::unordered_set<std::string>&              prefixes,
+        const DataFlowGraph::VertexShardDispatcher          shard_dispatcher,
+        const DataFlowGraph::VertexExecutionEnvironment     execution_environment,
+        const std::string&                                  execution_environment_config,
+        const DataFlowGraph::Statefulness                   stateful,
+        const DataFlowGraph::VertexHook                     hook,
+        const std::string&                                  user_defined_logic_id,
+        const std::string&                                  user_defined_logic_config,
         const std::shared_ptr<OffCriticalDataPathObserver>& ocdpo_ptr,
-        const std::unordered_map<std::string,bool>& outputs) {
+        const std::unordered_map<std::string,bool>&         outputs) {
     for (const auto& prefix:prefixes) {
         prefix_registry_ptr->atomically_modify(prefix,
-            [&dfg_uuid,&prefix,&shard_dispatcher,&stateful,
+            [&dfg_uuid,&prefix,&execution_environment,&shard_dispatcher,&stateful,
              &hook,&user_defined_logic_id,&user_defined_logic_config,
              &ocdpo_ptr,&outputs] (const std::shared_ptr<prefix_entry_t>& entry){
                 std::shared_ptr<prefix_entry_t> new_entry;
@@ -2924,12 +2953,15 @@ void CascadeContext<CascadeTypes...>::register_prefixes(
                     new_entry->emplace(dfg_uuid,prefix_ocdpo_info_set_t{});
                 }
                 // create prefix_ocdpo_info_t
-                prefix_ocdpo_info_t ocdpo_info{
-                    user_defined_logic_id,
-                    user_defined_logic_config,
-                    shard_dispatcher,
-                    stateful,
-                    hook,ocdpo_ptr,outputs};
+                prefix_ocdpo_info_t ocdpo_info = {
+                    .udl_id = user_defined_logic_id,
+                    .config_string = user_defined_logic_config,
+                    .execution_environment = execution_environment,
+                    .shard_dispatcher = shard_dispatcher,
+                    .statefulness = stateful,
+                    .hook = hook,
+                    .ocdpo = ocdpo_ptr,
+                    .output_map = outputs};
 
                 // insert it to new_entry
                 (*new_entry)[dfg_uuid].erase(ocdpo_info);
@@ -2941,7 +2973,7 @@ void CascadeContext<CascadeTypes...>::register_prefixes(
 }
 
 template <typename... CascadeTypes>
-void CascadeContext<CascadeTypes...>::unregister_prefixes(const std::string& dfg_uuid) {
+void ExecutionEngine<CascadeTypes...>::unregister_prefixes(const std::string& dfg_uuid) {
     prefix_registry_ptr->atomically_traverse(
             [&dfg_uuid](const std::shared_ptr<prefix_entry_t>& entry) {
                 if (entry->find(dfg_uuid) != entry->cend()) {
@@ -2953,7 +2985,7 @@ void CascadeContext<CascadeTypes...>::unregister_prefixes(const std::string& dfg
 
 /* Note: On the same hardware, copying a shared_ptr spends ~7.4ns, and copying a raw pointer spends ~1.8 ns*/
 template <typename... CascadeTypes>
-match_results_t CascadeContext<CascadeTypes...>::get_prefix_handlers(const std::string& path) {
+match_results_t ExecutionEngine<CascadeTypes...>::get_prefix_handlers(const std::string& path) {
 
     match_results_t handlers;
 
@@ -2970,7 +3002,7 @@ match_results_t CascadeContext<CascadeTypes...>::get_prefix_handlers(const std::
 }
 
 template <typename... CascadeTypes>
-bool CascadeContext<CascadeTypes...>::post(Action&& action, DataFlowGraph::Statefulness stateful, bool is_trigger) {
+bool ExecutionEngine<CascadeTypes...>::post(Action&& action, DataFlowGraph::Statefulness stateful, bool is_trigger) {
     static uint32_t trigger_rrcnt = 0;
     static uint32_t multicast_rrcnt = 0;
     dbg_default_trace("Posting an action to Cascade context@{:p}.", static_cast<void*>(this));
@@ -2984,6 +3016,7 @@ bool CascadeContext<CascadeTypes...>::post(Action&& action, DataFlowGraph::State
                 }
                 break;
             case DataFlowGraph::Statefulness::STATELESS:
+            case DataFlowGraph::Statefulness::UNKNOWN_S: // default
                 // stateless_action_queue_for_p2p.action_buffer_enqueue(std::move(action));
                 stateful_action_queues_for_p2p[trigger_rrcnt++ % stateful_action_queues_for_p2p.size()]->action_buffer_enqueue(std::move(action));
                 break;
@@ -3000,6 +3033,7 @@ bool CascadeContext<CascadeTypes...>::post(Action&& action, DataFlowGraph::State
                 }
                 break;
             case DataFlowGraph::Statefulness::STATELESS:
+            case DataFlowGraph::Statefulness::UNKNOWN_S: // default
                 // stateless_action_queue_for_multicast.action_buffer_enqueue(std::move(action));
                 stateful_action_queues_for_multicast[multicast_rrcnt++ % stateful_action_queues_for_multicast.size()]->action_buffer_enqueue(std::move(action));
                 break;
@@ -3017,17 +3051,17 @@ bool CascadeContext<CascadeTypes...>::post(Action&& action, DataFlowGraph::State
 }
 
 template <typename... CascadeTypes>
-size_t CascadeContext<CascadeTypes...>::stateless_action_queue_length_p2p() {
+size_t ExecutionEngine<CascadeTypes...>::stateless_action_queue_length_p2p() {
     return (stateless_action_queue_for_p2p.action_buffer_tail - stateless_action_queue_for_multicast.action_buffer_head + ACTION_BUFFER_SIZE)%ACTION_BUFFER_SIZE;
 }
 
 template <typename... CascadeTypes>
-size_t CascadeContext<CascadeTypes...>::stateless_action_queue_length_multicast() {
+size_t ExecutionEngine<CascadeTypes...>::stateless_action_queue_length_multicast() {
     return (stateless_action_queue_for_multicast.action_buffer_tail - stateless_action_queue_for_multicast.action_buffer_head + ACTION_BUFFER_SIZE)%ACTION_BUFFER_SIZE;
 }
 
 template <typename... CascadeTypes>
-CascadeContext<CascadeTypes...>::~CascadeContext() {
+ExecutionEngine<CascadeTypes...>::~ExecutionEngine() {
     destroy();
 }
 

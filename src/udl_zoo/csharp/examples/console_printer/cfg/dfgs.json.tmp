@@ -1,0 +1,19 @@
+[
+    {
+        "id": "65c398e8-a357-4ce7-ab2b-ab2e8c10a9f9",
+        "desc": "C#-defined DLL console printer demonstration",
+        "graph": [
+            {
+                "pathname": "/console_printer",
+                "shard_dispatcher_list": ["one"],
+                "user_defined_logic_list": ["3fc0bfc9-ae62-4b57-b39d-af3f83e7f429"],
+                "user_defined_logic_config_list": [
+                    {
+                        "csharp_relative_path": "../ConsolePrinter.dll",
+                        "module": "GatewayLib.ConsolePrinterUDL"
+                    }],
+                "destinations": [{}]
+            }
+        ]
+    }
+]

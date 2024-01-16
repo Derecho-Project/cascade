@@ -13,13 +13,17 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 if (${USE_VERBS_API})
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUSE_VERBS_API")
 endif()
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -Wall -ggdb -gdwarf-3 -ftemplate-backtrace-limit=0 -DEVALUATION")
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Wall -DEVALUATION -fcompare-debug-second")
-set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -Wall -ggdb -gdwarf-3")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Og -Wall -ggdb -gdwarf-3 -ftemplate-backtrace-limit=0 -DEVALUATION")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Ofast -march=native -Wall -DEVALUATION -fcompare-debug-second")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -Ofast -march=native -Wall -ggdb -gdwarf-3")
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/Modules")
 
 include(GNUInstallDirs)
+
+if ( NOT DEFINED CMAKE_INSTALL_BINDIR )
+    set( CMAKE_INSTALL_BINDIR bin )
+endif ()
 
 if ( NOT DEFINED CMAKE_INSTALL_LIBDIR )
     set( CMAKE_INSTALL_LIBDIR lib )
@@ -52,10 +56,22 @@ find_package(nlohmann_json 3.9.1 REQUIRED)
 # WanAgent, required for SignatureCascadeStore to do wide-area backups
 find_package(wanagent CONFIG REQUIRED)
 
+# provides the import target rpclib::rpc
+find_package(rpclib 2.3.0 REQUIRED)
+
 # Hyperscan, which isn't packaged correctly and needs a custom Find module
 find_package(Hyperscan REQUIRED)
 if(Hyperscan_FOUND)
     include_directories(${Hyperscan_INCLUDE_DIRS})
+endif()
+
+# dotnet
+find_program(DOTNET_CMD dotnet)
+
+# detect libwsong library, which is required for the mproc feature
+find_package(libwsong QUIET)
+if (libwsong_FOUND)
+    set(ENABLE_MPROC 1)
 endif()
 
 # Doxygen, optional to generate documentation HTML
@@ -75,16 +91,14 @@ CHECK_INCLUDE_FILE_CXX("boolinq/boolinq.h" HAS_BOOLINQ)
 set (ENABLE_EVALUATION 1)
 set (DUMP_TIMESTAMP_WORKAROUND 1)
 
-if (ENABLE_EVALUATION)
-    # provides the import target rpclib::rpc
-    find_package(rpclib 2.3.0 REQUIRED)
-endif()
-
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/cascade/config.h)
 
 add_subdirectory(src/core)
 add_subdirectory(src/utils)
 add_subdirectory(src/service)
+add_subdirectory(src/udl_zoo/mproc)
+add_subdirectory(src/udl_zoo/csharp)
+add_subdirectory(src/udl_zoo/python)
 add_subdirectory(src/applications/tests)
 
 # make libcascade.so
@@ -97,10 +111,12 @@ add_library(cascade SHARED
 #    $<TARGET_OBJECTS:utils>)
 
 target_link_libraries(cascade
+    PUBLIC
     derecho::derecho
     spdlog::spdlog
     mutils::mutils
     OpenSSL::Crypto
+    rpclib::rpc
     ${Hyperscan_LIBRARIES}
     wanagent::wanagent
 )
@@ -108,7 +124,7 @@ set_target_properties(cascade PROPERTIES
     SOVERSION ${cascade_VERSION}
     VERSION ${cascade_build_VERSION}
 )
-add_dependencies(cascade core)
+add_dependencies(cascade core service utils)
 #    utils core)
 
 # make install
