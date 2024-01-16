@@ -867,7 +867,8 @@ std::vector<command_entry_t> commands =
                 while(iscript.getline(command_buffer,4096)) {
                     std::string cmd_str(command_buffer);
                     auto tokens = tokenize(cmd_str, " ");
-                    if (tokens[0].at(0) == '#') {
+                    // TODO: handle empty command
+                    if (tokens[0].at(0) == '#' || tokens[0].at(0) == '\0') {
                         continue;
                     }
                     if (do_command(capi, tokenize(cmd_str," ")) == false) {
