@@ -862,7 +862,7 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::new_view_callback(const View& ne
                     }
                     remote_client_socket = std::make_unique<tcp::socket>(std::move(client_connection));
                 } catch(tcp::connection_failure& ex) {
-                    dbg_default_warn("Connection failure when attempting to accept a remote client connection. what(): ", ex.what());
+                    dbg_default_warn("Connection failure when attempting to accept a remote client connection. what(): {}", ex.what());
                 }
             }
         });
