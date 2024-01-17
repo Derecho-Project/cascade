@@ -957,6 +957,21 @@ std::vector<command_entry_t> commands =
         }
     },
     {
+        "calc",
+        "set an environment variable.",
+        "calc <resvar> <value>\n"
+        "   value can be an arithmetic expression of integers.",
+        [](ServiceClientAPI& capi,const std::vector<std::string>& cmd_tokens) {
+            CHECK_FORMAT(cmd_tokens,3);
+            std::string expression = cmd_tokens[2];
+            for(size_t idx=3;idx<cmd_tokens.size();idx++) {
+                expression=expression+cmd_tokens[idx];
+            }
+            shell_vars[cmd_tokens[1]] = std::to_string(evaluate_arithmetic_expression(expression));
+            return true;
+        }
+    },
+    {
         "getvar",
         "get an environment variable.",
         "getvar <key>",
