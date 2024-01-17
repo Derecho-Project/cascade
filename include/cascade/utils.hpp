@@ -496,5 +496,12 @@ public:
 
 #endif
 
+/**
+ * Evaluate arithmetic expression
+ * @param   expression  The arithmetic expression
+ *
+ * @return  return value
+ */
+int64_t evaluate_arithmetic_expression(const std::string& expression);
 }
 }
