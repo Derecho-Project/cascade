@@ -875,7 +875,12 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::new_view_callback(const View& ne
     // If this is the very first new-view callback, the WanAgent hasn't been constructed yet and needs to be set up
     if(!wanagent) {
         std::string agent_config_location = getConfWithDefault(CASCADE_WANAGENT_CONFIG_FILE, std::string("wanagent.json"));
-        nlohmann::json wan_agent_config = nlohmann::json::parse(std::ifstream(agent_config_location));
+        std::ifstream agent_config_file(agent_config_location);
+        if(agent_config_file.fail()) {
+            dbg_default_error("Failed to open wanagent config file {}. Unable to start wanagent.", agent_config_location);
+            return;
+        }
+        nlohmann::json wan_agent_config = nlohmann::json::parse(agent_config_file);
         wan_agent::site_id_t my_site_id = wan_agent_config[WAN_AGENT_CONF_LOCAL_SITE_ID];
         // Find the sites entry for the local site, and ensure local_initial_leader is set to the index matching
         // this subgroup/shard's actual leader in the current view
