@@ -16,6 +16,11 @@ using namespace derecho::cascade;
 
 #define PROC_NAME   "cascade_client"
 
+/**
+ * The shell variables.
+ */
+std::map<std::string,std::string> shell_vars = {};
+
 template <typename SubgroupType>
 void print_subgroup_member(ServiceClientAPI& capi, uint32_t subgroup_index) {
     std::cout << "Subgroup (Type=" << std::type_index(typeid(SubgroupType)).name() << ","
@@ -374,6 +379,15 @@ void op_remove(ServiceClientAPI& capi, const std::string& key) {
     for (auto& reply_future:result.get()) {\
         auto reply = reply_future.second.get();\
         std::cout << "node(" << reply_future.first << ") replied with value:" << reply << std::endl;\
+        [](auto const & x) { \
+            if constexpr (std::is_same_v<std::decay_t<decltype(x)>,ObjectWithStringKey> || \
+                          std::is_same_v<std::decay_t<decltype(x)>,ObjectWithUInt64Key> ) { \
+                shell_vars["object.version"] =                  std::to_string(x.version);\
+                shell_vars["object.timestamp_us"] =             std::to_string(x.timestamp_us);\
+                shell_vars["object.previous_version"] =         std::to_string(x.previous_version);\
+                shell_vars["object.previous_version_by_key"] =  std::to_string(x.previous_version_by_key);\
+            } \
+        } (reply); \
     }
 
 template <typename SubgroupType>
@@ -822,6 +836,37 @@ bool shell_is_active = true;
                 print_red("Invalid command format. Please try help " + tks[0] + "."); \
                 return false; \
             }
+/**
+ * Replace all @varname@ with variables from shell_vars.
+ */
+inline std::string expand_variables(const std::string& input) {
+    // STEP 1 - find variables
+    int32_t state = 0; // searching
+    std::string::size_type s = 0,pos = -1;
+    std::string expanded = input;
+    do {
+        pos = expanded.find("@",pos+1);
+        if (pos == std::string::npos) {
+            break;
+        }
+        if (state == 0) {
+            state = 1;
+            s = pos;
+        } else {
+            std::string var_name = expanded.substr(s+1,pos-s-1);
+            if (shell_vars.find(var_name) == shell_vars.cend()) {
+                print_red("Variable " + var_name + " does not exist.");
+            } else {
+                expanded = expanded.substr(0,s) + shell_vars.at(var_name) + expanded.substr(pos+1);
+            }
+            // state == 1
+            state = 0;
+        }
+    } while (true);
+    return expanded;
+}
+
+
 std::vector<command_entry_t> commands =
 {
     {
@@ -856,6 +901,9 @@ std::vector<command_entry_t> commands =
         }
     },
     {
+        "Script commands","","",command_handler_t()
+    },
+    {
         "script",
         "Run a client script composed of command separated by lines",
         "script <script_file1> [script_File2,script_File3,...]",
@@ -877,6 +925,50 @@ std::vector<command_entry_t> commands =
                         return false;
                     }
                 }
+            }
+            return true;
+        }
+    },
+    {
+        "vars",
+        "show the shell variables.",
+        "vars",
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+            CHECK_FORMAT(cmd_tokens,1);
+            std::cout << std::left << std::setw(32) << std::setfill(' ') << "KEY";
+            std::cout << std::left << std::setw(64) << std::setfill(' ') << "VALUE";
+            std::cout << std::endl;
+            for(const auto& kv:shell_vars) {
+                std::cout << std::left << std::setw(32) << std::setfill(' ') << (kv.first+" = ");
+                std::cout << std::left << std::setw(64) << std::setfill(' ') << kv.second;
+                std::cout << std::endl;
+            }
+            return true;
+        }
+    },
+    {
+        "setvar",
+        "set an environment variable.",
+        "setvar <key> <value>",
+        [](ServiceClientAPI& capi,const std::vector<std::string>& cmd_tokens) {
+            CHECK_FORMAT(cmd_tokens,3);
+            shell_vars[cmd_tokens[1]] = cmd_tokens[2];
+            return true;
+        }
+    },
+    {
+        "getvar",
+        "get an environment variable.",
+        "getvar <key>",
+        [](ServiceClientAPI& capi,const std::vector<std::string>& cmd_tokens) {
+            CHECK_FORMAT(cmd_tokens,2);
+            if (shell_vars.find(cmd_tokens[1])!=shell_vars.end()) {
+                std::cout << std::left << std::setw(32) << std::setfill(' ') << (cmd_tokens[1]+" = ");
+                std::cout << std::left << std::setw(64) << std::setfill(' ') << shell_vars.at(cmd_tokens[1]);
+                std::cout << std::endl;
+            } else {
+                std::cout << cmd_tokens[1] << "is not found." << std::endl;
+                return false;
             }
             return true;
         }
@@ -1226,7 +1318,8 @@ std::vector<command_entry_t> commands =
         "Get an object (by version).",
         "get <type> <key> <stable> <subgroup_index> <shard_index> [ version(default:current version) ]\n"
             "type := " SUBGROUP_TYPE_LIST "\n"
-            "stable := 0|1  using stable data or not.",
+            "stable := 0|1  using stable data or not.\n"
+            "Note: variable object.[version,timestamp_us,previous_version,previous_version_by_key] will be set.",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             CHECK_FORMAT(cmd_tokens,6);
             bool stable = static_cast<bool>(std::stoi(cmd_tokens[3],nullptr,0));
@@ -2001,17 +2094,24 @@ std::vector<command_entry_t> commands =
 
 inline bool do_command(ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
     bool ret = false;
+
+    std::vector<std::string> new_tokens{};
+
+    for(const auto& token: cmd_tokens) {
+        new_tokens.emplace_back(expand_variables(token));
+    }
+
     try {
-        ssize_t command_index = find_command(commands, cmd_tokens[0]);
+        ssize_t command_index = find_command(commands, new_tokens[0]);
         if (command_index>=0) {
-            if (commands.at(command_index).handler(capi,cmd_tokens)) {
+            if (commands.at(command_index).handler(capi,new_tokens)) {
                 std::cout << "-> Succeeded." << std::endl;
                 ret = true;
             } else {
                 std::cout << "-> Failed." << std::endl;
             }
         } else {
-            print_red("unknown command:" + cmd_tokens[0]);
+            print_red("unknown command:" + new_tokens[0]);
         }
     } catch (const derecho::derecho_exception &ex) {
         print_red (std::string("Exception:") + ex.what());
