@@ -183,6 +183,8 @@ static void print_cyan(std::string msg) {
         auto reply = reply_future.second.get();\
         std::cout << "node(" << reply_future.first << ") replied with version:" << std::get<0>(reply)\
                   << ",ts_us:" << std::get<1>(reply) << std::endl;\
+        shell_vars["put.version"] =         std::to_string(std::get<0>(reply)); \
+        shell_vars["put.timestamp_us"] =    std::to_string(std::get<1>(reply)); \
     }
 
 template <typename SubgroupType>
@@ -1117,7 +1119,8 @@ std::vector<command_entry_t> commands =
         "create_object_pool",
         "Create an object pool",
         "create_object_pool <path> <type> <subgroup_index> [affinity_set_regex]\n"
-            "type := " SUBGROUP_TYPE_LIST,
+        "type := " SUBGROUP_TYPE_LIST "\n"
+        "Note: put.[version,timestamp_us] will be set.",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             CHECK_FORMAT(cmd_tokens,4);
             std::string opath = cmd_tokens[1];
@@ -1133,7 +1136,8 @@ std::vector<command_entry_t> commands =
     {
         "remove_object_pool",
         "Soft-Remove an object pool",
-        "remove_object_pool <path>",
+        "remove_object_pool <path>\n"
+        "Note: put.[version,timestamp_us] will be set.",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             CHECK_FORMAT(cmd_tokens,2);
             auto result = capi.remove_object_pool(cmd_tokens[1]);
@@ -1160,7 +1164,8 @@ std::vector<command_entry_t> commands =
         "put",
         "Put an object to a shard.",
         "put <type> <key> <value> <subgroup_index> <shard_index> [previous_version(default:-1)] [previous_version_by_key(default:-1)]\n"
-            "type := " SUBGROUP_TYPE_LIST,
+            "type := " SUBGROUP_TYPE_LIST "\n"
+            "Note: put.[version,timestamp_us] will be set.",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             persistent::version_t pver = persistent::INVALID_VERSION;
             persistent::version_t pver_bk = persistent::INVALID_VERSION;
@@ -1198,7 +1203,8 @@ std::vector<command_entry_t> commands =
         "op_put",
         "Put an object into an object pool",
         "op_put <key> <value> [previous_version(default:-1)] [previous_version_by_key(default:-1)]\n"
-            "Please note that cascade automatically decides the object pool path using the key's prefix.",
+        "Please note that cascade automatically decides the object pool path using the key's prefix.\n"
+        "Note: put.[version,timestamp_us] will be set.",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             persistent::version_t pver = persistent::INVALID_VERSION;
             persistent::version_t pver_bk = persistent::INVALID_VERSION;
@@ -1215,7 +1221,8 @@ std::vector<command_entry_t> commands =
         "op_put_file",
         "Put an object into an object pool, where object's value is from a file,",
         "op_put_file <key> <filename> [previous_version(default:-1)] [previous_version_by_key(default:-1)]\n"
-            "Please note that cascade automatically decides the object pool path using the key's prefix.",
+        "Please note that cascade automatically decides the object pool path using the key's prefix.\n"
+        "Note: put.[version,timestamp_us] will be set.",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             persistent::version_t pver = persistent::INVALID_VERSION;
             persistent::version_t pver_bk = persistent::INVALID_VERSION;
@@ -1280,7 +1287,7 @@ std::vector<command_entry_t> commands =
         "op_trigger_put",
         "Trigger put an object to an object pool.",
         "op_trigger_put <key> <value>\n"
-            "Please note that cascade automatically decides the object pool path using the key's prefix.",
+        "Please note that cascade automatically decides the object pool path using the key's prefix.",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             CHECK_FORMAT(cmd_tokens,3);
             op_trigger_put(capi,cmd_tokens[1]/*key*/,cmd_tokens[2]/*value*/);
@@ -1291,7 +1298,7 @@ std::vector<command_entry_t> commands =
         "collective_trigger_put",
         "Collectively trigger put an object to a set of nodes in a subgroup.",
         "collective_trigger_put <type> <key> <value> <subgroup_index> <node id 1> [node id 2, ...] \n"
-            "type := " SUBGROUP_TYPE_LIST,
+        "    type := " SUBGROUP_TYPE_LIST,
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             std::vector<node_id_t> nodes;
             CHECK_FORMAT(cmd_tokens,6);
@@ -1308,7 +1315,8 @@ std::vector<command_entry_t> commands =
         "remove",
         "Remove an object from a shard.",
         "remove <type> <key> <subgroup_index> <shard_index> \n"
-            "type := " SUBGROUP_TYPE_LIST,
+        "type := " SUBGROUP_TYPE_LIST "\n"
+        "Note: variable put.[version,timestamp_us] will be set.",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             CHECK_FORMAT(cmd_tokens,5);
             uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3],nullptr,0));
@@ -1321,7 +1329,8 @@ std::vector<command_entry_t> commands =
         "op_remove",
         "Remove an object from an object pool.",
         "op_remove <key>\n"
-            "Please note that cascade automatically decides the object pool path using the key's prefix.",
+        "Please note that cascade automatically decides the object pool path using the key's prefix.\n"
+        "Note: variable put.[version,timestamp_us] will be set.",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             CHECK_FORMAT(cmd_tokens,2);
             op_remove(capi,cmd_tokens[1]);
@@ -1332,9 +1341,9 @@ std::vector<command_entry_t> commands =
         "get",
         "Get an object (by version).",
         "get <type> <key> <stable> <subgroup_index> <shard_index> [ version(default:current version) ]\n"
-            "type := " SUBGROUP_TYPE_LIST "\n"
-            "stable := 0|1  using stable data or not.\n"
-            "Note: variable object.[version,timestamp_us,previous_version,previous_version_by_key] will be set.",
+        "type := " SUBGROUP_TYPE_LIST "\n"
+        "stable := 0|1  using stable data or not.\n"
+        "Note: variable object.[version,timestamp_us,previous_version,previous_version_by_key] will be set.",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             CHECK_FORMAT(cmd_tokens,6);
             bool stable = static_cast<bool>(std::stoi(cmd_tokens[3],nullptr,0));
@@ -1352,8 +1361,9 @@ std::vector<command_entry_t> commands =
         "op_get",
         "Get an object from an object pool (by version).",
         "op_get <key> <stable> [ version(default:current version) ]\n"
-            "stable := 0|1  using stable data or not.\n"
-            "Please note that cascade automatically decides the object pool path using the key's prefix.",
+        "stable := 0|1  using stable data or not.\n"
+        "Please note that cascade automatically decides the object pool path using the key's prefix.\n"
+        "Note: variable object.[version,timestamp_us,previous_version,previous_version_by_key] will be set.",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             CHECK_FORMAT(cmd_tokens,3);
             bool stable = static_cast<bool>(std::stoi(cmd_tokens[2],nullptr,0));
@@ -1370,8 +1380,9 @@ std::vector<command_entry_t> commands =
         "op_get_file",
         "Get an object from an object pool (by version.) and save it to file.",
         "op_get_file <file> <key> <stable> [ version(default:current version) ]\n"
-            "stable := 0|1  using stable data or not.\n"
-            "Please note that cascade automatically decides the object pool path using the key's prefix.",
+        "stable := 0|1  using stable data or not.\n"
+        "Please note that cascade automatically decides the object pool path using the key's prefix.\n"
+        "Note: variable object.[version,timestamp_us,previous_version,previous_version_by_key] will be set.",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             CHECK_FORMAT(cmd_tokens,4);
             bool stable = static_cast<bool>(std::stoi(cmd_tokens[3],nullptr,0));
@@ -1387,6 +1398,11 @@ std::vector<command_entry_t> commands =
                 std::ofstream of(cmd_tokens[1]);
                 of.write(reinterpret_cast<const char*>(reply.blob.bytes),reply.blob.size);
                 of.close();
+                // set variables
+                shell_vars["object.version"] =                  std::to_string(reply.version);\
+                shell_vars["object.timestamp_us"] =             std::to_string(reply.timestamp_us);\
+                shell_vars["object.previous_version"] =         std::to_string(reply.previous_version);\
+                shell_vars["object.previous_version_by_key"] =  std::to_string(reply.previous_version_by_key);\
             }
             return true;
         }
@@ -1395,8 +1411,9 @@ std::vector<command_entry_t> commands =
         "get_by_time",
         "Get an object (by timestamp in microseconds).",
         "get_by_time <type> <key> <subgroup_index> <shard_index> <timestamp in us> <stable>\n"
-            "type := " SUBGROUP_TYPE_LIST "\n"
-            "stable := 0|1 using stable data or not",
+        "type := " SUBGROUP_TYPE_LIST "\n"
+        "stable := 0|1 using stable data or not\n"
+        "Note: variable object.[version,timestamp_us,previous_version,previous_version_by_key] will be set.",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             CHECK_FORMAT(cmd_tokens,7);
             uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3],nullptr,0));
@@ -1411,8 +1428,9 @@ std::vector<command_entry_t> commands =
         "op_get_by_time",
         "Get an object from an object pool (by timestamp in microseconds).",
         "op_get_by_time <key> <timestamp in us> <stable>\n"
-            "stable := 0|1 using stable data or not\n"
-            "Please note that cascade automatically decides the object pool path using the key's prefix.",
+        "stable := 0|1 using stable data or not\n"
+        "Please note that cascade automatically decides the object pool path using the key's prefix.\n"
+        "Note: variable object.[version,timestamp_us,previous_version,previous_version_by_key] will be set.",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             CHECK_FORMAT(cmd_tokens,4);
             uint64_t ts_us = static_cast<uint64_t>(std::stol(cmd_tokens[2],nullptr,0));
@@ -1426,7 +1444,8 @@ std::vector<command_entry_t> commands =
         "multi_get",
         "Get an object, which will participate atomic broadcast for the latest value.",
         "multi_get <type> <key> <subgroup_index> <shard_index>\n"
-            "type := " SUBGROUP_TYPE_LIST,
+        "type := " SUBGROUP_TYPE_LIST "\n"
+        "Note: variable object.[version,timestamp_us,previous_version,previous_version_by_key] will be set.",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             CHECK_FORMAT(cmd_tokens,5);
             uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3],nullptr,0));
@@ -1438,7 +1457,8 @@ std::vector<command_entry_t> commands =
     {
         "op_multi_get",
         "Get an object, which will participate atomic broadcast for the latest value.",
-        "op_multi_get <key>\n",
+        "op_multi_get <key>\n"
+        "Note: variable object.[version,timestamp_us,previous_version,previous_version_by_key] will be set.",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             CHECK_FORMAT(cmd_tokens,2);
             auto res = capi.multi_get(cmd_tokens[1]);
@@ -1450,7 +1470,7 @@ std::vector<command_entry_t> commands =
         "multi_get_size",
         "Get the size of an object, which will participate atomic broadcast for the latest size.",
         "multi_get_size <type> <key> <subgroup_index> <shard_index>\n"
-            "type := " SUBGROUP_TYPE_LIST,
+        "type := " SUBGROUP_TYPE_LIST,
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             CHECK_FORMAT(cmd_tokens,5);
             uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[3],nullptr,0));
