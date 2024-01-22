@@ -199,8 +199,13 @@ const VT PersistentCascadeStore<KT, VT, IK, IV, ST>::get_by_time(const KT& key, 
 
     derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
 
+    if(ts_us > get_time_us()) {
+        dbg_default_warn("Cannot get data at a time in the future.");
+        return *IV;
+    }
+
     // get_global_stability_frontier return nano seconds.
-    if(ts_us > subgroup_handle.compute_global_stability_frontier() / 1000) {
+    if(stable && (ts_us > (subgroup_handle.compute_global_stability_frontier() / 1000))) {
         dbg_default_debug("Stability frontier is {} but requested timestamp is {}", subgroup_handle.compute_global_stability_frontier() / 1000, ts_us);
         dbg_default_warn("Cannot get data at a time in the future.");
         return *IV;
@@ -335,7 +340,8 @@ uint64_t PersistentCascadeStore<KT, VT, IK, IV, ST>::get_size_by_time(const KT& 
     derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
 
     // get_global_stability_frontier return nano seconds.
-    if(ts_us > subgroup_handle.compute_global_stability_frontier() / 1000) {
+    if ((ts_us > get_time_us()) ||
+        (stable && (ts_us > (subgroup_handle.compute_global_stability_frontier() / 1000)))) {
         dbg_default_warn("Cannot get data at a time in the future.");
         return 0;
     }
@@ -438,7 +444,8 @@ std::vector<KT> PersistentCascadeStore<KT, VT, IK, IV, ST>::list_keys_by_time(co
     derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
 
     // get_global_stability_frontier return nano seconds.
-    if(ts_us > subgroup_handle.compute_global_stability_frontier() / 1000) {
+    if((ts_us > get_time_us()) ||
+       (stable && (ts_us > (subgroup_handle.compute_global_stability_frontier() / 1000)))) {
         dbg_default_warn("Cannot get data at a time in the future.");
         return {};
     }
