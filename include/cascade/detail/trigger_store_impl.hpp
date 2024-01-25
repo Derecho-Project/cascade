@@ -105,7 +105,7 @@ std::vector<KT> TriggerCascadeNoStore<KT, VT, IK, IV>::ordered_list_keys(const s
 template <typename KT, typename VT, KT* IK, VT* IV>
 version_tuple TriggerCascadeNoStore<KT, VT, IK, IV>::ordered_put(const VT& value) {
     dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
-    return {};
+    return {persistent::INVALID_VERSION, 0};
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
@@ -116,7 +116,7 @@ void TriggerCascadeNoStore<KT, VT, IK, IV>::ordered_put_and_forget(const VT& val
 template <typename KT, typename VT, KT* IK, VT* IV>
 version_tuple TriggerCascadeNoStore<KT, VT, IK, IV>::ordered_remove(const KT& key) {
     dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
-    return {};
+    return {persistent::INVALID_VERSION, 0};
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
