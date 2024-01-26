@@ -1,6 +1,7 @@
 # Overview
-Cascade is a C++17 cloud application framework powered by optimized RDMA data paths. It provides a K/V API for data manipulation in distributed memory and persistent storage. Besides the K/V API, Cascade allows injecting logic on the data paths for low-latency application. The highlights of Cascade's features include the following.
+Cascade is an AI/ML application hosting framework powered by optimized RDMA data paths. It provides a K/V API for data manipulation in distributed memory and persistent storage. Besides the K/V API, Cascade allows injecting logic on the data paths for low-latency application. The highlights of Cascade's features include the following.
 
+- DAG based ML application interface.
 - High-throughput and low latency from zero-copy RDMA and NVMe storage layer.
 - Timestamp-indexed versioning capability allows reproducing system states anytime in the past.
 - Users can specify the Key and Value types of the K/V API.
@@ -40,7 +41,7 @@ We recommend coordinating with [Weijia Song](mailto:songweijia@gmail.com) if you
 # Using Cascade
 - Cascade can be used both as a service, and as a software library
   - Used as a service, the developer would work in a client/server model
-  - The use of Cascade as a library is primarily for our own purposes, in creating the Cascade service.  However, this approach could be useful for creating other services that need to layer some other form of functionality over a K/V infrastructure.
+  - Cascade as a library is primarily for internal use in creating the Cascade service.  However, this approach could be useful for creating other services that need to layer some other form of functionality over a K/V infrastructure.
 - Cascade's most direct and efficient APIs aim at applications coded in C++, which is the language used the Cascade implementation.
   - Within C++, we have found it useful to combine Cascade with a language-integrated query library such as LINQ (we can support both cpplinq and boolinq).
   - Doing so permits the developer to treat collections of objects or object histories as sets of K/V tuples, describing "transformations" on the data much as we would in a database setting, and leaving the runtime to make scheduling and object placement decisions on our behalf.
@@ -61,10 +62,10 @@ We recommend coordinating with [Weijia Song](mailto:songweijia@gmail.com) if you
 - Intel's regular expression library [Hyperscan](https://github.com/intel/hyperscan). For convenience, install it with [this script](scripts/prerequisites/install-hyperscan.sh). You need to install ragel compiler if you don't have it. On ubuntu, use `apt-get install ragel` to install it.
 - [libfuse](https://github.com/libfuse) v3.9.3 or newer (Optional for file system API)
 - [boolinq](https://github.com/k06a/boolinq) or newer (Optional for LINQ API)
-- Python 3.5 or newer and [pybind11](https://github.com/pybind/pybind11) (Optional for Python API)
+- Python 3.8 or newer and [pybind11](https://github.com/pybind/pybind11) (Optional for Python API)
 - OpenJDK 11.06 or newer. On Ubuntu, use `apt install openjdk-11-jdk` to install it. (Optional for Java API)
 - .NET Framework 6x. Please follow the instructions from Microsoft to install it based on Linux distro [here](https://learn.microsoft.com/en-us/dotnet/core/install/linux-ubuntu). (Optional for C\# API)
-- Derecho v2.2.2. Plesae follow this [document](http://github.com/Derecho-Project/derecho) to install Derecho. Note: this cascade version replies on Derecho commit 3f24e06ed5ad572eb82206e8c1024935d03e903e on the master branch.
+- Derecho v2.4.0 Plesae follow this [document](http://github.com/Derecho-Project/derecho) to install Derecho. Note: this cascade version replies on Derecho commit ef3043f on the master branch.
 
 ## Build Cascade
 1) Download Cascade Source Code
@@ -91,9 +92,22 @@ This will install the following cascade components:
 - headers to `${CMAKE_INSTALL_INCLUDEDIR}/include/cascade`
 - libraries to `${CMAKE_INSTALL_LIBDIR}`
 - binaries(cascade_client, cascade_server, cascade_fuse_client, interactive_test.py, perf_test.py) to `${CMAKE_INSTALL_BINDIR}`
+- python pip library `derecho.cascade`
 
 # Usage
 There are two ways to use Cascade in an application. You can use Cascade as a standalone service with pre-defined K/V types and configurable layout. Or, you can use the Cascade storage templates (defined in Cascade ) as building blocks to build the application using the Derecho group framework. Please refer to [Cascade service's README](https://github.com/Derecho-Project/cascade/tree/master/src/service) for using Cascade as a service and [cli_example README](https://github.com/Derecho-Project/cascade/tree/master/src/applications/tests/cascade_as_subgroup_classes) for using Cascade components to build your own binary with customized key type and value type.
 
+Example C/C++ Cascade applications can be found [here](src/applications/standalone).
+
+Example Python Cascade applications can be found [here](src/udl_zoo/python/cfg).
+
+A more systematic user's guide is under preparation.
+
 # New Features to Come
-1) Resource management
+1) UDL containerization with MPROC support
+2) DPDK support
+3) Application Packaging and management
+4) Resource Management
+5) GPUDirect support
+6) Multiple network support
+7) Kafka API
