@@ -1,4 +1,4 @@
-from distutils.core import setup
+from setuptools import setup
 
 setup(
     name = 'derecho.cascade',
@@ -11,5 +11,5 @@ setup(
     zip_safe = True,
     packages = ['derecho','derecho.cascade'],
     package_data = {'derecho.cascade' : ['external_client.*','member_client.*']},
-    python_requires = ">=3.8"
+    python_requires = ">=3.8, <4"
 )
