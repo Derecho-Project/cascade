@@ -8,7 +8,7 @@
                 "shard_dispatcher_list": ["one"],
                 "execution_environment": [
                     {
-                        "mode": "process",
+                        "mode": "pthread",
                         "spec": {}
                     }
                 ],
