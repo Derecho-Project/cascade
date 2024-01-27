@@ -850,8 +850,10 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         uint32_t object_size = derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
         // Result of min will never be larger than max_num_distinct_objects, so assigning it to uint32_t is safe
         uint32_t num_distinct_objects = std::min(static_cast<uint64_t>(max_num_distinct_objects), max_workload_memory / object_size);
+        // Add this client's ID to the key prefix so clients will use distinct keys (otherwise they'll get each other's signature notifications)
+        std::string workload_key_prefix = object_pool_pathname + "/key_" + std::to_string(this->capi.get_my_id()) + "_";
         make_workload<std::string, ObjectWithStringKey>(object_size, num_distinct_objects,
-                                                        object_pool_pathname + "/key_", objects);
+                                                        workload_key_prefix, objects);
         int64_t sleep_us = (start_sec * 1e9 - static_cast<int64_t>(get_walltime())) / 1e3;
         if(sleep_us > 1) {
             usleep(sleep_us);
