@@ -31,7 +31,7 @@ version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::put(const VT& value) c
     derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put)>(value);
     auto& replies = results.get();
-    version_tuple ret(CURRENT_VERSION, 0, CURRENT_VERSION, CURRENT_VERSION);
+    version_tuple ret{CURRENT_VERSION, 0, CURRENT_VERSION, CURRENT_VERSION};
     // TODO: verfiy consistency ?
     for(auto& reply_pair : replies) {
         ret = reply_pair.second.get();
@@ -41,7 +41,7 @@ version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::put(const VT& value) c
 #else
     LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_PUT_END, group, value, std::get<0>(ret));
 #endif
-    debug_leave_func_with_value("version=0x{:x},timestamp={},previous_version=0x{:x},previous_version_by_key=0x{:x}",
+    debug_leave_func_with_value("version=0x{:x},timestamp={}us,previous_version=0x{:x},previous_version_by_key=0x{:x}",
                                 std::get<0>(ret), std::get<1>(ret), std::get<2>(ret), std::get<3>(ret));
     return ret;
 }
@@ -77,13 +77,13 @@ version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::remove(const KT& key) 
     derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_remove)>(key);
     auto& replies = results.get();
-    version_tuple ret(CURRENT_VERSION, 0, CURRENT_VERSION, CURRENT_VERSION);
+    version_tuple ret{CURRENT_VERSION, 0, CURRENT_VERSION, CURRENT_VERSION};
     // TODO: verify consistency ?
     for(auto& reply_pair : replies) {
         ret = reply_pair.second.get();
     }
     LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_REMOVE_END, group, *IV);
-    debug_leave_func_with_value("version=0x{:x},timestamp={},previous_version=0x{:x},previous_version_by_key=0x{:x}",
+    debug_leave_func_with_value("version=0x{:x},timestamp={}us,previous_version=0x{:x},previous_version_by_key=0x{:x}",
                                 std::get<0>(ret), std::get<1>(ret), std::get<2>(ret), std::get<3>(ret));
     return ret;
 }
@@ -203,8 +203,13 @@ const VT PersistentCascadeStore<KT, VT, IK, IV, ST>::get_by_time(const KT& key, 
 
     derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
 
+    if(ts_us > get_time_us()) {
+        dbg_default_warn("Cannot get data at a time in the future.");
+        return *IV;
+    }
+
     // get_global_stability_frontier return nano seconds.
-    if(ts_us > subgroup_handle.compute_global_stability_frontier() / 1000) {
+    if(stable && (ts_us > (subgroup_handle.compute_global_stability_frontier() / 1000))) {
         dbg_default_debug("Stability frontier is {} but requested timestamp is {}", subgroup_handle.compute_global_stability_frontier() / 1000, ts_us);
         dbg_default_warn("Cannot get data at a time in the future.");
         return *IV;
@@ -339,7 +344,8 @@ uint64_t PersistentCascadeStore<KT, VT, IK, IV, ST>::get_size_by_time(const KT& 
     derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
 
     // get_global_stability_frontier return nano seconds.
-    if(ts_us > subgroup_handle.compute_global_stability_frontier() / 1000) {
+    if ((ts_us > get_time_us()) ||
+        (stable && (ts_us > (subgroup_handle.compute_global_stability_frontier() / 1000)))) {
         dbg_default_warn("Cannot get data at a time in the future.");
         return 0;
     }
@@ -442,7 +448,8 @@ std::vector<KT> PersistentCascadeStore<KT, VT, IK, IV, ST>::list_keys_by_time(co
     derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
 
     // get_global_stability_frontier return nano seconds.
-    if(ts_us > subgroup_handle.compute_global_stability_frontier() / 1000) {
+    if((ts_us > get_time_us()) ||
+       (stable && (ts_us > (subgroup_handle.compute_global_stability_frontier() / 1000)))) {
         dbg_default_warn("Cannot get data at a time in the future.");
         return {};
     }
@@ -459,28 +466,28 @@ template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put(const VT& value) {
     debug_enter_func_with_args("key={}", value.get_key_ref());
 #ifdef ENABLE_EVALUATION
-    std::tuple<persistent::version_t, uint64_t> version_and_timestamp = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
+    auto version_and_hlc = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
 #endif
 
 #if __cplusplus > 201703L
-    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_PUT_START, group, value, std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_PUT_START, group, value, std::get<0>(version_and_hlc));
 #else
-    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_PUT_START, group, value, std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_PUT_START, group, value, std::get<0>(version_and_hlc));
 #endif
     auto ret = this->internal_ordered_put(value);
 
 #if __cplusplus > 201703L
-    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_PUT_END, group, value, std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_PUT_END, group, value, std::get<0>(version_and_hlc));
 #else
-    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_PUT_END, group, value, std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_PUT_END, group, value, std::get<0>(version_and_hlc));
 #endif
-    debug_leave_func_with_value("version=0x{:x},timestamp={},previous_version=0x{:x},previous_version_by_key=0x{:x}",
+    debug_leave_func_with_value("version=0x{:x},timestamp={}us,previous_version=0x{:x},previous_version_by_key=0x{:x}",
                                 std::get<0>(ret), std::get<1>(ret), std::get<2>(ret), std::get<3>(ret));
 
 #ifdef ENABLE_EVALUATION
     // avoid unused variable warning.
     if constexpr(!std::is_base_of<IHasMessageID, VT>::value) {
-        version_and_timestamp = version_and_timestamp;
+        version_and_hlc = version_and_hlc;
     }
 #endif
     return ret;
@@ -490,27 +497,27 @@ template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_and_forget(const VT& value) {
     debug_enter_func_with_args("key={}", value.get_key_ref());
 #ifdef ENABLE_EVALUATION
-    std::tuple<persistent::version_t, uint64_t> version_and_timestamp = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
+    auto version_and_hlc = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
 #endif
 
 #if __cplusplus > 201703L
-    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_PUT_AND_FORGET_START, group, value, std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_PUT_AND_FORGET_START, group, value, std::get<0>(version_and_hlc));
 #else
-    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_PUT_AND_FORGET_START, group, value, std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_PUT_AND_FORGET_START, group, value, std::get<0>(version_and_hlc));
 #endif
 
     this->internal_ordered_put(value);
 
 #if __cplusplus > 201703L
-    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_PUT_AND_FORGET_END, group, value, std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_PUT_AND_FORGET_END, group, value, std::get<0>(version_and_hlc));
 #else
-    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_PUT_AND_FORGET_END, group, value, std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_PUT_AND_FORGET_END, group, value, std::get<0>(version_and_hlc));
 #endif
 
 #ifdef ENABLE_EVALUATION
     // avoid unused variable warning.
     if constexpr(!std::is_base_of<IHasMessageID, VT>::value) {
-        version_and_timestamp = version_and_timestamp;
+        version_and_hlc = version_and_hlc;
     }
 #endif
     debug_leave_func();
@@ -518,19 +525,22 @@ void PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_and_forget(const VT
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put(const VT& value) {
-    std::tuple<persistent::version_t, uint64_t> version_and_timestamp = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
+    auto version_and_hlc = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
     if constexpr(std::is_base_of<IKeepVersion, VT>::value) {
-        value.set_version(std::get<0>(version_and_timestamp));
+        value.set_version(std::get<0>(version_and_hlc));
     }
     if constexpr(std::is_base_of<IKeepTimestamp, VT>::value) {
-        value.set_timestamp(std::get<1>(version_and_timestamp));
+        value.set_timestamp(std::get<1>(version_and_hlc).m_rtc_us);
     }
 
     try {
         auto previous_version = this->persistent_core.getLatestVersion();
         auto previous_version_by_key = this->persistent_core->ordered_put(value, previous_version);
         debug_leave_func_with_value("version=0x{:x},timestamp={},previous_version=0x{:x},previous_version_by_key=0x{:x}",
-                                    std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp), previous_version, previous_version_by_key);
+                                    std::get<0>(version_and_hlc),
+                                    std::get<1>(version_and_hlc).m_rtc_us,
+                                    previous_version,
+                                    previous_version_by_key);
         if(cascade_watcher_ptr) {
             (*cascade_watcher_ptr)(
                     // group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_subgroup_id(), // this is subgroup id
@@ -539,7 +549,7 @@ version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put(c
                     group->get_rpc_caller_id(),
                     value.get_key_ref(), value, cascade_context_ptr);
         }
-        return {std::get<0>(version_and_timestamp), std::get<1>(version_and_timestamp), previous_version, previous_version_by_key};
+        return {std::get<0>(version_and_hlc), std::get<1>(version_and_hlc).m_rtc_us, previous_version, previous_version_by_key};
     } catch(cascade_exception& ex) {
         debug_leave_func_with_value("Failed with exception:{}", ex.what());
         return {persistent::INVALID_VERSION, 0, persistent::INVALID_VERSION, persistent::INVALID_VERSION};
@@ -549,19 +559,19 @@ version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put(c
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_remove(const KT& key) {
     debug_enter_func_with_args("key={}", key);
-    std::tuple<persistent::version_t, uint64_t> version_and_timestamp = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
+    auto version_and_hlc = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
 #if __cplusplus > 201703L
-    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_REMOVE_START, group, *IV, std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_REMOVE_START, group, *IV, std::get<0>(version_and_hlc));
 #else
-    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_REMOVE_START, group, *IV, std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_REMOVE_START, group, *IV, std::get<0>(version_and_hlc));
 #endif
 
     auto value = create_null_object_cb<KT, VT, IK, IV>(key);
     if constexpr(std::is_base_of<IKeepVersion, VT>::value) {
-        value.set_version(std::get<0>(version_and_timestamp));
+        value.set_version(std::get<0>(version_and_hlc));
     }
     if constexpr(std::is_base_of<IKeepTimestamp, VT>::value) {
-        value.set_timestamp(std::get<1>(version_and_timestamp));
+        value.set_timestamp(std::get<1>(version_and_hlc).m_rtc_us);
     }
     try {
         auto previous_version = this->persistent_core.getLatestVersion();
@@ -577,19 +587,19 @@ version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_remove(const K
         }
 
 #if __cplusplus > 201703L
-        LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_REMOVE_END, group, *IV, std::get<0>(version_and_timestamp));
+        LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_REMOVE_END, group, *IV, std::get<0>(version_and_hlc));
 #else
-        LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_REMOVE_END, group, *IV, std::get<0>(version_and_timestamp));
+        LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_REMOVE_END, group, *IV, std::get<0>(version_and_hlc));
 #endif
 
         debug_leave_func_with_value("version=0x{:x},timestamp={},previous_version=0x{:x},previous_version_by_key=0x{:x}",
-                                    std::get<0>(version_and_timestamp),
-                                    std::get<1>(version_and_timestamp),
+                                    std::get<0>(version_and_hlc),
+                                    std::get<1>(version_and_hlc).m_rtc_us,
                                     previous_version,
                                     previous_version_by_key);
 
-        return {std::get<0>(version_and_timestamp),
-                std::get<1>(version_and_timestamp),
+        return {std::get<0>(version_and_hlc),
+                std::get<1>(version_and_hlc).m_rtc_us,
                 previous_version,
                 previous_version_by_key};
     } catch(cascade_exception& ex) {
@@ -602,22 +612,22 @@ template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 const VT PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_get(const KT& key) {
     debug_enter_func_with_args("key={}", key);
 #ifdef ENABLE_EVALUATION
-    std::tuple<persistent::version_t, uint64_t> version_and_timestamp = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
+    auto version_and_hlc = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
 #endif
 
 #if __cplusplus > 201703L
-    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_GET_START, group, *IV, std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_GET_START, group, *IV, std::get<0>(version_and_hlc));
 #else
-    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_GET_START, group, *IV, std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_GET_START, group, *IV, std::get<0>(version_and_hlc));
 #endif
 
     // TODO: double check if Named Return Value Optimization (NRVO) works here!!!
     auto rvo_val = this->persistent_core->ordered_get(key);
 
 #if __cplusplus > 201703L
-    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_GET_END, group, *IV, std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_GET_END, group, *IV, std::get<0>(version_and_hlc));
 #else
-    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_GET_END, group, *IV, std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_GET_END, group, *IV, std::get<0>(version_and_hlc));
 #endif
 
     debug_leave_func();
@@ -628,21 +638,21 @@ template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 uint64_t PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_get_size(const KT& key) {
     debug_enter_func_with_args("key={}", key);
 #ifdef ENABLE_EVALUATION
-    std::tuple<persistent::version_t, uint64_t> version_and_timestamp = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
+    auto version_and_hlc = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
 #endif
 
 #if __cplusplus > 201703L
-    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_GET_SIZE_START, group, *IV, std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_GET_SIZE_START, group, *IV, std::get<0>(version_and_hlc));
 #else
-    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_GET_SIZE_START, group, *IV, std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_GET_SIZE_START, group, *IV, std::get<0>(version_and_hlc));
 #endif
 
     uint64_t size = this->persistent_core->ordered_get_size(key);
 
 #if __cplusplus > 201703L
-    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_GET_SIZE_END, group, *IV, std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_GET_SIZE_END, group, *IV, std::get<0>(version_and_hlc));
 #else
-    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_GET_SIZE_END, group, *IV, std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_GET_SIZE_END, group, *IV, std::get<0>(version_and_hlc));
 #endif
 
     debug_leave_func();
@@ -703,21 +713,21 @@ std::vector<KT> PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_list_keys(co
     debug_enter_func();
 
 #ifdef ENABLE_EVALUATION
-    std::tuple<persistent::version_t, uint64_t> version_and_timestamp = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
+    auto version_and_hlc = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
 #endif
 #if __cplusplus > 201703L
-    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_LIST_KEYS_START, group, *IV, std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_LIST_KEYS_START, group, *IV, std::get<0>(version_and_hlc));
 #else
-    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_LIST_KEYS_START, group, *IV, std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_LIST_KEYS_START, group, *IV, std::get<0>(version_and_hlc));
 #endif
 
     // TODO: make sure NRVO works here!!!
     auto rvo_val = this->persistent_core->ordered_list_keys(prefix);
 
 #if __cplusplus > 201703L
-    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_LIST_KEYS_END, group, *IV, std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_LIST_KEYS_END, group, *IV, std::get<0>(version_and_hlc));
 #else
-    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_LIST_KEYS_END, group, *IV, std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_LIST_KEYS_END, group, *IV, std::get<0>(version_and_hlc));
 #endif
     debug_leave_func();
     return rvo_val;

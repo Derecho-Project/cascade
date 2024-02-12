@@ -12,6 +12,8 @@
 #include <time.h>
 #include <thread>
 #include <unordered_set>
+#include <derecho/utils/time.h>
+#include <cascade/config.h>
 
 namespace derecho {
 namespace cascade {
@@ -26,11 +28,11 @@ namespace cascade {
 inline uint64_t get_time_ns(bool use_wall_clock = true) {
     struct timespec tv;
     clock_gettime(use_wall_clock?CLOCK_REALTIME:CLOCK_MONOTONIC,&tv);
-    return (tv.tv_sec*1e9+ tv.tv_nsec);
+    return (tv.tv_sec*INT64_1E9 + tv.tv_nsec);
 }
 
 inline uint64_t get_time_us(bool use_wall_clock = true) {
-    return get_time_ns(use_wall_clock)/1e3;
+    return get_time_ns(use_wall_clock)/INT64_1E3;
 }
 
 /* Helper functions to safely call getConf() and use a default if the key is not found */
@@ -590,5 +592,12 @@ public:
 
 #endif
 
+/**
+ * Evaluate arithmetic expression
+ * @param   expression  The arithmetic expression
+ *
+ * @return  return value
+ */
+int64_t evaluate_arithmetic_expression(const std::string& expression);
 }
 }

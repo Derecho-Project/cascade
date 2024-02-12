@@ -25,14 +25,14 @@ version_tuple VolatileCascadeStore<KT, VT, IK, IV>::put(const VT& value) const {
     derecho::Replicated<VolatileCascadeStore>& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put)>(value);
     auto& replies = results.get();
-    version_tuple ret(CURRENT_VERSION, 0, CURRENT_VERSION, CURRENT_VERSION);
+    version_tuple ret{CURRENT_VERSION, 0, CURRENT_VERSION, CURRENT_VERSION};
     // TODO: verfiy consistency ?
     for(auto& reply_pair : replies) {
         ret = reply_pair.second.get();
     }
 
     LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_PUT_END, group, value);
-    debug_leave_func_with_value("version=0x{:x},timestamp={},previous_version=0x{:x},previous_version_by_key=0x{:x}",
+    debug_leave_func_with_value("version=0x{:x},timestamp={}us,previous_version=0x{:x},previous_version_by_key=0x{:x}",
             std::get<0>(ret), std::get<1>(ret), std::get<2>(ret), std::get<3>(ret));
     return ret;
 }
@@ -67,7 +67,7 @@ double internal_perf_put(derecho::Replicated<CascadeType>& subgroup_handle, cons
     }
     uint64_t now_ns = get_walltime();
     uint64_t start_ns = now_ns;
-    uint64_t end_ns = now_ns + duration_sec * 1000000000;
+    uint64_t end_ns = now_ns + duration_sec * INT64_1E9;
     while(end_ns > now_ns) {
         subgroup_handle.template ordered_send<RPC_NAME(ordered_put_and_forget)>(objects.at(now_ns % num_distinct_objects));
         now_ns = get_walltime();
@@ -76,7 +76,7 @@ double internal_perf_put(derecho::Replicated<CascadeType>& subgroup_handle, cons
     // send a normal put
     auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put)>(objects.at(now_ns % num_distinct_objects));
     auto& replies = results.get();
-    std::tuple<persistent::version_t, persistent::version_t, persistent::version_t, uint64_t> ret{};
+    version_tuple ret{CURRENT_VERSION, 0, CURRENT_VERSION, CURRENT_VERSION};
     // TODO: verfiy consistency ?
     for(auto& reply_pair : replies) {
         ret = reply_pair.second.get();
@@ -111,7 +111,7 @@ version_tuple VolatileCascadeStore<KT, VT, IK, IV>::remove(const KT& key) const 
         ret = reply_pair.second.get();
     }
     LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_REMOVE_END, group, *IV);
-    debug_leave_func_with_value("version=0x{:x},timestamp={},previous_version=0x{:x},previous_version_by_key=0x{:x}",
+    debug_leave_func_with_value("version=0x{:x},timestamp={}us,previous_version=0x{:x},previous_version_by_key=0x{:x}",
                                 std::get<0>(ret), std::get<1>(ret), std::get<2>(ret), std::get<3>(ret));
     return ret;
 }
@@ -345,13 +345,13 @@ std::vector<KT> VolatileCascadeStore<KT, VT, IK, IV>::ordered_list_keys(const st
     debug_enter_func();
 
 #ifdef ENABLE_EVALUATION
-    std::tuple<persistent::version_t, uint64_t> version_and_timestamp = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
+    auto version_and_hlc = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
 #endif
 
 #if __cplusplus > 201703L
-    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_LIST_KEYS_START,group,*IV,std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_LIST_KEYS_START,group,*IV,std::get<0>(version_and_hlc));
 #else
-    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_LIST_KEYS_START,group,*IV,std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_LIST_KEYS_START,group,*IV,std::get<0>(version_and_hlc));
 #endif
     std::vector<KT> key_list;
     for(auto kv : this->kv_map) {
@@ -360,9 +360,9 @@ std::vector<KT> VolatileCascadeStore<KT, VT, IK, IV>::ordered_list_keys(const st
         }
     }
 #if __cplusplus > 201703L
-    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_LIST_KEYS_END,group,*IV,std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_LIST_KEYS_END,group,*IV,std::get<0>(version_and_hlc));
 #else
-    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_LIST_KEYS_END,group,*IV,std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_LIST_KEYS_END,group,*IV,std::get<0>(version_and_hlc));
 #endif
 
     debug_leave_func();
@@ -374,13 +374,13 @@ version_tuple VolatileCascadeStore<KT, VT, IK, IV>::ordered_put(const VT& value)
     debug_enter_func_with_args("key={}", value.get_key_ref());
 
 #ifdef ENABLE_EVALUATION
-    std::tuple<persistent::version_t, uint64_t> version_and_timestamp = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
+    auto version_and_hlc = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
 #endif
 
 #if __cplusplus > 201703L
-    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_PUT_START,group,value,std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_PUT_START,group,value,std::get<0>(version_and_hlc));
 #else
-    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_PUT_START,group,value,std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_PUT_START,group,value,std::get<0>(version_and_hlc));
 #endif
 
     try {
@@ -392,7 +392,7 @@ version_tuple VolatileCascadeStore<KT, VT, IK, IV>::ordered_put(const VT& value)
         LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_PUT_END, group, value, std::get<0>(ret));
 #endif
 
-        debug_leave_func_with_value("version=0x{:x},timestamp={},previous_version=0x{:x},pervious_version_by_key=0x{:x}",
+        debug_leave_func_with_value("version=0x{:x},timestamp={}us,previous_version=0x{:x},pervious_version_by_key=0x{:x}",
                                     std::get<0>(ret), std::get<1>(ret), std::get<2>(ret), std::get<3>(ret));
         return ret;
     } catch (cascade_exception& ex) {
@@ -406,31 +406,31 @@ template <typename KT, typename VT, KT* IK, VT* IV>
 void VolatileCascadeStore<KT, VT, IK, IV>::ordered_put_and_forget(const VT& value) {
     debug_enter_func_with_args("key={}", value.get_key_ref());
 #ifdef ENABLE_EVALUATION
-    std::tuple<persistent::version_t, uint64_t> version_and_timestamp = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
+    auto version_and_hlc = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
 #endif
 #if __cplusplus > 201703L
-    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_PUT_AND_FORGET_START,group,value,std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_PUT_AND_FORGET_START,group,value,std::get<0>(version_and_hlc));
 #else
-    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_PUT_AND_FORGET_START,group,value,std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_PUT_AND_FORGET_START,group,value,std::get<0>(version_and_hlc));
 #endif
     internal_ordered_put(value);
 #if __cplusplus > 201703L
-    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_PUT_AND_FORGET_END,group,value,std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_PUT_AND_FORGET_END,group,value,std::get<0>(version_and_hlc));
 #else
-    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_PUT_AND_FORGET_END,group,value,std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_PUT_AND_FORGET_END,group,value,std::get<0>(version_and_hlc));
 #endif
     debug_leave_func();
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
 version_tuple VolatileCascadeStore<KT, VT, IK, IV>::internal_ordered_put(const VT& value) {
-    std::tuple<persistent::version_t, uint64_t> version_and_timestamp = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
+    auto version_and_hlc = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
 
     if constexpr(std::is_base_of<IKeepVersion, VT>::value) {
-        value.set_version(std::get<0>(version_and_timestamp));
+        value.set_version(std::get<0>(version_and_hlc));
     }
     if constexpr(std::is_base_of<IKeepTimestamp, VT>::value) {
-        value.set_timestamp(std::get<1>(version_and_timestamp));
+        value.set_timestamp(std::get<1>(version_and_hlc).m_rtc_us);
     }
 
     // validator
@@ -459,7 +459,7 @@ version_tuple VolatileCascadeStore<KT, VT, IK, IV>::internal_ordered_put(const V
     }
 
     // for lockless check
-    this->lockless_v1.store(std::get<0>(version_and_timestamp), std::memory_order_relaxed);
+    this->lockless_v1.store(std::get<0>(version_and_hlc), std::memory_order_relaxed);
     // compiler reordering barrier
 #ifdef __GNUC__
     asm volatile("" ::
@@ -470,7 +470,7 @@ version_tuple VolatileCascadeStore<KT, VT, IK, IV>::internal_ordered_put(const V
 
     this->kv_map.erase(value.get_key_ref());           // remove
     this->kv_map.emplace(value.get_key_ref(), value);  // copy constructor
-    this->update_version = std::get<0>(version_and_timestamp);
+    this->update_version = std::get<0>(version_and_hlc);
 
     // for lockless check
     // compiler reordering barrier
@@ -480,7 +480,7 @@ version_tuple VolatileCascadeStore<KT, VT, IK, IV>::internal_ordered_put(const V
 #else
 #error Lockless support is currently for GCC only
 #endif
-    this->lockless_v2.store(std::get<0>(version_and_timestamp), std::memory_order_relaxed);
+    this->lockless_v2.store(std::get<0>(version_and_hlc), std::memory_order_relaxed);
 
     if(cascade_watcher_ptr) {
         (*cascade_watcher_ptr)(
@@ -491,36 +491,43 @@ version_tuple VolatileCascadeStore<KT, VT, IK, IV>::internal_ordered_put(const V
                 value.get_key_ref(), value, cascade_context_ptr);
     }
 
-    return {this->update_version, std::get<1>(version_and_timestamp), previous_version, previous_version_by_key};
+    return {this->update_version, std::get<1>(version_and_hlc).m_rtc_us, previous_version, previous_version_by_key};
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
 version_tuple VolatileCascadeStore<KT, VT, IK, IV>::ordered_remove(const KT& key) {
     debug_enter_func_with_args("key={}", key);
 
-    std::tuple<persistent::version_t, uint64_t> version_and_timestamp = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
+    auto version_and_hlc = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
+
 #if __cplusplus > 201703L
-    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_REMOVE_START,group,*IV,std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_REMOVE_START,group,*IV,std::get<0>(version_and_hlc));
 #else
-    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_REMOVE_START,group,*IV,std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_REMOVE_START,group,*IV,std::get<0>(version_and_hlc));
 #endif
     persistent::version_t previous_version = this->update_version;
     persistent::version_t previous_version_by_key = persistent::INVALID_VERSION;
     if(this->kv_map.find(key) != this->kv_map.end()) {
         previous_version_by_key = this->kv_map.at(key).get_version();
     } else {
-        debug_leave_func_with_value("version=0x{:x},timestamp={},previous_version=0x{:x},previous_version_by_key=0x{:x}",
-                std::get<0>(version_and_timestamp),std::get<1>(version_and_timestamp),previous_version,previous_version_by_key);
-        return {std::get<0>(version_and_timestamp),std::get<1>(version_and_timestamp),previous_version,previous_version_by_key};
+        debug_leave_func_with_value("version=0x{:x},timestamp={}us,previous_version=0x{:x},previous_version_by_key=0x{:x}",
+                                    std::get<0>(version_and_hlc),
+                                    std::get<1>(version_and_hlc).m_rtc_us,
+                                    previous_version,
+                                    previous_version_by_key);
+        return {std::get<0>(version_and_hlc),
+                std::get<1>(version_and_hlc).m_rtc_us,
+                previous_version,
+                previous_version_by_key};
     }
 
     auto value = create_null_object_cb<KT, VT, IK, IV>(key);
 
     if constexpr(std::is_base_of<IKeepVersion, VT>::value) {
-        value.set_version(std::get<0>(version_and_timestamp));
+        value.set_version(std::get<0>(version_and_hlc));
     }
     if constexpr(std::is_base_of<IKeepTimestamp, VT>::value) {
-        value.set_timestamp(std::get<1>(version_and_timestamp));
+        value.set_timestamp(std::get<1>(version_and_hlc).m_rtc_us);
     }
     if constexpr(std::is_base_of<IKeepPreviousVersion, VT>::value) {
         if(this->kv_map.find(key) != this->kv_map.end()) {
@@ -531,7 +538,7 @@ version_tuple VolatileCascadeStore<KT, VT, IK, IV>::ordered_remove(const KT& key
     }
 
     // for lockless check
-    this->lockless_v1.store(std::get<0>(version_and_timestamp), std::memory_order_relaxed);
+    this->lockless_v1.store(std::get<0>(version_and_hlc), std::memory_order_relaxed);
     // compiler reordering barrier
 #ifdef __GNUC__
     asm volatile("" ::
@@ -542,7 +549,7 @@ version_tuple VolatileCascadeStore<KT, VT, IK, IV>::ordered_remove(const KT& key
 
     this->kv_map.erase(key);  // remove
     this->kv_map.emplace(key, value);
-    this->update_version = std::get<0>(version_and_timestamp);
+    this->update_version = std::get<0>(version_and_hlc);
 
     // for lockless check
     // compiler reordering barrier
@@ -552,7 +559,7 @@ version_tuple VolatileCascadeStore<KT, VT, IK, IV>::ordered_remove(const KT& key
 #else
 #error Lockless support is currently for GCC only
 #endif
-    this->lockless_v2.store(std::get<0>(version_and_timestamp), std::memory_order_relaxed);
+    this->lockless_v2.store(std::get<0>(version_and_hlc), std::memory_order_relaxed);
 
     if(cascade_watcher_ptr) {
         (*cascade_watcher_ptr)(
@@ -564,42 +571,48 @@ version_tuple VolatileCascadeStore<KT, VT, IK, IV>::ordered_remove(const KT& key
     }
 
 #if __cplusplus > 201703L
-    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_REMOVE_END,group,*IV,std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_REMOVE_END,group,*IV,std::get<0>(version_and_hlc));
 #else
-    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_REMOVE_END,group,*IV,std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_REMOVE_END,group,*IV,std::get<0>(version_and_hlc));
 #endif
 
     debug_leave_func_with_value("version=0x{:x},timestamp={},previous_version=0x{:x},previous_version_by_key=0x{:x}",
-            std::get<0>(version_and_timestamp),std::get<1>(version_and_timestamp),previous_version,previous_version_by_key);
-    return {std::get<0>(version_and_timestamp),std::get<1>(version_and_timestamp),previous_version,previous_version_by_key};
+                                std::get<0>(version_and_hlc),
+                                std::get<1>(version_and_hlc).m_rtc_us,
+                                previous_version,
+                                previous_version_by_key);
+    return {std::get<0>(version_and_hlc),
+            std::get<1>(version_and_hlc).m_rtc_us,
+            previous_version,
+            previous_version_by_key};
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
 const VT VolatileCascadeStore<KT, VT, IK, IV>::ordered_get(const KT& key) {
     debug_enter_func_with_args("key={}", key);
 #ifdef ENABLE_EVALUATION
-    std::tuple<persistent::version_t, uint64_t> version_and_timestamp = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
+    auto version_and_hlc = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
 #endif
 
 #if __cplusplus > 201703L
-    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_GET_START,group,*IV,std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_GET_START,group,*IV,std::get<0>(version_and_hlc));
 #else
-    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_GET_START,group,*IV,std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_GET_START,group,*IV,std::get<0>(version_and_hlc));
 #endif
 
     if(this->kv_map.find(key) != this->kv_map.end()) {
         debug_leave_func_with_value("key={}", key);
 #if __cplusplus > 201703L
-    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_GET_END,group,*IV,std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_GET_END,group,*IV,std::get<0>(version_and_hlc));
 #else
-    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_GET_END,group,*IV,std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_GET_END,group,*IV,std::get<0>(version_and_hlc));
 #endif
         return this->kv_map.at(key);
     } else {
 #if __cplusplus > 201703L
-    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_GET_END,group,*IV,std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_GET_END,group,*IV,std::get<0>(version_and_hlc));
 #else
-    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_GET_END,group,*IV,std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_GET_END,group,*IV,std::get<0>(version_and_hlc));
 #endif
         debug_leave_func();
         return *IV;
@@ -611,27 +624,27 @@ uint64_t VolatileCascadeStore<KT, VT, IK, IV>::ordered_get_size(const KT& key) {
     debug_enter_func_with_args("key={}", key);
 
 #ifdef ENABLE_EVALUATION
-    std::tuple<persistent::version_t, uint64_t> version_and_timestamp = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
+    auto version_and_hlc = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
 #endif
 
 #if __cplusplus > 201703L
-    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_GET_SIZE_START,group,*IV,std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_GET_SIZE_START,group,*IV,std::get<0>(version_and_hlc));
 #else
-    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_GET_SIZE_START,group,*IV,std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_GET_SIZE_START,group,*IV,std::get<0>(version_and_hlc));
 #endif
 
     if(this->kv_map.find(key) != this->kv_map.end()) {
 #if __cplusplus > 201703L
-    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_GET_SIZE_END,group,*IV,std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_GET_SIZE_END,group,*IV,std::get<0>(version_and_hlc));
 #else
-    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_GET_SIZE_END,group,*IV,std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_GET_SIZE_END,group,*IV,std::get<0>(version_and_hlc));
 #endif
         return mutils::bytes_size(this->kv_map.at(key));
     } else {
 #if __cplusplus > 201703L
-    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_GET_SIZE_END,group,*IV,std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_GET_SIZE_END,group,*IV,std::get<0>(version_and_hlc));
 #else
-    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_GET_SIZE_END,group,*IV,std::get<0>(version_and_timestamp));
+    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_GET_SIZE_END,group,*IV,std::get<0>(version_and_hlc));
 #endif
         debug_leave_func();
         return 0;

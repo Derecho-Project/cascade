@@ -106,7 +106,7 @@ bool PerfTestServer::eval_put(uint64_t max_operation_per_second,
         );
 
         //TODO: control read_write_ratio
-        uint64_t interval_ns = (max_operation_per_second==0)?0:static_cast<uint64_t>(1e9/max_operation_per_second);
+        uint64_t interval_ns = (max_operation_per_second==0)?0:static_cast<uint64_t>(INT64_1E9/max_operation_per_second);
         uint64_t next_ns = get_walltime();
         uint64_t end_ns = next_ns + duration_secs*1000000000ull;
         uint64_t message_id = this->capi.get_my_id()*1000000000ull;
@@ -339,7 +339,7 @@ bool PerfTestServer::eval_put_and_forget(uint64_t max_operation_per_second,
                                          uint32_t subgroup_type_index,
                                          uint32_t subgroup_index,
                                          uint32_t shard_index) {
-    uint64_t interval_ns = (max_operation_per_second==0)?0:static_cast<uint64_t>(1e9/max_operation_per_second);
+    uint64_t interval_ns = (max_operation_per_second==0)?0:static_cast<uint64_t>(INT64_1E9/max_operation_per_second);
     uint64_t next_ns = get_walltime();
     uint64_t end_ns = next_ns + duration_secs*1000000000ull;
     uint64_t message_id = this->capi.get_my_id()*1000000000ull;
@@ -383,7 +383,7 @@ bool PerfTestServer::eval_trigger_put(uint64_t max_operation_per_second,
                                       uint32_t subgroup_type_index,
                                       uint32_t subgroup_index,
                                       uint32_t shard_index) {
-    uint64_t interval_ns = (max_operation_per_second==0)?0:static_cast<uint64_t>(1e9/max_operation_per_second);
+    uint64_t interval_ns = (max_operation_per_second==0)?0:static_cast<uint64_t>(INT64_1E9/max_operation_per_second);
     uint64_t next_ns = get_walltime();
     uint64_t end_ns = next_ns + duration_secs*1000000000ull;
     uint64_t message_id = this->capi.get_my_id()*1000000000ull;
@@ -529,9 +529,9 @@ bool PerfTestServer::eval_get(int32_t log_depth,
     dbg_default_info("eval_get: Puts complete, ready to start experiment");
 
     // Timing control variables
-    uint64_t interval_ns = (max_operations_per_second == 0) ? 0 : static_cast<uint64_t>(1e9 / max_operations_per_second);
+    uint64_t interval_ns = (max_operations_per_second == 0) ? 0 : static_cast<uint64_t>(INT64_1E9 / max_operations_per_second);
     uint64_t next_ns = get_walltime();
-    uint64_t end_ns = next_ns + duration_secs * 1000000000ull;
+    uint64_t end_ns = next_ns + duration_secs * INT64_1E9;
     uint64_t message_id = this->capi.get_my_id() * 1000000000ull;
     const uint32_t num_distinct_objects = objects.size();
     while(true) {
@@ -673,13 +673,13 @@ bool PerfTestServer::eval_get_by_time(uint64_t ms_in_past,
     // Put test objects in the target subgroup/object pool for ms_in_past milliseconds, and record the oldest timestamp
     // For now use a fixed rate of 1 put() every 10ms (i.e. 100 op/s), but we might want to make this configurable in the future
     std::queue<std::pair<std::size_t, derecho::QueryResults<derecho::cascade::version_tuple>>> put_futures_queue;
-    const uint64_t put_interval_ns = get_by_time_put_interval * 1e6;
+    const uint64_t put_interval_ns = get_by_time_put_interval * INT64_1E6;
     // Offset to add to each timestamp received in reply from put() before using as the timestamp to request. This accounts for slight differences in timestamps assigned at each replica
     const uint64_t timestamp_offset_us = 100;
     uint64_t next_put_ns = get_walltime();
-    uint64_t put_end_ns = get_walltime() + ms_in_past * 1e6;
+    uint64_t put_end_ns = get_walltime() + ms_in_past * INT64_1E9;
     if(put_end_ns < next_put_ns + put_interval_ns * num_distinct_objects) {
-        dbg_default_warn("eval_get_by_time: Requested ms_in_past ({}) is shorter than minimum time needed to put all objects once ({}). Increasing it to the minimum.", ms_in_past, (put_interval_ns * num_distinct_objects) / 1e6);
+        dbg_default_warn("eval_get_by_time: Requested ms_in_past ({}) is shorter than minimum time needed to put all objects once ({}). Increasing it to the minimum.", ms_in_past, (put_interval_ns * num_distinct_objects) / INT64_1E6);
         put_end_ns = get_walltime() + (put_interval_ns * num_distinct_objects);
     }
     std::size_t current_object = 0;
@@ -750,7 +750,7 @@ bool PerfTestServer::eval_get_by_time(uint64_t ms_in_past,
     dbg_default_info("eval_get_by_time: Target version is stable, ready to start experiment");
 
     // Timing control variables for the get loop
-    uint64_t interval_ns = (max_operations_per_second == 0) ? 0 : static_cast<uint64_t>(1e9 / max_operations_per_second);
+    uint64_t interval_ns = (max_operations_per_second == 0) ? 0 : static_cast<uint64_t>(INT64_1E9 / max_operations_per_second);
     uint64_t next_ns = get_walltime();
     uint64_t end_ns = next_ns + duration_secs * 1000000000ull;
     uint64_t message_id = this->capi.get_my_id() * 1000000000ull;
@@ -841,7 +841,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         uint32_t num_distinct_objects = std::min(static_cast<uint64_t>(max_num_distinct_objects), max_workload_memory / object_size);
         make_workload<std::string, ObjectWithStringKey>(object_size, num_distinct_objects, "raw_key_", objects);
         // STEP 3 - start experiment and log
-        int64_t sleep_us = (start_sec*1e9 - static_cast<int64_t>(get_walltime()))/1e3;
+        int64_t sleep_us = (start_sec*INT64_1E9 - static_cast<int64_t>(get_walltime()))/INT64_1E3;
         if (sleep_us > 1) {
             usleep(sleep_us);
         }
@@ -889,7 +889,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         uint32_t num_distinct_objects = std::min(static_cast<uint64_t>(max_num_distinct_objects), max_workload_memory / object_size);
         make_workload<std::string, ObjectWithStringKey>(object_size, num_distinct_objects, "raw_key_", objects);
         // STEP 3 - start experiment and log
-        int64_t sleep_us = (start_sec*1e9 - static_cast<int64_t>(get_walltime()))/1e3;
+        int64_t sleep_us = (start_sec*INT64_1E9 - static_cast<int64_t>(get_walltime()))/INT64_1E3;
         if (sleep_us > 1) {
             usleep(sleep_us);
         }
@@ -936,7 +936,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         uint32_t object_size = derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
         uint32_t num_distinct_objects = std::min(static_cast<uint64_t>(max_num_distinct_objects), max_workload_memory / object_size);
         make_workload<std::string, ObjectWithStringKey>(object_size, num_distinct_objects, "raw_key_", objects);
-        int64_t sleep_us = (start_sec * 1e9 - static_cast<int64_t>(get_walltime())) / 1e3;
+        int64_t sleep_us = (start_sec * INT64_1E9 - static_cast<int64_t>(get_walltime())) / INT64_1E3;
         if (sleep_us > 1) {
             usleep(sleep_us);
         }
@@ -991,7 +991,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
                                         derecho::getConfUInt64(derecho::Conf::PERS_MAX_DATA_SIZE) / (object_size * (log_depth + 1)));
         make_workload<std::string, ObjectWithStringKey>(object_size, num_distinct_objects, "raw_key_", objects);
         // Wait for start time
-        int64_t sleep_us = (start_sec * 1e9 - static_cast<int64_t>(get_walltime())) / 1e3;
+        int64_t sleep_us = (start_sec * INT64_1E9 - static_cast<int64_t>(get_walltime())) / INT64_1E3;
         if(sleep_us > 1) {
             usleep(sleep_us);
         }
@@ -1038,7 +1038,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         num_distinct_objects = std::min(static_cast<uint64_t>(num_distinct_objects), ms_in_past / get_by_time_put_interval);
         make_workload<std::string, ObjectWithStringKey>(object_size, num_distinct_objects, "raw_key_", objects);
         // Wait for start time
-        int64_t sleep_us = (start_sec * 1e9 - static_cast<int64_t>(get_walltime())) / 1e3;
+        int64_t sleep_us = (start_sec * INT64_1E9 - static_cast<int64_t>(get_walltime())) / INT64_1E3;
         if(sleep_us > 1) {
             usleep(sleep_us);
         }
@@ -1096,7 +1096,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         uint32_t object_size = derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
         uint32_t num_distinct_objects = std::min(static_cast<uint64_t>(max_num_distinct_objects), max_workload_memory / object_size);
         make_workload<std::string, ObjectWithStringKey>(object_size, num_distinct_objects, object_pool_pathname + "/key_", objects);
-        int64_t sleep_us = (start_sec*1e9 - static_cast<int64_t>(get_walltime()))/1e3;
+        int64_t sleep_us = (start_sec*INT64_1E9 - static_cast<int64_t>(get_walltime()))/INT64_1E3;
         if (sleep_us > 1) {
             usleep(sleep_us);
         }
@@ -1148,7 +1148,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         uint32_t object_size = derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
         uint32_t num_distinct_objects = std::min(static_cast<uint64_t>(max_num_distinct_objects), max_workload_memory / object_size);
         make_workload<std::string, ObjectWithStringKey>(object_size, num_distinct_objects, object_pool_pathname+"/key_", objects);
-        int64_t sleep_us = (start_sec*1e9 - static_cast<int64_t>(get_walltime()))/1e3;
+        int64_t sleep_us = (start_sec*INT64_1E9 - static_cast<int64_t>(get_walltime()))/INT64_1E3;
         if (sleep_us > 1) {
             usleep(sleep_us);
         }
@@ -1199,7 +1199,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         uint32_t object_size = derecho::getConfUInt32(derecho::Conf::DERECHO_MAX_P2P_REQUEST_PAYLOAD_SIZE);
         uint32_t num_distinct_objects = std::min(static_cast<uint64_t>(max_num_distinct_objects), max_workload_memory / object_size);
         make_workload<std::string, ObjectWithStringKey>(object_size, num_distinct_objects, object_pool_pathname+"/key_", objects);
-        int64_t sleep_us = (start_sec*1e9 - static_cast<int64_t>(get_walltime()))/1e3;
+        int64_t sleep_us = (start_sec*INT64_1E9 - static_cast<int64_t>(get_walltime()))/INT64_1E3;
         if (sleep_us > 1) {
             usleep(sleep_us);
         }
@@ -1341,7 +1341,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         make_workload<std::string, ObjectWithStringKey>(object_size, num_distinct_objects,
                                                         object_pool_pathname + "/key_", objects);
         // Wait for start time
-        int64_t sleep_us = (start_sec * 1e9 - static_cast<int64_t>(get_walltime())) / 1e3;
+        int64_t sleep_us = (start_sec * INT64_1E9 - static_cast<int64_t>(get_walltime())) / INT64_1E3;
         if(sleep_us > 1) {
             usleep(sleep_us);
         }
@@ -1389,7 +1389,7 @@ PerfTestServer::PerfTestServer(ServiceClientAPI& capi, uint16_t port):
         make_workload<std::string, ObjectWithStringKey>(object_size, num_distinct_objects,
                                                         object_pool_pathname + "/key_", objects);
         // Wait for start time
-        int64_t sleep_us = (start_sec * 1e9 - static_cast<int64_t>(get_walltime())) / 1e3;
+        int64_t sleep_us = (start_sec * INT64_1E9 - static_cast<int64_t>(get_walltime())) / INT64_1E3;
         if(sleep_us > 1) {
             usleep(sleep_us);
         }

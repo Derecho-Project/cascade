@@ -461,7 +461,7 @@ bool PerfTestClient::perf_put(PutType               put_type,
         rpc_cmd = "perf_signature_put_to_objectpool";
         break;
     }
-    int64_t start_sec = static_cast<int64_t>(get_walltime())/1e9 + 5; // wait for 5 second so that the rpc servers are started.
+    int64_t start_sec = static_cast<int64_t>(get_walltime())/INT64_1E9 + 5; // wait for 5 second so that the rpc servers are started.
 
     std::map<std::pair<std::string,uint16_t>,std::future<RPCLIB_MSGPACK::object_handle>> futures;
     for (auto& kv: connections) {
@@ -532,7 +532,7 @@ bool PerfTestClient::perf_get(const std::string& object_pool_pathname,
     // 2 - send requests and wait for response
 
     std::string rpc_cmd = "perf_get_to_objectpool";
-    int64_t start_sec = static_cast<int64_t>(get_walltime()) / 1e9 + 5;  // wait for 5 second so that the rpc servers are started.
+    int64_t start_sec = static_cast<int64_t>(get_walltime()) / INT64_1E9 + 5;  // wait for 5 second so that the rpc servers are started.
 
     std::map<std::pair<std::string, uint16_t>, std::future<RPCLIB_MSGPACK::object_handle>> futures;
     for(auto& kv : connections) {
@@ -598,7 +598,7 @@ bool PerfTestClient::perf_get_by_time(const std::string& object_pool_pathname,
     };
     // 2 - send requests and wait for response
     std::string rpc_cmd = "perf_get_by_time_to_objectpool";
-    int64_t start_sec = static_cast<int64_t>(get_walltime()) / 1e9 + 5;  // wait for 5 second so that the rpc servers are started.
+    int64_t start_sec = static_cast<int64_t>(get_walltime()) / INT64_1E9 + 5;  // wait for 5 second so that the rpc servers are started.
 
     std::map<std::pair<std::string, uint16_t>, std::future<RPCLIB_MSGPACK::object_handle>> futures;
     for(auto& kv : connections) {
@@ -676,7 +676,7 @@ bool PerfTestClient::perf_put(PutType   put_type,
         return false;
     }
 
-    int64_t start_sec = static_cast<int64_t>(get_walltime())/1e9 + 5; // wait for 5 second so that the rpc servers are started.
+    int64_t start_sec = static_cast<int64_t>(get_walltime())/INT64_1E9 + 5; // wait for 5 second so that the rpc servers are started.
 
     for (auto& kv: connections) {
         futures.emplace(kv.first,kv.second->async_call(rpc_cmd,
@@ -730,7 +730,7 @@ bool PerfTestClient::perf_get(uint32_t subgroup_index,
     // 2 - send requests and wait for response
 
     std::string rpc_cmd = "perf_get_to_shard";
-    int64_t start_sec = static_cast<int64_t>(get_walltime()) / 1e9 + 5;  // wait for 5 second so that the rpc servers are started.
+    int64_t start_sec = static_cast<int64_t>(get_walltime()) / INT64_1E9 + 5;  // wait for 5 second so that the rpc servers are started.
 
     std::map<std::pair<std::string, uint16_t>, std::future<RPCLIB_MSGPACK::object_handle>> futures;
     for(auto& kv : connections) {
@@ -787,7 +787,7 @@ bool PerfTestClient::perf_get_by_time(uint32_t subgroup_index,
     };
     // 2 - send requests and wait for response
     std::string rpc_cmd = "perf_get_by_time_to_shard";
-    int64_t start_sec = static_cast<int64_t>(get_walltime()) / 1e9 + 5;  // wait for 5 second so that the rpc servers are started.
+    int64_t start_sec = static_cast<int64_t>(get_walltime()) / INT64_1E9 + 5;  // wait for 5 second so that the rpc servers are started.
 
     std::map<std::pair<std::string, uint16_t>, std::future<RPCLIB_MSGPACK::object_handle>> futures;
     for(auto& kv : connections) {
