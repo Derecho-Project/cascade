@@ -604,7 +604,7 @@ version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_remove(const K
                 previous_version_by_key};
     } catch(cascade_exception& ex) {
         debug_leave_func_with_value("Failed with exception:{}", ex.what());
-        return {persistent::INVALID_VERSION, persistent::INVALID_VERSION, persistent::INVALID_VERSION, 0};
+        return {persistent::INVALID_VERSION, 0, persistent::INVALID_VERSION, persistent::INVALID_VERSION};
     }
 }
 
