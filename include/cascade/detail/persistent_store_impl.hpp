@@ -43,6 +43,12 @@ version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::put(const VT& value) c
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::put_objects(const std::vector<VT>& values) const {
+    // TODO this is just a stub
+    return {CURRENT_VERSION, 0};
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void PersistentCascadeStore<KT, VT, IK, IV, ST>::put_and_forget(const VT& value) const {
     debug_enter_func_with_args("value.get_key_ref()={}", value.get_key_ref());
     LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_PUT_AND_FORGET_START, group, value);
@@ -483,6 +489,12 @@ version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put(const VT& 
             std::get<1>(version_and_hlc).m_rtc_us);
 
     return version_and_timestamp;
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_objects(const std::vector<VT>& values) {
+    // TODO this is just a stub
+    return {persistent::INVALID_VERSION,0};
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>

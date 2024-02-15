@@ -36,6 +36,30 @@ version_tuple VolatileCascadeStore<KT, VT, IK, IV>::put(const VT& value) const {
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
+version_tuple VolatileCascadeStore<KT, VT, IK, IV>::put_objects(const std::vector<VT>& values) const {
+    debug_enter_func_with_args("values.size={}", values.size());
+    version_tuple ret{CURRENT_VERSION, 0};
+   
+    if(!values.empty()){
+        LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_PUT_START, group, values[0]);
+
+        derecho::Replicated<VolatileCascadeStore>& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
+        auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put_objects)>(values);
+        auto& replies = results.get();
+
+        // TODO: verify consistency ?
+        for(auto& reply_pair : replies) {
+            ret = reply_pair.second.get();
+        }
+
+        LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_PUT_END, group, values[0]);
+    }
+
+    debug_leave_func_with_value("version=0x{:x},timestamp={}us", std::get<0>(ret), std::get<1>(ret));
+    return ret;
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV>
 void VolatileCascadeStore<KT, VT, IK, IV>::put_and_forget(const VT& value) const {
     debug_enter_func_with_args("value.get_key_ref={}", value.get_key_ref());
     LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_PUT_AND_FORGET_START, group, value);
@@ -398,6 +422,38 @@ version_tuple VolatileCascadeStore<KT, VT, IK, IV>::ordered_put(const VT& value)
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
+version_tuple VolatileCascadeStore<KT, VT, IK, IV>::ordered_put_objects(const std::vector<VT>& values) {
+    debug_enter_func_with_args("size={}", values.size());
+    
+    auto version_and_hlc = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
+    version_tuple version_and_timestamp{persistent::INVALID_VERSION, 0};
+
+    if(!values.empty()){
+#if __cplusplus > 201703L
+        LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_PUT_START,group,values[0],std::get<0>(version_and_hlc));
+#else
+        LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_PUT_START,group,values[0],std::get<0>(version_and_hlc));
+#endif
+
+        if(this->internal_ordered_put_objects(values) == true) {
+            version_and_timestamp = {std::get<0>(version_and_hlc),std::get<1>(version_and_hlc).m_rtc_us};
+        }
+
+#if __cplusplus > 201703L
+        LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_PUT_END,group,values[0],std::get<0>(version_and_hlc));
+#else
+        LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_PUT_END,group,values[0],std::get<0>(version_and_hlc));
+#endif
+    }
+
+    debug_leave_func_with_value("version=0x{:x},timestamp={}us",
+            std::get<0>(version_and_hlc),
+            std::get<1>(version_and_hlc).m_rtc_us);
+
+    return version_and_timestamp;
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV>
 void VolatileCascadeStore<KT, VT, IK, IV>::ordered_put_and_forget(const VT& value) {
     debug_enter_func_with_args("key={}", value.get_key_ref());
 #ifdef ENABLE_EVALUATION
@@ -418,7 +474,11 @@ void VolatileCascadeStore<KT, VT, IK, IV>::ordered_put_and_forget(const VT& valu
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-bool VolatileCascadeStore<KT, VT, IK, IV>::internal_ordered_put(const VT& value) {
+bool VolatileCascadeStore<KT, VT, IK, IV>::internal_ordered_put(const VT& value) { 
+    /* TODO to avoid code repetition, this could use the new vector version:
+     * return this->internal_ordered_put_objects({value});
+     */
+
     auto version_and_hlc = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
 
     if constexpr(std::is_base_of<IKeepVersion, VT>::value) {
@@ -487,6 +547,88 @@ bool VolatileCascadeStore<KT, VT, IK, IV>::internal_ordered_put(const VT& value)
                 group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_shard_num(),
                 group->get_rpc_caller_id(),
                 value.get_key_ref(), value, cascade_context_ptr);
+    }
+
+    return true;
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV>
+bool VolatileCascadeStore<KT, VT, IK, IV>::internal_ordered_put_objects(const std::vector<VT>& values) { 
+    auto version_and_hlc = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
+
+    // validate and check versions of all objects before any update: if there is at least one mismatch, fail the whole operation
+    for(const VT& value : values){
+        if constexpr(std::is_base_of<IKeepVersion, VT>::value) {
+            value.set_version(std::get<0>(version_and_hlc));
+        }
+        if constexpr(std::is_base_of<IKeepTimestamp, VT>::value) {
+            value.set_timestamp(std::get<1>(version_and_hlc).m_rtc_us);
+        }
+
+        // validator
+        if constexpr(std::is_base_of<IValidator<KT, VT>, VT>::value) {
+            if(!value.validate(this->kv_map)) {
+                return false;
+            }
+        }
+
+        // Verify previous version MUST happen before update previous versions.
+        if constexpr(std::is_base_of<IVerifyPreviousVersion, VT>::value) {
+            bool verify_result;
+            if(this->kv_map.find(value.get_key_ref()) != this->kv_map.end()) {
+                verify_result = value.verify_previous_version(this->update_version, this->kv_map.at(value.get_key_ref()).get_version());
+            } else {
+                verify_result = value.verify_previous_version(this->update_version, persistent::INVALID_VERSION);
+            }
+            if(!verify_result) {
+                // reject the update by returning an invalid version and timestamp
+                return false;
+            }
+        }
+
+        if constexpr(std::is_base_of<IKeepPreviousVersion, VT>::value) {
+            if(this->kv_map.find(value.get_key_ref()) != this->kv_map.end()) {
+                value.set_previous_version(this->update_version, this->kv_map.at(value.get_key_ref()).get_version());
+            } else {
+                value.set_previous_version(this->update_version, persistent::INVALID_VERSION);
+            }
+        }
+    }
+
+    // perform updates
+    for(const VT& value : values){
+        // for lockless check
+        this->lockless_v1.store(std::get<0>(version_and_hlc), std::memory_order_relaxed);
+        // compiler reordering barrier
+#ifdef __GNUC__
+        asm volatile("" ::
+                             : "memory");
+#else
+#error Lockless support is currently for GCC only
+#endif
+
+        this->kv_map.erase(value.get_key_ref());           // remove
+        this->kv_map.emplace(value.get_key_ref(), value);  // copy constructor
+        this->update_version = std::get<0>(version_and_hlc);
+
+        // for lockless check
+        // compiler reordering barrier
+#ifdef __GNUC__
+        asm volatile("" ::
+                             : "memory");
+#else
+#error Lockless support is currently for GCC only
+#endif
+        this->lockless_v2.store(std::get<0>(version_and_hlc), std::memory_order_relaxed);
+
+        if(cascade_watcher_ptr) {
+            (*cascade_watcher_ptr)(
+                    // group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_subgroup_id(), // this is subgroup id
+                    this->subgroup_index,  // this is subgroup index
+                    group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_shard_num(),
+                    group->get_rpc_caller_id(),
+                    value.get_key_ref(), value, cascade_context_ptr);
+        }
     }
 
     return true;

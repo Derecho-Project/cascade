@@ -26,6 +26,7 @@ class VolatileCascadeStore : public ICascadeStore<KT, VT, IK, IV>,
                              public derecho::NotificationSupport {
 private:
     bool internal_ordered_put(const VT& value);
+    bool internal_ordered_put_objects(const std::vector<VT>& values);
 #if defined(__i386__) || defined(__x86_64__) || defined(_M_AMD64) || defined(_M_IX86)
     mutable std::atomic<persistent::version_t> lockless_v1;
     mutable std::atomic<persistent::version_t> lockless_v2;
@@ -47,6 +48,7 @@ public:
     REGISTER_RPC_FUNCTIONS_WITH_NOTIFICATION(VolatileCascadeStore,
                                              P2P_TARGETS(
                                                      put,
+                                                     put_objects,
                                                      put_and_forget,
 #ifdef ENABLE_EVALUATION
                                                      perf_put,
@@ -73,6 +75,7 @@ public:
                                                      ),
                                              ORDERED_TARGETS(
                                                      ordered_put,
+                                                     ordered_put_objects,
                                                      ordered_put_and_forget,
                                                      ordered_remove,
                                                      ordered_get,
@@ -91,6 +94,7 @@ public:
 #endif  // ENABLE_EVALUATION
     virtual void trigger_put(const VT& value) const override;
     virtual version_tuple put(const VT& value) const override;
+    virtual version_tuple put_objects(const std::vector<VT>& values) const override;
 #ifdef ENABLE_EVALUATION
     virtual double perf_put(const uint32_t max_payload_size, const uint64_t duration_sec) const override;
 #endif  // ENABLE_EVALUATION
@@ -106,6 +110,7 @@ public:
     virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, const bool stable, bool exact = false) const override;
     virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us, const bool stable) const override;
     virtual version_tuple ordered_put(const VT& value) override;
+    virtual version_tuple ordered_put_objects(const std::vector<VT>& values) override;
     virtual void ordered_put_and_forget(const VT& value) override;
     virtual version_tuple ordered_remove(const KT& key) override;
     virtual const VT ordered_get(const KT& key) override;

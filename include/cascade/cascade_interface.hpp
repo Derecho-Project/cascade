@@ -103,6 +103,18 @@ public:
     virtual version_tuple put(const VT& value) const = 0;
 
     /**
+     * @brief   put_objects(const std::vector<VT>&)
+     *
+     * Put a list of values. VT must implement ICascadeObject interface. Keys are given in the values and retrieved by
+     * ICascadeObject::get_key_ref()
+     *
+     * @param[in]   values   The list of K/V pair values
+     *
+     * @return      a tuple including version number (version_t) and a timestamp in microseconds.
+     */
+    virtual version_tuple put_objects(const std::vector<VT>& values) const = 0;
+
+    /**
      * @brief   put_and_forget(const VT&)
      *
      * Put a value. VT must implement ICascadeObject interface. The key is given in value and retrieved by
@@ -341,6 +353,15 @@ protected:
      * @return  A tuple including version number (version_t) and a timestamp in microseconds.
      */
     virtual version_tuple ordered_put(const VT& value) = 0;
+
+    /**
+     * @brief   ordered_put_objects
+     *
+     * @param[in]   values   The list of K/V pair objects.
+     *
+     * @return  A tuple including version number (version_t) and a timestamp in microseconds.
+     */
+    virtual version_tuple ordered_put_objects(const std::vector<VT>& values) = 0;
 
     /**
      * @brief   ordered_put_and_forget
