@@ -93,7 +93,6 @@ void DeltaCascadeStoreCore<KT, VT, IK, IV>::finalizeCurrentDelta(const persisten
 
 template <typename KT, typename VT, KT* IK, VT* IV>
 void DeltaCascadeStoreCore<KT, VT, IK, IV>::applyDelta(uint8_t const* const delta) {
-    apply_ordered_put(*mutils::from_bytes<VT>(nullptr, delta));
     mutils::deserialize_and_run(nullptr, delta, [this](const VT& value) {
         this->apply_ordered_put(value);
     });
