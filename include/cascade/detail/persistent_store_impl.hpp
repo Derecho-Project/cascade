@@ -44,8 +44,26 @@ version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::put(const VT& value) c
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::put_objects(const std::vector<VT>& values) const {
-    // TODO this is just a stub
-    return {CURRENT_VERSION, 0};
+    debug_enter_func_with_args("values.size={}", values.size());
+    version_tuple ret{CURRENT_VERSION, 0};
+
+    if(!values.empty()){
+        LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_PUT_START, group, values[0]);
+
+        derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
+        auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put_objects)>(values);
+        auto& replies = results.get();
+
+        // TODO: verify consistency ?
+        for(auto& reply_pair : replies) {
+            ret = reply_pair.second.get();
+        }
+
+        LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_PUT_END, group, values[0]);
+    }
+
+    debug_leave_func_with_value("version=0x{:x},timestamp={}us", std::get<0>(ret), std::get<1>(ret));
+    return ret;
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
@@ -493,8 +511,34 @@ version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put(const VT& 
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_objects(const std::vector<VT>& values) {
-    // TODO this is just a stub
-    return {persistent::INVALID_VERSION,0};
+    debug_enter_func_with_args("size={}", values.size());
+
+    auto version_and_hlc = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
+    version_tuple version_and_timestamp{persistent::INVALID_VERSION,0};
+
+    if(!values.empty()){
+#if __cplusplus > 201703L
+        LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_PUT_START, group, values[0], std::get<0>(version_and_hlc));
+#else
+        LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_PUT_START, group, values[0], std::get<0>(version_and_hlc));
+#endif
+
+        if(this->internal_ordered_put_objects(values) == true) {
+            version_and_timestamp = {std::get<0>(version_and_hlc),std::get<1>(version_and_hlc).m_rtc_us};
+        }
+
+#if __cplusplus > 201703L
+        LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_PUT_END, group, values[0], std::get<0>(version_and_hlc));
+#else
+        LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_PUT_END, group, values[0], std::get<0>(version_and_hlc));
+#endif
+    }
+
+    debug_leave_func_with_value("version=0x{:x},timestamp={}us",
+            std::get<0>(version_and_hlc),
+            std::get<1>(version_and_hlc).m_rtc_us);
+
+    return version_and_timestamp;
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
@@ -551,6 +595,39 @@ bool PersistentCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put(const VT& 
                 group->get_rpc_caller_id(),
                 value.get_key_ref(), value, cascade_context_ptr);
     }
+    return true;
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+bool PersistentCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put_objects(const std::vector<VT>& values) {
+    auto version_and_hlc = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
+
+    // set new version
+    for(const VT& value : values){
+        if constexpr(std::is_base_of<IKeepVersion, VT>::value) {
+            value.set_version(std::get<0>(version_and_hlc));
+        }
+        if constexpr(std::is_base_of<IKeepTimestamp, VT>::value) {
+            value.set_timestamp(std::get<1>(version_and_hlc).m_rtc_us);
+        }
+    }
+    
+    // validate and update
+    if(this->persistent_core->ordered_put_objects(values, this->persistent_core.getLatestVersion()) == false){
+        return false;
+    }
+
+    for(const VT& value : values){
+        if(cascade_watcher_ptr) {
+            (*cascade_watcher_ptr)(
+                    // group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_subgroup_id(), // this is subgroup id
+                    this->subgroup_index,
+                    group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_shard_num(),
+                    group->get_rpc_caller_id(),
+                    value.get_key_ref(), value, cascade_context_ptr);
+        }
+    }
+
     return true;
 }
 

@@ -80,6 +80,10 @@ public:
      */
     virtual bool ordered_put(const VT& value, persistent::version_t prever);
     /**
+     * Ordered put_objects, and generate a delta.
+     */
+    virtual bool ordered_put_objects(const std::vector<VT>& values, persistent::version_t prever);
+    /**
      * Ordered remove, and generate a delta.
      */
     virtual bool ordered_remove(const VT& value, persistent::version_t prev_ver);
