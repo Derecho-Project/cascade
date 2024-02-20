@@ -22,10 +22,10 @@ int main(int argc, char** argv) {
         dbg_default_warn("Cannot set proc name to {}.", PROC_NAME);
     }
 
-    CascadeServiceCDPO<VolatileCascadeStoreWithStringKey, DefaultCascadeContextType> cdpo_vcss;
-    CascadeServiceCDPO<PersistentCascadeStoreWithStringKey, DefaultCascadeContextType> cdpo_pcss;
-    CascadeServiceCDPO<SignatureCascadeStoreWithStringKey, DefaultCascadeContextType> cdpo_scss;
-    CascadeServiceCDPO<TriggerCascadeNoStoreWithStringKey, DefaultCascadeContextType> cdpo_tcss;
+    CascadeServiceCDPO<VolatileCascadeStoreWithStringKey> cdpo_vcss;
+    CascadeServiceCDPO<PersistentCascadeStoreWithStringKey> cdpo_pcss;
+    CascadeServiceCDPO<SignatureCascadeStoreWithStringKey> cdpo_scss;
+    CascadeServiceCDPO<TriggerCascadeNoStoreWithStringKey> cdpo_tcss;
 
     auto meta_factory = [](persistent::PersistentRegistry* pr, derecho::subgroup_id_t, ICascadeContext* context_ptr) {
         // critical data path for metadata service is currently disabled. But we can leverage it later for object pool

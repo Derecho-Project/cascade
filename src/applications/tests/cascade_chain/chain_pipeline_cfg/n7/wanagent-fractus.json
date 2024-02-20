@@ -2,7 +2,7 @@
     "version": "1.0.0",
     "transport" : "tcp",
     "private_ip": "128.84.139.20",
-    "private_port": 28587,
+    "private_port": 28585,
     "local_site_id" : 1,
     "local_initial_leader" : 0,
     "max_payload_size": 102400,
@@ -11,12 +11,12 @@
         {
             "id": 0,
             "ips": ["128.84.139.27", "128.84.139.25"],
-            "ports": [28581, 28583]
+            "ports": [28580, 28580]
         },
         {
             "id": 1,
             "ips": ["128.84.139.21", "128.84.139.20"],
-            "ports": [28586, 28587]
+            "ports": [28585, 28585]
         }
     ]
 }

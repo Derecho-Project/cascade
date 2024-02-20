@@ -15,13 +15,6 @@ using ServiceClientAPI = ServiceClient<VolatileCascadeStoreWithStringKey,
                                        PersistentCascadeStoreWithStringKey,
                                        SignatureCascadeStoreWithStringKey,
                                        TriggerCascadeNoStoreWithStringKey>;
-
-/**
- * The concrete client type for the CascadeChain service
- */
-using ChainServiceClient = ServiceClient<PersistentCascadeStoreWithStringKey,
-                                         SignatureCascadeStoreWithStringKey>;
-
 /**
  * Create Linq iterators on keys or versions of keys
  */

@@ -8,10 +8,6 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/Modules")
 
-find_package(nlohmann_json 3.2.0 REQUIRED)
-find_package(OpenSSL REQUIRED)
-find_package(spdlog 1.3.1 REQUIRED)
-find_package(derecho CONFIG REQUIRED)
 find_package(cascade CONFIG REQUIRED)
 find_package(Readline REQUIRED)
 

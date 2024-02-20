@@ -1,5 +1,3 @@
-find_program(DOTNET_CMD dotnet)
-
 if (DOTNET_CMD)
     execute_process(COMMAND ${DOTNET_CMD} --version OUTPUT_VARIABLE DOTNET_VER OUTPUT_STRIP_TRAILING_WHITESPACE)
     execute_process(COMMAND bash "-c" "echo ${DOTNET_VER} | sed 's/\\./ /g' | awk '{print $1}'" OUTPUT_VARIABLE DOTNET_MAJOR_VER OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -24,7 +22,7 @@ if (DOTNET_CMD)
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         )
         target_link_libraries(member_client_cs cascade)
-        add_dependencies(member_client_cs cascade)
+        add_dependencies(member_client_cs cascade external_client_cs) # avoid parallelly building member_client and external client.
 
         install(TARGETS external_client_cs RUNTIME DESTINATION ${CMAKE_INSTALL_LIBDIR})
         install(TARGETS member_client_cs RUNTIME DESTINATION ${CMAKE_INSTALL_LIBDIR})

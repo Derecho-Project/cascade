@@ -1,4 +1,4 @@
-find_package(Python 3.6 COMPONENTS Interpreter Development QUIET)
+find_package(Python 3.10 COMPONENTS Interpreter Development QUIET)
 find_package(pybind11 QUIET)
 
 if (pybind11_FOUND)
@@ -20,6 +20,7 @@ if (pybind11_FOUND)
     endif()
 
     configure_file(setup.py.in ${CMAKE_CURRENT_BINARY_DIR}/setup.py)
+    configure_file(pipinstall.cmake.in ${CMAKE_CURRENT_BINARY_DIR}/pipinstall.cmake)
 
     # pybind11 is found, so we compile the python bindings.
     pybind11_add_module(external_client_py cascade_client_py.cpp)
@@ -43,6 +44,7 @@ if (pybind11_FOUND)
     set_target_properties(external_client_py PROPERTIES
         OUTPUT_NAME derecho/cascade/external_client
     )
+    add_dependencies(external_client_py cascade)
 
     pybind11_add_module(member_client_py cascade_client_py.cpp)
     target_include_directories(member_client_py PRIVATE
@@ -63,6 +65,9 @@ if (pybind11_FOUND)
     set_target_properties(member_client_py PROPERTIES
         OUTPUT_NAME derecho/cascade/member_client
     )
+    add_dependencies(member_client_py cascade external_client_py)
+
+    install(SCRIPT ${CMAKE_CURRENT_BINARY_DIR}/pipinstall.cmake)
 
     install(FILES cascade_client.py cascade_perf.py
             TYPE BIN

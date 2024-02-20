@@ -14,6 +14,13 @@
 #define CONF_PCS_UINT64KEY_LAYOUT "CASCADE/PERSISTENTCASCADESTORE/UINT64/layout"
 #define CONF_PCS_STRINGKEY_LAYOUT "CASCADE/PERSISTENTCASCADESTORE/STRING/layout"
 
+#define CASCADE_SUBGROUP_TYPE_LIST  \
+    VolatileCascadeStoreWithStringKey, \
+    PersistentCascadeStoreWithStringKey, \
+    SignatureCascadeStoreWithStringKey, \
+    TriggerCascadeNoStoreWithStringKey
+
+
 namespace derecho {
 namespace cascade {
 
@@ -35,27 +42,17 @@ using TriggerCascadeNoStoreWithStringKey = TriggerCascadeNoStore<
                                                 ObjectWithStringKey,
                                                 &ObjectWithStringKey::IK,
                                                 &ObjectWithStringKey::IV>;
-
 using SignatureCascadeStoreWithStringKey = SignatureCascadeStore<
                                                 std::remove_cv_t<std::remove_reference_t<decltype(std::declval<ObjectWithStringKey>().get_key_ref())>>,
                                                 ObjectWithStringKey,
                                                 &ObjectWithStringKey::IK,
                                                 &ObjectWithStringKey::IV,persistent::ST_FILE>;
 
-using DefaultServiceType = Service<VolatileCascadeStoreWithStringKey,
-                                   PersistentCascadeStoreWithStringKey,
-                                   SignatureCascadeStoreWithStringKey,
-                                   TriggerCascadeNoStoreWithStringKey>;
+using DefaultServiceType = Service<CASCADE_SUBGROUP_TYPE_LIST>;
 
-using DefaultCascadeContextType = CascadeContext<VolatileCascadeStoreWithStringKey,
-                                                 PersistentCascadeStoreWithStringKey,
-                                                 SignatureCascadeStoreWithStringKey,
-                                                 TriggerCascadeNoStoreWithStringKey>;
+using DefaultCascadeContextType = CascadeContext<CASCADE_SUBGROUP_TYPE_LIST>;
 
-using DefaultObjectPoolMetadataType = ObjectPoolMetadata<VolatileCascadeStoreWithStringKey,
-                                                         PersistentCascadeStoreWithStringKey,
-                                                         SignatureCascadeStoreWithStringKey,
-                                                         TriggerCascadeNoStoreWithStringKey>;
+using DefaultObjectPoolMetadataType = ObjectPoolMetadata<CASCADE_SUBGROUP_TYPE_LIST>;
 
 template <>
 inline DefaultObjectPoolMetadataType create_null_object_cb<
@@ -68,14 +65,6 @@ inline DefaultObjectPoolMetadataType create_null_object_cb<
     opm.subgroup_type_index = DefaultObjectPoolMetadataType::invalid_subgroup_type_index;
     return opm;
 }
-
-// Specializations for CascadeChain, if we decide to make it a different type of service from the default
-// For now, these will not be used, and we'll just add SignatureCascadeStore to the default service
-using ChainServiceType = Service<PersistentCascadeStoreWithStringKey,
-                                 SignatureCascadeStoreWithStringKey>;
-
-using ChainContextType = CascadeContext<PersistentCascadeStoreWithStringKey,
-                                        SignatureCascadeStoreWithStringKey>;
 
 } // namespace cascade
 } // namespace derecho

@@ -8,10 +8,7 @@ Cascade service supports data access with Python. If you didn't see `<build_path
  ```
  The constructor of ServiceClientAPI will load the cascade configurations in `derecho.cfg` and try connecting to the cascade service. Once it successfully connects, you can just use the methods defined in `ServiceClientAPI` class, which mirror the C++ [`ServiceClientAPI` interface](../../../include/cascade/service.hpp#L188). Please use [`cascade_client.py`](cascade_client.py) as example. We also provide a simpler example [kvs_client.py](../../applications/standalone/kvs_client/kvs_client.py) for quickstart.
  
- To use this api in your python application, please install cascade following the main [installation guide](../../../README.md#installation) and the python supports in `<build_path>/src/service/python/dist`. The python bindings is packaged in a wheel file named as `derecho.cascade-<version>-py3-none-any.whl. Please install the support as follows:  
- ```
- pip install derecho.cascade-<version>-py3-none-any.whl
- ```
+ To use this api in your python application, please install cascade following the main [installation guide](../../../README.md#installation). The python client support should be installed using `pip` along with `make install`.
  
  Then you can start python command and import cascade to verify installation as follows:
  ```
