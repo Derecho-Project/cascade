@@ -1204,16 +1204,15 @@ std::vector<command_entry_t> commands =
     },
     {
         "put_objects",
-        "Multi-object atomic put.",
-        "put <type> <key1> <value1> <key2> <value2> ... <subgroup_index> <shard_index> [previous_version(default:-1)]\n"
+        "Multi-object atomic put to a shard.",
+        "put_objects <type> <key1> <value1> <key2> <value2> ... <subgroup_index> <shard_index> [previous_version(default:-1)]\n"
             "type := " SUBGROUP_TYPE_LIST "\n"
             "Note: put_objects.[version,timestamp_us] will be set.",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
             persistent::version_t pver = persistent::INVALID_VERSION;
             std::vector<std::string> key_list;
             std::vector<std::string> value_list;
-            CHECK_FORMAT(cmd_tokens,6);
-
+            CHECK_FORMAT(cmd_tokens,8);
             bool has_ver = cmd_tokens.size() % 2 == 1;
             int last_key = has_ver ? cmd_tokens.size() - 5 : cmd_tokens.size() - 4;
             for (int i = 2; i <= last_key; i++) {
