@@ -560,7 +560,7 @@ version_tuple SignatureCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put(co
     // On the backup site, send a notification back to the originating client (for evaluation purposes) when the signature is finished
     if(backup_enabled && !is_primary_site) {
         cascade_context_ptr->get_persistence_observer().register_persistence_action(
-            my_subgroup_id, std::get<0>(hash_object_version_and_timestamp), true,
+            my_subgroup_id, std::get<0>(hash_object_version_and_hlc), true,
             [=]() {
                 send_remote_client_notification(copy_of_key, data_object_version, message_id);
             }
