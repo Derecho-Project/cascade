@@ -205,6 +205,28 @@ void put(ServiceClientAPI& capi, const std::string& key, const std::string& valu
     check_put_and_remove_result(result);
 }
 
+template <typename SubgroupType>
+void put_objects_versions(ServiceClientAPI& capi, const std::vector<std::string>& key_list, const std::vector<std::string>& value_list, 
+                 std::vector<persistent::version_t>& pver_list, std::vector<persistent::version_t>& pver_bk_list, uint32_t subgroup_index, uint32_t shard_index){
+    std::vector<typename SubgroupType::ObjectType> objects;
+    for (size_t i = 0; i < key_list.size(); i++) {
+        typename SubgroupType::ObjectType obj;
+        if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
+            obj.key = static_cast<uint64_t>(std::stol(key_list[i],nullptr,0));
+        } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
+            obj.key = key_list[i];
+        } else {
+            print_red(std::string("Unhandled KeyType:") + typeid(typename SubgroupType::KeyType).name());
+            return;
+        }
+        obj.previous_version = pver_list[i];
+        obj.previous_version_by_key = pver_bk_list[i];
+        obj.blob = Blob(reinterpret_cast<const uint8_t*>(value_list[i].c_str()),value_list[i].size()+1);
+        objects.push_back(obj);
+    }
+    derecho::rpc::QueryResults<derecho::cascade::version_tuple> result = capi.template put_objects<SubgroupType>(objects, subgroup_index, shard_index);
+    check_put_and_remove_result(result);
+}
 
 template <typename SubgroupType>
 void put_objects(ServiceClientAPI& capi, const std::vector<std::string>& key_list, const std::vector<std::string>& value_list, persistent::version_t pver, uint32_t subgroup_index, uint32_t shard_index){
@@ -1230,6 +1252,32 @@ std::vector<command_entry_t> commands =
                 shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[cmd_tokens.size() - 1],nullptr,0));
             }
             on_subgroup_type(cmd_tokens[1],put_objects,capi,key_list,value_list,pver,subgroup_index,shard_index);
+            return true;
+        }
+    },
+    {
+        "put_objects_version",
+        "Multi-object atomic put to a shard, with versions for each kv pair",
+        "put_objects_version <type> <key1> <value1> <pver1> <pver_bk_1> <key2> <value2> <pver2> <pver_bk_2> ... <subgroup_index> <shard_index> \n"
+            "type := " SUBGROUP_TYPE_LIST "\n"
+            "Note: put_objects_version.[version,timestamp_us] will be set.",
+        [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
+            std::vector<std::string> key_list;
+            std::vector<std::string> value_list;
+            std::vector<persistent::version_t> pver_list;
+            std::vector<persistent::version_t> pver_bk_list;
+            CHECK_FORMAT(cmd_tokens, 12);
+            for (int i = 2; i <= cmd_tokens.size() - 6; i++) {
+                key_list.push_back(cmd_tokens[i]);
+                value_list.push_back(cmd_tokens[i + 1]);
+                pver_list.push_back(static_cast<persistent::version_t>(std::stol(cmd_tokens[i + 2],nullptr,0)));
+                pver_bk_list.push_back(static_cast<persistent::version_t>(std::stol(cmd_tokens[i + 3],nullptr,0)));
+            }
+            uint32_t subgroup_index;
+            uint32_t shard_index;
+            subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[cmd_tokens.size() - 2],nullptr,0));
+            shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[cmd_tokens.size() - 1],nullptr,0));
+            on_subgroup_type(cmd_tokens[1],put_objects_versions,capi,key_list,value_list,pver_list,pver_bk_list,subgroup_index,shard_index);
             return true;
         }
     },
