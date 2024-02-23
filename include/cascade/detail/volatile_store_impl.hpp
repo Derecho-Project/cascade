@@ -78,7 +78,7 @@ void VolatileCascadeStore<KT, VT, IK, IV>::put_objects_forward(
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-void VolatileCascadeStore<KT, VT, IK, IV>::put_objects_backward(const transaction_id& txid,const uint8_t status) const {
+void VolatileCascadeStore<KT, VT, IK, IV>::put_objects_backward(const transaction_id& txid,const transaction_status_t& status) const {
     // TODO implement this
 }
 
@@ -217,6 +217,12 @@ const VT VolatileCascadeStore<KT, VT, IK, IV>::get(const KT& key, const persiste
     } while(v1 != v2);
     LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_GET_END, group, *IV);
     return copied_out;
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV>
+transaction_status_t VolatileCascadeStore<KT, VT, IK, IV>::get_transaction_status(const transaction_id& txid) const {
+    // TODO implement this
+    return transaction_status_t::PENDING;
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
@@ -498,7 +504,7 @@ void VolatileCascadeStore<KT, VT, IK, IV>::ordered_put_objects_forward(
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-void VolatileCascadeStore<KT, VT, IK, IV>::ordered_put_objects_backward(const transaction_id& txid,const uint8_t status) const {
+void VolatileCascadeStore<KT, VT, IK, IV>::ordered_put_objects_backward(const transaction_id& txid,const transaction_status_t& status) const {
     // TODO implement this
 }
 

@@ -85,7 +85,7 @@ void PersistentCascadeStore<KT, VT, IK, IV, ST>::put_objects_forward(
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-void PersistentCascadeStore<KT, VT, IK, IV, ST>::put_objects_backward(const transaction_id& txid,const uint8_t status) const {
+void PersistentCascadeStore<KT, VT, IK, IV, ST>::put_objects_backward(const transaction_id& txid,const transaction_status_t& status) const {
     // TODO implement this
 }
 
@@ -219,6 +219,12 @@ const VT PersistentCascadeStore<KT, VT, IK, IV, ST>::get(const KT& key, const pe
             }
         });
     }
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+transaction_status_t PersistentCascadeStore<KT, VT, IK, IV, ST>::get_transaction_status(const transaction_id& txid) const {
+    // TODO implement this
+    return transaction_status_t::PENDING;
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
@@ -583,7 +589,7 @@ void PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_objects_forward(
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-void PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_objects_backward(const transaction_id& txid,const uint8_t status) const {
+void PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_objects_backward(const transaction_id& txid,const transaction_status_t& status) const {
     // TODO implement this
 }
 

@@ -42,7 +42,7 @@ void TriggerCascadeNoStore<KT, VT, IK, IV>::put_objects_forward(
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-void TriggerCascadeNoStore<KT, VT, IK, IV>::put_objects_backward(const transaction_id& txid,const uint8_t status) const {
+void TriggerCascadeNoStore<KT, VT, IK, IV>::put_objects_backward(const transaction_id& txid,const transaction_status_t& status) const {
     dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
 }
 
@@ -69,6 +69,12 @@ template <typename KT, typename VT, KT* IK, VT* IV>
 const VT TriggerCascadeNoStore<KT, VT, IK, IV>::get(const KT& key, const persistent::version_t& ver, bool, bool) const {
     dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
     return *IV;
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV>
+transaction_status_t TriggerCascadeNoStore<KT, VT, IK, IV>::get_transaction_status(const transaction_id& txid) const {
+    dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
+    return transaction_status_t::ABORT;
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
@@ -150,7 +156,7 @@ void TriggerCascadeNoStore<KT, VT, IK, IV>::ordered_put_objects_forward(
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-void TriggerCascadeNoStore<KT, VT, IK, IV>::ordered_put_objects_backward(const transaction_id& txid,const uint8_t status) const {
+void TriggerCascadeNoStore<KT, VT, IK, IV>::ordered_put_objects_backward(const transaction_id& txid,const transaction_status_t& status) const {
     dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
 }
 

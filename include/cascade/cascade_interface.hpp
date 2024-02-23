@@ -76,6 +76,13 @@ using version_tuple = std::tuple<persistent::version_t, uint64_t>;
  */
 using transaction_id = std::tuple<uint32_t, uint32_t, persistent::version_t>;
 
+// status of a transaction
+enum transaction_status_t : uint8_t {
+    PENDING,
+    COMMIT,
+    ABORT,
+};
+
 /**
  * @brief   The cascade store interface.
  * This interface is for different Cascade Subgroup Types which provides different persistence guarantees.
@@ -151,11 +158,11 @@ public:
      * Return the result of the chain replication protocol to a previous shard
      *
      * @param[in]   txid    The transaction ID created by the first shard
-     * @param[in]   status  Result of the transaction, either COMMIT or ABORT
+     * @param[in]   status  Result of the transaction, either COMMIT, ABORT, or PENDING
      *
      * @return      void
      */
-    virtual void put_objects_backward(const transaction_id& txid,const uint8_t status) const = 0;
+    virtual void put_objects_backward(const transaction_id& txid,const transaction_status_t& status) const = 0;
 
     /**
      * @brief   put_and_forget(const VT&)
@@ -216,6 +223,17 @@ public:
      * @throws std::runtime_error, if requested value is not found.
      */
     virtual const VT get(const KT& key, const persistent::version_t& ver, const bool stable, bool exact = false) const = 0;
+
+    /**
+     * @brief   get_transaction_status(const transaction_id& txid)
+     *
+     * Get the status of a given transaction.
+     *
+     * @param[in]   txid    ID of the transaction
+     *
+     * @return      Status of the transaction
+     */
+    virtual transaction_status_t get_transaction_status(const transaction_id& txid) const = 0;
 
     /**
      * @brief   multi_get(const KT&)
@@ -437,11 +455,11 @@ protected:
      * Return the result of the chain replication protocol to a previous shard
      *
      * @param[in]   txid    The transaction ID created by the first shard
-     * @param[in]   status  Result of the transaction, either COMMIT or ABORT
+     * @param[in]   status  Result of the transaction, either COMMIT, ABORT, or PENDING
      *
      * @return      void
      */
-    virtual void ordered_put_objects_backward(const transaction_id& txid,const uint8_t status) const = 0;
+    virtual void ordered_put_objects_backward(const transaction_id& txid,const transaction_status_t& status) const = 0;
 
     /**
      * @brief   ordered_put_and_forget

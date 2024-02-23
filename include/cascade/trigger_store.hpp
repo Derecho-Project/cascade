@@ -46,6 +46,7 @@ public:
 #endif
                                                      remove,
                                                      get,
+                                                     get_transaction_status,
                                                      multi_get,
                                                      get_by_time,
                                                      multi_list_keys,
@@ -96,13 +97,14 @@ public:
             const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
             const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
             const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const override;
-    virtual void put_objects_backward(const transaction_id& txid,const uint8_t status) const override;
+    virtual void put_objects_backward(const transaction_id& txid,const transaction_status_t& status) const override;
     virtual void put_and_forget(const VT& value) const override;
 #ifdef ENABLE_EVALUATION
     virtual double perf_put(const uint32_t max_payload_size, const uint64_t duration_sec) const override;
 #endif  // ENABLE_EVALUATION
     virtual version_tuple remove(const KT& key) const override;
     virtual const VT get(const KT& key, const persistent::version_t& ver, const bool stable, bool exact = false) const override;
+    virtual transaction_status_t get_transaction_status(const transaction_id& txid) const override;
     virtual const VT multi_get(const KT& key) const override;
     virtual const VT get_by_time(const KT& key, const uint64_t& ts_us, const bool stable) const override;
     virtual std::vector<KT> multi_list_keys(const std::string& prefix) const override;
@@ -121,7 +123,7 @@ public:
             const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
             const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
             const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const override;
-    virtual void ordered_put_objects_backward(const transaction_id& txid,const uint8_t status) const override;
+    virtual void ordered_put_objects_backward(const transaction_id& txid,const transaction_status_t& status) const override;
     virtual void ordered_put_and_forget(const VT& value) override;
     virtual version_tuple ordered_remove(const KT& key) override;
     virtual const VT ordered_get(const KT& key) override;
