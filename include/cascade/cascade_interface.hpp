@@ -15,6 +15,8 @@
 #include <string>
 #include <tuple>
 #include <vector>
+#include <map>
+#include <utility>
 
 namespace derecho {
 /**
@@ -68,6 +70,13 @@ public:
 using version_tuple = std::tuple<persistent::version_t, uint64_t>;
 
 /**
+ * Transaction ID is a tuple that includes the subgroup and shard index, and the
+ * version of the shard that first received the transaction.  This is the return
+ * type for some transactional operations.
+ */
+using transaction_id = std::tuple<uint32_t, uint32_t, persistent::version_t>;
+
+/**
  * @brief   The cascade store interface.
  * This interface is for different Cascade Subgroup Types which provides different persistence guarantees.
  *
@@ -103,16 +112,50 @@ public:
     virtual version_tuple put(const VT& value) const = 0;
 
     /**
-     * @brief   put_objects(const std::vector<VT>&)
+     * @brief   put_objects
      *
-     * Put a list of values. VT must implement ICascadeObject interface. Keys are given in the values and retrieved by
-     * ICascadeObject::get_key_ref()
+     * Atomically put a list of objects across multiple shards. This is called for the first shard in shard_list.
      *
-     * @param[in]   values   The list of K/V pair values
+     * @param[in]   mapped_objects          A map between (subgroup_index,shard_index) pairs and a list of K/V values
+     * @param[in]   mapped_readonly_keys    A map between (subgroup_index,shard_index) pairs and a list of (key,version,version) tuples. These K/V pairs must match the provided versions for the transaction to be committed.
+     * @param[in]   shard_list              Sorted list of shards involved in the transaction
      *
-     * @return      a tuple including version number (version_t) and a timestamp in microseconds.
+     * @return      a tuple (transaction_id) including subgroup_index, shard_index and shard version number that can be used to uniquely identify the transaction
      */
-    virtual version_tuple put_objects(const std::vector<VT>& values) const = 0;
+    virtual transaction_id put_objects(
+            const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
+            const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
+            const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const = 0;
+
+    /**
+     * @brief   put_objects_forward
+     *
+     * Atomically put a list of objects across multiple shards. This is called for the second shard on during the chain replication protocol
+     *
+     * @param[in]   txid                    The transaction ID created by the first shard
+     * @param[in]   mapped_objects          A map between (subgroup_index,shard_index) pairs and a list of K/V values
+     * @param[in]   mapped_readonly_keys    A map between (subgroup_index,shard_index) pairs and a list of (key,version,version) tuples. These K/V pairs must match the provided versions for the transaction to be committed.
+     * @param[in]   shard_list              Sorted list of shards involved in the transaction
+     *
+     * @return      void
+     */
+    virtual void put_objects_forward(
+            const transaction_id& txid,
+            const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
+            const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
+            const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const = 0;
+
+    /**
+     * @brief   put_objects_backward
+     *
+     * Return the result of the chain replication protocol to a previous shard
+     *
+     * @param[in]   txid    The transaction ID created by the first shard
+     * @param[in]   status  Result of the transaction, either COMMIT or ABORT
+     *
+     * @return      void
+     */
+    virtual void put_objects_backward(const transaction_id& txid,const uint8_t status) const = 0;
 
     /**
      * @brief   put_and_forget(const VT&)
@@ -357,11 +400,48 @@ protected:
     /**
      * @brief   ordered_put_objects
      *
-     * @param[in]   values   The list of K/V pair objects.
+     * Atomically put a list of objects across multiple shards. This is called in the first shard in shard_list.
      *
-     * @return  A tuple including version number (version_t) and a timestamp in microseconds.
+     * @param[in]   mapped_objects          A map between (subgroup_index,shard_index) pairs and a list of K/V values
+     * @param[in]   mapped_readonly_keys    A map between (subgroup_index,shard_index) pairs and a list of (key,version,version) tuples. These K/V pairs must match the provided versions for the transaction to be committed.
+     * @param[in]   shard_list              Sorted list of shards involved in the transaction
+     *
+     * @return      a tuple (transaction_id) including subgroup_index, shard_index and shard version number that can be used to uniquely identify the transaction
      */
-    virtual version_tuple ordered_put_objects(const std::vector<VT>& values) = 0;
+    virtual transaction_id ordered_put_objects(
+            const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
+            const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
+            const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const = 0;
+
+    /**
+     * @brief   ordered_put_objects_forward
+     *
+     * Atomically put a list of objects across multiple shards. This is called for the second shard on during the chain replication protocol
+     *
+     * @param[in]   txid                    The transaction ID created by the first shard
+     * @param[in]   mapped_objects          A map between (subgroup_index,shard_index) pairs and a list of K/V values
+     * @param[in]   mapped_readonly_keys    A map between (subgroup_index,shard_index) pairs and a list of (key,version,version) tuples. These K/V pairs must match the provided versions for the transaction to be committed.
+     * @param[in]   shard_list              Sorted list of shards involved in the transaction
+     *
+     * @return      void
+     */
+    virtual void ordered_put_objects_forward(
+            const transaction_id& txid,
+            const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
+            const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
+            const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const = 0;
+
+    /**
+     * @brief   ordered_put_objects_backward
+     *
+     * Return the result of the chain replication protocol to a previous shard
+     *
+     * @param[in]   txid    The transaction ID created by the first shard
+     * @param[in]   status  Result of the transaction, either COMMIT or ABORT
+     *
+     * @return      void
+     */
+    virtual void ordered_put_objects_backward(const transaction_id& txid,const uint8_t status) const = 0;
 
     /**
      * @brief   ordered_put_and_forget

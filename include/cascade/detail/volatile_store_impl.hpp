@@ -35,7 +35,7 @@ version_tuple VolatileCascadeStore<KT, VT, IK, IV>::put(const VT& value) const {
     return ret;
 }
 
-template <typename KT, typename VT, KT* IK, VT* IV>
+/*template <typename KT, typename VT, KT* IK, VT* IV>
 version_tuple VolatileCascadeStore<KT, VT, IK, IV>::put_objects(const std::vector<VT>& values) const {
     debug_enter_func_with_args("values.size={}", values.size());
     version_tuple ret{CURRENT_VERSION, 0};
@@ -57,6 +57,29 @@ version_tuple VolatileCascadeStore<KT, VT, IK, IV>::put_objects(const std::vecto
 
     debug_leave_func_with_value("version=0x{:x},timestamp={}us", std::get<0>(ret), std::get<1>(ret));
     return ret;
+}*/
+
+template <typename KT, typename VT, KT* IK, VT* IV>
+transaction_id VolatileCascadeStore<KT, VT, IK, IV>::put_objects(
+        const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
+        const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
+        const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const {
+    // TODO implement this
+    return {-1,-1,persistent::INVALID_VERSION};
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV>
+void VolatileCascadeStore<KT, VT, IK, IV>::put_objects_forward(
+        const transaction_id& txid,
+        const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
+        const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
+        const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const {
+    // TODO implement this
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV>
+void VolatileCascadeStore<KT, VT, IK, IV>::put_objects_backward(const transaction_id& txid,const uint8_t status) const {
+    // TODO implement this
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
@@ -392,6 +415,9 @@ std::vector<KT> VolatileCascadeStore<KT, VT, IK, IV>::ordered_list_keys(const st
 
 template <typename KT, typename VT, KT* IK, VT* IV>
 version_tuple VolatileCascadeStore<KT, VT, IK, IV>::ordered_put(const VT& value) {
+    // TODO fail this if there is a TX containing the same key
+    // are there more operations to do the same? 'remove' maybe ...
+
     debug_enter_func_with_args("key={}", value.get_key_ref());
 
     auto version_and_hlc = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
@@ -421,7 +447,7 @@ version_tuple VolatileCascadeStore<KT, VT, IK, IV>::ordered_put(const VT& value)
     return version_and_timestamp;
 }
 
-template <typename KT, typename VT, KT* IK, VT* IV>
+/*template <typename KT, typename VT, KT* IK, VT* IV>
 version_tuple VolatileCascadeStore<KT, VT, IK, IV>::ordered_put_objects(const std::vector<VT>& values) {
     debug_enter_func_with_args("size={}", values.size());
     
@@ -451,6 +477,29 @@ version_tuple VolatileCascadeStore<KT, VT, IK, IV>::ordered_put_objects(const st
             std::get<1>(version_and_hlc).m_rtc_us);
 
     return version_and_timestamp;
+}*/
+
+template <typename KT, typename VT, KT* IK, VT* IV>
+transaction_id VolatileCascadeStore<KT, VT, IK, IV>::ordered_put_objects(
+        const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
+        const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
+        const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const {
+    // TODO implement this
+    return {-1,-1,persistent::INVALID_VERSION};
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV>
+void VolatileCascadeStore<KT, VT, IK, IV>::ordered_put_objects_forward(
+        const transaction_id& txid,
+        const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
+        const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
+        const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const {
+    // TODO implement this
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV>
+void VolatileCascadeStore<KT, VT, IK, IV>::ordered_put_objects_backward(const transaction_id& txid,const uint8_t status) const {
+    // TODO implement this
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>

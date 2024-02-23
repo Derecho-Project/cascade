@@ -1251,7 +1251,7 @@ std::vector<command_entry_t> commands =
                 subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[cmd_tokens.size() - 2],nullptr,0));
                 shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[cmd_tokens.size() - 1],nullptr,0));
             }
-            on_subgroup_type(cmd_tokens[1],put_objects,capi,key_list,value_list,pver,subgroup_index,shard_index);
+            //on_subgroup_type(cmd_tokens[1],put_objects,capi,key_list,value_list,pver,subgroup_index,shard_index);
             return true;
         }
     },
@@ -1277,7 +1277,7 @@ std::vector<command_entry_t> commands =
             uint32_t shard_index;
             subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[cmd_tokens.size() - 2],nullptr,0));
             shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[cmd_tokens.size() - 1],nullptr,0));
-            on_subgroup_type(cmd_tokens[1],put_objects_versions,capi,key_list,value_list,pver_list,pver_bk_list,subgroup_index,shard_index);
+            //on_subgroup_type(cmd_tokens[1],put_objects_versions,capi,key_list,value_list,pver_list,pver_bk_list,subgroup_index,shard_index);
             return true;
         }
     },

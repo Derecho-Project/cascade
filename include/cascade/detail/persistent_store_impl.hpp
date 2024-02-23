@@ -42,7 +42,7 @@ version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::put(const VT& value) c
     return ret;
 }
 
-template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+/*template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::put_objects(const std::vector<VT>& values) const {
     debug_enter_func_with_args("values.size={}", values.size());
     version_tuple ret{CURRENT_VERSION, 0};
@@ -64,6 +64,29 @@ version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::put_objects(const std:
 
     debug_leave_func_with_value("version=0x{:x},timestamp={}us", std::get<0>(ret), std::get<1>(ret));
     return ret;
+}*/
+
+template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+transaction_id PersistentCascadeStore<KT, VT, IK, IV, ST>::put_objects(
+        const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
+        const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
+        const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const {
+    // TODO implement this
+    return {-1,-1,persistent::INVALID_VERSION};
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+void PersistentCascadeStore<KT, VT, IK, IV, ST>::put_objects_forward(
+        const transaction_id& txid,
+        const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
+        const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
+        const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const {
+    // TODO implement this
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+void PersistentCascadeStore<KT, VT, IK, IV, ST>::put_objects_backward(const transaction_id& txid,const uint8_t status) const {
+    // TODO implement this
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
@@ -509,7 +532,7 @@ version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put(const VT& 
     return version_and_timestamp;
 }
 
-template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+/*template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_objects(const std::vector<VT>& values) {
     debug_enter_func_with_args("size={}", values.size());
 
@@ -539,6 +562,29 @@ version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_objects(co
             std::get<1>(version_and_hlc).m_rtc_us);
 
     return version_and_timestamp;
+}*/
+
+template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+transaction_id PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_objects(
+        const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
+        const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
+        const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const {
+    // TODO implement this
+    return {-1,-1,persistent::INVALID_VERSION};
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+void PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_objects_forward(
+        const transaction_id& txid,
+        const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
+        const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
+        const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const {
+    // TODO implement this
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+void PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_objects_backward(const transaction_id& txid,const uint8_t status) const {
+    // TODO implement this
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>

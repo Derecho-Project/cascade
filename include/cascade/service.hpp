@@ -30,6 +30,7 @@
 #include <thread>
 #include <functional>
 #include <iostream>
+#include <map>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -700,28 +701,28 @@ namespace cascade {
                 uint32_t subgroup_index, uint32_t shard_index);
 
         /**
-         * "put_objects" atomically writes multiple objects, controlled by the given subgroup/shard.
+         * "put_objects" atomically writes multiple objects
          *
-         * @param[in] object            a list of objects to write.
-         *                          User provided SubgroupType::ObjectType must have the following two members:
-         *                          - SubgroupType::ObjectType::key of SubgroupType::KeyType, which must be set to a
-         *                            valid key.
-         *                          - SubgroupType::ObjectType::ver of std::tuple<persistent::version_t, uint64_t>.
-         *                            Similar to the return object, this member is a two tuple with the first member
-         *                            for a version and the second for a timestamp. A caller of put can specify either
-         *                            of the version and timestamp meaning what is the latest version/timestamp the caller
-         *                            has seen. Cascade will reject the write if the corresponding key has been updated
-         *                            already. TODO: should we make it an optional feature?
-         * @param[in] subgroup_index   the subgroup index of CascadeType
-         * @param[in] shard_index       the shard index.
+         * @param[in] mapped_objects            a map between subgroup/shard index and a list of objects to write in the corresponding shard.
+         *                                      User provided SubgroupType::ObjectType must have the following two members:
+         *                                      - SubgroupType::ObjectType::key of SubgroupType::KeyType, which must be set to a
+         *                                        valid key.
+         *                                      - SubgroupType::ObjectType::ver of std::tuple<persistent::version_t, uint64_t>.
+         *                                        Similar to the return object, this member is a two tuple with the first member
+         *                                        for a version and the second for a timestamp. A caller of put can specify either
+         *                                        of the version and timestamp meaning what is the latest version/timestamp the caller
+         *                                        has seen. Cascade will reject the write if the corresponding key has been updated
+         *                                        already. TODO: should we make it an optional feature?
+         * @param[in] mapped_readonly_objects   a map between subgroup/shard index and a list of objects in the corresponding shard that must match versions
+         * @param[in] subgroup_index            the subgroup index of CascadeType
+         * @param[in] shard_index               the shard index that will first receive the transaction
          *
-         * @return a future to the version and timestamp of the put operation.
-         * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
+         * @return a future to the transaction id
          */
         template <typename SubgroupType>
-        derecho::rpc::QueryResults<version_tuple> put_objects(const std::vector<typename SubgroupType::ObjectType>& objects,
-                uint32_t subgroup_index, uint32_t shard_index);
-
+        derecho::rpc::QueryResults<transaction_id> put_objects(
+                const std::map<std::pair<uint32_t,uint32_t>,std::vector<typename SubgroupType::ObjectType>>& mapped_objects,
+                const std::map<std::pair<uint32_t,uint32_t>,std::vector<typename SubgroupType::ObjectType>>& mapped_readonly_objects = {});
     protected:
         /**
          * "type_recursive_put" is a helper function for internal use only.
@@ -760,18 +761,16 @@ namespace cascade {
          * @return a future to the version and timestamp of the put operation.
          */
         template <typename ObjectType, typename FirstType, typename SecondType, typename... RestTypes>
-        derecho::rpc::QueryResults<version_tuple> type_recursive_put_objects(
+        derecho::rpc::QueryResults<transaction_id> type_recursive_put_objects(
                 uint32_t type_index,
-                const std::vector<ObjectType>& objects,
-                uint32_t subgroup_index,
-                uint32_t shard_index);
+                const std::map<std::pair<uint32_t,uint32_t>,std::vector<ObjectType>>& mapped_objects,
+                const std::map<std::pair<uint32_t,uint32_t>,std::vector<ObjectType>>& mapped_readonly_objects);
 
         template <typename ObjectType, typename LastType>
-        derecho::rpc::QueryResults<version_tuple> type_recursive_put_objects(
+        derecho::rpc::QueryResults<transaction_id> type_recursive_put_objects(
                 uint32_t type_index,
-                const std::vector<ObjectType>& objects,
-                uint32_t subgroup_index,
-                uint32_t shard_index);
+                const std::map<std::pair<uint32_t,uint32_t>,std::vector<ObjectType>>& mapped_objects,
+                const std::map<std::pair<uint32_t,uint32_t>,std::vector<ObjectType>>& mapped_readonly_objects);
     public:
         /**
          * object pool version
@@ -787,11 +786,12 @@ namespace cascade {
          * TODO: currently, all given objects must go to the same shard, but we should support cross-shard atomic multi-object puts in the future (and maybe even cross-subgroup).
          *
          * @param[in] objects           a list of objects to write, the object pools are extracted from the objects keys.
+         * @param[in] readonly_objects  a list of objects that will not be written, but their versions must match
          *
          * @return a future to the version and timestamp of the put operation.
          */
         template <typename ObjectType>
-        derecho::rpc::QueryResults<version_tuple> put_objects(const std::vector<ObjectType>& objects);
+        derecho::rpc::QueryResults<transaction_id> put_objects(const std::vector<ObjectType>& objects,const std::vector<ObjectType>& readonly_objects = {});
 
         /**
          * "put_and_forget" writes an object to a given subgroup/shard, but no return value.

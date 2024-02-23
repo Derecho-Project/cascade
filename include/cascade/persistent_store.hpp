@@ -31,7 +31,7 @@ class PersistentCascadeStore : public ICascadeStore<KT, VT, IK, IV>,
                                public derecho::NotificationSupport {
 private:
     bool internal_ordered_put(const VT& value);
-    bool internal_ordered_put_objects(const std::vector<VT>& values);
+    bool internal_ordered_put_objects(const std::vector<VT>& values); // TODO this probably needs to change
 
 public:
     using derecho::GroupReference::group;
@@ -44,6 +44,8 @@ public:
                                              P2P_TARGETS(
                                                      put,
                                                      put_objects,
+                                                     put_objects_forward,
+                                                     put_objects_backward,
                                                      put_and_forget,
 #ifdef ENABLE_EVALUATION
                                                      perf_put,
@@ -71,6 +73,8 @@ public:
                                              ORDERED_TARGETS(
                                                      ordered_put,
                                                      ordered_put_objects,
+                                                     ordered_put_objects_forward,
+                                                     ordered_put_objects_backward,
                                                      ordered_put_and_forget,
                                                      ordered_remove,
                                                      ordered_get,
@@ -89,7 +93,16 @@ public:
 #endif  // ENABLE_EVALUATION
     virtual void trigger_put(const VT& value) const override;
     virtual version_tuple put(const VT& value) const override;
-    virtual version_tuple put_objects(const std::vector<VT>& values) const override;
+    virtual transaction_id put_objects(
+            const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
+            const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
+            const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const override;
+    virtual void put_objects_forward(
+            const transaction_id& txid,
+            const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
+            const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
+            const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const override;
+    virtual void put_objects_backward(const transaction_id& txid,const uint8_t status) const override;
     virtual void put_and_forget(const VT& value) const override;
 #ifdef ENABLE_EVALUATION
     virtual double perf_put(const uint32_t max_payload_size, const uint64_t duration_sec) const override;
@@ -105,7 +118,16 @@ public:
     virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, const bool stable, bool exact = false) const override;
     virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us, const bool stable) const override;
     virtual version_tuple ordered_put(const VT& value) override;
-    virtual version_tuple ordered_put_objects(const std::vector<VT>& values) override;
+    virtual transaction_id ordered_put_objects(
+            const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
+            const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
+            const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const override;
+    virtual void ordered_put_objects_forward(
+            const transaction_id& txid,
+            const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
+            const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
+            const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const override;
+    virtual void ordered_put_objects_backward(const transaction_id& txid,const uint8_t status) const override;
     virtual void ordered_put_and_forget(const VT& value) override;
     virtual version_tuple ordered_remove(const KT& key) override;
     virtual const VT ordered_get(const KT& key) override;
