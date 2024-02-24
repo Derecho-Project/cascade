@@ -579,7 +579,7 @@ derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> Servi
 
     // extract shard list and map of readonly keys/version
     std::vector<std::pair<uint32_t,uint32_t>> shard_list;
-    std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<typename SubgroupType::KeyType,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys;
+    std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<typename SubgroupType::KeyType,persistent::version_t,persistent::version_t>>> mapped_readonly_keys;
 
     for (auto const& item : mapped_objects){
         shard_list.push_back(item.first);
@@ -587,7 +587,7 @@ derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> Servi
 
     for (auto const& item : mapped_readonly_objects){
         for (auto const& obj : item.second) {
-            auto& key_version_tuple = std::make_tuple(obj.get_key_ref(),obj.previous_version,obj.previous_version_by_key);
+            auto key_version_tuple = std::make_tuple(obj.get_key_ref(),obj.previous_version,obj.previous_version_by_key);
             mapped_readonly_keys[item.first].push_back(key_version_tuple);
         }
 
@@ -604,7 +604,7 @@ derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> Servi
     uint32_t head_shard_index = shard_list[0].second;
 
     LOG_SERVICE_CLIENT_TIMESTAMP(TLT_SERVICE_CLIENT_PUT_START,
-            (std::is_base_of<IHasMessageID,typename SubgroupType::ObjectType>::value?mapped_objects.begin()->second.get_message_id():0));
+            (std::is_base_of<IHasMessageID,typename SubgroupType::ObjectType>::value?mapped_objects.begin()->second[0].get_message_id():0));
 
     if (!is_external_client()) {
         std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
@@ -614,7 +614,7 @@ derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> Servi
             return subgroup_handle.template ordered_send<RPC_NAME(ordered_put_objects)>(mapped_objects,mapped_readonly_keys,shard_list);
         } else {
             // p2p put
-            node_id_t node_id = pick_member_by_policy<SubgroupType>(head_subgroup_index,head_shard_index,mapped_objects.begin()->second.get_key_ref());
+            node_id_t node_id = pick_member_by_policy<SubgroupType>(head_subgroup_index,head_shard_index,mapped_objects.begin()->second[0].get_key_ref());
             try {
                 // as a subgroup member
                 auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(head_subgroup_index);
@@ -629,7 +629,7 @@ derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> Servi
         std::lock_guard<std::mutex> lck(this->external_group_ptr_mutex);
         // call as an external client (ExternalClientCaller).
         auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(head_subgroup_index);
-        node_id_t node_id = pick_member_by_policy<SubgroupType>(head_subgroup_index,head_shard_index,mapped_objects.begin()->second.get_key_ref());
+        node_id_t node_id = pick_member_by_policy<SubgroupType>(head_subgroup_index,head_shard_index,mapped_objects.begin()->second[0].get_key_ref());
         return caller.template p2p_send<RPC_NAME(put_objects)>(node_id,mapped_objects,mapped_readonly_keys,shard_list);
     }
 }
@@ -721,8 +721,8 @@ derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> Servi
     }
 
     // STEP 3 - check where objects go: all should go to the same subgroup type
-    std::map<std::pair<uint32_t,uint32_t>,std::vector<ObjectType>>& mapped_objects;
-    std::map<std::pair<uint32_t,uint32_t>,std::vector<ObjectType>>& mapped_readonly_objects;
+    std::map<std::pair<uint32_t,uint32_t>,std::vector<ObjectType>> mapped_objects;
+    std::map<std::pair<uint32_t,uint32_t>,std::vector<ObjectType>> mapped_readonly_objects;
 
     uint32_t first_subgroup_type_index,first_subgroup_index,first_shard_index;
     std::tie(first_subgroup_type_index,first_subgroup_index,first_shard_index) = this->template key_to_shard(objects[0].get_key_ref());
