@@ -569,7 +569,7 @@ derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::put(
 
 template <typename... CascadeTypes>
 template <typename SubgroupType>
-derecho::rpc::QueryResults<transaction_id> ServiceClient<CascadeTypes...>::put_objects(
+derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> ServiceClient<CascadeTypes...>::put_objects(
         const std::map<std::pair<uint32_t,uint32_t>,std::vector<typename SubgroupType::ObjectType>>& mapped_objects,
         const std::map<std::pair<uint32_t,uint32_t>,std::vector<typename SubgroupType::ObjectType>>& mapped_readonly_objects) {
     // check if map is empty
@@ -664,7 +664,7 @@ derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::type_r
 
 template <typename... CascadeTypes>
 template <typename ObjectType, typename FirstType, typename SecondType, typename... RestTypes>
-derecho::rpc::QueryResults<transaction_id> ServiceClient<CascadeTypes...>::type_recursive_put_objects( 
+derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> ServiceClient<CascadeTypes...>::type_recursive_put_objects( 
         uint32_t type_index,
         const std::map<std::pair<uint32_t,uint32_t>,std::vector<ObjectType>>& mapped_objects,
         const std::map<std::pair<uint32_t,uint32_t>,std::vector<ObjectType>>& mapped_readonly_objects) {
@@ -677,7 +677,7 @@ derecho::rpc::QueryResults<transaction_id> ServiceClient<CascadeTypes...>::type_
 
 template <typename... CascadeTypes>
 template <typename ObjectType, typename LastType>
-derecho::rpc::QueryResults<transaction_id> ServiceClient<CascadeTypes...>::type_recursive_put_objects(
+derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> ServiceClient<CascadeTypes...>::type_recursive_put_objects(
         uint32_t type_index,
         const std::map<std::pair<uint32_t,uint32_t>,std::vector<ObjectType>>& mapped_objects,
         const std::map<std::pair<uint32_t,uint32_t>,std::vector<ObjectType>>& mapped_readonly_objects) {
@@ -708,7 +708,7 @@ derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::put(
 
 template <typename... CascadeTypes>
 template <typename ObjectType>
-derecho::rpc::QueryResults<transaction_id> ServiceClient<CascadeTypes...>::put_objects(
+derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> ServiceClient<CascadeTypes...>::put_objects(
         const std::vector<ObjectType>& objects,const std::vector<ObjectType>& readonly_objects){
     // STEP 1 - make sure object type is supported
     if constexpr (!std::is_base_of_v<ICascadeObject<std::string,ObjectType>,ObjectType>) {
@@ -1151,6 +1151,43 @@ auto ServiceClient<CascadeTypes...>::get(
 
     // STEP 3 - call recursive get
     return this->template type_recursive_get<KeyType,CascadeTypes...>(subgroup_type_index,key,version,stable,subgroup_index,shard_index);
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+derecho::rpc::QueryResults<transaction_status_t> ServiceClient<CascadeTypes...>::get_transaction_status(const transaction_id& txid){
+    // TODO include subgroup_type_index in transaction_id, so we can find the type here
+    auto subgroup_index = std::get<0>(txid);
+    auto shard_index = std::get<1>(txid);
+
+    if (!is_external_client()) {
+        std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
+        node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index,0);
+        try {
+            // do p2p get as a subgroup member
+            auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
+            if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
+                node_id = group_ptr->get_my_id();
+                // local get
+                auto status = subgroup_handle.get_ref().get_transaction_status(txid);
+                auto pending_results = std::make_shared<PendingResults<transaction_status_t>>();
+                pending_results->fulfill_map({node_id});
+                pending_results->set_value(node_id,status);
+                auto query_results = pending_results->get_future();
+                return std::move(*query_results);
+            }
+            return subgroup_handle.template p2p_send<RPC_NAME(get_transaction_status)>(node_id,txid);
+        } catch (derecho::invalid_subgroup_exception& ex) {
+            auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
+            return subgroup_handle.template p2p_send<RPC_NAME(get_transaction_status)>(node_id,txid);
+        }
+    } else {
+        std::lock_guard<std::mutex> lck(this->external_group_ptr_mutex);
+        // call as an external client (ExternalClientCaller).
+        auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
+        node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index,0);
+        return caller.template p2p_send<RPC_NAME(get_transaction_status)>(node_id,txid);
+    }
 }
 
 template <typename... CascadeTypes>

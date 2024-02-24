@@ -88,7 +88,7 @@ public:
 #endif  // ENABLE_EVALUATION
     virtual void trigger_put(const VT& value) const override;
     virtual version_tuple put(const VT& value) const override;
-    virtual transaction_id put_objects(
+    virtual std::pair<transaction_id,transaction_status_t> put_objects(
             const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
             const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
             const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const override;
@@ -114,7 +114,7 @@ public:
     virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, const bool stable, bool exact = false) const override;
     virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us, const bool stable) const override;
     virtual version_tuple ordered_put(const VT& value) override;
-    virtual transaction_id ordered_put_objects(
+    virtual std::pair<transaction_id,transaction_status_t> ordered_put_objects(
             const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
             const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
             const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const override;

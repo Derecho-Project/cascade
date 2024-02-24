@@ -12,6 +12,7 @@
 #include <memory>
 #include <tuple>
 #include <vector>
+#include <utility>
 
 namespace derecho {
 namespace cascade {
@@ -30,6 +31,42 @@ class PersistentCascadeStore : public ICascadeStore<KT, VT, IK, IV>,
                                public derecho::GroupReference,
                                public derecho::NotificationSupport {
 private:
+
+    /*
+     * Transaction support
+     *
+     * This is a temporary implementation for convenience, see below.
+     *
+     * TODO For now, this does not persist the list of pending transactions or the transactions themselves. Thus it is impossible to recover from failures.
+     *
+     * TODO For now, this lives only here for PersistentCascadeStore. After this is working and tested, we may consider turning this into a more general (and improved) implementation.
+     *
+     * TODO For now, everything is copied on instantiation. Ideally, in the future we should only copy the objects when the transaction is committed.
+     *
+     */
+    class CascadeTransaction {
+    public:
+        transaction_id txid;
+        transaction_status_t status = transaction_status_t::PENDING;
+        std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>> mapped_objects;
+        std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>> mapped_readonly_keys;
+        std::vector<std::pair<uint32_t,uint32_t>> shard_list;
+
+        // constructor that copies everything in
+        CascadeTransaction(
+                const transaction_id& txid,
+                const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
+                const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
+                const std::vector<std::pair<uint32_t,uint32_t>>& shard_list);
+
+        // checks if a given key is in mapped_objects or mapped_readonly_keys for the given shard
+        bool contains_key(const KT& key,const std::pair<uint32_t,uint32_t> shard_id);
+    };
+
+    std::map<transaction_id,CascadeTransaction> transaction_database;
+    std::vector<transaction_id> pending_transactions;
+
+    // internal helpers
     bool internal_ordered_put(const VT& value);
     bool internal_ordered_put_objects(const std::vector<VT>& values); // TODO this probably needs to change
 
@@ -94,7 +131,7 @@ public:
 #endif  // ENABLE_EVALUATION
     virtual void trigger_put(const VT& value) const override;
     virtual version_tuple put(const VT& value) const override;
-    virtual transaction_id put_objects(
+    virtual std::pair<transaction_id,transaction_status_t> put_objects(
             const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
             const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
             const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const override;
@@ -120,7 +157,7 @@ public:
     virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, const bool stable, bool exact = false) const override;
     virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us, const bool stable) const override;
     virtual version_tuple ordered_put(const VT& value) override;
-    virtual transaction_id ordered_put_objects(
+    virtual std::pair<transaction_id,transaction_status_t> ordered_put_objects(
             const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
             const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
             const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const override;

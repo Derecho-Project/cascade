@@ -129,7 +129,7 @@ public:
      *
      * @return      a tuple (transaction_id) including subgroup_index, shard_index and shard version number that can be used to uniquely identify the transaction
      */
-    virtual transaction_id put_objects(
+    virtual std::pair<transaction_id,transaction_status_t> put_objects(
             const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
             const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
             const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const = 0;
@@ -426,7 +426,7 @@ protected:
      *
      * @return      a tuple (transaction_id) including subgroup_index, shard_index and shard version number that can be used to uniquely identify the transaction
      */
-    virtual transaction_id ordered_put_objects(
+    virtual std::pair<transaction_id,transaction_status_t> ordered_put_objects(
             const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
             const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
             const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const = 0;

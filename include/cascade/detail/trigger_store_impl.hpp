@@ -24,12 +24,12 @@ version_tuple TriggerCascadeNoStore<KT, VT, IK, IV>::put(const VT& value) const 
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-transaction_id TriggerCascadeNoStore<KT, VT, IK, IV>::put_objects(
+std::pair<transaction_id,transaction_status_t> TriggerCascadeNoStore<KT, VT, IK, IV>::put_objects(
         const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
         const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
         const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const {
     dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
-    return {-1,-1,persistent::INVALID_VERSION};
+    return {{-1,-1,persistent::INVALID_VERSION},transaction_status_t::ABORT};
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
@@ -138,12 +138,12 @@ version_tuple TriggerCascadeNoStore<KT, VT, IK, IV>::ordered_put(const VT& value
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-transaction_id TriggerCascadeNoStore<KT, VT, IK, IV>::ordered_put_objects(
+std::pair<transaction_id,transaction_status_t> TriggerCascadeNoStore<KT, VT, IK, IV>::ordered_put_objects(
         const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
         const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
         const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const {
     dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
-    return {-1,-1,persistent::INVALID_VERSION};
+    return {{-1,-1,persistent::INVALID_VERSION},transaction_status_t::ABORT};
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>

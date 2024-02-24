@@ -717,10 +717,10 @@ namespace cascade {
          * @param[in] subgroup_index            the subgroup index of CascadeType
          * @param[in] shard_index               the shard index that will first receive the transaction
          *
-         * @return a future to the transaction id
+         * @return a future to the transaction id and current status
          */
         template <typename SubgroupType>
-        derecho::rpc::QueryResults<transaction_id> put_objects(
+        derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> put_objects(
                 const std::map<std::pair<uint32_t,uint32_t>,std::vector<typename SubgroupType::ObjectType>>& mapped_objects,
                 const std::map<std::pair<uint32_t,uint32_t>,std::vector<typename SubgroupType::ObjectType>>& mapped_readonly_objects = {});
     protected:
@@ -761,13 +761,13 @@ namespace cascade {
          * @return a future to the version and timestamp of the put operation.
          */
         template <typename ObjectType, typename FirstType, typename SecondType, typename... RestTypes>
-        derecho::rpc::QueryResults<transaction_id> type_recursive_put_objects(
+        derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> type_recursive_put_objects(
                 uint32_t type_index,
                 const std::map<std::pair<uint32_t,uint32_t>,std::vector<ObjectType>>& mapped_objects,
                 const std::map<std::pair<uint32_t,uint32_t>,std::vector<ObjectType>>& mapped_readonly_objects);
 
         template <typename ObjectType, typename LastType>
-        derecho::rpc::QueryResults<transaction_id> type_recursive_put_objects(
+        derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> type_recursive_put_objects(
                 uint32_t type_index,
                 const std::map<std::pair<uint32_t,uint32_t>,std::vector<ObjectType>>& mapped_objects,
                 const std::map<std::pair<uint32_t,uint32_t>,std::vector<ObjectType>>& mapped_readonly_objects);
@@ -791,7 +791,7 @@ namespace cascade {
          * @return a future to the version and timestamp of the put operation.
          */
         template <typename ObjectType>
-        derecho::rpc::QueryResults<transaction_id> put_objects(const std::vector<ObjectType>& objects,const std::vector<ObjectType>& readonly_objects = {});
+        derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> put_objects(const std::vector<ObjectType>& objects,const std::vector<ObjectType>& readonly_objects = {});
 
         /**
          * "put_and_forget" writes an object to a given subgroup/shard, but no return value.
@@ -1016,6 +1016,9 @@ namespace cascade {
                 const KeyType& key,
                 const persistent::version_t& version = CURRENT_VERSION,
                 bool stable = true);
+
+        template <typename SubgroupType>
+        derecho::rpc::QueryResults<transaction_status_t> get_transaction_status(const transaction_id& txid);
 
         /**
          * "multi_get" retrieve the object of a given key, this operation involves atomic broadcast
