@@ -117,13 +117,13 @@ public:
     virtual std::pair<transaction_id,transaction_status_t> ordered_put_objects(
             const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
             const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
-            const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const override;
+            const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) override;
     virtual void ordered_put_objects_forward(
             const transaction_id& txid,
             const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
             const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
-            const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const override;
-    virtual void ordered_put_objects_backward(const transaction_id& txid,const transaction_status_t& status) const override;
+            const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) override;
+    virtual void ordered_put_objects_backward(const transaction_id& txid,const transaction_status_t& status) override;
     virtual void ordered_put_and_forget(const VT& value) override;
     virtual version_tuple ordered_remove(const KT& key) override;
     virtual const VT ordered_get(const KT& key) override;

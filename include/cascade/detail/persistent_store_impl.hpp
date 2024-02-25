@@ -42,37 +42,32 @@ version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::put(const VT& value) c
     return ret;
 }
 
-/*template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::put_objects(const std::vector<VT>& values) const {
-    debug_enter_func_with_args("values.size={}", values.size());
-    version_tuple ret{CURRENT_VERSION, 0};
-
-    if(!values.empty()){
-        LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_PUT_START, group, values[0]);
-
-        derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
-        auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put_objects)>(values);
-        auto& replies = results.get();
-
-        // TODO: verify consistency ?
-        for(auto& reply_pair : replies) {
-            ret = reply_pair.second.get();
-        }
-
-        LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_PUT_END, group, values[0]);
-    }
-
-    debug_leave_func_with_value("version=0x{:x},timestamp={}us", std::get<0>(ret), std::get<1>(ret));
-    return ret;
-}*/
-
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 std::pair<transaction_id,transaction_status_t> PersistentCascadeStore<KT, VT, IK, IV, ST>::put_objects(
         const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
         const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
         const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const {
-    // TODO implement this
-    return {{-1,-1,persistent::INVALID_VERSION},transaction_status_t::ABORT};
+    debug_enter_func_with_args("mapped_objects.size={},mapped_readonly_keys.size={},shard_list.size={}", mapped_objects.size(),mapped_readonly_keys.size(),shard_list.size());
+
+    transaction_id txid = {0,0,persistent::INVALID_VERSION};
+    transaction_status_t status = transaction_status_t::ABORT;
+
+    if(!mapped_objects.empty()){
+        // TODO timestamp logging
+
+        derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
+        auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put_objects)>(mapped_objects,mapped_readonly_keys,shard_list);
+        auto& replies = results.get();
+
+        for(auto& reply_pair : replies) {
+            auto ret = reply_pair.second.get();
+            txid = ret.first;
+            status = ret.second;
+        }
+    }
+
+    debug_leave_func_with_value("txid=({},{},{}),status={}",std::get<0>(txid),std::get<1>(txid),std::get<2>(txid),status);
+    return std::make_pair(txid,status);
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
@@ -515,6 +510,9 @@ template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put(const VT& value) {
     debug_enter_func_with_args("key={}", value.get_key_ref());
 
+    // TODO fail this if there is a TX containing the same key
+    // are there more operations to do the same? 'remove' maybe ...
+
     auto version_and_hlc = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
 #if __cplusplus > 201703L
     LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_PUT_START, group, value, std::get<0>(version_and_hlc));
@@ -538,45 +536,86 @@ version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put(const VT& 
     return version_and_timestamp;
 }
 
-/*template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_objects(const std::vector<VT>& values) {
-    debug_enter_func_with_args("size={}", values.size());
-
-    auto version_and_hlc = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
-    version_tuple version_and_timestamp{persistent::INVALID_VERSION,0};
-
-    if(!values.empty()){
-#if __cplusplus > 201703L
-        LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_PUT_START, group, values[0], std::get<0>(version_and_hlc));
-#else
-        LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_PUT_START, group, values[0], std::get<0>(version_and_hlc));
-#endif
-
-        if(this->internal_ordered_put_objects(values) == true) {
-            version_and_timestamp = {std::get<0>(version_and_hlc),std::get<1>(version_and_hlc).m_rtc_us};
-        }
-
-#if __cplusplus > 201703L
-        LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_PUT_END, group, values[0], std::get<0>(version_and_hlc));
-#else
-        LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_PUT_END, group, values[0], std::get<0>(version_and_hlc));
-#endif
-    }
-
-    debug_leave_func_with_value("version=0x{:x},timestamp={}us",
-            std::get<0>(version_and_hlc),
-            std::get<1>(version_and_hlc).m_rtc_us);
-
-    return version_and_timestamp;
-}*/
-
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 std::pair<transaction_id,transaction_status_t> PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_objects(
         const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
         const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
-        const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const {
-    // TODO implement this
-    return {{-1,-1,persistent::INVALID_VERSION},transaction_status_t::ABORT};
+        const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) {
+    debug_enter_func_with_args("mapped_objects.size={},mapped_readonly_keys.size={},shard_list.size={}", mapped_objects.size(),mapped_readonly_keys.size(),shard_list.size());
+    
+    transaction_id txid = {0,0,persistent::INVALID_VERSION};
+    transaction_status_t status = transaction_status_t::ABORT;
+
+    if(!mapped_objects.empty()){
+        // TODO timestamp logging
+
+        // get an ID and add the TX to the internal structures
+        CascadeTransaction* tx = new CascadeTransaction(new_transaction_id(),mapped_objects,mapped_readonly_keys,shard_list);
+        transaction_database.emplace(tx->txid,tx);
+        versions_checked.emplace(tx->txid,false);
+        pending_transactions.push_back(tx->txid);
+
+        auto shard_index = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_shard_num();
+        std::pair<uint32_t,uint32_t> shard_id(this->subgroup_index,shard_index);
+
+        // check if there is already another TX in the pending list
+        // if not, we can start processing it
+        if(!has_conflict(tx,shard_id)){
+            // check previous versions for this shard
+            if(check_previous_versions(tx,shard_id)) {
+                // check if this is the last shard
+                if(shard_id == tx->shard_list.back()){
+                    // this is the last and only shard, we can commit and remove from the pending list
+                    commit_transaction(tx,shard_id);
+                    tx->status = transaction_status_t::COMMIT;
+                    pending_transactions.erase(std::find(pending_transactions.begin(),pending_transactions.end(),tx->txid)); 
+                } else {
+                    // only one node in the shard passes the TX forward
+                    std::vector<std::vector<node_id_t>> subgroup_members = group->template get_subgroup_members<PersistentCascadeStore>(this->subgroup_index);
+                    std::vector<node_id_t>& shard_members = subgroup_members[shard_index];
+                    std::sort(shard_members.begin(),shard_members.end());
+
+                    // node with lowest ID forwards the transaction
+                    if(group->get_my_id() == shard_members[0]){
+                        // get next shard
+                        auto it = std::next(std::find(tx->shard_list.begin(),tx->shard_list.end(),shard_id));
+                        auto next_subgroup_index = (*it).first;
+                        auto next_shard_index = (*it).second;
+
+                        // target shard is in the same subgroup
+                        if(this->subgroup_index == next_subgroup_index){
+                            // TODO should we have other policies to pick the next node?
+                            node_id_t next_node_id = subgroup_members[next_shard_index][0];
+
+                            // p2p_send to the next shard
+                            auto& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
+                            subgroup_handle.template p2p_send<RPC_NAME(put_objects_forward)>(next_node_id,tx->txid,tx->mapped_objects,tx->mapped_readonly_keys,tx->shard_list);
+                        } else {
+                            // TODO should we have other policies to pick the next node?
+                            std::vector<std::vector<node_id_t>> next_subgroup_members = group->template get_subgroup_members<PersistentCascadeStore>(next_subgroup_index);
+                            node_id_t next_node_id = next_subgroup_members[next_shard_index][0];
+
+                            // p2p_send to the next shard
+                            auto& subgroup_handle = group->template get_nonmember_subgroup<PersistentCascadeStore>(next_subgroup_index);
+                            subgroup_handle.template p2p_send<RPC_NAME(put_objects_forward)>(next_node_id,tx->txid,tx->mapped_objects,tx->mapped_readonly_keys,tx->shard_list);
+                        }
+                    }
+                }
+            } else {
+                // this is the first shard, so we can just ABORT and remove the tx from the pending list, no need to send the result backwards to the previous shard
+                tx->status = transaction_status_t::ABORT;
+                pending_transactions.erase(std::find(pending_transactions.begin(),pending_transactions.end(),tx->txid)); 
+            }
+            
+            versions_checked.emplace(tx->txid,true);
+        }
+
+        txid = tx->txid;
+        status = tx->status;
+    }
+
+    debug_leave_func_with_value("txid=({},{},{}),status={}",std::get<0>(txid),std::get<1>(txid),std::get<2>(txid),status);
+    return std::make_pair(txid,status);
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
@@ -584,13 +623,15 @@ void PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_objects_forward(
         const transaction_id& txid,
         const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
         const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
-        const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const {
+        const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) {
     // TODO implement this
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-void PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_objects_backward(const transaction_id& txid,const transaction_status_t& status) const {
+void PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_objects_backward(const transaction_id& txid,const transaction_status_t& status) {
     // TODO implement this
+    
+    // TODO check TX that are waiting
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
@@ -892,6 +933,56 @@ PersistentCascadeStore<KT, VT, IK, IV, ST>::PersistentCascadeStore() : persisten
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 PersistentCascadeStore<KT, VT, IK, IV, ST>::~PersistentCascadeStore() {}
+
+
+// ========= transaction support code =========
+
+template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+transaction_id PersistentCascadeStore<KT, VT, IK, IV, ST>::new_transaction_id(){
+    auto shard_index = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_shard_num();
+    auto version_and_hlc = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
+    persistent::version_t current_version = std::get<0>(version_and_hlc);
+    return std::make_tuple(this->subgroup_index,shard_index,current_version);
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+bool PersistentCascadeStore<KT, VT, IK, IV, ST>::has_conflict(const CascadeTransaction* tx,const std::pair<uint32_t,uint32_t>& shard_id){
+    for(auto& pending_txid : pending_transactions){
+        CascadeTransaction* pending_tx = transaction_database.at(pending_txid);
+        if(pending_tx->conflicts(tx,shard_id)){
+            return true;
+        }
+    }
+
+    return false;
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+bool PersistentCascadeStore<KT, VT, IK, IV, ST>::check_previous_versions(const CascadeTransaction* tx,const std::pair<uint32_t,uint32_t>& shard_id){
+    // TODO check versions
+    return true;
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+void PersistentCascadeStore<KT, VT, IK, IV, ST>::commit_transaction(const CascadeTransaction* tx,const std::pair<uint32_t,uint32_t>& shard_id){
+    // TODO commit
+    // this->internal_ordered_put_objects(values)
+
+
+    std::cout << "commiting " << tx->mapped_objects.begin()->second[0].get_key_ref() << std::endl;
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+bool PersistentCascadeStore<KT, VT, IK, IV, ST>::CascadeTransaction::conflicts(const CascadeTransaction* other,const std::pair<uint32_t,uint32_t>& shard_id){
+    // TODO check conflict
+    return false;
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+bool PersistentCascadeStore<KT, VT, IK, IV, ST>::CascadeTransaction::conflicts(const VT& object,const std::pair<uint32_t,uint32_t>& shard_id){
+    // TODO check conflict
+    return false;
+}
 
 }  // namespace cascade
 }  // namespace derecho

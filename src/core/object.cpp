@@ -315,6 +315,20 @@ ObjectWithUInt64Key::ObjectWithUInt64Key(ObjectWithUInt64Key&& other) :
     key(other.key),
     blob(std::move(other.blob)) {}
 
+// move operator
+ObjectWithUInt64Key& ObjectWithUInt64Key::operator=(ObjectWithUInt64Key&& other){
+    #ifdef ENABLE_EVALUATION
+    message_id = other.message_id;
+#endif
+    version = other.version;
+    timestamp_us = other.timestamp_us;
+    previous_version = other.previous_version;
+    previous_version_by_key = other.previous_version_by_key;
+    key = other.key;
+    blob = std::move(other.blob);
+    return *this;
+}
+
 // constructor 3 : copy constructor
 ObjectWithUInt64Key::ObjectWithUInt64Key(const ObjectWithUInt64Key& other) :
 #ifdef ENABLE_EVALUATION
@@ -667,6 +681,20 @@ ObjectWithStringKey::ObjectWithStringKey(ObjectWithStringKey&& other) :
     previous_version_by_key(other.previous_version_by_key),
     key(other.key),
     blob(std::move(other.blob)) {}
+
+// move operator
+ObjectWithStringKey& ObjectWithStringKey::operator=(ObjectWithStringKey&& other){
+    #ifdef ENABLE_EVALUATION
+    message_id = other.message_id;
+#endif
+    version = other.version;
+    timestamp_us = other.timestamp_us;
+    previous_version = other.previous_version;
+    previous_version_by_key = other.previous_version_by_key;
+    key = std::move(other.key);
+    blob = std::move(other.blob);
+    return *this;
+}
 
 // constructor 3 : copy constructor
 ObjectWithStringKey::ObjectWithStringKey(const ObjectWithStringKey& other) :

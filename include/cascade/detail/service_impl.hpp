@@ -590,6 +590,9 @@ derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> Servi
             auto key_version_tuple = std::make_tuple(obj.get_key_ref(),obj.previous_version,obj.previous_version_by_key);
             mapped_readonly_keys[item.first].push_back(key_version_tuple);
         }
+        
+        // sort key/version tuples by key: this optimizes the search for conflicting transactions
+        std::sort(mapped_readonly_keys[item.first].begin(),mapped_readonly_keys[item.first].end(),[](const auto& tuple1, const auto& tuple2){ return std::get<0>(tuple1) < std::get<0>(tuple2); });
 
         if (std::find(shard_list.begin(), shard_list.end(), item.first) == shard_list.end()) {
             shard_list.push_back(item.first);
@@ -597,8 +600,8 @@ derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> Servi
     }
 
     // sort the shard list: this is very important to avoid deadlocks
-    std::sort(shard_list.begin(), shard_list.end()); 
-    
+    std::sort(shard_list.begin(), shard_list.end());
+
     // get head shard
     uint32_t head_subgroup_index = shard_list[0].first;
     uint32_t head_shard_index = shard_list[0].second;
@@ -741,7 +744,14 @@ derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> Servi
         }
 
         auto shard_pair = std::make_pair(subgroup_index,shard_index);
-        mapped_objects[shard_pair].push_back(objects[i]);
+
+        // TODO how to avoid this copy? I'm not sure it is possible without changing the API
+        mapped_objects[shard_pair].push_back(objects[i]); 
+    }
+        
+    // sort objects by key: this optimizes the search for conflicting transactions
+    for (auto& item : mapped_objects){
+        std::sort(item.second.begin(),item.second.end(),[](const auto& obj1, const auto& obj2){ return obj1.get_key_ref() < obj2.get_key_ref(); });
     }
     
     // get mapping for readonly objects 
@@ -755,7 +765,16 @@ derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> Servi
         }
        
         auto shard_pair = std::make_pair(subgroup_index,shard_index);
-        mapped_readonly_objects[shard_pair].push_back(readonly_objects[i]);
+
+        // creating another wrapper to avoid copying the Blob, since we only care about the versions
+        ObjectType obj;
+        obj.key = readonly_objects[i].get_key_ref();
+        obj.version = readonly_objects[i].version;
+        obj.timestamp_us = readonly_objects[i].timestamp_us;
+        obj.previous_version = readonly_objects[i].previous_version;
+        obj.previous_version_by_key = readonly_objects[i].previous_version_by_key;
+
+        mapped_readonly_objects[shard_pair].push_back(obj); // this will be sorted later
     }
 
     // STEP 4 - call recursive put

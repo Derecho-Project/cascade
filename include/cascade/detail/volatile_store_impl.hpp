@@ -489,7 +489,7 @@ template <typename KT, typename VT, KT* IK, VT* IV>
 std::pair<transaction_id,transaction_status_t> VolatileCascadeStore<KT, VT, IK, IV>::ordered_put_objects(
         const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
         const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
-        const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const {
+        const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) {
     // TODO implement this
     return {{-1,-1,persistent::INVALID_VERSION},transaction_status_t::ABORT};
 }
@@ -499,12 +499,12 @@ void VolatileCascadeStore<KT, VT, IK, IV>::ordered_put_objects_forward(
         const transaction_id& txid,
         const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
         const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
-        const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const {
+        const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) {
     // TODO implement this
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-void VolatileCascadeStore<KT, VT, IK, IV>::ordered_put_objects_backward(const transaction_id& txid,const transaction_status_t& status) const {
+void VolatileCascadeStore<KT, VT, IK, IV>::ordered_put_objects_backward(const transaction_id& txid,const transaction_status_t& status) {
     // TODO implement this
 }
 

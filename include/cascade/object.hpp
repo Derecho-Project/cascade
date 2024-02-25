@@ -152,6 +152,9 @@ public:
     // constructor 2 : move constructor
     ObjectWithUInt64Key(ObjectWithUInt64Key&& other);
 
+    // move operator
+    ObjectWithUInt64Key& operator=(ObjectWithUInt64Key&& other);
+
     // constructor 3 : copy constructor
     ObjectWithUInt64Key(const ObjectWithUInt64Key& other);
 
@@ -294,6 +297,9 @@ public:
 
     // constructor 2 : move constructor
     ObjectWithStringKey(ObjectWithStringKey&& other);
+    
+    // move operator
+    ObjectWithStringKey& operator=(ObjectWithStringKey&& other);
 
     // constructor 3 : copy constructor
     ObjectWithStringKey(const ObjectWithStringKey& other);
