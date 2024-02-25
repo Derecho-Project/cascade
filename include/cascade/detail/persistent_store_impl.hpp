@@ -219,6 +219,7 @@ const VT PersistentCascadeStore<KT, VT, IK, IV, ST>::get(const KT& key, const pe
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 transaction_status_t PersistentCascadeStore<KT, VT, IK, IV, ST>::get_transaction_status(const transaction_id& txid) const {
     // TODO implement this
+    // TODO careful: this can try to read something at the same time as the other thread is writing
     return transaction_status_t::PENDING;
 }
 
@@ -948,8 +949,24 @@ transaction_id PersistentCascadeStore<KT, VT, IK, IV, ST>::new_transaction_id(){
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 bool PersistentCascadeStore<KT, VT, IK, IV, ST>::has_conflict(const CascadeTransaction* tx,const std::pair<uint32_t,uint32_t>& shard_id){
     for(auto& pending_txid : pending_transactions){
+        if(pending_txid == tx->txid){
+            continue;
+        }
+
         CascadeTransaction* pending_tx = transaction_database.at(pending_txid);
         if(pending_tx->conflicts(tx,shard_id)){
+            return true;
+        }
+    }
+
+    return false;
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+bool PersistentCascadeStore<KT, VT, IK, IV, ST>::has_conflict(const VT& other,const std::pair<uint32_t,uint32_t>& shard_id){
+    for(auto& pending_txid : pending_transactions){
+        CascadeTransaction* pending_tx = transaction_database.at(pending_txid);
+        if(pending_tx->conflicts(other,shard_id)){
             return true;
         }
     }
@@ -972,15 +989,121 @@ void PersistentCascadeStore<KT, VT, IK, IV, ST>::commit_transaction(const Cascad
     std::cout << "commiting " << tx->mapped_objects.begin()->second[0].get_key_ref() << std::endl;
 }
 
+// helpers for comparing keys
+inline int compare_keys(const std::string& key1,const std::string& key2){ // string version
+    return key1.compare(key2);
+}
+
+template<typename T> inline int compare_keys(const T& key1,const T& key2){ // generic version
+    if(key1 == key2){
+        return 0;
+    }
+
+    if(key1 < key2){
+        return -1;
+    }
+
+    return 1;
+}
+
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 bool PersistentCascadeStore<KT, VT, IK, IV, ST>::CascadeTransaction::conflicts(const CascadeTransaction* other,const std::pair<uint32_t,uint32_t>& shard_id){
-    // TODO check conflict
+    if(mapped_objects.count(shard_id) > 0){
+        auto& my_objects = mapped_objects.at(shard_id);
+
+        // compare both to-write lists
+        if(other->mapped_objects.count(shard_id) > 0){
+            auto& other_objects = other->mapped_objects.at(shard_id);
+            size_t my_idx = 0, other_idx = 0;
+            while ((my_idx < my_objects.size()) &&  (other_idx < other_objects.size())){
+                auto& my_obj = my_objects.at(my_idx);
+                auto& other_obj = other_objects.at(other_idx);
+
+                int comp = compare_keys(my_obj.get_key_ref(),other_obj.get_key_ref());
+                if(comp == 0){
+                    return true;
+                } else if(comp < 0){
+                    my_idx++;
+                } else {
+                    other_idx++;
+                }
+            }
+        }
+
+        // compare to-write with the other read-only list
+        if(other->mapped_readonly_keys.count(shard_id) > 0){
+            auto& other_objects = other->mapped_readonly_keys.at(shard_id);
+            size_t my_idx = 0, other_idx = 0;
+            while ((my_idx < my_objects.size()) &&  (other_idx < other_objects.size())){
+                auto& my_obj = my_objects.at(my_idx);
+                auto& other_obj = other_objects.at(other_idx);
+
+                int comp = compare_keys(my_obj.get_key_ref(),std::get<0>(other_obj));
+                if(comp == 0){
+                    return true;
+                } else if(comp < 0){
+                    my_idx++;
+                } else {
+                    other_idx++;
+                }
+            }
+        }
+    }
+
+    if(mapped_readonly_keys.count(shard_id) > 0){
+        auto& my_objects = mapped_readonly_keys.at(shard_id);
+
+        // compare read-only with the other to-write list 
+        if(other->mapped_objects.count(shard_id) > 0){
+            auto& other_objects = other->mapped_objects.at(shard_id);
+            size_t my_idx = 0, other_idx = 0;
+            while ((my_idx < my_objects.size()) &&  (other_idx < other_objects.size())){
+                auto& my_obj = my_objects.at(my_idx);
+                auto& other_obj = other_objects.at(other_idx);
+
+                int comp = compare_keys(std::get<0>(my_obj),other_obj.get_key_ref());
+                if(comp == 0){
+                    return true;
+                } else if(comp < 0){
+                    my_idx++;
+                } else {
+                    other_idx++;
+                }
+            }
+        }
+    }
+
     return false;
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-bool PersistentCascadeStore<KT, VT, IK, IV, ST>::CascadeTransaction::conflicts(const VT& object,const std::pair<uint32_t,uint32_t>& shard_id){
-    // TODO check conflict
+bool PersistentCascadeStore<KT, VT, IK, IV, ST>::CascadeTransaction::conflicts(const VT& other,const std::pair<uint32_t,uint32_t>& shard_id){
+    if(mapped_objects.count(shard_id) > 0){
+        // check to-write
+        for(auto& obj : mapped_objects.at(shard_id)){
+            int comp = compare_keys(obj.get_key_ref(),other.get_key_ref());
+            if(comp == 0){
+                return true;
+            }
+            if(comp > 0){
+                break;
+            }
+        }
+    }
+    
+    if(mapped_readonly_keys.count(shard_id) > 0){
+        // check read-only
+        for(auto& item : mapped_readonly_keys.at(shard_id)){
+            int comp = compare_keys(std::get<0>(item),other.get_key_ref());
+            if(comp == 0){
+                return true;
+            }
+            if(comp > 0){
+                break;
+            }
+        }
+    }
+
     return false;
 }
 

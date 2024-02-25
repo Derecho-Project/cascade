@@ -62,7 +62,9 @@ private:
             mapped_readonly_keys(mapped_readonly_keys),
             shard_list(shard_list) {}
 
-        // check if this tx conflicts with another in the given shard
+        /* 
+         * Checks if this tx conflicts with another in the given shard. It is assumed that the lists of objects are all sorted in both transactions.
+         */
         bool conflicts(const CascadeTransaction* other,const std::pair<uint32_t,uint32_t>& shard_id);
         
         // check if a single object conflicts with this tx in the given shard
@@ -75,6 +77,7 @@ private:
 
     transaction_id new_transaction_id();
     bool has_conflict(const CascadeTransaction* tx,const std::pair<uint32_t,uint32_t>& shard_id);
+    bool has_conflict(const VT& other,const std::pair<uint32_t,uint32_t>& shard_id);
     bool check_previous_versions(const CascadeTransaction* tx,const std::pair<uint32_t,uint32_t>& shard_id);
     void commit_transaction(const CascadeTransaction* tx,const std::pair<uint32_t,uint32_t>& shard_id);
 
