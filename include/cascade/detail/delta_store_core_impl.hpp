@@ -182,8 +182,8 @@ bool DeltaCascadeStoreCore<KT, VT, IK, IV>::ordered_put(const VT& value, persist
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-bool DeltaCascadeStoreCore<KT, VT, IK, IV>::ordered_put_objects(const std::vector<VT>& values, persistent::version_t prev_ver) {
-    // validate and check versions of all objects before any update: if there is at least one mismatch, fail the whole operation
+bool DeltaCascadeStoreCore<KT, VT, IK, IV>::ordered_check_previous_versions(const std::vector<VT>& values, persistent::version_t prev_ver) {
+    // validate and check versions of all objects: if there is at least one mismatch, fail
     for(const VT& value : values){
         // call validator
         if constexpr(std::is_base_of<IValidator<KT, VT>, VT>::value) {
@@ -201,11 +201,34 @@ bool DeltaCascadeStoreCore<KT, VT, IK, IV>::ordered_put_objects(const std::vecto
                 verify_result = value.verify_previous_version(prev_ver, persistent::INVALID_VERSION);
             }
             if(!verify_result) {
-                // reject the package if verify failed.
                 return false;
             }
         }
+    }
 
+    return true;
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV>
+bool DeltaCascadeStoreCore<KT, VT, IK, IV>::ordered_check_current_versions(const std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>& key_versions, persistent::version_t prev_ver) {
+    if constexpr(std::is_base_of<IKeepPreviousVersion, VT>::value) {
+        // validate and check versions of all objects: if there is at least one mismatch, fail
+        for(auto& item : key_versions){
+            auto key = std::get<0>(item);
+            auto version = std::get<1>(item);
+            if(version != this->kv_map.at(key).get_version()){
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV>
+void DeltaCascadeStoreCore<KT, VT, IK, IV>::ordered_put_objects(const std::vector<VT>& values, persistent::version_t prev_ver) {
+    // update previous versions
+    for(const VT& value : values){
         if constexpr(std::is_base_of<IKeepPreviousVersion, VT>::value) {
             persistent::version_t prev_ver_by_key = persistent::INVALID_VERSION;
             if(kv_map.find(value.get_key_ref()) != kv_map.end()) {
@@ -214,8 +237,6 @@ bool DeltaCascadeStoreCore<KT, VT, IK, IV>::ordered_put_objects(const std::vecto
             value.set_previous_version(prev_ver, prev_ver_by_key);
         }
     }
-
-    // everything is fine, perform updates
 
     // create delta
     assert(this->delta.is_empty());
@@ -228,8 +249,6 @@ bool DeltaCascadeStoreCore<KT, VT, IK, IV>::ordered_put_objects(const std::vecto
     for(const VT& value : values){
         apply_ordered_put(value);
     }
-
-    return true;
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>

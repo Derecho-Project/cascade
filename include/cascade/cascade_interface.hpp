@@ -124,14 +124,14 @@ public:
      * Atomically put a list of objects across multiple shards. This is called for the first shard in shard_list.
      *
      * @param[in]   mapped_objects          A map between (subgroup_index,shard_index) pairs and a list of K/V values
-     * @param[in]   mapped_readonly_keys    A map between (subgroup_index,shard_index) pairs and a list of (key,version,version) tuples. These K/V pairs must match the provided versions for the transaction to be committed.
+     * @param[in]   mapped_readonly_keys    A map between (subgroup_index,shard_index) pairs and a list of (key,version,version,version) tuples. These K/V pairs must match the provided versions for the transaction to be committed.
      * @param[in]   shard_list              Sorted list of shards involved in the transaction
      *
      * @return      a tuple (transaction_id) including subgroup_index, shard_index and shard version number that can be used to uniquely identify the transaction
      */
     virtual std::pair<transaction_id,transaction_status_t> put_objects(
             const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
-            const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
+            const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
             const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const = 0;
 
     /**
@@ -149,7 +149,7 @@ public:
     virtual void put_objects_forward(
             const transaction_id& txid,
             const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
-            const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
+            const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
             const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const = 0;
 
     /**
@@ -428,7 +428,7 @@ protected:
      */
     virtual std::pair<transaction_id,transaction_status_t> ordered_put_objects(
             const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
-            const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
+            const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
             const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) = 0;
 
     /**
@@ -446,7 +446,7 @@ protected:
     virtual void ordered_put_objects_forward(
             const transaction_id& txid,
             const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
-            const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
+            const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
             const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) = 0;
 
     /**

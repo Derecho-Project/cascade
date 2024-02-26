@@ -80,9 +80,17 @@ public:
      */
     virtual bool ordered_put(const VT& value, persistent::version_t prever);
     /**
+     * Ordered check previous versions
+     */
+    virtual bool ordered_check_previous_versions(const std::vector<VT>& values, persistent::version_t prever);
+    /**
+     * Ordered check current versions
+     */
+    virtual bool ordered_check_current_versions(const std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>& key_versions, persistent::version_t prever);
+    /**
      * Ordered put_objects, and generate a delta.
      */
-    virtual bool ordered_put_objects(const std::vector<VT>& values, persistent::version_t prever);
+    virtual void ordered_put_objects(const std::vector<VT>& values, persistent::version_t prever);
     /**
      * Ordered remove, and generate a delta.
      */

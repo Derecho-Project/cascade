@@ -48,14 +48,14 @@ private:
         transaction_id txid;
         transaction_status_t status = transaction_status_t::PENDING;
         std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>> mapped_objects;
-        std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>> mapped_readonly_keys;
+        std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>> mapped_readonly_keys;
         std::vector<std::pair<uint32_t,uint32_t>> shard_list;
 
         // copy constructor 
         CascadeTransaction(
                 const transaction_id& txid,
                 const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
-                const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
+                const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
                 const std::vector<std::pair<uint32_t,uint32_t>>& shard_list):
             txid(txid),
             mapped_objects(mapped_objects), // TODO check if the Blobs are actually getting copied
@@ -80,8 +80,6 @@ private:
     bool has_conflict(const VT& other,const std::pair<uint32_t,uint32_t>& shard_id);
     bool check_previous_versions(const CascadeTransaction* tx,const std::pair<uint32_t,uint32_t>& shard_id);
     void commit_transaction(const CascadeTransaction* tx,const std::pair<uint32_t,uint32_t>& shard_id);
-
-    bool internal_ordered_put_objects(const std::vector<VT>& values); // TODO this probably needs to change
 
     // ======= end of new transactional code =======
 
@@ -150,12 +148,12 @@ public:
     virtual version_tuple put(const VT& value) const override;
     virtual std::pair<transaction_id,transaction_status_t> put_objects(
             const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
-            const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
+            const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
             const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const override;
     virtual void put_objects_forward(
             const transaction_id& txid,
             const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
-            const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
+            const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
             const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const override;
     virtual void put_objects_backward(const transaction_id& txid,const transaction_status_t& status) const override;
     virtual void put_and_forget(const VT& value) const override;
@@ -176,12 +174,12 @@ public:
     virtual version_tuple ordered_put(const VT& value) override;
     virtual std::pair<transaction_id,transaction_status_t> ordered_put_objects(
             const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
-            const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
+            const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
             const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) override;
     virtual void ordered_put_objects_forward(
             const transaction_id& txid,
             const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
-            const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
+            const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
             const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) override;
     virtual void ordered_put_objects_backward(const transaction_id& txid,const transaction_status_t& status) override;
     virtual void ordered_put_and_forget(const VT& value) override;

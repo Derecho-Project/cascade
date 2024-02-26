@@ -579,7 +579,7 @@ derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> Servi
 
     // extract shard list and map of readonly keys/version
     std::vector<std::pair<uint32_t,uint32_t>> shard_list;
-    std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<typename SubgroupType::KeyType,persistent::version_t,persistent::version_t>>> mapped_readonly_keys;
+    std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<typename SubgroupType::KeyType,persistent::version_t,persistent::version_t,persistent::version_t>>> mapped_readonly_keys;
 
     for (auto const& item : mapped_objects){
         shard_list.push_back(item.first);
@@ -587,7 +587,7 @@ derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> Servi
 
     for (auto const& item : mapped_readonly_objects){
         for (auto const& obj : item.second) {
-            auto key_version_tuple = std::make_tuple(obj.get_key_ref(),obj.previous_version,obj.previous_version_by_key);
+            auto key_version_tuple = std::make_tuple(obj.get_key_ref(),obj.version,obj.previous_version,obj.previous_version_by_key);
             mapped_readonly_keys[item.first].push_back(key_version_tuple);
         }
         
