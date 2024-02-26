@@ -53,8 +53,6 @@ std::pair<transaction_id,transaction_status_t> PersistentCascadeStore<KT, VT, IK
     transaction_status_t status = transaction_status_t::ABORT;
 
     if(!mapped_objects.empty()){
-        // TODO timestamp logging
-
         derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
         auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put_objects)>(mapped_objects,mapped_readonly_keys,shard_list);
         auto& replies = results.get();
@@ -76,12 +74,18 @@ void PersistentCascadeStore<KT, VT, IK, IV, ST>::put_objects_forward(
         const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
         const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
         const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const {
-    // TODO implement this
+    debug_enter_func_with_args("mapped_objects.size={},mapped_readonly_keys.size={},shard_list.size={}", mapped_objects.size(),mapped_readonly_keys.size(),shard_list.size());
+
+    derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
+    auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put_objects_forward)>(txid,mapped_objects,mapped_readonly_keys,shard_list);
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void PersistentCascadeStore<KT, VT, IK, IV, ST>::put_objects_backward(const transaction_id& txid,const transaction_status_t& status) const {
-    // TODO implement this
+    debug_enter_func_with_args("txid=({},{},{}),status={}",std::get<0>(txid),std::get<1>(txid),std::get<2>(txid),status);
+
+    derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
+    auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put_objects_backward)>(txid,status);
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
@@ -218,9 +222,30 @@ const VT PersistentCascadeStore<KT, VT, IK, IV, ST>::get(const KT& key, const pe
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 transaction_status_t PersistentCascadeStore<KT, VT, IK, IV, ST>::get_transaction_status(const transaction_id& txid) const {
-    // TODO implement this
-    // TODO careful: this can try to read something at the same time as the other thread is writing
-    return transaction_status_t::PENDING;
+    transaction_status_t status = transaction_status_t::INVALID;
+
+    // TODO careful: we should rethink this once we have a persistent implementation of transaction_database and pending_transactions
+    /* 
+     * An out_of_range exception can be thrown even if 'txid' exists in
+     * transaction_database. Since std::map is not thread-safe, and there is another
+     * thread modifying kv_map concurrently, the internal data structure can
+     * be changed while this thread is inside transaction_database.at(txid). Therefore, we
+     * keep trying until it is possible to get the status.
+     */
+    while(true) {
+        try {
+            if(transaction_database.count(txid) == 0){
+                return transaction_status_t::INVALID;
+            }
+
+            status = transaction_database.at(txid)->status;
+            break;
+        } catch (const std::out_of_range&) {
+            dbg_default_debug("{}: out_of_range exception thrown while trying to get transacion", __PRETTY_FUNCTION__);
+        }
+    }
+
+    return status;
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
@@ -510,10 +535,6 @@ std::vector<KT> PersistentCascadeStore<KT, VT, IK, IV, ST>::list_keys_by_time(co
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put(const VT& value) {
     debug_enter_func_with_args("key={}", value.get_key_ref());
-
-    // TODO fail this if there is a TX containing the same key
-    // are there more operations to do the same? 'remove' maybe ...
-
     auto version_and_hlc = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
 #if __cplusplus > 201703L
     LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_PUT_START, group, value, std::get<0>(version_and_hlc));
@@ -521,8 +542,14 @@ version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put(const VT& 
     LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_PUT_START, group, value, std::get<0>(version_and_hlc));
 #endif
     version_tuple version_and_timestamp{persistent::INVALID_VERSION,0};
-    if(this->internal_ordered_put(value) == true) {
-        version_and_timestamp = {std::get<0>(version_and_hlc),std::get<1>(version_and_hlc).m_rtc_us};
+    
+    // fail if there is a pending TX conflicting with this object
+    auto shard_index = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_shard_num();
+    std::pair<uint32_t,uint32_t> shard_id(this->subgroup_index,shard_index);
+    if(!has_conflict(value,shard_id)){
+        if(this->internal_ordered_put(value) == true) {
+            version_and_timestamp = {std::get<0>(version_and_hlc),std::get<1>(version_and_hlc).m_rtc_us};
+        }
     }
 
 #if __cplusplus > 201703L
@@ -559,9 +586,9 @@ std::pair<transaction_id,transaction_status_t> PersistentCascadeStore<KT, VT, IK
         auto shard_index = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_shard_num();
         std::pair<uint32_t,uint32_t> shard_id(this->subgroup_index,shard_index);
 
-        // check if there is already another TX in the pending list
+        // check if there is a conflicting TX in the pending list
         // if not, we can start processing it
-        if(!has_conflict(tx,shard_id)){
+        if(!has_conflict(tx)){
             // check previous versions for this shard
             if(check_previous_versions(tx,shard_id)) {
                 // check if this is the last shard
@@ -608,7 +635,7 @@ std::pair<transaction_id,transaction_status_t> PersistentCascadeStore<KT, VT, IK
                 pending_transactions.erase(std::find(pending_transactions.begin(),pending_transactions.end(),tx->txid)); 
             }
             
-            versions_checked.emplace(tx->txid,true);
+            versions_checked.at(tx->txid) = true;
         }
 
         txid = tx->txid;
@@ -625,14 +652,322 @@ void PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_objects_forward(
         const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
         const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
         const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) {
-    // TODO implement this
+    debug_enter_func_with_args("txid=({},{},{}),mapped_objects.size={},mapped_readonly_keys.size={},shard_list.size={}",std::get<0>(txid),std::get<1>(txid),std::get<2>(txid),mapped_objects.size(),mapped_readonly_keys.size(),shard_list.size());
+    
+    // if it is a transaction that we already have, do nothing (it is being resent by a recovering node)
+    if(transaction_database.count(txid) > 0){
+        return;
+    }
+
+    // register the new tx
+    CascadeTransaction* tx = new CascadeTransaction(txid,mapped_objects,mapped_readonly_keys,shard_list);
+    transaction_database.emplace(tx->txid,tx);
+    versions_checked.emplace(tx->txid,false);
+    pending_transactions.push_back(tx->txid);
+
+    auto shard_index = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_shard_num();
+    std::pair<uint32_t,uint32_t> shard_id(this->subgroup_index,shard_index);
+                    
+    // check if there is a conflicting TX in the pending list
+    // if not, we can start processing it
+    if(!has_conflict(tx)){
+        // only one node in the shard passes the TX forward or backward
+        std::vector<std::vector<node_id_t>> subgroup_members = group->template get_subgroup_members<PersistentCascadeStore>(this->subgroup_index);
+        std::vector<node_id_t>& shard_members = subgroup_members[shard_index];
+        std::sort(shard_members.begin(),shard_members.end());
+
+        // check previous versions for this shard
+        if(check_previous_versions(tx,shard_id)) {
+            // check if this is the last shard
+            if(shard_id == tx->shard_list.back()){
+                // this is the last, but not the only: we commit and send the result backwards
+                commit_transaction(tx,shard_id);
+                tx->status = transaction_status_t::COMMIT;
+                
+                // node with lowest ID senf the transaction backwards
+                if(group->get_my_id() == shard_members[0]){
+                    // get previous shard
+                    auto it = std::prev(std::find(tx->shard_list.begin(),tx->shard_list.end(),shard_id));
+                    auto next_subgroup_index = (*it).first;
+                    auto next_shard_index = (*it).second;
+                       
+                    // target shard is in the same subgroup
+                    if(this->subgroup_index == next_subgroup_index){
+                        // TODO should we have other policies to pick the next node?
+                        node_id_t next_node_id = subgroup_members[next_shard_index][0];
+
+                        // p2p_send to the next shard
+                        auto& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
+                        subgroup_handle.template p2p_send<RPC_NAME(put_objects_backward)>(next_node_id,tx->txid,tx->status);
+                    } else {
+                        // TODO should we have other policies to pick the next node?
+                        std::vector<std::vector<node_id_t>> next_subgroup_members = group->template get_subgroup_members<PersistentCascadeStore>(next_subgroup_index);
+                        node_id_t next_node_id = next_subgroup_members[next_shard_index][0];
+
+                        // p2p_send to the next shard
+                        auto& subgroup_handle = group->template get_nonmember_subgroup<PersistentCascadeStore>(next_subgroup_index);
+                        subgroup_handle.template p2p_send<RPC_NAME(put_objects_backward)>(next_node_id,tx->txid,tx->status);
+                    }
+                }
+
+                // clean queue only after sending to the previous/next shard
+                pending_transactions.erase(std::find(pending_transactions.begin(),pending_transactions.end(),tx->txid)); 
+            } else {
+                // node with lowest ID forwards the transaction
+                if(group->get_my_id() == shard_members[0]){
+                    // get next shard
+                    auto it = std::next(std::find(tx->shard_list.begin(),tx->shard_list.end(),shard_id));
+                    auto next_subgroup_index = (*it).first;
+                    auto next_shard_index = (*it).second;
+
+                    // target shard is in the same subgroup
+                    if(this->subgroup_index == next_subgroup_index){
+                        // TODO should we have other policies to pick the next node?
+                        node_id_t next_node_id = subgroup_members[next_shard_index][0];
+
+                        // p2p_send to the next shard
+                        auto& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
+                        subgroup_handle.template p2p_send<RPC_NAME(put_objects_forward)>(next_node_id,tx->txid,tx->mapped_objects,tx->mapped_readonly_keys,tx->shard_list);
+                    } else {
+                        // TODO should we have other policies to pick the next node?
+                        std::vector<std::vector<node_id_t>> next_subgroup_members = group->template get_subgroup_members<PersistentCascadeStore>(next_subgroup_index);
+                        node_id_t next_node_id = next_subgroup_members[next_shard_index][0];
+
+                        // p2p_send to the next shard
+                        auto& subgroup_handle = group->template get_nonmember_subgroup<PersistentCascadeStore>(next_subgroup_index);
+                        subgroup_handle.template p2p_send<RPC_NAME(put_objects_forward)>(next_node_id,tx->txid,tx->mapped_objects,tx->mapped_readonly_keys,tx->shard_list);
+                    }
+                }
+            }
+        } else {
+            // send ABORT to previous shard
+            tx->status = transaction_status_t::ABORT;
+
+            // node with lowest ID senf the transaction backwards
+            if(group->get_my_id() == shard_members[0]){
+                // get previous shard
+                auto it = std::prev(std::find(tx->shard_list.begin(),tx->shard_list.end(),shard_id));
+                auto next_subgroup_index = (*it).first;
+                auto next_shard_index = (*it).second;
+
+                // target shard is in the same subgroup
+                if(this->subgroup_index == next_subgroup_index){
+                    // TODO should we have other policies to pick the next node?
+                    node_id_t next_node_id = subgroup_members[next_shard_index][0];
+
+                    // p2p_send to the next shard
+                    auto& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
+                    subgroup_handle.template p2p_send<RPC_NAME(put_objects_backward)>(next_node_id,tx->txid,tx->status);
+                } else {
+                    // TODO should we have other policies to pick the next node?
+                    std::vector<std::vector<node_id_t>> next_subgroup_members = group->template get_subgroup_members<PersistentCascadeStore>(next_subgroup_index);
+                    node_id_t next_node_id = next_subgroup_members[next_shard_index][0];
+
+                    // p2p_send to the next shard
+                    auto& subgroup_handle = group->template get_nonmember_subgroup<PersistentCascadeStore>(next_subgroup_index);
+                    subgroup_handle.template p2p_send<RPC_NAME(put_objects_backward)>(next_node_id,tx->txid,tx->status);
+                }
+            }
+            
+            // clean queue only after sending to the previous/next shard
+            pending_transactions.erase(std::find(pending_transactions.begin(),pending_transactions.end(),tx->txid));
+        }
+        
+        versions_checked.at(tx->txid) = true;
+    }
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_objects_backward(const transaction_id& txid,const transaction_status_t& status) {
-    // TODO implement this
+    debug_enter_func_with_args("txid=({},{},{})",std::get<0>(txid),std::get<1>(txid),std::get<2>(txid));
+    // if we do not have the transaction, something went wrong
+    if(transaction_database.count(txid) == 0){
+        dbg_default_debug("{}: received an unknown transaction ({},{},{})", __PRETTY_FUNCTION__, std::get<0>(txid),std::get<1>(txid),std::get<2>(txid));
+        return;
+    }
+
+    CascadeTransaction* tx = transaction_database.at(txid);
+   
+    // if this was already processed, do nothing (it is being resent by a recovering node)
+    if(tx->status != transaction_status_t::PENDING){
+        return;
+    }
+
+    // if version was not checked, it could not have been forwarded in the first place: panic
+    assert(versions_checked.at(tx->txid) == true);
     
-    // TODO check TX that are waiting
+    auto shard_index = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_shard_num();
+    std::pair<uint32_t,uint32_t> shard_id(this->subgroup_index,shard_index);
+   
+    // commit
+    if(status == transaction_status_t::COMMIT){
+        commit_transaction(tx,shard_id);
+    }
+    tx->status = status;
+
+    // only one node in the shard passes the TX forward or backward
+    std::vector<std::vector<node_id_t>> subgroup_members = group->template get_subgroup_members<PersistentCascadeStore>(this->subgroup_index);
+    std::vector<node_id_t>& shard_members = subgroup_members[shard_index];
+    std::sort(shard_members.begin(),shard_members.end());
+
+    // send status backwars if this is not the first shard
+    if(shard_id != tx->shard_list.front()){
+        // node with lowest ID senf the transaction backwards
+        if(group->get_my_id() == shard_members[0]){
+            // get previous shard
+            auto it = std::prev(std::find(tx->shard_list.begin(),tx->shard_list.end(),shard_id));
+            auto next_subgroup_index = (*it).first;
+            auto next_shard_index = (*it).second;
+
+            // target shard is in the same subgroup
+            if(this->subgroup_index == next_subgroup_index){
+                // TODO should we have other policies to pick the next node?
+                node_id_t next_node_id = subgroup_members[next_shard_index][0];
+
+                // p2p_send to the next shard
+                auto& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
+                subgroup_handle.template p2p_send<RPC_NAME(put_objects_backward)>(next_node_id,tx->txid,tx->status);
+            } else {
+                // TODO should we have other policies to pick the next node?
+                std::vector<std::vector<node_id_t>> next_subgroup_members = group->template get_subgroup_members<PersistentCascadeStore>(next_subgroup_index);
+                node_id_t next_node_id = next_subgroup_members[next_shard_index][0];
+
+                // p2p_send to the next shard
+                auto& subgroup_handle = group->template get_nonmember_subgroup<PersistentCascadeStore>(next_subgroup_index);
+                subgroup_handle.template p2p_send<RPC_NAME(put_objects_backward)>(next_node_id,tx->txid,tx->status);
+            }
+        }
+    }
+    
+    pending_transactions.erase(std::find(pending_transactions.begin(),pending_transactions.end(),tx->txid));
+
+    // start all blocked transactions in the queue that are not conflicting with any other ahead of them in the queue
+    std::vector<transaction_id> to_remove;
+    for(size_t i=0; i<pending_transactions.size();i++){
+        auto& pending_txid = pending_transactions[i];
+        if(versions_checked.at(pending_txid)){
+            // if versions were checked, it is already running
+            continue;
+        }
+
+        CascadeTransaction* pending_tx = transaction_database.at(pending_txid);
+        bool can_run = true;
+
+        // check conflict with each tx ahead of it in the queue
+        for(size_t j=0;j<i;j++){
+            auto& ahead_txid = pending_transactions[j];
+            CascadeTransaction* ahead_tx = transaction_database.at(ahead_txid);
+
+            // check if there is conflict and if ahead_tx was not finished in this loop
+            if(pending_tx->conflicts(ahead_tx) && (ahead_tx->status == transaction_status_t::PENDING)){
+                can_run = false;
+                break;
+            }
+        }
+
+        // start pending_tx
+        if(can_run){
+            // check previous versions for this shard
+            if(check_previous_versions(pending_tx,shard_id)) {
+                // check if this is the last shard
+                if(shard_id == pending_tx->shard_list.back()){
+                    commit_transaction(pending_tx,shard_id);
+                    pending_tx->status = transaction_status_t::COMMIT;
+                    
+                    // we only send it backwards if this is not the first shard
+                    if((shard_id != pending_tx->shard_list.front()) && (group->get_my_id() == shard_members[0])){
+                        // get previous shard
+                        auto it = std::prev(std::find(pending_tx->shard_list.begin(),pending_tx->shard_list.end(),shard_id));
+                        auto next_subgroup_index = (*it).first;
+                        auto next_shard_index = (*it).second;
+
+                        // target shard is in the same subgroup
+                        if(this->subgroup_index == next_subgroup_index){
+                            // TODO should we have other policies to pick the next node?
+                            node_id_t next_node_id = subgroup_members[next_shard_index][0];
+
+                            // p2p_send to the next shard
+                            auto& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
+                            subgroup_handle.template p2p_send<RPC_NAME(put_objects_backward)>(next_node_id,pending_tx->txid,pending_tx->status);
+                        } else {
+                            // TODO should we have other policies to pick the next node?
+                            std::vector<std::vector<node_id_t>> next_subgroup_members = group->template get_subgroup_members<PersistentCascadeStore>(next_subgroup_index);
+                            node_id_t next_node_id = next_subgroup_members[next_shard_index][0];
+
+                            // p2p_send to the next shard
+                            auto& subgroup_handle = group->template get_nonmember_subgroup<PersistentCascadeStore>(next_subgroup_index);
+                            subgroup_handle.template p2p_send<RPC_NAME(put_objects_backward)>(next_node_id,pending_tx->txid,pending_tx->status);
+                        }
+                    }
+
+                    to_remove.push_back(pending_tx->txid);
+                } else {
+                    // node with lowest ID forwards the transaction
+                    if(group->get_my_id() == shard_members[0]){
+                        // get next shard
+                        auto it = std::next(std::find(pending_tx->shard_list.begin(),pending_tx->shard_list.end(),shard_id));
+                        auto next_subgroup_index = (*it).first;
+                        auto next_shard_index = (*it).second;
+
+                        // target shard is in the same subgroup
+                        if(this->subgroup_index == next_subgroup_index){
+                            // TODO should we have other policies to pick the next node?
+                            node_id_t next_node_id = subgroup_members[next_shard_index][0];
+
+                            // p2p_send to the next shard
+                            auto& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
+                            subgroup_handle.template p2p_send<RPC_NAME(put_objects_forward)>(next_node_id,pending_tx->txid,pending_tx->mapped_objects,pending_tx->mapped_readonly_keys,pending_tx->shard_list);
+                        } else {
+                            // TODO should we have other policies to pick the next node?
+                            std::vector<std::vector<node_id_t>> next_subgroup_members = group->template get_subgroup_members<PersistentCascadeStore>(next_subgroup_index);
+                            node_id_t next_node_id = next_subgroup_members[next_shard_index][0];
+
+                            // p2p_send to the next shard
+                            auto& subgroup_handle = group->template get_nonmember_subgroup<PersistentCascadeStore>(next_subgroup_index);
+                            subgroup_handle.template p2p_send<RPC_NAME(put_objects_forward)>(next_node_id,pending_tx->txid,pending_tx->mapped_objects,pending_tx->mapped_readonly_keys,pending_tx->shard_list);
+                        }
+                    }
+                }
+            } else {
+                // send ABORT to previous shard
+                pending_tx->status = transaction_status_t::ABORT;
+
+                // we only send it backwards if this is not the first shard
+                if((shard_id != pending_tx->shard_list.front()) && (group->get_my_id() == shard_members[0])){
+                    // get previous shard
+                    auto it = std::prev(std::find(pending_tx->shard_list.begin(),pending_tx->shard_list.end(),shard_id));
+                    auto next_subgroup_index = (*it).first;
+                    auto next_shard_index = (*it).second;
+
+                    // target shard is in the same subgroup
+                    if(this->subgroup_index == next_subgroup_index){
+                        // TODO should we have other policies to pick the next node?
+                        node_id_t next_node_id = subgroup_members[next_shard_index][0];
+
+                        // p2p_send to the next shard
+                        auto& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
+                        subgroup_handle.template p2p_send<RPC_NAME(put_objects_backward)>(next_node_id,pending_tx->txid,pending_tx->status);
+                    } else {
+                        // TODO should we have other policies to pick the next node?
+                        std::vector<std::vector<node_id_t>> next_subgroup_members = group->template get_subgroup_members<PersistentCascadeStore>(next_subgroup_index);
+                        node_id_t next_node_id = next_subgroup_members[next_shard_index][0];
+
+                        // p2p_send to the next shard
+                        auto& subgroup_handle = group->template get_nonmember_subgroup<PersistentCascadeStore>(next_subgroup_index);
+                        subgroup_handle.template p2p_send<RPC_NAME(put_objects_backward)>(next_node_id,pending_tx->txid,pending_tx->status);
+                    }
+                }
+                
+                to_remove.push_back(pending_tx->txid);
+            }
+            
+            versions_checked.at(pending_tx->txid) = true;
+        }
+    }
+
+    for(auto& erase_txid : to_remove){
+        pending_transactions.erase(std::find(pending_transactions.begin(),pending_transactions.end(),erase_txid)); 
+    }
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
@@ -647,8 +982,13 @@ void PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_and_forget(const VT
 #else
     LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_PUT_AND_FORGET_START, group, value, std::get<0>(version_and_hlc));
 #endif
-
-    this->internal_ordered_put(value);
+    
+    // fail if there is a pending TX conflicting with this object
+    auto shard_index = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_shard_num();
+    std::pair<uint32_t,uint32_t> shard_id(this->subgroup_index,shard_index);
+    if(!has_conflict(value,shard_id)){
+        this->internal_ordered_put(value);
+    }
 
 #if __cplusplus > 201703L
     LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_PUT_AND_FORGET_END, group, value, std::get<0>(version_and_hlc));
@@ -696,6 +1036,8 @@ template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_remove(const KT& key) {
     debug_enter_func_with_args("key={}", key);
     auto version_and_hlc = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
+    version_tuple version_and_timestamp{persistent::INVALID_VERSION,0};
+
 #if __cplusplus > 201703L
     LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_REMOVE_START, group, *IV, std::get<0>(version_and_hlc));
 #else
@@ -709,16 +1051,23 @@ version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_remove(const K
     if constexpr(std::is_base_of<IKeepTimestamp, VT>::value) {
         value.set_timestamp(std::get<1>(version_and_hlc).m_rtc_us);
     }
-    if(this->persistent_core->ordered_remove(value, this->persistent_core.getLatestVersion())) {
-        if(cascade_watcher_ptr) {
-            (*cascade_watcher_ptr)(
-                    // group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_subgroup_id(), // this is subgroup id
-                    this->subgroup_index,
-                    group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_shard_num(),
-                    group->get_rpc_caller_id(),
-                    key, value, cascade_context_ptr);
+
+    // fail if there is a pending TX conflicting with this object
+    auto shard_index = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_shard_num();
+    std::pair<uint32_t,uint32_t> shard_id(this->subgroup_index,shard_index);
+    if(!has_conflict(value,shard_id)){
+        if(this->persistent_core->ordered_remove(value, this->persistent_core.getLatestVersion())) {
+            if(cascade_watcher_ptr) {
+                (*cascade_watcher_ptr)(
+                        // group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_subgroup_id(), // this is subgroup id
+                        this->subgroup_index,
+                        group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_shard_num(),
+                        group->get_rpc_caller_id(),
+                        key, value, cascade_context_ptr);
+            }
         }
-    }
+        version_and_timestamp = {std::get<0>(version_and_hlc),std::get<1>(version_and_hlc).m_rtc_us};
+    } 
 
 #if __cplusplus > 201703L
     LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_REMOVE_END, group, *IV, std::get<0>(version_and_hlc));
@@ -729,7 +1078,7 @@ version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_remove(const K
             std::get<0>(version_and_hlc),
             std::get<1>(version_and_hlc).m_rtc_us);
 
-    return {std::get<0>(version_and_hlc),std::get<1>(version_and_hlc).m_rtc_us};
+    return version_and_timestamp;
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
@@ -914,14 +1263,21 @@ transaction_id PersistentCascadeStore<KT, VT, IK, IV, ST>::new_transaction_id(){
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-bool PersistentCascadeStore<KT, VT, IK, IV, ST>::has_conflict(const CascadeTransaction* tx,const std::pair<uint32_t,uint32_t>& shard_id){
-    for(auto& pending_txid : pending_transactions){
+bool PersistentCascadeStore<KT, VT, IK, IV, ST>::has_conflict(const CascadeTransaction* tx){
+    return has_conflict(tx,pending_transactions.size());
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+bool PersistentCascadeStore<KT, VT, IK, IV, ST>::has_conflict(const CascadeTransaction* tx,size_t num){
+    for(size_t i=0;i<num;i++){
+        auto& pending_txid = pending_transactions.at(i);
         if(pending_txid == tx->txid){
             continue;
         }
-
+        
         CascadeTransaction* pending_tx = transaction_database.at(pending_txid);
-        if(pending_tx->conflicts(tx,shard_id)){
+
+        if(pending_tx->conflicts(tx)){
             return true;
         }
     }
@@ -1010,6 +1366,16 @@ template<typename T> inline int compare_keys(const T& key1,const T& key2){ // ge
     }
 
     return 1;
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+bool PersistentCascadeStore<KT, VT, IK, IV, ST>::CascadeTransaction::conflicts(const CascadeTransaction* other){
+    for(auto& shard_id : shard_list){
+        if(conflicts(other,shard_id)){
+            return true;
+        }
+    }
+    return false;
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>

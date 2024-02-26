@@ -81,6 +81,7 @@ enum transaction_status_t : uint8_t {
     PENDING,
     COMMIT,
     ABORT,
+    INVALID
 };
 
 /**

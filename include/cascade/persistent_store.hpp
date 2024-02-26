@@ -66,6 +66,7 @@ private:
          * Checks if this tx conflicts with another in the given shard. It is assumed that the lists of objects are all sorted in both transactions.
          */
         bool conflicts(const CascadeTransaction* other,const std::pair<uint32_t,uint32_t>& shard_id);
+        bool conflicts(const CascadeTransaction* other);
         
         // check if a single object conflicts with this tx in the given shard
         bool conflicts(const VT& object,const std::pair<uint32_t,uint32_t>& shard_id);
@@ -76,7 +77,8 @@ private:
     std::map<transaction_id,bool> versions_checked;
 
     transaction_id new_transaction_id();
-    bool has_conflict(const CascadeTransaction* tx,const std::pair<uint32_t,uint32_t>& shard_id);
+    bool has_conflict(const CascadeTransaction* tx);
+    bool has_conflict(const CascadeTransaction* tx,size_t num);
     bool has_conflict(const VT& other,const std::pair<uint32_t,uint32_t>& shard_id);
     bool check_previous_versions(const CascadeTransaction* tx,const std::pair<uint32_t,uint32_t>& shard_id);
     void commit_transaction(const CascadeTransaction* tx,const std::pair<uint32_t,uint32_t>& shard_id);
