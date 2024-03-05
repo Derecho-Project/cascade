@@ -215,7 +215,6 @@ std::string status_to_string(transaction_status_t status){
 }
 
 transaction_status_t poll_tx_completion(ServiceClientAPI& capi,transaction_id& txid){
-    std::cout << "entered poll tx" << std::endl;
     transaction_status_t status = transaction_status_t::PENDING;
     while(status == transaction_status_t::PENDING){
         auto res = capi.get_transaction_status<PersistentCascadeStoreWithStringKey>(txid);
@@ -223,12 +222,10 @@ transaction_status_t poll_tx_completion(ServiceClientAPI& capi,transaction_id& t
             status = reply_future.second.get();
         }
     }
-    std::cout << "exited poll tx" << std::endl;
     return status;
 }
 
 void check_put_objects_and_remove_result(ServiceClientAPI& capi, derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>>& result) {
-    std::cout << "entered check_put_objects_and_remove_result" << std::endl;
     for (auto& reply_future:result.get()) {
         auto reply = reply_future.second.get();
         transaction_id txid = reply.first;
@@ -236,7 +233,6 @@ void check_put_objects_and_remove_result(ServiceClientAPI& capi, derecho::rpc::Q
         std::cout << "node(" << reply_future.first << ") replied with transaction id:" << id_to_string(txid) << std::endl;
         std::cout << "transaction status: " << status_to_string(status) << std::endl;
     }
-    std::cout << "exited check_put_objects_and_remove_result" << std::endl;
 }
 
 template <typename SubgroupType>
@@ -257,11 +253,65 @@ void put(ServiceClientAPI& capi, const std::string& key, const std::string& valu
     check_put_and_remove_result(result);
 }
 
+struct object {
+    std::string key;               
+    std::string value;             
+    persistent::version_t pver;             
+    persistent::version_t pver_bk; 
+    object() = default;
+};
+
+template <typename SubgroupType>
+void put_objects(ServiceClientAPI& capi, std::map<std::pair<uint32_t,uint32_t>,std::vector<object>> mapped_objects, std::map<std::pair<uint32_t,uint32_t>,std::vector<object>> readonly_mapped_objects){
+    std::map<std::pair<uint32_t,uint32_t>,std::vector<typename SubgroupType::ObjectType>> objects;
+    for (const auto& kv : mapped_objects) {
+        auto key = kv.first;
+        auto temp_objects = kv.second;
+        for (const auto& temp_obj : temp_objects) {
+            typename SubgroupType::ObjectType obj;
+            if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
+                obj.key = static_cast<uint64_t>(std::stol(temp_obj.key,nullptr,0));
+            } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
+                obj.key = temp_obj.key;
+            } else {
+                print_red(std::string("Unhandled KeyType:") + typeid(typename SubgroupType::KeyType).name());
+                return;
+            }
+            obj.previous_version = temp_obj.pver;
+            obj.previous_version_by_key = temp_obj.pver_bk;
+            obj.blob = Blob(reinterpret_cast<const uint8_t*>(temp_obj.value.c_str()),temp_obj.value.size()+1);
+            objects[key].push_back(obj);
+        }
+    }
+
+    std::map<std::pair<uint32_t,uint32_t>,std::vector<typename SubgroupType::ObjectType>> readonly_objects;
+    for (const auto& kv : readonly_mapped_objects) {
+        auto key = kv.first;
+        auto temp_objects = kv.second;
+        for (const auto& temp_obj : temp_objects) {
+            typename SubgroupType::ObjectType obj;
+            if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
+                obj.key = static_cast<uint64_t>(std::stol(temp_obj.key,nullptr,0));
+            } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
+                obj.key = temp_obj.key;
+            } else {
+                print_red(std::string("Unhandled KeyType:") + typeid(typename SubgroupType::KeyType).name());
+                return;
+            }
+            obj.previous_version = temp_obj.pver;
+            obj.previous_version_by_key = temp_obj.pver_bk;
+            obj.blob = Blob(reinterpret_cast<const uint8_t*>(temp_obj.value.c_str()),temp_obj.value.size()+1);
+            readonly_objects[key].push_back(obj);
+        }
+    }
+    derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> result = capi.template put_objects<SubgroupType>(objects, readonly_objects);
+    check_put_objects_and_remove_result(capi, result);
+}
+
 void op_put_objects(ServiceClientAPI& capi, const std::vector<std::string>& key_list, const std::vector<std::string>& value_list, 
                  std::vector<persistent::version_t>& pver_list, std::vector<persistent::version_t>& pver_bk_list, 
                  const std::vector<std::string>& readonly_key_list, const std::vector<std::string>& readonly_value_list, 
                  std::vector<persistent::version_t>& readonly_pver_list, std::vector<persistent::version_t>& readonly_pver_bk_list){
-    std::cout << "entered op_put_objects" << std::endl;
     std::vector<ObjectWithStringKey> objects;
     for (size_t i = 0; i < key_list.size(); i++) {
         ObjectWithStringKey obj;
@@ -281,42 +331,8 @@ void op_put_objects(ServiceClientAPI& capi, const std::vector<std::string>& key_
         obj.blob = Blob(reinterpret_cast<const uint8_t*>(readonly_value_list[i].c_str()),readonly_value_list[i].size()+1);
         readonly_objects.push_back(obj);
     }
-    std::cout << "before capi put objects" << std::endl;
     derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> result = capi.put_objects(objects, readonly_objects);
-    std::cout << "after capi put objects" << std::endl;
     check_put_objects_and_remove_result(capi, result);
-    std::cout << "exited op_put_objects";
-}
-
-void put_objects(ServiceClientAPI& capi, const std::vector<std::string>& key_list, const std::vector<std::string>& value_list, 
-                 std::vector<persistent::version_t>& pver_list, std::vector<persistent::version_t>& pver_bk_list, 
-                 const std::vector<std::string>& readonly_key_list, const std::vector<std::string>& readonly_value_list, 
-                 std::vector<persistent::version_t>& readonly_pver_list, std::vector<persistent::version_t>& readonly_pver_bk_list){
-    std::cout << "entered op_put_objects" << std::endl;
-    std::vector<ObjectWithStringKey> objects;
-    for (size_t i = 0; i < key_list.size(); i++) {
-        ObjectWithStringKey obj;
-        obj.key = key_list[i];
-        obj.previous_version = pver_list[i];
-        obj.previous_version_by_key = pver_bk_list[i];
-        obj.blob = Blob(reinterpret_cast<const uint8_t*>(value_list[i].c_str()),value_list[i].size()+1);
-        objects.push_back(obj);
-    }
-
-    std::vector<ObjectWithStringKey> readonly_objects;
-    for (size_t i = 0; i < readonly_key_list.size(); i++) {
-        ObjectWithStringKey obj;
-        obj.key = readonly_key_list[i];
-        obj.previous_version = readonly_pver_list[i];
-        obj.previous_version_by_key = readonly_pver_bk_list[i];
-        obj.blob = Blob(reinterpret_cast<const uint8_t*>(readonly_value_list[i].c_str()),readonly_value_list[i].size()+1);
-        readonly_objects.push_back(obj);
-    }
-    std::cout << "before capi put objects" << std::endl;
-    derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> result = capi.put_objects(objects, readonly_objects);
-    std::cout << "after capi put objects" << std::endl;
-    check_put_objects_and_remove_result(capi, result);
-    std::cout << "exited op_put_objects";
 }
 
 template <typename SubgroupType>
@@ -918,6 +934,7 @@ struct command_entry_t {
     const command_handler_t handler;    // handler
 };
 
+
 void list_commands(const std::vector<command_entry_t>& command_list) {
     for (const auto& entry: command_list) {
         if (entry.handler) {
@@ -1297,39 +1314,53 @@ std::vector<command_entry_t> commands =
     {
         "put_objects",
         "put_objects atomically writes multiple objects.",
-        "put_objects <subgroup> <shard> <key> <value> <pver> <pver_bk> ... | <subgroup> <shard> <key> <value> <pver> <pver_bk> ... ; <readonly subgroup> <shard> <key> <value> <pver> <pver_bk> ... | <subgroup> <shard> <key> <value> <pver> <pver_bk> ... \n",
+        "put_objects <type> <subgroup> <shard> <key> <value> <pver> <pver_bk> <key> <value> <pver> <pver_bk> ... | <subgroup> <shard> <key> <value> <pver> <pver_bk> ... ; <readonly subgroup> <shard> <key> <value> <pver> <pver_bk> ... | <readonly subgroup> <shard> <key> <value> <pver> <pver_bk> ... \n"
+        "type := " SUBGROUP_TYPE_LIST "\n",
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
-            std::map<std::pair<uint32_t,uint32_t>,std::vector<typename SubgroupType::ObjectType>> mapped_objects;
-            std::map<std::pair<uint32_t,uint32_t>,std::vector<typename SubgroupType::ObjectType>> mapped_readonly_objects;
-            CHECK_FORMAT(cmd_tokens, 7);
-            size_t i = 1;
+            CHECK_FORMAT(cmd_tokens, 8);
             // parse objects
+            std::map<std::pair<uint32_t,uint32_t>,std::vector<object>> mapped_objects;
+            size_t i = 2;
+            // "put_objects <type> <subgroup> <shard> <key> <value> <pver> <pver_bk> <key> <value> <pver> <pver_bk> | <subgroup> <shard> <key> <value> <pver> <pver_bk> <key> <value> <pver> <pver_bk> ; <readonly subgroup> <shard> <key> <value> <pver> <pver_bk> ... | <subgroup> <shard> <key> <value> <pver> <pver_bk> ... \n"
             while (i < cmd_tokens.size() && cmd_tokens[i] != ";") {
-                // get sub
-
-
-
-                key_list.push_back(cmd_tokens[i]);
-                value_list.push_back(cmd_tokens[i + 1]);
-                pver_list.push_back(static_cast<persistent::version_t>(std::stol(cmd_tokens[i + 2],nullptr,0)));
-                pver_bk_list.push_back(static_cast<persistent::version_t>(std::stol(cmd_tokens[i + 3],nullptr,0)));
-                i += 4;
+                if (cmd_tokens[i] == "|") i++;
+                uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[i],nullptr,0));
+                uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[i + 1],nullptr,0));
+                std::pair<uint32_t, uint32_t> key = {subgroup_index, shard_index};
+                i += 2;
+                // parse kv corresponding to subgroup/shard
+                while (i < cmd_tokens.size() && cmd_tokens[i] != "|" && cmd_tokens[i] != ";") {
+                    object obj;
+                    obj.key = cmd_tokens[i];
+                    obj.value = cmd_tokens[i + 1];
+                    obj.pver = static_cast<persistent::version_t>(std::stol(cmd_tokens[i + 2],nullptr,0));
+                    obj.pver_bk = static_cast<persistent::version_t>(std::stol(cmd_tokens[i + 3],nullptr,0));
+                    mapped_objects[key].push_back(obj);
+                    i += 4;
+                }
             }
 
-            // parse readonly_objects
-            if (i < cmd_tokens.size() && cmd_tokens[i] == ";") ++i;
-            std::vector<std::string> readonly_key_list;
-            std::vector<std::string> readonly_value_list;
-            std::vector<persistent::version_t> readonly_pver_list;
-            std::vector<persistent::version_t> readonly_pver_bk_list;
+            // parse readonly objects
+            std::map<std::pair<uint32_t,uint32_t>,std::vector<object>> mapped_readonly_objects;
+            if (i < cmd_tokens.size() && cmd_tokens[i] == ";") i++;
             while (i < cmd_tokens.size()) {
-                readonly_key_list.push_back(cmd_tokens[i]);
-                readonly_value_list.push_back(cmd_tokens[i + 1]);
-                readonly_pver_list.push_back(static_cast<persistent::version_t>(std::stol(cmd_tokens[i + 2],nullptr,0)));
-                readonly_pver_bk_list.push_back(static_cast<persistent::version_t>(std::stol(cmd_tokens[i + 3],nullptr,0)));
-                i += 4;
+                if (cmd_tokens[i] == "|") i++;
+                uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[i],nullptr,0));
+                uint32_t shard_index = static_cast<uint32_t>(std::stoi(cmd_tokens[i + 1],nullptr,0));
+                std::pair<uint32_t, uint32_t> key = {subgroup_index, shard_index};
+                i += 2;
+                // parse kv corresponding to subgroup/shard
+                while (i < cmd_tokens.size() && cmd_tokens[i] != "|") {
+                    object obj;
+                    obj.key = cmd_tokens[i];
+                    obj.value = cmd_tokens[i + 1];
+                    obj.pver = static_cast<persistent::version_t>(std::stol(cmd_tokens[i + 2],nullptr,0));
+                    obj.pver_bk = static_cast<persistent::version_t>(std::stol(cmd_tokens[i + 3],nullptr,0));
+                    mapped_readonly_objects[key].push_back(obj);
+                    i += 4;
+                }
             }
-            op_put_objects(capi, key_list,value_list,pver_list,pver_bk_list,readonly_key_list,readonly_value_list,readonly_pver_list,readonly_pver_bk_list);
+            on_subgroup_type(cmd_tokens[1],put_objects,capi,mapped_objects,mapped_readonly_objects);
             return true;
         }
     },
