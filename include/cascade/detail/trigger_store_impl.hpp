@@ -72,7 +72,7 @@ const VT TriggerCascadeNoStore<KT, VT, IK, IV>::get(const KT& key, const persist
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-transaction_status_t TriggerCascadeNoStore<KT, VT, IK, IV>::get_transaction_status(const transaction_id& txid) const {
+transaction_status_t TriggerCascadeNoStore<KT, VT, IK, IV>::get_transaction_status(const transaction_id& txid, const bool stable) const {
     dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
     return transaction_status_t::ABORT;
 }

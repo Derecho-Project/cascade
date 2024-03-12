@@ -64,7 +64,7 @@ std::pair<transaction_id,transaction_status_t> VolatileCascadeStore<KT, VT, IK, 
         const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
         const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
         const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const {
-    // TODO implement this
+    dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
     return {{-1,-1,persistent::INVALID_VERSION},transaction_status_t::ABORT};
 }
 
@@ -74,12 +74,12 @@ void VolatileCascadeStore<KT, VT, IK, IV>::put_objects_forward(
         const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
         const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
         const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const {
-    // TODO implement this
+    dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
 void VolatileCascadeStore<KT, VT, IK, IV>::put_objects_backward(const transaction_id& txid,const transaction_status_t& status) const {
-    // TODO implement this
+    dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
@@ -220,8 +220,8 @@ const VT VolatileCascadeStore<KT, VT, IK, IV>::get(const KT& key, const persiste
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-transaction_status_t VolatileCascadeStore<KT, VT, IK, IV>::get_transaction_status(const transaction_id& txid) const {
-    // TODO implement this
+transaction_status_t VolatileCascadeStore<KT, VT, IK, IV>::get_transaction_status(const transaction_id& txid, const bool stable) const {
+    dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
     return transaction_status_t::PENDING;
 }
 
@@ -490,7 +490,7 @@ std::pair<transaction_id,transaction_status_t> VolatileCascadeStore<KT, VT, IK, 
         const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
         const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
         const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) {
-    // TODO implement this
+    dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
     return {{-1,-1,persistent::INVALID_VERSION},transaction_status_t::ABORT};
 }
 
@@ -500,12 +500,12 @@ void VolatileCascadeStore<KT, VT, IK, IV>::ordered_put_objects_forward(
         const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
         const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
         const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) {
-    // TODO implement this
+    dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
 void VolatileCascadeStore<KT, VT, IK, IV>::ordered_put_objects_backward(const transaction_id& txid,const transaction_status_t& status) {
-    // TODO implement this
+    dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>

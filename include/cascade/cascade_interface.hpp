@@ -234,7 +234,7 @@ public:
      *
      * @return      Status of the transaction
      */
-    virtual transaction_status_t get_transaction_status(const transaction_id& txid) const = 0;
+    virtual transaction_status_t get_transaction_status(const transaction_id& txid, const bool stable) const = 0;
 
     /**
      * @brief   multi_get(const KT&)

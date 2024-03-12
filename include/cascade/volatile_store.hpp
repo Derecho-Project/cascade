@@ -115,7 +115,7 @@ public:
     virtual void put_and_forget(const VT& value) const override;
     virtual version_tuple remove(const KT& key) const override;
     virtual const VT get(const KT& key, const persistent::version_t& ver, const bool stable, bool exact = false) const override;
-    virtual transaction_status_t get_transaction_status(const transaction_id& txid) const override;
+    virtual transaction_status_t get_transaction_status(const transaction_id& txid, const bool stable) const override;
     virtual const VT multi_get(const KT& key) const override;
     virtual const VT get_by_time(const KT& key, const uint64_t& ts_us, const bool stable) const override;
     virtual std::vector<KT> multi_list_keys(const std::string& prefix) const override;

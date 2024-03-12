@@ -1018,7 +1018,7 @@ namespace cascade {
                 bool stable = true);
 
         template <typename SubgroupType>
-        derecho::rpc::QueryResults<transaction_status_t> get_transaction_status(const transaction_id& txid);
+        derecho::rpc::QueryResults<transaction_status_t> get_transaction_status(const transaction_id& txid, bool stable = true);
 
         /**
          * "multi_get" retrieve the object of a given key, this operation involves atomic broadcast

@@ -1174,7 +1174,7 @@ auto ServiceClient<CascadeTypes...>::get(
 
 template <typename... CascadeTypes>
 template <typename SubgroupType>
-derecho::rpc::QueryResults<transaction_status_t> ServiceClient<CascadeTypes...>::get_transaction_status(const transaction_id& txid){
+derecho::rpc::QueryResults<transaction_status_t> ServiceClient<CascadeTypes...>::get_transaction_status(const transaction_id& txid, bool stable){
     // TODO include subgroup_type_index in transaction_id, so we can find the type here
     auto subgroup_index = std::get<0>(txid);
     auto shard_index = std::get<1>(txid);
@@ -1188,24 +1188,24 @@ derecho::rpc::QueryResults<transaction_status_t> ServiceClient<CascadeTypes...>:
             if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
                 node_id = group_ptr->get_my_id();
                 // local get
-                auto status = subgroup_handle.get_ref().get_transaction_status(txid);
+                auto status = subgroup_handle.get_ref().get_transaction_status(txid,stable);
                 auto pending_results = std::make_shared<PendingResults<transaction_status_t>>();
                 pending_results->fulfill_map({node_id});
                 pending_results->set_value(node_id,status);
                 auto query_results = pending_results->get_future();
                 return std::move(*query_results);
             }
-            return subgroup_handle.template p2p_send<RPC_NAME(get_transaction_status)>(node_id,txid);
+            return subgroup_handle.template p2p_send<RPC_NAME(get_transaction_status)>(node_id,txid,stable);
         } catch (derecho::invalid_subgroup_exception& ex) {
             auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
-            return subgroup_handle.template p2p_send<RPC_NAME(get_transaction_status)>(node_id,txid);
+            return subgroup_handle.template p2p_send<RPC_NAME(get_transaction_status)>(node_id,txid,stable);
         }
     } else {
         std::lock_guard<std::mutex> lck(this->external_group_ptr_mutex);
         // call as an external client (ExternalClientCaller).
         auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
         node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index,0);
-        return caller.template p2p_send<RPC_NAME(get_transaction_status)>(node_id,txid);
+        return caller.template p2p_send<RPC_NAME(get_transaction_status)>(node_id,txid,stable);
     }
 }
 

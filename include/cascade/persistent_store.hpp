@@ -50,6 +50,7 @@ private:
         std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>> mapped_objects;
         std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>> mapped_readonly_keys;
         std::vector<std::pair<uint32_t,uint32_t>> shard_list;
+        persistent::version_t commit_version = persistent::INVALID_VERSION;
 
         // copy constructor 
         CascadeTransaction(
@@ -81,7 +82,7 @@ private:
     bool has_conflict(const CascadeTransaction* tx,size_t num);
     bool has_conflict(const VT& other,const std::pair<uint32_t,uint32_t>& shard_id);
     bool check_previous_versions(const CascadeTransaction* tx,const std::pair<uint32_t,uint32_t>& shard_id);
-    void commit_transaction(const CascadeTransaction* tx,const std::pair<uint32_t,uint32_t>& shard_id);
+    void commit_transaction(CascadeTransaction* tx,const std::pair<uint32_t,uint32_t>& shard_id);
 
     // ======= end of new transactional code =======
 
@@ -164,7 +165,7 @@ public:
 #endif  // ENABLE_EVALUATION
     virtual version_tuple remove(const KT& key) const override;
     virtual const VT get(const KT& key, const persistent::version_t& ver, const bool stable, bool exact = false) const override;
-    virtual transaction_status_t get_transaction_status(const transaction_id& txid) const override;
+    virtual transaction_status_t get_transaction_status(const transaction_id& txid, const bool stable) const override;
     virtual const VT multi_get(const KT& key) const override;
     virtual const VT get_by_time(const KT& key, const uint64_t& ts_us, const bool stable) const override;
     virtual std::vector<KT> multi_list_keys(const std::string& prefix) const override;

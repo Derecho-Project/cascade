@@ -221,30 +221,103 @@ const VT PersistentCascadeStore<KT, VT, IK, IV, ST>::get(const KT& key, const pe
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-transaction_status_t PersistentCascadeStore<KT, VT, IK, IV, ST>::get_transaction_status(const transaction_id& txid) const {
-    transaction_status_t status = transaction_status_t::INVALID;
+transaction_status_t PersistentCascadeStore<KT, VT, IK, IV, ST>::get_transaction_status(const transaction_id& txid, const bool stable) const {
+    /*
+     * TODO careful: we should rethink this once we have a persistent implementation of transaction_database and pending_transactions.
+     * Currently, we save the version the TX was committed in memory.
+     * Ideally, the version should come from persistent_core.
+     * Furthermore, this code will currently fail in a CascadeChain replica site, since other sites will not have any registry of txid.
+     */
 
-    // TODO careful: we should rethink this once we have a persistent implementation of transaction_database and pending_transactions
-    /* 
+    /*
+     * We start by getting the actual TX.
+     *
      * An out_of_range exception can be thrown even if 'txid' exists in
      * transaction_database. Since std::map is not thread-safe, and there is another
      * thread modifying kv_map concurrently, the internal data structure can
      * be changed while this thread is inside transaction_database.at(txid). Therefore, we
      * keep trying until it is possible to get the status.
      */
+    CascadeTransaction* tx;
+    transaction_status_t status;
     while(true) {
         try {
             if(transaction_database.count(txid) == 0){
                 return transaction_status_t::INVALID;
             }
 
-            status = transaction_database.at(txid)->status;
+            tx = transaction_database.at(txid);
+            status = tx->status;
             break;
         } catch (const std::out_of_range&) {
             dbg_default_debug("{}: out_of_range exception thrown while trying to get transacion", __PRETTY_FUNCTION__);
         }
     }
+    
+    // wait for stability: check next shards in the chain and use tx->commit_version to check stability in this shard
+    if(stable && (tx->status == transaction_status_t::COMMIT)){
+        auto shard_index = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_shard_num();
+        std::pair<uint32_t,uint32_t> shard_id(this->subgroup_index,shard_index);
 
+        // check next shard if this is not the last
+        transaction_status_t next_status = transaction_status_t::COMMIT;
+        if(shard_id != tx->shard_list.back()){
+            // get next shard
+            auto it = std::next(std::find(tx->shard_list.begin(),tx->shard_list.end(),shard_id));
+            auto next_subgroup_index = (*it).first;
+            auto next_shard_index = (*it).second;
+
+            // target shard is in the same subgroup
+            if(this->subgroup_index == next_subgroup_index){
+                // TODO should we have other policies to pick the next node?
+                std::vector<std::vector<node_id_t>> subgroup_members = group->template get_subgroup_members<PersistentCascadeStore>(this->subgroup_index);
+                node_id_t next_node_id = subgroup_members[next_shard_index][0];
+
+                // p2p_send to the next shard
+                auto& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
+                auto results = subgroup_handle.template p2p_send<RPC_NAME(get_transaction_status)>(next_node_id,txid,true);
+                auto& replies = results.get();
+                for(auto& reply_pair : replies) {
+                    next_status = reply_pair.second.get();
+                }
+            } else {
+                // TODO should we have other policies to pick the next node?
+                std::vector<std::vector<node_id_t>> next_subgroup_members = group->template get_subgroup_members<PersistentCascadeStore>(next_subgroup_index);
+                node_id_t next_node_id = next_subgroup_members[next_shard_index][0];
+
+                // p2p_send to the next shard
+                auto& subgroup_handle = group->template get_nonmember_subgroup<PersistentCascadeStore>(next_subgroup_index);
+                auto results = subgroup_handle.template p2p_send<RPC_NAME(get_transaction_status)>(next_node_id,txid,true);
+                auto& replies = results.get();
+                for(auto& reply_pair : replies) {
+                    next_status = reply_pair.second.get();
+                }
+            }
+        }
+        
+        // check for this shard
+        if(next_status == transaction_status_t::COMMIT){
+            if(tx->mapped_objects.count(shard_id) > 0){
+                persistent::version_t requested_version = tx->commit_version;
+
+                derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
+
+                // The first condition test if requested_version is beyond the active latest atomic broadcast version.
+                // However, that could be true for a valid requested version for a new started setup, where the active
+                // latest atomic broadcast version is INVALID_VERSION(-1) since there is no atomic broadcast yet. In such a
+                // case, we need also check if requested_version is beyond the local latest version. If both are true, we
+                // determine the requested_version is invalid: it asks a version in the future.
+                if(!subgroup_handle.wait_for_global_persistence_frontier(requested_version) && requested_version > persistent_core.getLatestVersion()) {
+                    // INVALID version
+                    dbg_default_debug("{}: requested version:{:x} is beyond the latest atomic broadcast version.", __PRETTY_FUNCTION__, requested_version);
+                    return transaction_status_t::INVALID;
+                }
+            }
+        } 
+        
+        status = next_status;
+    }
+    
     return status;
 }
 
@@ -1319,12 +1392,13 @@ bool PersistentCascadeStore<KT, VT, IK, IV, ST>::check_previous_versions(const C
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-void PersistentCascadeStore<KT, VT, IK, IV, ST>::commit_transaction(const CascadeTransaction* tx,const std::pair<uint32_t,uint32_t>& shard_id){
+void PersistentCascadeStore<KT, VT, IK, IV, ST>::commit_transaction(CascadeTransaction* tx,const std::pair<uint32_t,uint32_t>& shard_id){
     if(tx->mapped_objects.count(shard_id) == 0){
         return;
     }
     
     auto version_and_hlc = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
+    tx->commit_version = std::get<0>(version_and_hlc);
 
     // set new version
     for(const VT& value : tx->mapped_objects.at(shard_id)){
