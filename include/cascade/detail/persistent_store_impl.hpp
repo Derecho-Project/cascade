@@ -916,8 +916,8 @@ void PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_objects_backward(co
 
     // start all blocked transactions in the queue that are not conflicting with any other ahead of them in the queue
     std::vector<transaction_id> to_remove;
-    for(size_t i=0; i<pending_transactions.size();i++){
-        auto& pending_txid = pending_transactions[i];
+    for(auto it1 = pending_transactions.begin(); it1 != pending_transactions.end(); it1++){
+        auto& pending_txid = *it1;
         if(versions_checked.at(pending_txid)){
             // if versions were checked, it is already running
             continue;
@@ -927,8 +927,8 @@ void PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_objects_backward(co
         bool can_run = true;
 
         // check conflict with each tx ahead of it in the queue
-        for(size_t j=0;j<i;j++){
-            auto& ahead_txid = pending_transactions[j];
+        for(auto it2 = pending_transactions.begin(); it2 != it1; it2++){ 
+            auto& ahead_txid = *it2;
             CascadeTransaction* ahead_tx = transaction_database.at(ahead_txid);
 
             // check if there is conflict and if ahead_tx was not finished in this loop
@@ -1342,8 +1342,11 @@ bool PersistentCascadeStore<KT, VT, IK, IV, ST>::has_conflict(const CascadeTrans
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 bool PersistentCascadeStore<KT, VT, IK, IV, ST>::has_conflict(const CascadeTransaction* tx,size_t num){
+    auto it = pending_transactions.begin();
     for(size_t i=0;i<num;i++){
-        auto& pending_txid = pending_transactions.at(i);
+        auto& pending_txid = *it;
+        it++;
+
         if(pending_txid == tx->txid){
             continue;
         }
