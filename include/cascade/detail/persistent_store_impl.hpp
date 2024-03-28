@@ -100,7 +100,17 @@ const VT PersistentCascadeStore<KT, VT, IK, IV, ST>::get(const KT& key, const pe
         derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
         requested_version = ver;
         if(requested_version == CURRENT_VERSION) {
+#if __cplusplus > 201703L
+            LOG_TIMESTAMP_BY_TAG(100001, group,*IV,ver);
+#else
+            LOG_TIMESTAMP_BY_TAG_EXTRA(100001, group,*IV,ver);
+#endif
             requested_version = subgroup_handle.get_global_persistence_frontier();
+#if __cplusplus > 201703L
+            LOG_TIMESTAMP_BY_TAG(100002, group,*IV,ver);
+#else
+            LOG_TIMESTAMP_BY_TAG_EXTRA(100002, group,*IV,ver);
+#endif
         } else {
             // The first condition test if requested_version is beyond the active latest atomic broadcast version.
             // However, that could be true for a valid requested version for a new started setup, where the active

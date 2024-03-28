@@ -195,39 +195,12 @@ TimestampLogger::TimestampLogger() {
             this->tag_enabler.emplace(std::stoul(s));
         }
     }
-    pthread_spin_init(&lck,PTHREAD_PROCESS_PRIVATE);
-    _log.reserve(65536);
 }
 
-void TimestampLogger::instance_log(uint64_t tag, uint64_t node_id, uint64_t msg_id, uint64_t ts_ns, uint64_t extra) {
+void TimestampLogger::instance_log(uint64_t tag, uint64_t node_id, uint64_t msg_id, uint64_t extra) {
     if (tag_enabler.find(tag) != tag_enabler.cend()) {
-        pthread_spin_lock(&lck);
-        _log.emplace_back(tag,node_id,msg_id,ts_ns,extra);
-        pthread_spin_unlock(&lck);
+        ws_timing_punch(tag,node_id,msg_id,extra,0ull);
     }
-}
-
-void TimestampLogger::instance_flush(const std::string& filename, bool clear) {
-    pthread_spin_lock(&lck);
-    std::ofstream outfile(filename);
-    for (auto& ent: this->_log) {
-        outfile << std::get<0>(ent) << " "
-                << std::get<1>(ent) << " "
-                << std::get<2>(ent) << " "
-                << std::get<3>(ent) << " "
-                << std::get<4>(ent) << std::endl;
-    }
-    outfile.close();
-    if (clear) {
-        _log.clear();
-    }
-    pthread_spin_unlock(&lck);
-}
-
-void TimestampLogger::instance_clear() {
-    pthread_spin_lock(&lck);
-    _log.clear();
-    pthread_spin_unlock(&lck);
 }
 
 TimestampLogger TimestampLogger::_tl{};
