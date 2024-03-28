@@ -132,7 +132,7 @@ bool PerfTestServer::eval_put(uint64_t max_operation_per_second,
             } else {
                 throw derecho_exception{"Evaluation requests an object to support IHasMessageID interface."};
             }
-            TimestampLogger::log(TLT_READY_TO_SEND,this->capi.get_my_id(),message_id,get_walltime());
+            TimestampLogger::log(TLT_READY_TO_SEND,this->capi.get_my_id(),message_id);
             if (subgroup_index == INVALID_SUBGROUP_INDEX ||
                 shard_index == INVALID_SHARD_INDEX) {
                 future_appender(this->capi.put(objects.at(now_ns%num_distinct_objects)));
@@ -142,7 +142,7 @@ bool PerfTestServer::eval_put(uint64_t max_operation_per_second,
                     future_appender,
                     this->capi.template put, objects.at(now_ns%num_distinct_objects), subgroup_index, shard_index);
             }
-            TimestampLogger::log(TLT_EC_SENT,this->capi.get_my_id(),message_id,get_walltime());
+            TimestampLogger::log(TLT_EC_SENT,this->capi.get_my_id(),message_id);
             message_id ++;
         }
         // wait for all pending futures.
@@ -179,7 +179,7 @@ bool PerfTestServer::eval_put_and_forget(uint64_t max_operation_per_second,
             throw derecho_exception{"Evaluation requests an object to support IHasMessageID interface."};
         }
         // log time.
-        TimestampLogger::log(TLT_READY_TO_SEND,this->capi.get_my_id(),message_id,get_walltime());
+        TimestampLogger::log(TLT_READY_TO_SEND,this->capi.get_my_id(),message_id);
         // send it
         if (subgroup_index == INVALID_SUBGROUP_INDEX || shard_index == INVALID_SHARD_INDEX) {
             this->capi.put_and_forget(objects.at(now_ns%num_distinct_objects));
@@ -188,7 +188,7 @@ bool PerfTestServer::eval_put_and_forget(uint64_t max_operation_per_second,
                     this->capi.template put_and_forget, objects.at(now_ns%num_distinct_objects), subgroup_index, shard_index);
         }
         // log time.
-        TimestampLogger::log(TLT_EC_SENT,this->capi.get_my_id(),message_id,get_walltime());
+        TimestampLogger::log(TLT_EC_SENT,this->capi.get_my_id(),message_id);
         message_id ++;
     }
     return true;
@@ -223,14 +223,14 @@ bool PerfTestServer::eval_trigger_put(uint64_t max_operation_per_second,
             throw derecho_exception{"Evaluation requests an object to support IHasMessageID interface."};
         }
         // log time.
-        TimestampLogger::log(TLT_READY_TO_SEND,this->capi.get_my_id(),message_id,get_walltime());
+        TimestampLogger::log(TLT_READY_TO_SEND,this->capi.get_my_id(),message_id);
         if (subgroup_index == INVALID_SUBGROUP_INDEX || shard_index == INVALID_SHARD_INDEX) {
             this->capi.trigger_put(objects.at(now_ns%num_distinct_objects));
         } else {
             on_subgroup_type_index(std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
                     this->capi.template trigger_put, objects.at(now_ns%num_distinct_objects), subgroup_index, shard_index);
         }
-        TimestampLogger::log(TLT_EC_SENT,this->capi.get_my_id(),message_id,get_walltime());
+        TimestampLogger::log(TLT_EC_SENT,this->capi.get_my_id(),message_id);
         message_id ++;
     }
 
@@ -283,7 +283,7 @@ bool PerfTestServer::eval_get(int32_t log_depth,
                         for(auto& reply : replies) {
                             reply.second.get();
                             // This might not be an accurate time for when the query completed, depending on how long the thread waited to acquire the queue lock
-                            TimestampLogger::log(TLT_EC_GET_FINISHED, my_node_id, message_id, get_walltime());
+                            TimestampLogger::log(TLT_EC_GET_FINISHED, my_node_id, message_id);
                             break;
                         }
                         pending_futures.pop();
@@ -377,7 +377,7 @@ bool PerfTestServer::eval_get(int32_t log_depth,
                 };
         std::size_t cur_object_index = now_ns % num_distinct_objects;
         // NOTE: Setting the message ID on the object won't do anything because we're doing a Get, not a Put
-        TimestampLogger::log(TLT_READY_TO_SEND, my_node_id, message_id, get_walltime());
+        TimestampLogger::log(TLT_READY_TO_SEND, my_node_id, message_id);
         // With either the object pool interface or the shard interface, further decide whether to request the current version or an old version
         if(subgroup_index == INVALID_SUBGROUP_INDEX || shard_index == INVALID_SHARD_INDEX) {
             if(log_depth == -1) {
@@ -405,7 +405,7 @@ bool PerfTestServer::eval_get(int32_t log_depth,
                         this->capi.template get, objects.at(cur_object_index).get_key_ref(), oldest_object_versions.at(cur_object_index), true, subgroup_index, shard_index);
             }
         }
-        TimestampLogger::log(TLT_EC_SENT, my_node_id, message_id, get_walltime());
+        TimestampLogger::log(TLT_EC_SENT, my_node_id, message_id);
         message_id++;
     }
     dbg_default_info("eval_get: All messages sent, waiting for queries to complete");
@@ -459,7 +459,7 @@ bool PerfTestServer::eval_get_by_time(uint64_t ms_in_past,
                         // Get only the first reply
                         for(auto& reply : replies) {
                             reply.second.get();
-                            TimestampLogger::log(TLT_EC_GET_FINISHED, my_node_id, message_id, get_walltime());
+                            TimestampLogger::log(TLT_EC_GET_FINISHED, my_node_id, message_id);
                             break;
                         }
                         pending_futures.pop();
@@ -597,7 +597,7 @@ bool PerfTestServer::eval_get_by_time(uint64_t ms_in_past,
                     futures_cv.notify_one();
                 };
         // NOTE: Setting the message ID on the object won't do anything because we're doing a Get, not a Put
-        TimestampLogger::log(TLT_READY_TO_SEND, my_node_id, message_id, get_walltime());
+        TimestampLogger::log(TLT_READY_TO_SEND, my_node_id, message_id);
         if(subgroup_index == INVALID_SUBGROUP_INDEX || shard_index == INVALID_SHARD_INDEX) {
             future_appender(this->capi.get_by_time(objects.at(object_to_request).get_key_ref(), timestamp_to_request));
         } else {
@@ -606,7 +606,7 @@ bool PerfTestServer::eval_get_by_time(uint64_t ms_in_past,
                     future_appender,
                     this->capi.template get_by_time, objects.at(object_to_request).get_key_ref(), timestamp_to_request, true, subgroup_index, shard_index);
         }
-        TimestampLogger::log(TLT_EC_SENT, my_node_id, message_id, get_walltime());
+        TimestampLogger::log(TLT_EC_SENT, my_node_id, message_id);
         message_id++;
     }
     dbg_default_info("eval_get: All messages sent, waiting for queries to complete");

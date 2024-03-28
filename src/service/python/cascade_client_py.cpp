@@ -1155,34 +1155,21 @@ PYBIND11_MODULE(member_client, m) {
                 }
             )
         .def(
-                "log", [](TimestampLogger_PythonWrapper&, uint64_t tag, uint64_t node_id, uint64_t msg_id, uint64_t ts_ns, uint64_t extra) {
-                    TimestampLogger::log(tag,node_id,msg_id,ts_ns,extra);
+                "log", [](TimestampLogger_PythonWrapper&, uint64_t tag, uint64_t node_id, uint64_t msg_id, uint64_t extra) {
+                    TimestampLogger::log(tag,node_id,msg_id,extra);
                 },
                 "Log given timestamp. \n"
-                "\t@arg0    tag, an uint64_t number defined in <include>/cascade/utils.hpp.\n"
-                "\t@arg1    node_id, the id of local node.\n"
-                "\t@arg2    msg_id, the message id of this log.\n"
-                "\t@arg3    ts_ns, the timestamp in nano seconds.\n"
-                "\t@arg4    extra, the extra information you want to add."
-            )
-        .def(
-                "log", [](TimestampLogger_PythonWrapper&, uint64_t tag, uint64_t node_id, uint64_t msg_id, uint64_t extra) {
-                    uint64_t ts_ns = get_time_ns();
-                    TimestampLogger::log(tag,node_id,msg_id,ts_ns,extra);
-                },
-                "Log current timestamp. \n"
                 "\t@arg0    tag, an uint64_t number defined in <include>/cascade/utils.hpp.\n"
                 "\t@arg1    node_id, the id of local node.\n"
                 "\t@arg2    msg_id, the message id of this log.\n"
                 "\t@arg3    extra, the extra information you want to add."
             )
         .def(
-                "flush", [](TimestampLogger_PythonWrapper&, const std::string& filename, bool clear) {
-                    TimestampLogger::flush(filename,clear);
+                "flush", [](TimestampLogger_PythonWrapper&, const std::string& filename) {
+                    TimestampLogger::flush(filename);
                 },
                 "Flush timestamp log to file. \n"
-                "\t@arg0    filename, the filename\n"
-                "\t@arg1    clear, if True, the timestamp log in memory will be cleared. otherwise, we keep it."
+                "\t@arg0    filename, the filename."
             )
         .def(
                 "clear", [](TimestampLogger_PythonWrapper&) {

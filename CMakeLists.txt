@@ -66,10 +66,9 @@ endif()
 find_program(DOTNET_CMD dotnet)
 
 # detect libwsong library, which is required for the mproc feature
-find_package(libwsong QUIET)
-if (libwsong_FOUND)
-    set(ENABLE_MPROC 1)
-endif()
+find_package(libwsong REQUIRED)
+    
+set(ENABLE_MPROC 1)
 
 # Doxygen, optional to generate documentation HTML
 find_package(Doxygen)
@@ -114,6 +113,7 @@ target_link_libraries(cascade
     mutils::mutils
     OpenSSL::Crypto
     rpclib::rpc
+    libwsong::perf
     ${Hyperscan_LIBRARIES})
 set_target_properties(cascade PROPERTIES
     SOVERSION ${cascade_VERSION}
