@@ -1,0 +1,101 @@
+name: General Build Test
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build-check:
+    runs-on: ubuntu-latest
+    steps:
+    - run:  echo "The job is automatically triggered by a ${{github.event_name}} event."
+    - name: "Install APT packages"
+      run:  >
+            sudo apt update; 
+            sudo apt install libssl-dev librdmacm-dev libibverbs-dev libspdlog-dev -y;
+            sudo apt install libboost-all-dev ragel python3.10 python3-pip -y
+    - run:  g++ --version
+    - run:  cmake --version
+    - run:  lscpu
+    - run:  df -ha
+    - run:  cat /proc/meminfo
+    - name: Checkout Derecho code
+      uses: actions/checkout@v3
+      with:
+        repository: 'Derecho-Project/derecho'
+        ref: 'master'
+        path: derecho
+    - run: echo "The Derecho HEAD repository has been clone to the runner."
+    - name: Checkout Cascade code
+      uses: actions/checkout@v3
+      with:
+        path: 'cascade'
+    - run:  echo "The ${{ github.repository }} repository has been cloned to the runner."
+    - name: Install libfabric
+      run:  ${{github.workspace}}/derecho/scripts/prerequisites/install-libfabric.sh ${{github.workspace}}/opt
+    - name: Install json library
+      run:  ${{github.workspace}}/derecho/scripts/prerequisites/install-json.sh ${{github.workspace}}/opt
+    - name: Install mutils
+      run:  ${{github.workspace}}/derecho/scripts/prerequisites/install-mutils.sh ${{github.workspace}}/opt
+    - name: Install mutils-containers
+      run:  ${{github.workspace}}/derecho/scripts/prerequisites/install-mutils-containers.sh ${{github.workspace}}/opt
+    - run:  mkdir ${{github.workspace}}/derecho/build-Release
+    - name: Build Derecho
+      run:  >
+            cd ${{github.workspace}}/derecho/build-Release;
+            export PREFIX=${{ github.workspace }}/opt;
+            export CMAKE_PREFIX_PATH=$PREFIX;
+            export C_INCLUDE_PATH=$PREFIX/include/;
+            export CPLUS_INCLUDE_PATH=$PREFIX/include/;
+            export LIBRARY_PATH=$PREFIX/lib/:$PREFIX/lib64/;
+            export LD_LIBRARY_PATH=$PREFIX/lib/:$PREFIX/lib64/;
+            cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_PREFIX=${PREFIX} ..;
+            make -j2;
+            make install
+    - name: Install rpclib
+      run:  ${{github.workspace}}/cascade/scripts/prerequisites/install-rpclib.sh ${{github.workspace}}/opt
+    - name: Install hyperscan
+      run:  ${{github.workspace}}/cascade/scripts/prerequisites/install-hyperscan.sh ${{github.workspace}}/opt
+    - name: Install libwsong
+      run:  ${{github.workspace}}/cascade/scripts/prerequisites/install-libwsong.sh ${{github.workspace}}/opt
+    - name: Install python dependencies
+      run:  >
+            pip3 install -r ${{github.workspace}}/cascade/src/service/python/requirements.txt;
+            pip3 install -r ${{github.workspace}}/cascade/src/udl_zoo/python/requirements.txt
+    - run:  mkdir ${{github.workspace}}/cascade/build-Release
+    - name: Build Cascade
+      run:  >
+            cd ${{github.workspace}}/cascade/build-Release;
+            export PREFIX=${{github.workspace}}/opt;
+            export CMAKE_PREFIX_PATH=$PREFIX;
+            export C_INCLUDE_PATH=$PREFIX/include/;
+            export CPLUS_INCLUDE_PATH=$PREFIX/include/;
+            export LIBRARY_PATH=$PREFIX/lib/:$PREFIX/lib64/;
+            export LD_LIBRARY_PATH=$PREFIX/lib/:$PREFIX/lib64/;
+            export PATH=$PATH:$HOME/.local/bin/;
+            cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_PREFIX=${PREFIX} -Dpybind11_DIR=`pybind11-config --cmakedir` ..;
+            make -j2;
+            make install;
+            cd ${{github.workspace}}/cascade/src/applications/standalone/console_printer_udl;
+            mkdir build;
+            cd build;
+            cmake ..;
+            make -j2;
+            cd ${{github.workspace}}/cascade/src/applications/standalone/dds;
+            mkdir build;
+            cd build;
+            cmake ..;
+            make -j2;
+            cd ${{github.workspace}}/cascade/src/applications/standalone/kvs_client;
+            mkdir build;
+            cd build;
+            cmake ..;
+            make -j2;
+            cd ${{github.workspace}}/cascade/src/applications/standalone/notification;
+            mkdir build;
+            cd build;
+            cmake ..;
+            make -j2
+    - run:  echo "The job's status is ${{job.status}}."
