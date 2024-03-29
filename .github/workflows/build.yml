@@ -16,7 +16,6 @@ jobs:
             sudo apt update; 
             sudo apt install libssl-dev librdmacm-dev libibverbs-dev libspdlog-dev -y;
             sudo apt install libboost-all-dev ragel python3.10 python3-pip -y
-    - run:  pip3 install pybind11
     - run:  g++ --version
     - run:  cmake --version
     - run:  lscpu
@@ -61,6 +60,9 @@ jobs:
       run:  ${{github.workspace}}/cascade/scripts/prerequisites/install-hyperscan.sh ${{github.workspace}}/opt
     - name: Install libwsong
       run:  ${{github.workspace}}/cascade/scripts/prerequisites/install-libwsong.sh ${{github.workspace}}/opt
+    - name: Install python dependencies
+      run:  pip3 install -r ${{github.workspace}}/cascade/src/service/python/requirements.txt
+      run:  pip3 install -r ${{github.workspace}}/cascade/src/udl_zoo/python/requirements.txt
     - run:  mkdir ${{github.workspace}}/cascade/build-Release
     - name: Build Cascade
       run:  >
