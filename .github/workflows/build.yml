@@ -14,7 +14,7 @@ jobs:
     - name: "Install APT packages"
       run:  >
             sudo apt update; 
-            sudo apt install libssl-dev librdmacm-dev libibverbs-dev libspdlog-dev -y
+            sudo apt install libssl-dev librdmacm-dev libibverbs-dev libspdlog-dev -y;
             sudo apt install libboost-all-dev ragel python3.10 python3-pip -y
     - run:  pip3 install pybind11
     - run:  g++ --version
