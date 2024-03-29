@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - run:  echo "The job is automatically triggered by a ${{github.event_name}} event."
-    - run:  sudo apt update; sudo apt install libssl-dev librdmacm-dev libibverbs-dev libspdlog-dev -y
+    - run:  sudo apt update; sudo apt install libssl-dev librdmacm-dev libibverbs-dev libspdlog-dev ragel -y
     - run:  g++ --version
     - run:  cmake --version
     - run:  lscpu
@@ -52,6 +52,8 @@ jobs:
             make install
     - name: Install rpclib
       run:  ${{github.workspace}}/cascade/scripts/prerequisites/install-rpclib.sh ${{github.workspace}}/opt
+    - name: Install hyperscan
+      run:  ${{github.workspace}}/cascade/scripts/prerequisites/install-hyperscan.sh ${{github.workspace}}/opt
     - name: Install libwsong
       run:  ${{github.workspace}}/cascade/scripts/prerequisites/install-libwsong.sh ${{github.workspace}}/opt
     - run:  mkdir ${{github.workspace}}/cascade/build-Release
