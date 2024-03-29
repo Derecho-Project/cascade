@@ -33,6 +33,8 @@ if ( NOT DEFINED CMAKE_INSTALL_INCLUDEDIR )
     set( CMAKE_INSTALL_INCLUDEDIR include )
 endif ( )
 
+set(ENABLE_MPROC 1)
+
 find_package(mutils REQUIRED)
 if(mutils_FOUND)
     message(STATUS "Found mutils in ${mutils_INCLUDE_DIRS}")
@@ -56,6 +58,9 @@ find_package(nlohmann_json 3.9.1 REQUIRED)
 # provides the import target rpclib::rpc
 find_package(rpclib 2.3.0 REQUIRED)
 
+# detect libwsong library, which is required for the mproc feature
+find_package(libwsong REQUIRED)
+
 # Hyperscan, which isn't packaged correctly and needs a custom Find module
 find_package(Hyperscan REQUIRED)
 if(Hyperscan_FOUND)
@@ -65,10 +70,6 @@ endif()
 # dotnet
 find_program(DOTNET_CMD dotnet)
 
-# detect libwsong library, which is required for the mproc feature
-find_package(libwsong REQUIRED)
-    
-set(ENABLE_MPROC 1)
 
 # Doxygen, optional to generate documentation HTML
 find_package(Doxygen)
