@@ -61,8 +61,9 @@ jobs:
     - name: Install libwsong
       run:  ${{github.workspace}}/cascade/scripts/prerequisites/install-libwsong.sh ${{github.workspace}}/opt
     - name: Install python dependencies
-      run:  pip3 install -r ${{github.workspace}}/cascade/src/service/python/requirements.txt
-      run:  pip3 install -r ${{github.workspace}}/cascade/src/udl_zoo/python/requirements.txt
+      run:  >
+            pip3 install -r ${{github.workspace}}/cascade/src/service/python/requirements.txt;
+            pip3 install -r ${{github.workspace}}/cascade/src/udl_zoo/python/requirements.txt
     - run:  mkdir ${{github.workspace}}/cascade/build-Release
     - name: Build Cascade
       run:  >
