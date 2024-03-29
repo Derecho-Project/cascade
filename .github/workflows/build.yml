@@ -11,7 +11,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - run:  echo "The job is automatically triggered by a ${{github.event_name}} event."
-    - run:  sudo apt update; sudo apt install libssl-dev librdmacm-dev libibverbs-dev libspdlog-dev libboost-all-dev ragel -y
+    - name: "Install APT packages"
+      run:  >
+            sudo apt update; 
+            sudo apt install libssl-dev librdmacm-dev libibverbs-dev libspdlog-dev -y
+            sudo apt install libboost-all-dev ragel python3.10 python3-pip -y
+    - run:  pip3 install pybind11
     - run:  g++ --version
     - run:  cmake --version
     - run:  lscpu
@@ -66,7 +71,28 @@ jobs:
             export CPLUS_INCLUDE_PATH=$PREFIX/include/;
             export LIBRARY_PATH=$PREFIX/lib/:$PREFIX/lib64/;
             export LD_LIBRARY_PATH=$PREFIX/lib/:$PREFIX/lib64/;
-            cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_PREFIX=${PREFIX} ..;
+            export PATH=$PATH:$HOME/.local/bin/;
+            cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_PREFIX=${PREFIX} -Dpybind11_DIR=`pybind11-config --cmakedir` ..;
             make -j2;
-            make install
+            make install;
+            cd ${{github.workspace}}/cascade/src/applications/standalone/console_printer_udl;
+            mkdir build;
+            cd build;
+            cmake ..;
+            make -j2;
+            cd ${{github.workspace}}/cascade/src/applications/standalone/dds;
+            mkdir build;
+            cd build;
+            cmake ..;
+            make -j2;
+            cd ${{github.workspace}}/cascade/src/applications/standalone/kvs_client;
+            mkdir build;
+            cd build;
+            cmake ..;
+            make -j2;
+            cd ${{github.workspace}}/cascade/src/applications/standalone/notification;
+            mkdir build;
+            cd build;
+            cmake ..;
+            make -j2
     - run:  echo "The job's status is ${{job.status}}."
