@@ -151,23 +151,37 @@ const VT PersistentCascadeStore<KT, VT, IK, IV, ST>::get(const KT& key, const pe
                     return *IV;
                 } else {
                     // fall back to the slow path.
-                    auto versioned_state_ptr = persistent_core.get(requested_version);
-                    if(versioned_state_ptr->kv_map.find(key) != versioned_state_ptr->kv_map.end()) {
+                    // following the backward chain until its version is behine requested_version.
+                    // TODO: We can introduce a per-key version index to achieve a better performance
+                    //       with a 64bit per log entry memory overhead.
+                    VT o = persistent_core->lockless_get(key);
+                    persistent::version_t target_version = o.version;
+                    while (target_version > requested_version) {
+                        target_version = 
+                            persistent_core.template getDelta<VT>(target_version,true,
+                                [](const VT& v){
+                                    return v.previous_version_by_key;
+                                });
+                    }
+                    if (target_version == persistent::INVALID_VERSION) {
 #if __cplusplus > 201703L
                         LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_END, group,*IV,ver);
 #else
                         LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_END, group,*IV,ver);
 #endif
-                        debug_leave_func_with_value("Reconstructed version:0x{:x} for key:{}", requested_version, key);
-                        return versioned_state_ptr->kv_map.at(key);
-                    }
+                        debug_leave_func_with_value("No data found for key:{} before version:0x{:x}", key, requested_version);
+                        return *IV;
+                    } else {
 #if __cplusplus > 201703L
-                    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_END, group,*IV,ver);
+                        LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_END, group,*IV,ver);
 #else
-                    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_END, group,*IV,ver);
+                        LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_END, group,*IV,ver);
 #endif
-                    debug_leave_func_with_value("No data found for key:{} before version:0x{:x}", key, requested_version);
-                    return *IV;
+                        return persistent_core.template getDelta<VT>(target_version,true,
+                                [](const VT& v){
+                                    return v;
+                                });
+                    }
                 }
             }
         });
