@@ -239,7 +239,7 @@ static bool run_perftest(
             }
         }
 #if !defined(USE_DDS_TIMESTAMP_LOG)
-        TimestampLogger::flush(topic+".publisher.log",true);
+        TimestampLogger::flush(topic+".publisher.log");
 #endif
 
     } else {
@@ -265,7 +265,7 @@ static bool run_perftest(
                         // ts_log.emplace_back(std::tuple{msg.seqno,msg.sending_ts_us,get_walltime()/1000});
                         ts_log.emplace_back(std::tuple{header->seqno,header->sending_ts_us,get_walltime()/1000});
 #else
-                        TimestampLogger::log(TLT_DDS_SUBSCRIBER_CALLED,-1,0,get_time_ns(),received);
+                        TimestampLogger::log(TLT_DDS_SUBSCRIBER_CALLED,-1,0,received);
                         received ++;
 #endif
                         // end of test
@@ -299,7 +299,7 @@ static bool run_perftest(
         }
         ofile.close();
 #else
-        TimestampLogger::flush(topic+".subscriber.log",true);
+        TimestampLogger::flush(topic+".subscriber.log");
 #endif
     }
 

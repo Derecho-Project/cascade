@@ -12,6 +12,7 @@
 #include <unordered_set>
 #include <derecho/utils/time.h>
 #include <cascade/config.h>
+#include <wsong/perf/timing.h>
 
 namespace derecho {
 namespace cascade {
@@ -437,61 +438,62 @@ typedef union __attribute__((packed,aligned(8))) action_fire_extra_info {
 
 #define CASCADE_TIMESTAMP_TAG_FILTER        "CASCADE/timestamp_tag_enabler"
 
+/**
+ * @class TimestampLogger utils.hpp "cascade/utils.hpp"
+ * @brief The timestamp logger tool.
+ * 
+ * A wrapper class over the thread-safe timestamp logger in libwsong
+ */
 class TimestampLogger {
 private:
-    std::vector<std::tuple<uint64_t,uint64_t,uint64_t,uint64_t,uint64_t>> _log;
-    pthread_spinlock_t lck;
-    std::unordered_set<uint64_t> tag_enabler;
     /**
-     * Constructor
+     * Only events with a tag included tag_enabler will be logged. Other events are dropped silently.
      */
-    TimestampLogger();
+    std::unordered_set<uint64_t>    tag_enabler;
     /**
-     * Log the timestamp
-     * @param tag       timestamp tag
-     * @param node_id   node id
-     * @param msg_id    message id
-     * @param ts_ns     timestamp in nanoseconds
+     * @fn void instance_log(uint64_t, uint64_t, uint64_t, uint64_t)
+     * @brief Log an event
+     * @param[in]   tag         The event tag
+     * @param[in]   node_id     Node id
+     * @param[in]   msg_id      Message id
+     * @param[in]   extra       Optional extra information
      */
-    void instance_log(uint64_t tag, uint64_t node_id, uint64_t msg_id, uint64_t ts_ns, uint64_t extra=0ull);
-    /**
-     * Flush log to file
-     * @param filename  filename
-     * @param clear     True for clear the log after flush
-     */
-    void instance_flush(const std::string& filename, bool clear = true);
-    /**
-     * Clear the log
-     */
-    void instance_clear();
+    void instance_log(uint64_t tag, uint64_t node_id, uint64_t msg_id, uint64_t extra=0ull);
 
-    /** singleton */
+    /** The singleton logger */
     static TimestampLogger _tl;
 
 public:
     /**
-     * Log the timestamp
-     * @param tag       timestamp tag
-     * @param node_id   node id
-     * @param msg_id    message id
-     * @param ts_ns     timestamp in nanoseconds
+     * @fn TimestampLogger()
+     * @brief Constructor
      */
-    static inline void log(uint64_t tag, uint64_t node_id, uint64_t msg_id, uint64_t ts_ns=get_time_ns(), uint64_t extra=0ull) {
-        _tl.instance_log(tag,node_id,msg_id,ts_ns,extra);
+    TimestampLogger();
+    /**
+     * @fn void log(uint64_t, uint64_t, uint64_t, uint64_t)
+     * @brief Log an event
+     * @param[in]   tag         The event tag
+     * @param[in]   node_id     Node id
+     * @param[in]   msg_id      Message id
+     * @param[in]   extra       Optional extra information
+     */
+    static inline void log(uint64_t tag, uint64_t node_id, uint64_t msg_id, uint64_t extra=0ull) {
+        _tl.instance_log(tag,node_id,msg_id,extra);
     }
     /**
-     * Flush log to file
-     * @param filename  filename
-     * @param clear     True for clear the log after flush
+     * @fn void flush(const std::string&,bool)
+     * @brief Flush log to file.
+     * @param[in]   filename    The file name
      */
-    static inline void flush(const std::string& filename, bool clear = true) {
-        _tl.instance_flush(filename,clear);
+    static inline void flush(const std::string& filename) {
+        ws_timing_save(filename.c_str());
     }
     /**
-     * Clear the log
+     * @fn void clear()
+     * @brief Drop all event logs.
      */
     static inline void clear() {
-        _tl.instance_clear();
+        ws_timing_clear();
     }
 };
 

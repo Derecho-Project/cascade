@@ -59,7 +59,8 @@ We recommend coordinating with [Weijia Song](mailto:songweijia@gmail.com) if you
 - [Lohmann's json parser](https://github.com/nlohmann) v3.2.0 or newer
 - Readline library v7.0 or newer. On Ubuntu, use `apt install libreadline-dev` to install it.
 - RPC library [rpclib](https://github.com/rpclib/rpclib). For convenience, install it with [this script](scripts/prerequisites/install-rpclib.sh).
-- Intel's regular expression library [Hyperscan](https://github.com/intel/hyperscan). For convenience, install it with [this script](scripts/prerequisites/install-hyperscan.sh). You need to install ragel compiler if you don't have it. On ubuntu, use `apt-get install ragel` to install it.
+- Intel's regular expression library [Hyperscan](https://github.com/intel/hyperscan). For convenience, install it with [this script](scripts/prerequisites/install-hyperscan.sh). You need to install ragel compiler and libboost if you don't have them. On ubuntu, use `apt-get install -y ragel libboost-all-dev` to install.
+- [libwsong](https://github.com/songweijia/libwsong) commit 47c37bc706cc859f8b60ca4d19b0608e28a2e530. For convenience, install it with [this script](scripts/prerequisites/install-libwsong.sh).
 - [libfuse](https://github.com/libfuse) v3.9.3 or newer (Optional for file system API)
 - [boolinq](https://github.com/k06a/boolinq) or newer (Optional for LINQ API)
 - Python 3.8 or newer and [pybind11](https://github.com/pybind/pybind11) (Optional for Python API)
