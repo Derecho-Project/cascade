@@ -231,6 +231,10 @@ public:
      * Get the status of a given transaction.
      *
      * @param[in]   txid    ID of the transaction
+     * @param[in]   stable
+     *              If `stable == false`, we only return the data reflecting the latest locally delivered atomic
+     *              broadcast. Otherwise, stable data will be returned, meaning that the persisted states returned
+     *              is safe: they will survive after whole system recovery.
      *
      * @return      Status of the transaction
      */

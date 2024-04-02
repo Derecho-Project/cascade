@@ -176,58 +176,70 @@ const VT PersistentCascadeStore<KT, VT, IK, IV, ST>::get(const KT& key, const pe
 #endif
         return persistent_core->lockless_get(key);
     } else {
-        return persistent_core.template getDelta<VT>(requested_version, exact, [this, key, requested_version, exact, ver](const VT& v) {
-            if(key == v.get_key_ref()) {
-                debug_leave_func_with_value("key:{} is found at version:0x{:x}", key, requested_version);
-#if __cplusplus > 201703L
-                LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_END, group,*IV,ver);
-#else
-                LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_END, group,*IV,ver);
-#endif
-                return v;
-            } else {
-                if(exact) {
-                    // return invalid object for EXACT search.
-                    debug_leave_func_with_value("No data found for key:{} at version:0x{:x}", key, requested_version);
+        return persistent_core.template getDelta<std::vector<VT>>(requested_version, exact, [this, key, requested_version, exact, ver](const std::vector<VT>& vv) {
+            for (const auto& v:vv) {
+                if(key == v.get_key_ref()) {
+                    debug_leave_func_with_value("key:{} is found at version:0x{:x}", key, requested_version);
 #if __cplusplus > 201703L
                     LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_END, group,*IV,ver);
 #else
                     LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_END, group,*IV,ver);
 #endif
+                    return v;
+                }
+            }
+
+            if(exact) {
+                // return invalid object for EXACT search.
+                debug_leave_func_with_value("No data found for key:{} at version:0x{:x}", key, requested_version);
+#if __cplusplus > 201703L
+                LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_END, group,*IV,ver);
+#else
+                LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_END, group,*IV,ver);
+#endif
+                return *IV;
+            } else {
+                // fall back to the slow path.
+                // following the backward chain until its version is behind requested_version.
+                // TODO: We can introduce a per-key version index to achieve a better performance
+                //       with a 64bit per log entry memory overhead.
+                VT o = persistent_core->lockless_get(key);
+                persistent::version_t target_version = o.version;
+                while (target_version > requested_version) {
+                    target_version = 
+                        persistent_core.template getDelta<std::vector<VT>>(target_version,true,
+                            [&key](const std::vector<VT>& vv){
+                                for (const auto& v:vv) {
+                                    if (key == v.get_key_ref()) {
+                                        return v.previous_version_by_key;
+                                    }
+                                }
+                                return persistent::INVALID_VERSION;
+                            });
+                }
+                if (target_version == persistent::INVALID_VERSION) {
+#if __cplusplus > 201703L
+                    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_END, group,*IV,ver);
+#else
+                    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_END, group,*IV,ver);
+#endif
+                    debug_leave_func_with_value("No data found for key:{} before version:0x{:x}", key, requested_version);
                     return *IV;
                 } else {
-                    // fall back to the slow path.
-                    // following the backward chain until its version is behine requested_version.
-                    // TODO: We can introduce a per-key version index to achieve a better performance
-                    //       with a 64bit per log entry memory overhead.
-                    VT o = persistent_core->lockless_get(key);
-                    persistent::version_t target_version = o.version;
-                    while (target_version > requested_version) {
-                        target_version = 
-                            persistent_core.template getDelta<VT>(target_version,true,
-                                [](const VT& v){
-                                    return v.previous_version_by_key;
-                                });
-                    }
-                    if (target_version == persistent::INVALID_VERSION) {
 #if __cplusplus > 201703L
-                        LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_END, group,*IV,ver);
+                    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_END, group,*IV,ver);
 #else
-                        LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_END, group,*IV,ver);
+                    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_END, group,*IV,ver);
 #endif
-                        debug_leave_func_with_value("No data found for key:{} before version:0x{:x}", key, requested_version);
-                        return *IV;
-                    } else {
-#if __cplusplus > 201703L
-                        LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_END, group,*IV,ver);
-#else
-                        LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_END, group,*IV,ver);
-#endif
-                        return persistent_core.template getDelta<VT>(target_version,true,
-                                [](const VT& v){
-                                    return v;
-                                });
-                    }
+                    return persistent_core.template getDelta<std::vector<VT>>(target_version,true,
+                            [&key](const std::vector<VT>& vv){
+                                for (const auto& v:vv) {
+                                    if (key == v.get_key_ref()) {
+                                        return v;
+                                    }
+                                }
+                                return *IV;
+                            });
                 }
             }
         });
@@ -447,46 +459,71 @@ uint64_t PersistentCascadeStore<KT, VT, IK, IV, ST>::get_size(const KT& key, con
 #endif
          return rvo_val;
     } else {
-        return persistent_core.template getDelta<VT>(requested_version, exact, [this, key, requested_version, exact, ver](const VT& v) -> uint64_t {
-            if(key == v.get_key_ref()) {
-                debug_leave_func_with_value("key:{} is found at version:0x{:x}", key, requested_version);
-                uint64_t size = mutils::bytes_size(v);
+        return persistent_core.template getDelta<std::vector<VT>>(requested_version, exact, [this, key, requested_version, exact, ver](const std::vector<VT>& vv) -> uint64_t {
+            for (const auto& v: vv) {
+                if(key == v.get_key_ref()) {
+                    debug_leave_func_with_value("key:{} is found at version:0x{:x}", key, requested_version);
+                    uint64_t size = mutils::bytes_size(v);
+#if __cplusplus > 201703L
+                    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_SIZE_END, group,*IV,ver);
+#else
+                    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_SIZE_END, group,*IV,ver);
+#endif
+                    return size;
+                }
+            }
+
+            if(exact) {
+                // return invalid object for EXACT search.
+                debug_leave_func_with_value("No data found for key:{} at version:0x{:x}", key, requested_version);
 #if __cplusplus > 201703L
                 LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_SIZE_END, group,*IV,ver);
 #else
                 LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_SIZE_END, group,*IV,ver);
 #endif
-                return size;
+                return 0ull;
             } else {
-                if(exact) {
-                    // return invalid object for EXACT search.
-                    debug_leave_func_with_value("No data found for key:{} at version:0x{:x}", key, requested_version);
+                // fall back to the slow path.
+                // following the backward chain until its version is behind requested_version.
+                // TODO: We can introduce a per-key version index to achieve a better performance
+                //       with a 64bit per log entry memory overhead.
+                VT o = persistent_core->lockless_get(key);
+                persistent::version_t target_version = o.version;
+                while (target_version > requested_version) {
+                    target_version = 
+                        persistent_core.template getDelta<std::vector<VT>>(target_version,true,
+                            [&key](const std::vector<VT>& vv){
+                                for (const auto& v:vv) {
+                                    if (key == v.get_key_ref()) {
+                                        return v.previous_version_by_key;
+                                    }
+                                }
+                                return persistent::INVALID_VERSION;
+                            });
+                }
+                if (target_version == persistent::INVALID_VERSION) {
 #if __cplusplus > 201703L
                     LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_SIZE_END, group,*IV,ver);
 #else
                     LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_SIZE_END, group,*IV,ver);
 #endif
+                    debug_leave_func_with_value("No data found for key:{} before version:0x{:x}", key, requested_version);
                     return 0ull;
                 } else {
-                    // fall back to the slow path.
-                    auto versioned_state_ptr = persistent_core.get(requested_version);
-                    if(versioned_state_ptr->kv_map.find(key) != versioned_state_ptr->kv_map.end()) {
-                        debug_leave_func_with_value("Reconstructed version:0x{:x} for key:{}", requested_version, key);
-                        uint64_t size = mutils::bytes_size(versioned_state_ptr->kv_map.at(key));
-#if __cplusplus > 201703L
-                        LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_SIZE_END, group,*IV,ver);
-#else
-                        LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_SIZE_END, group,*IV,ver);
-#endif
-                        return size;
-                    }
-                    debug_leave_func_with_value("No data found for key:{} before version:0x{:x}", key, requested_version);
 #if __cplusplus > 201703L
                     LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_SIZE_END, group,*IV,ver);
 #else
                     LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_SIZE_END, group,*IV,ver);
 #endif
-                    return 0ull;
+                    return persistent_core.template getDelta<std::vector<VT>>(target_version,true,
+                            [&key](const std::vector<VT>& vv){
+                                for (const auto& v:vv) {
+                                    if (key == v.get_key_ref()) {
+                                        return static_cast<uint64_t>(mutils::bytes_size(v));
+                                    }
+                                }
+                                return static_cast<uint64_t>(0ull);
+                            });
                 }
             }
         });
