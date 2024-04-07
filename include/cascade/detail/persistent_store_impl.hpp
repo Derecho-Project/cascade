@@ -287,7 +287,9 @@ transaction_status_t PersistentCascadeStore<KT, VT, IK, IV, ST>::get_transaction
 
         // check next shard if this is not the last
         transaction_status_t next_status = transaction_status_t::COMMIT;
-        if(shard_id != tx->shard_list.back()){
+        
+        // TODO commenting this part for now: is it necessary?
+        /*if(shard_id != tx->shard_list.back()){
             // get next shard
             auto it = std::next(std::find(tx->shard_list.begin(),tx->shard_list.end(),shard_id));
             auto next_subgroup_index = (*it).first;
@@ -319,7 +321,7 @@ transaction_status_t PersistentCascadeStore<KT, VT, IK, IV, ST>::get_transaction
                     next_status = reply_pair.second.get();
                 }
             }
-        }
+        }*/
         
         // check for this shard
         if(next_status == transaction_status_t::COMMIT){
