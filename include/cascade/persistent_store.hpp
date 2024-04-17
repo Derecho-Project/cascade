@@ -71,6 +71,7 @@ private:
                 uint32_t shard_index);
 
         bool conflicts(CascadeTransactionInternal* other);
+        bool conflicts(const KT& key);
     };
 
     struct TxidHash {
@@ -82,15 +83,29 @@ private:
     std::list<CascadeTransactionInternal*> pending_transactions;
     std::unordered_map<transaction_id,CascadeTransactionInternal*,TxidHash> transaction_database;
     std::unordered_map<CascadeTransactionInternal*,bool> versions_checked;
-    std::unordered_map<CascadeTransactionInternal*,std::vector<CascadeTransactionInternal*>> forward_conflicts;
-    std::unordered_map<CascadeTransactionInternal*,std::vector<CascadeTransactionInternal*>> backward_conflicts;
+    std::unordered_map<CascadeTransactionInternal*,std::list<CascadeTransactionInternal*>> forward_conflicts;
+    std::unordered_map<CascadeTransactionInternal*,std::list<CascadeTransactionInternal*>> backward_conflicts;
 
     transaction_id new_transaction_id();
     void enqueue_transaction(CascadeTransactionInternal* tx);
     void dequeue_transaction(CascadeTransactionInternal* tx);
     bool has_conflict(CascadeTransactionInternal* tx);
+    bool has_conflict(const VT& value);
     bool check_previous_versions(CascadeTransactionInternal* tx);
     void commit_transaction(CascadeTransactionInternal* tx);
+
+    // helpers
+    void send_tx_forward(
+            CascadeTransactionInternal* tx,
+            const std::vector<VT>& write_objects,
+            const std::unordered_map<uint32_t,std::vector<std::size_t>>& write_objects_per_shard,
+            const std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>& read_objects,
+            const std::unordered_map<uint32_t,std::vector<std::size_t>>& read_objects_per_shard,
+            const std::vector<uint32_t>& shard_list);
+    void send_tx_status_backward(CascadeTransactionInternal* tx);
+    void tx_committed_recursive(CascadeTransactionInternal* tx);
+    void tx_aborted_recursive(CascadeTransactionInternal* tx);
+    void tx_run_recursive(CascadeTransactionInternal* tx);
 
     // ======= end of new transactional code =======
 
