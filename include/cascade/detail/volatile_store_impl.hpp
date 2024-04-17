@@ -35,35 +35,13 @@ version_tuple VolatileCascadeStore<KT, VT, IK, IV>::put(const VT& value) const {
     return ret;
 }
 
-/*template <typename KT, typename VT, KT* IK, VT* IV>
-version_tuple VolatileCascadeStore<KT, VT, IK, IV>::put_objects(const std::vector<VT>& values) const {
-    debug_enter_func_with_args("values.size={}", values.size());
-    version_tuple ret{CURRENT_VERSION, 0};
-   
-    if(!values.empty()){
-        LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_PUT_START, group, values[0]);
-
-        derecho::Replicated<VolatileCascadeStore>& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
-        auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put_objects)>(values);
-        auto& replies = results.get();
-
-        // TODO: verify consistency ?
-        for(auto& reply_pair : replies) {
-            ret = reply_pair.second.get();
-        }
-
-        LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_PUT_END, group, values[0]);
-    }
-
-    debug_leave_func_with_value("version=0x{:x},timestamp={}us", std::get<0>(ret), std::get<1>(ret));
-    return ret;
-}*/
-
 template <typename KT, typename VT, KT* IK, VT* IV>
 std::pair<transaction_id,transaction_status_t> VolatileCascadeStore<KT, VT, IK, IV>::put_objects(
-        const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
-        const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
-        const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const {
+        const std::vector<VT>& write_objects,
+        const std::unordered_map<uint32_t,std::vector<std::size_t>>& write_objects_per_shard,
+        const std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>& read_objects,
+        const std::unordered_map<uint32_t,std::vector<std::size_t>>& read_objects_per_shard,
+        const std::vector<uint32_t>& shard_list) const {
     dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
     return {{-1,-1,persistent::INVALID_VERSION},transaction_status_t::ABORT};
 }
@@ -71,9 +49,11 @@ std::pair<transaction_id,transaction_status_t> VolatileCascadeStore<KT, VT, IK, 
 template <typename KT, typename VT, KT* IK, VT* IV>
 void VolatileCascadeStore<KT, VT, IK, IV>::put_objects_forward(
         const transaction_id& txid,
-        const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
-        const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
-        const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const {
+        const std::vector<VT>& write_objects,
+        const std::unordered_map<uint32_t,std::vector<std::size_t>>& write_objects_per_shard,
+        const std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>& read_objects,
+        const std::unordered_map<uint32_t,std::vector<std::size_t>>& read_objects_per_shard,
+        const std::vector<uint32_t>& shard_list) const {
     dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
 }
 
@@ -453,43 +433,13 @@ version_tuple VolatileCascadeStore<KT, VT, IK, IV>::ordered_put(const VT& value)
     return version_and_timestamp;
 }
 
-/*template <typename KT, typename VT, KT* IK, VT* IV>
-version_tuple VolatileCascadeStore<KT, VT, IK, IV>::ordered_put_objects(const std::vector<VT>& values) {
-    debug_enter_func_with_args("size={}", values.size());
-    
-    auto version_and_hlc = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
-    version_tuple version_and_timestamp{persistent::INVALID_VERSION, 0};
-
-    if(!values.empty()){
-#if __cplusplus > 201703L
-        LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_PUT_START,group,values[0],std::get<0>(version_and_hlc));
-#else
-        LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_PUT_START,group,values[0],std::get<0>(version_and_hlc));
-#endif
-
-        if(this->internal_ordered_put_objects(values) == true) {
-            version_and_timestamp = {std::get<0>(version_and_hlc),std::get<1>(version_and_hlc).m_rtc_us};
-        }
-
-#if __cplusplus > 201703L
-        LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_PUT_END,group,values[0],std::get<0>(version_and_hlc));
-#else
-        LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_PUT_END,group,values[0],std::get<0>(version_and_hlc));
-#endif
-    }
-
-    debug_leave_func_with_value("version=0x{:x},timestamp={}us",
-            std::get<0>(version_and_hlc),
-            std::get<1>(version_and_hlc).m_rtc_us);
-
-    return version_and_timestamp;
-}*/
-
 template <typename KT, typename VT, KT* IK, VT* IV>
 std::pair<transaction_id,transaction_status_t> VolatileCascadeStore<KT, VT, IK, IV>::ordered_put_objects(
-        const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
-        const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
-        const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) {
+        const std::vector<VT>& write_objects,
+        const std::unordered_map<uint32_t,std::vector<std::size_t>>& write_objects_per_shard,
+        const std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>& read_objects,
+        const std::unordered_map<uint32_t,std::vector<std::size_t>>& read_objects_per_shard,
+        const std::vector<uint32_t>& shard_list) {
     dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
     return {{-1,-1,persistent::INVALID_VERSION},transaction_status_t::ABORT};
 }
@@ -497,9 +447,11 @@ std::pair<transaction_id,transaction_status_t> VolatileCascadeStore<KT, VT, IK, 
 template <typename KT, typename VT, KT* IK, VT* IV>
 void VolatileCascadeStore<KT, VT, IK, IV>::ordered_put_objects_forward(
         const transaction_id& txid,
-        const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
-        const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
-        const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) {
+        const std::vector<VT>& write_objects,
+        const std::unordered_map<uint32_t,std::vector<std::size_t>>& write_objects_per_shard,
+        const std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>& read_objects,
+        const std::unordered_map<uint32_t,std::vector<std::size_t>>& read_objects_per_shard,
+        const std::vector<uint32_t>& shard_list) {
     dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
 }
 

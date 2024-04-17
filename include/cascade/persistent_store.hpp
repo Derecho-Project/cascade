@@ -8,12 +8,14 @@
 
 #include <atomic>
 #include <cstdint>
-#include <map>
 #include <memory>
 #include <tuple>
 #include <vector>
 #include <list>
 #include <utility>
+#include <unordered_set>
+#include <unordered_map>
+#include "boost/functional/hash.hpp"
 
 namespace derecho {
 namespace cascade {
@@ -35,7 +37,7 @@ private:
     /*
      * Transaction support
      *
-     * This is a temporary implementation for convenience, see below.
+     * This is a temporary implementation
      *
      * TODO For now, this does not persist the list of pending transactions or the transactions themselves. Thus it is impossible to recover from failures.
      *
@@ -44,46 +46,51 @@ private:
      * TODO For now, everything is copied on instantiation. Ideally, in the future we should only copy the objects when the transaction is committed.
      *
      */
-    class CascadeTransaction {
+    class CascadeTransactionInternal {
     public:
         transaction_id txid;
         transaction_status_t status = transaction_status_t::PENDING;
-        std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>> mapped_objects;
-        std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>> mapped_readonly_keys;
-        std::vector<std::pair<uint32_t,uint32_t>> shard_list;
         persistent::version_t commit_version = persistent::INVALID_VERSION;
+        std::vector<uint32_t>::iterator this_shard_it;
+        typename std::list<CascadeTransactionInternal*>::iterator queue_it;
+
+        std::vector<VT> write_objects;
+        std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>> read_objects;
+        std::unordered_set<KT> write_keys;
+        std::unordered_set<KT> read_keys;
+        std::vector<uint32_t> shard_list;
 
         // copy constructor 
-        CascadeTransaction(
+        CascadeTransactionInternal(
                 const transaction_id& txid,
-                const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
-                const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
-                const std::vector<std::pair<uint32_t,uint32_t>>& shard_list):
-            txid(txid),
-            mapped_objects(mapped_objects), // TODO check if the Blobs are actually getting copied
-            mapped_readonly_keys(mapped_readonly_keys),
-            shard_list(shard_list) {}
+                const std::vector<VT>& write_objects,
+                const std::unordered_map<uint32_t,std::vector<std::size_t>>& write_objects_per_shard,
+                const std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>& read_objects,
+                const std::unordered_map<uint32_t,std::vector<std::size_t>>& read_objects_per_shard,
+                const std::vector<uint32_t>& shard_list,
+                uint32_t shard_index);
 
-        /* 
-         * Checks if this tx conflicts with another in the given shard. It is assumed that the lists of objects are all sorted in both transactions.
-         */
-        bool conflicts(const CascadeTransaction* other,const std::pair<uint32_t,uint32_t>& shard_id);
-        bool conflicts(const CascadeTransaction* other);
-        
-        // check if a single object conflicts with this tx in the given shard
-        bool conflicts(const VT& object,const std::pair<uint32_t,uint32_t>& shard_id);
+        bool conflicts(CascadeTransactionInternal* other);
     };
 
-    std::map<transaction_id,CascadeTransaction*> transaction_database;
-    std::list<transaction_id> pending_transactions;
-    std::map<transaction_id,bool> versions_checked;
+    struct TxidHash {
+        std::size_t operator()(const transaction_id& key) const {
+            return boost::hash_value(key);
+        }
+    };
+
+    std::list<CascadeTransactionInternal*> pending_transactions;
+    std::unordered_map<transaction_id,CascadeTransactionInternal*,TxidHash> transaction_database;
+    std::unordered_map<CascadeTransactionInternal*,bool> versions_checked;
+    std::unordered_map<CascadeTransactionInternal*,std::vector<CascadeTransactionInternal*>> forward_conflicts;
+    std::unordered_map<CascadeTransactionInternal*,std::vector<CascadeTransactionInternal*>> backward_conflicts;
 
     transaction_id new_transaction_id();
-    bool has_conflict(const CascadeTransaction* tx);
-    bool has_conflict(const CascadeTransaction* tx,size_t num);
-    bool has_conflict(const VT& other,const std::pair<uint32_t,uint32_t>& shard_id);
-    bool check_previous_versions(const CascadeTransaction* tx,const std::pair<uint32_t,uint32_t>& shard_id);
-    void commit_transaction(CascadeTransaction* tx,const std::pair<uint32_t,uint32_t>& shard_id);
+    void enqueue_transaction(CascadeTransactionInternal* tx);
+    void dequeue_transaction(CascadeTransactionInternal* tx);
+    bool has_conflict(CascadeTransactionInternal* tx);
+    bool check_previous_versions(CascadeTransactionInternal* tx);
+    void commit_transaction(CascadeTransactionInternal* tx);
 
     // ======= end of new transactional code =======
 
@@ -151,14 +158,18 @@ public:
     virtual void trigger_put(const VT& value) const override;
     virtual version_tuple put(const VT& value) const override;
     virtual std::pair<transaction_id,transaction_status_t> put_objects(
-            const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
-            const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
-            const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const override;
+            const std::vector<VT>& write_objects,
+            const std::unordered_map<uint32_t,std::vector<std::size_t>>& write_objects_per_shard,
+            const std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>& read_objects,
+            const std::unordered_map<uint32_t,std::vector<std::size_t>>& read_objects_per_shard,
+            const std::vector<uint32_t>& shard_list) const override;
     virtual void put_objects_forward(
             const transaction_id& txid,
-            const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
-            const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
-            const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const override;
+            const std::vector<VT>& write_objects,
+            const std::unordered_map<uint32_t,std::vector<std::size_t>>& write_objects_per_shard,
+            const std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>& read_objects,
+            const std::unordered_map<uint32_t,std::vector<std::size_t>>& read_objects_per_shard,
+            const std::vector<uint32_t>& shard_list) const override;
     virtual void put_objects_backward(const transaction_id& txid,const transaction_status_t& status) const override;
     virtual void put_and_forget(const VT& value) const override;
 #ifdef ENABLE_EVALUATION
@@ -177,14 +188,18 @@ public:
     virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us, const bool stable) const override;
     virtual version_tuple ordered_put(const VT& value) override;
     virtual std::pair<transaction_id,transaction_status_t> ordered_put_objects(
-            const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
-            const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
-            const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) override;
+            const std::vector<VT>& write_objects,
+            const std::unordered_map<uint32_t,std::vector<std::size_t>>& write_objects_per_shard,
+            const std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>& read_objects,
+            const std::unordered_map<uint32_t,std::vector<std::size_t>>& read_objects_per_shard,
+            const std::vector<uint32_t>& shard_list) override;
     virtual void ordered_put_objects_forward(
             const transaction_id& txid,
-            const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
-            const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
-            const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) override;
+            const std::vector<VT>& write_objects,
+            const std::unordered_map<uint32_t,std::vector<std::size_t>>& write_objects_per_shard,
+            const std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>& read_objects,
+            const std::unordered_map<uint32_t,std::vector<std::size_t>>& read_objects_per_shard,
+            const std::vector<uint32_t>& shard_list) override;
     virtual void ordered_put_objects_backward(const transaction_id& txid,const transaction_status_t& status) override;
     virtual void ordered_put_and_forget(const VT& value) override;
     virtual version_tuple ordered_remove(const KT& key) override;

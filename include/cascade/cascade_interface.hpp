@@ -124,16 +124,21 @@ public:
      *
      * Atomically put a list of objects across multiple shards. This is called for the first shard in shard_list.
      *
-     * @param[in]   mapped_objects          A map between (subgroup_index,shard_index) pairs and a list of K/V values
-     * @param[in]   mapped_readonly_keys    A map between (subgroup_index,shard_index) pairs and a list of (key,version,version,version) tuples. These K/V pairs must match the provided versions for the transaction to be committed.
+     * @param[in]   write_objects           A vector of K/V pairs to be written
+     * @param[in]   write_objects_per_shard A map between shard_index and a list of indices corresponding to the to-write objects for the corresponding shard
+     * @param[in]   read_objects            A vector of K/V pairs to be read
+     * @param[in]   read_objects_per_shard  A map between shard_index and a list of indices corresponding to the to-read objects for the corresponding shard
      * @param[in]   shard_list              Sorted list of shards involved in the transaction
      *
      * @return      a tuple (transaction_id) including subgroup_index, shard_index and shard version number that can be used to uniquely identify the transaction
      */
+    // objects,write_objects_per_shard,read_objects,read_objects_per_shard,shard_list
     virtual std::pair<transaction_id,transaction_status_t> put_objects(
-            const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
-            const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
-            const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const = 0;
+            const std::vector<VT>& write_objects,
+            const std::unordered_map<uint32_t,std::vector<std::size_t>>& write_objects_per_shard,
+            const std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>& read_objects,
+            const std::unordered_map<uint32_t,std::vector<std::size_t>>& read_objects_per_shard,
+            const std::vector<uint32_t>& shard_list) const = 0;
 
     /**
      * @brief   put_objects_forward
@@ -141,17 +146,21 @@ public:
      * Atomically put a list of objects across multiple shards. This is called for the second shard on during the chain replication protocol
      *
      * @param[in]   txid                    The transaction ID created by the first shard
-     * @param[in]   mapped_objects          A map between (subgroup_index,shard_index) pairs and a list of K/V values
-     * @param[in]   mapped_readonly_keys    A map between (subgroup_index,shard_index) pairs and a list of (key,version,version) tuples. These K/V pairs must match the provided versions for the transaction to be committed.
+     * @param[in]   write_objects           A vector of K/V pairs to be written
+     * @param[in]   write_objects_per_shard A map between shard_index and a list of indices corresponding to the to-write objects for the corresponding shard
+     * @param[in]   read_objects            A vector of K/V pairs to be read
+     * @param[in]   read_objects_per_shard  A map between shard_index and a list of indices corresponding to the to-read objects for the corresponding shard
      * @param[in]   shard_list              Sorted list of shards involved in the transaction
      *
      * @return      void
      */
     virtual void put_objects_forward(
             const transaction_id& txid,
-            const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
-            const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
-            const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const = 0;
+            const std::vector<VT>& write_objects,
+            const std::unordered_map<uint32_t,std::vector<std::size_t>>& write_objects_per_shard,
+            const std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>& read_objects,
+            const std::unordered_map<uint32_t,std::vector<std::size_t>>& read_objects_per_shard,
+            const std::vector<uint32_t>& shard_list) const = 0;
 
     /**
      * @brief   put_objects_backward
@@ -425,16 +434,21 @@ protected:
      *
      * Atomically put a list of objects across multiple shards. This is called in the first shard in shard_list.
      *
-     * @param[in]   mapped_objects          A map between (subgroup_index,shard_index) pairs and a list of K/V values
-     * @param[in]   mapped_readonly_keys    A map between (subgroup_index,shard_index) pairs and a list of (key,version,version) tuples. These K/V pairs must match the provided versions for the transaction to be committed.
+     *
+     * @param[in]   write_objects           A vector of K/V pairs to be written
+     * @param[in]   write_objects_per_shard A map between shard_index and a list of indices corresponding to the to-write objects for the corresponding shard
+     * @param[in]   read_objects            A vector of K/V pairs to be read
+     * @param[in]   read_objects_per_shard  A map between shard_index and a list of indices corresponding to the to-read objects for the corresponding shard
      * @param[in]   shard_list              Sorted list of shards involved in the transaction
      *
      * @return      a tuple (transaction_id) including subgroup_index, shard_index and shard version number that can be used to uniquely identify the transaction
      */
     virtual std::pair<transaction_id,transaction_status_t> ordered_put_objects(
-            const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
-            const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
-            const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) = 0;
+            const std::vector<VT>& write_objects,
+            const std::unordered_map<uint32_t,std::vector<std::size_t>>& write_objects_per_shard,
+            const std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>& read_objects,
+            const std::unordered_map<uint32_t,std::vector<std::size_t>>& read_objects_per_shard,
+            const std::vector<uint32_t>& shard_list) = 0;
 
     /**
      * @brief   ordered_put_objects_forward
@@ -442,17 +456,21 @@ protected:
      * Atomically put a list of objects across multiple shards. This is called for the second shard on during the chain replication protocol
      *
      * @param[in]   txid                    The transaction ID created by the first shard
-     * @param[in]   mapped_objects          A map between (subgroup_index,shard_index) pairs and a list of K/V values
-     * @param[in]   mapped_readonly_keys    A map between (subgroup_index,shard_index) pairs and a list of (key,version,version) tuples. These K/V pairs must match the provided versions for the transaction to be committed.
+     * @param[in]   write_objects           A vector of K/V pairs to be written
+     * @param[in]   write_objects_per_shard A map between shard_index and a list of indices corresponding to the to-write objects for the corresponding shard
+     * @param[in]   read_objects            A vector of K/V pairs to be read
+     * @param[in]   read_objects_per_shard  A map between shard_index and a list of indices corresponding to the to-read objects for the corresponding shard
      * @param[in]   shard_list              Sorted list of shards involved in the transaction
      *
      * @return      void
      */
     virtual void ordered_put_objects_forward(
             const transaction_id& txid,
-            const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
-            const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
-            const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) = 0;
+            const std::vector<VT>& write_objects,
+            const std::unordered_map<uint32_t,std::vector<std::size_t>>& write_objects_per_shard,
+            const std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>& read_objects,
+            const std::unordered_map<uint32_t,std::vector<std::size_t>>& read_objects_per_shard,
+            const std::vector<uint32_t>& shard_list) = 0;
 
     /**
      * @brief   ordered_put_objects_backward

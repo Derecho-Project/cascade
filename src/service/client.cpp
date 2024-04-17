@@ -261,7 +261,7 @@ struct object {
     object() = default;
 };
 
-template <typename SubgroupType>
+/*template <typename SubgroupType>
 void put_objects(ServiceClientAPI& capi, std::map<std::pair<uint32_t,uint32_t>,std::vector<object>> mapped_objects, std::map<std::pair<uint32_t,uint32_t>,std::vector<object>> readonly_mapped_objects){
     std::map<std::pair<uint32_t,uint32_t>,std::vector<typename SubgroupType::ObjectType>> objects;
     for (const auto& kv : mapped_objects) {
@@ -307,6 +307,7 @@ void put_objects(ServiceClientAPI& capi, std::map<std::pair<uint32_t,uint32_t>,s
     derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> result = capi.template put_objects<SubgroupType>(objects, readonly_objects);
     check_put_objects_and_remove_result(capi, result);
 }
+*/
 
 void op_put_objects(ServiceClientAPI& capi, const std::vector<std::string>& key_list, const std::vector<std::string>& value_list, 
                  std::vector<persistent::version_t>& pver_list, std::vector<persistent::version_t>& pver_bk_list, 
@@ -331,7 +332,7 @@ void op_put_objects(ServiceClientAPI& capi, const std::vector<std::string>& key_
         obj.blob = Blob(reinterpret_cast<const uint8_t*>(readonly_value_list[i].c_str()),readonly_value_list[i].size()+1);
         readonly_objects.push_back(obj);
     }
-    derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> result = capi.put_objects(objects, readonly_objects);
+    derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> result = capi.put_objects<PersistentCascadeStoreWithStringKey>(objects, readonly_objects);
     check_put_objects_and_remove_result(capi, result);
 }
 
@@ -1311,7 +1312,7 @@ std::vector<command_entry_t> commands =
             return true;
         }
     },
-    {
+    /*{
         "put_objects",
         "put_objects atomically writes multiple objects.",
         "put_objects <type> <subgroup> <shard> <key> <value> <pver> <pver_bk> <key> <value> <pver> <pver_bk> ... | <subgroup> <shard> <key> <value> <pver> <pver_bk> ... ; <readonly subgroup> <shard> <key> <value> <pver> <pver_bk> ... | <readonly subgroup> <shard> <key> <value> <pver> <pver_bk> ... \n"
@@ -1363,7 +1364,7 @@ std::vector<command_entry_t> commands =
             on_subgroup_type(cmd_tokens[1],put_objects,capi,mapped_objects,mapped_readonly_objects);
             return true;
         }
-    },
+    },*/
     {
         "op_put_objects",
         "op_put_objects atomically writes multiple objects. The object pools are extracted from the object keys",

@@ -699,28 +699,7 @@ namespace cascade {
         template <typename SubgroupType>
         derecho::rpc::QueryResults<version_tuple> put(const typename SubgroupType::ObjectType& object,
                 uint32_t subgroup_index, uint32_t shard_index);
-
-        /**
-         * "put_objects" atomically writes multiple objects
-         *
-         * @param[in] mapped_objects            a map between subgroup/shard index and a list of objects to write in the corresponding shard.
-         *                                      User provided SubgroupType::ObjectType must have the following two members:
-         *                                      - SubgroupType::ObjectType::key of SubgroupType::KeyType, which must be set to a
-         *                                        valid key.
-         *                                      - SubgroupType::ObjectType::ver of std::tuple<persistent::version_t, uint64_t>.
-         *                                        Similar to the return object, this member is a two tuple with the first member
-         *                                        for a version and the second for a timestamp. A caller of put can specify either
-         *                                        of the version and timestamp meaning what is the latest version/timestamp the caller
-         *                                        has seen. Cascade will reject the write if the corresponding key has been updated
-         *                                        already. TODO: should we make it an optional feature?
-         * @param[in] mapped_readonly_objects   a map between subgroup/shard index and a list of objects in the corresponding shard that must match versions
-         *
-         * @return a future to the transaction id and current status
-         */
-        template <typename SubgroupType>
-        derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> put_objects(
-                const std::map<std::pair<uint32_t,uint32_t>,std::vector<typename SubgroupType::ObjectType>>& mapped_objects,
-                const std::map<std::pair<uint32_t,uint32_t>,std::vector<typename SubgroupType::ObjectType>>& mapped_readonly_objects = {});
+    
     protected:
         /**
          * "type_recursive_put" is a helper function for internal use only.
@@ -747,35 +726,6 @@ namespace cascade {
                 uint32_t subgroup_index,
                 uint32_t shard_index);
 
-        /**
-         * "type_recursive_put_objects" is a helper function for internal use only.
-         * @param[in]   type_index  the index of the subgroup type in the CascadeTypes... list. And the FirstType,
-         *                          SecondType, ..., RestTypes should be in the same order.
-         * @param[in] mapped_objects            a map between subgroup/shard index and a list of objects to write in the corresponding shard.
-         *                                      User provided SubgroupType::ObjectType must have the following two members:
-         *                                      - SubgroupType::ObjectType::key of SubgroupType::KeyType, which must be set to a
-         *                                        valid key.
-         *                                      - SubgroupType::ObjectType::ver of std::tuple<persistent::version_t, uint64_t>.
-         *                                        Similar to the return object, this member is a two tuple with the first member
-         *                                        for a version and the second for a timestamp. A caller of put can specify either
-         *                                        of the version and timestamp meaning what is the latest version/timestamp the caller
-         *                                        has seen. Cascade will reject the write if the corresponding key has been updated
-         *                                        already. TODO: should we make it an optional feature?
-         * @param[in] mapped_readonly_objects   a map between subgroup/shard index and a list of objects in the corresponding shard that must match versions
-         *
-         * @return a future to the version and timestamp of the put operation.
-         */
-        template <typename ObjectType, typename FirstType, typename SecondType, typename... RestTypes>
-        derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> type_recursive_put_objects(
-                uint32_t type_index,
-                const std::map<std::pair<uint32_t,uint32_t>,std::vector<ObjectType>>& mapped_objects,
-                const std::map<std::pair<uint32_t,uint32_t>,std::vector<ObjectType>>& mapped_readonly_objects);
-
-        template <typename ObjectType, typename LastType>
-        derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> type_recursive_put_objects(
-                uint32_t type_index,
-                const std::map<std::pair<uint32_t,uint32_t>,std::vector<ObjectType>>& mapped_objects,
-                const std::map<std::pair<uint32_t,uint32_t>,std::vector<ObjectType>>& mapped_readonly_objects);
     public:
         /**
          * object pool version
@@ -787,16 +737,15 @@ namespace cascade {
         derecho::rpc::QueryResults<version_tuple> put(const ObjectType& object);
 
         /**
-         * Multi-object atomic put. This operation will check if the previous version of each given object still matches the latest version. In case of a mismatch for at least one object, the whole operation fails.
-         * TODO: currently, all given objects must go to the same shard, but we should support cross-shard atomic multi-object puts in the future (and maybe even cross-subgroup).
+         * Multi-object atomic put. This operation will check if the previous version of each given object still matches the latest version. In case of a mismatch for at least one object, the whole operation fails. All given objects must go to the same subgroup, of the subgroup type provided.
          *
          * @param[in] objects           a list of objects to write, the object pools are extracted from the objects keys.
          * @param[in] readonly_objects  a list of objects that will not be written, but their versions must match
          *
          * @return a future to the version and timestamp of the put operation.
          */
-        template <typename ObjectType>
-        derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> put_objects(const std::vector<ObjectType>& objects,const std::vector<ObjectType>& readonly_objects = {});
+        template <typename SubgroupType>
+        derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> put_objects(const std::vector<typename SubgroupType::ObjectType>& objects,const std::vector<typename SubgroupType::ObjectType>& readonly_objects = {});
 
         /**
          * "put_and_forget" writes an object to a given subgroup/shard, but no return value.

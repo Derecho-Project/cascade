@@ -25,9 +25,11 @@ version_tuple TriggerCascadeNoStore<KT, VT, IK, IV>::put(const VT& value) const 
 
 template <typename KT, typename VT, KT* IK, VT* IV>
 std::pair<transaction_id,transaction_status_t> TriggerCascadeNoStore<KT, VT, IK, IV>::put_objects(
-        const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
-        const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
-        const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const {
+        const std::vector<VT>& write_objects,
+        const std::unordered_map<uint32_t,std::vector<std::size_t>>& write_objects_per_shard,
+        const std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>& read_objects,
+        const std::unordered_map<uint32_t,std::vector<std::size_t>>& read_objects_per_shard,
+        const std::vector<uint32_t>& shard_list) const {
     dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
     return {{-1,-1,persistent::INVALID_VERSION},transaction_status_t::ABORT};
 }
@@ -35,9 +37,11 @@ std::pair<transaction_id,transaction_status_t> TriggerCascadeNoStore<KT, VT, IK,
 template <typename KT, typename VT, KT* IK, VT* IV>
 void TriggerCascadeNoStore<KT, VT, IK, IV>::put_objects_forward(
         const transaction_id& txid,
-        const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
-        const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
-        const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) const {
+        const std::vector<VT>& write_objects,
+        const std::unordered_map<uint32_t,std::vector<std::size_t>>& write_objects_per_shard,
+        const std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>& read_objects,
+        const std::unordered_map<uint32_t,std::vector<std::size_t>>& read_objects_per_shard,
+        const std::vector<uint32_t>& shard_list) const {
     dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
 }
 
@@ -139,9 +143,11 @@ version_tuple TriggerCascadeNoStore<KT, VT, IK, IV>::ordered_put(const VT& value
 
 template <typename KT, typename VT, KT* IK, VT* IV>
 std::pair<transaction_id,transaction_status_t> TriggerCascadeNoStore<KT, VT, IK, IV>::ordered_put_objects(
-        const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
-        const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
-        const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) {
+        const std::vector<VT>& write_objects,
+        const std::unordered_map<uint32_t,std::vector<std::size_t>>& write_objects_per_shard,
+        const std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>& read_objects,
+        const std::unordered_map<uint32_t,std::vector<std::size_t>>& read_objects_per_shard,
+        const std::vector<uint32_t>& shard_list) {
     dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
     return {{-1,-1,persistent::INVALID_VERSION},transaction_status_t::ABORT};
 }
@@ -149,9 +155,11 @@ std::pair<transaction_id,transaction_status_t> TriggerCascadeNoStore<KT, VT, IK,
 template <typename KT, typename VT, KT* IK, VT* IV>
 void TriggerCascadeNoStore<KT, VT, IK, IV>::ordered_put_objects_forward(
         const transaction_id& txid,
-        const std::map<std::pair<uint32_t,uint32_t>,std::vector<VT>>& mapped_objects,
-        const std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>>& mapped_readonly_keys,
-        const std::vector<std::pair<uint32_t,uint32_t>>& shard_list) {
+        const std::vector<VT>& write_objects,
+        const std::unordered_map<uint32_t,std::vector<std::size_t>>& write_objects_per_shard,
+        const std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>& read_objects,
+        const std::unordered_map<uint32_t,std::vector<std::size_t>>& read_objects_per_shard,
+        const std::vector<uint32_t>& shard_list) {
     dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
 }
 

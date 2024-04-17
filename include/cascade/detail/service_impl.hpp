@@ -568,76 +568,6 @@ derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::put(
 }
 
 template <typename... CascadeTypes>
-template <typename SubgroupType>
-derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> ServiceClient<CascadeTypes...>::put_objects(
-        const std::map<std::pair<uint32_t,uint32_t>,std::vector<typename SubgroupType::ObjectType>>& mapped_objects,
-        const std::map<std::pair<uint32_t,uint32_t>,std::vector<typename SubgroupType::ObjectType>>& mapped_readonly_objects) {
-    // check if map is empty
-    if(mapped_objects.empty()){
-        throw derecho::derecho_exception(std::string("ServiceClient<>::put_objects() received an empty map"));    
-    }
-
-    // extract shard list and map of readonly keys/version
-    std::vector<std::pair<uint32_t,uint32_t>> shard_list;
-    std::map<std::pair<uint32_t,uint32_t>,std::vector<std::tuple<typename SubgroupType::KeyType,persistent::version_t,persistent::version_t,persistent::version_t>>> mapped_readonly_keys;
-
-    for (auto const& item : mapped_objects){
-        shard_list.push_back(item.first);
-    }
-
-    for (auto const& item : mapped_readonly_objects){
-        for (auto const& obj : item.second) {
-            auto key_version_tuple = std::make_tuple(obj.get_key_ref(),obj.version,obj.previous_version,obj.previous_version_by_key);
-            mapped_readonly_keys[item.first].push_back(key_version_tuple);
-        }
-        
-        // sort key/version tuples by key: this optimizes the search for conflicting transactions
-        std::sort(mapped_readonly_keys[item.first].begin(),mapped_readonly_keys[item.first].end(),[](const auto& tuple1, const auto& tuple2){ return std::get<0>(tuple1) < std::get<0>(tuple2); });
-
-        if (std::find(shard_list.begin(), shard_list.end(), item.first) == shard_list.end()) {
-            shard_list.push_back(item.first);
-        }
-    }
-
-    // sort the shard list: this is very important to avoid deadlocks
-    std::sort(shard_list.begin(), shard_list.end());
-
-    // get head shard
-    uint32_t head_subgroup_index = shard_list[0].first;
-    uint32_t head_shard_index = shard_list[0].second;
-
-    LOG_SERVICE_CLIENT_TIMESTAMP(TLT_SERVICE_CLIENT_PUT_START,
-            (std::is_base_of<IHasMessageID,typename SubgroupType::ObjectType>::value?mapped_objects.begin()->second[0].get_message_id():0));
-
-    if (!is_external_client()) {
-        std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
-        if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(head_subgroup_index)) == head_shard_index) {
-            // ordered put as a shard member
-            auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(head_subgroup_index);
-            return subgroup_handle.template ordered_send<RPC_NAME(ordered_put_objects)>(mapped_objects,mapped_readonly_keys,shard_list);
-        } else {
-            // p2p put
-            node_id_t node_id = pick_member_by_policy<SubgroupType>(head_subgroup_index,head_shard_index,mapped_objects.begin()->second[0].get_key_ref());
-            try {
-                // as a subgroup member
-                auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(head_subgroup_index);
-                return subgroup_handle.template p2p_send<RPC_NAME(put_objects)>(node_id,mapped_objects,mapped_readonly_keys,shard_list);
-            } catch (derecho::invalid_subgroup_exception& ex) {
-                // as an external caller
-                auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(head_subgroup_index);
-                return subgroup_handle.template p2p_send<RPC_NAME(put_objects)>(node_id,mapped_objects,mapped_readonly_keys,shard_list);
-            }
-        }
-    } else {
-        std::lock_guard<std::mutex> lck(this->external_group_ptr_mutex);
-        // call as an external client (ExternalClientCaller).
-        auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(head_subgroup_index);
-        node_id_t node_id = pick_member_by_policy<SubgroupType>(head_subgroup_index,head_shard_index,mapped_objects.begin()->second[0].get_key_ref());
-        return caller.template p2p_send<RPC_NAME(put_objects)>(node_id,mapped_objects,mapped_readonly_keys,shard_list);
-    }
-}
-
-template <typename... CascadeTypes>
 template <typename ObjectType, typename FirstType, typename SecondType, typename... RestTypes>
 derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::type_recursive_put(
         uint32_t type_index,
@@ -666,32 +596,6 @@ derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::type_r
 }
 
 template <typename... CascadeTypes>
-template <typename ObjectType, typename FirstType, typename SecondType, typename... RestTypes>
-derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> ServiceClient<CascadeTypes...>::type_recursive_put_objects( 
-        uint32_t type_index,
-        const std::map<std::pair<uint32_t,uint32_t>,std::vector<ObjectType>>& mapped_objects,
-        const std::map<std::pair<uint32_t,uint32_t>,std::vector<ObjectType>>& mapped_readonly_objects) {
-    if (type_index == 0) {
-        return this->template put_objects<FirstType>(mapped_objects,mapped_readonly_objects);
-    } else {
-        return this->template type_recursive_put_objects<ObjectType, SecondType, RestTypes...>(type_index-1,mapped_objects,mapped_readonly_objects);
-    }
-}
-
-template <typename... CascadeTypes>
-template <typename ObjectType, typename LastType>
-derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> ServiceClient<CascadeTypes...>::type_recursive_put_objects(
-        uint32_t type_index,
-        const std::map<std::pair<uint32_t,uint32_t>,std::vector<ObjectType>>& mapped_objects,
-        const std::map<std::pair<uint32_t,uint32_t>,std::vector<ObjectType>>& mapped_readonly_objects) {
-    if (type_index == 0) {
-        return this->template put_objects<LastType>(mapped_objects,mapped_readonly_objects);
-    } else {
-        throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) + ": type index is out of boundary.");
-    }
-}
-
-template <typename... CascadeTypes>
 template <typename ObjectType>
 derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::put(
         const ObjectType& value) {
@@ -710,12 +614,12 @@ derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::put(
 }
 
 template <typename... CascadeTypes>
-template <typename ObjectType>
+template <typename SubgroupType>
 derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> ServiceClient<CascadeTypes...>::put_objects(
-        const std::vector<ObjectType>& objects,const std::vector<ObjectType>& readonly_objects){
+        const std::vector<typename SubgroupType::ObjectType>& objects,const std::vector<typename SubgroupType::ObjectType>& readonly_objects){
     // STEP 1 - make sure object type is supported
-    if constexpr (!std::is_base_of_v<ICascadeObject<std::string,ObjectType>,ObjectType>) {
-        throw derecho::derecho_exception(std::string("ServiceClient<>::put_objects() only support object of type ICascadeObject<std::string,ObjectType>,but we get ") + typeid(ObjectType).name());
+    if constexpr (!std::is_base_of_v<ICascadeObject<std::string,typename SubgroupType::ObjectType>,typename SubgroupType::ObjectType>) {
+        throw derecho::derecho_exception(std::string("ServiceClient<>::put_objects() only support object of type ICascadeObject<std::string,ObjectType>,but we get ") + typeid(typename SubgroupType::ObjectType).name());
     }
 
     // STEP 2 - check if vector is empty
@@ -723,18 +627,20 @@ derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> Servi
         throw derecho::derecho_exception(std::string("ServiceClient<>::put_objects() received an empty vector"));    
     }
 
-    // STEP 3 - check where objects go: all should go to the same subgroup type
-    std::map<std::pair<uint32_t,uint32_t>,std::vector<ObjectType>> mapped_objects;
-    std::map<std::pair<uint32_t,uint32_t>,std::vector<ObjectType>> mapped_readonly_objects;
+    // STEP 3 - check where objects go: all should go to the same subgroup
+    std::unordered_map<uint32_t,std::vector<std::size_t>> write_objects_per_shard;
+    std::unordered_map<uint32_t,std::vector<std::size_t>> read_objects_per_shard;
+    std::vector<std::tuple<typename SubgroupType::KeyType,persistent::version_t,persistent::version_t,persistent::version_t>> read_objects;
+    std::vector<uint32_t> shard_list;
 
     uint32_t first_subgroup_type_index,first_subgroup_index,first_shard_index;
     std::tie(first_subgroup_type_index,first_subgroup_index,first_shard_index) = this->template key_to_shard(objects[0].get_key_ref());
 
-    auto shard_pair = std::make_pair(first_subgroup_index,first_shard_index);
-    mapped_objects[shard_pair].push_back(objects[0]);
+    shard_list.push_back(first_shard_index);
+    write_objects_per_shard[first_shard_index].push_back(0);
    
     // get mapping for objects to write 
-    for(unsigned int i = 1; i < objects.size(); i++){
+    for(std::size_t i = 1; i < objects.size(); i++){
         uint32_t subgroup_type_index,subgroup_index,shard_index;
         std::tie(subgroup_type_index,subgroup_index,shard_index) = this->template key_to_shard(objects[i].get_key_ref());
     
@@ -742,43 +648,76 @@ derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> Servi
         if(subgroup_type_index != first_subgroup_type_index){
             throw derecho::derecho_exception(std::string("All objects in ServiceClient<>::put_objects() must go to a subgroup of the same type, but object with key ") + objects[i].get_key_ref() + " goes to subgroup type index " + std::to_string(subgroup_type_index) + ", while object with key " + objects[0].get_key_ref() + " goes to subgroup type index " + std::to_string(first_subgroup_type_index));
         }
+        
+        // subgroup
+        if(subgroup_index != first_subgroup_index){
+            throw derecho::derecho_exception(std::string("All objects in ServiceClient<>::put_objects() must go to the same subgroup, but object with key ") + objects[i].get_key_ref() + " goes to subgroup index " + std::to_string(subgroup_index) + ", while object with key " + objects[0].get_key_ref() + " goes to subgroup index " + std::to_string(first_subgroup_index));
+        }
 
-        auto shard_pair = std::make_pair(subgroup_index,shard_index);
-
-        // TODO how to avoid this copy? I'm not sure it is possible without changing the API
-        mapped_objects[shard_pair].push_back(objects[i]); 
+        if(write_objects_per_shard.count(shard_index) == 0){    
+            shard_list.push_back(shard_index);
+        }
+        write_objects_per_shard[shard_index].push_back(i);
     }
         
-    // sort objects by key: this optimizes the search for conflicting transactions
-    for (auto& item : mapped_objects){
-        std::sort(item.second.begin(),item.second.end(),[](const auto& obj1, const auto& obj2){ return obj1.get_key_ref() < obj2.get_key_ref(); });
-    }
-    
     // get mapping for readonly objects 
     for(unsigned int i = 0; i < readonly_objects.size(); i++){
+        auto& obj = readonly_objects[i];
+
         uint32_t subgroup_type_index,subgroup_index,shard_index;
-        std::tie(subgroup_type_index,subgroup_index,shard_index) = this->template key_to_shard(readonly_objects[i].get_key_ref());
+        std::tie(subgroup_type_index,subgroup_index,shard_index) = this->template key_to_shard(obj.get_key_ref());
     
         // subgroup type
         if(subgroup_type_index != first_subgroup_type_index){
             throw derecho::derecho_exception(std::string("All objects in ServiceClient<>::put_objects() must go to a subgroup of the same type, but object with key ") + readonly_objects[i].get_key_ref() + " goes to subgroup type index " + std::to_string(subgroup_type_index) + ", while object with key " + objects[0].get_key_ref() + " goes to subgroup type index " + std::to_string(first_subgroup_type_index));
         }
-       
-        auto shard_pair = std::make_pair(subgroup_index,shard_index);
+        
+        // subgroup 
+        if(subgroup_index != first_subgroup_index){
+            throw derecho::derecho_exception(std::string("All objects in ServiceClient<>::put_objects() must go to the same subgroup, but object with key ") + readonly_objects[i].get_key_ref() + " goes to subgroup index " + std::to_string(subgroup_type_index) + ", while object with key " + objects[0].get_key_ref() + " goes to subgroup index " + std::to_string(first_subgroup_type_index));
+        }
 
-        // creating another wrapper to avoid copying the Blob, since we only care about the versions
-        ObjectType obj;
-        obj.key = readonly_objects[i].get_key_ref();
-        obj.version = readonly_objects[i].version;
-        obj.timestamp_us = readonly_objects[i].timestamp_us;
-        obj.previous_version = readonly_objects[i].previous_version;
-        obj.previous_version_by_key = readonly_objects[i].previous_version_by_key;
-
-        mapped_readonly_objects[shard_pair].push_back(obj); // this will be sorted later
+        auto key_version_tuple = std::make_tuple(obj.get_key_ref(),obj.version,obj.previous_version,obj.previous_version_by_key);
+        if(read_objects_per_shard.count(shard_index) == 0){    
+            shard_list.push_back(shard_index);
+        }
+        read_objects_per_shard[shard_index].push_back(i);
+        read_objects.push_back(key_version_tuple);
     }
+    
+    // sort the shard list: this is very important to avoid deadlocks
+    std::sort(shard_list.begin(), shard_list.end());
 
-    // STEP 4 - call recursive put
-    return this->template type_recursive_put_objects<ObjectType,CascadeTypes...>(first_subgroup_type_index,mapped_objects,mapped_readonly_objects);
+    // STEP 4 - p2p_send
+    uint32_t head_subgroup_index = first_subgroup_index;
+    uint32_t head_shard_index = shard_list[0];
+
+    if (!is_external_client()) {
+        std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
+        if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(head_subgroup_index)) == head_shard_index) {
+            // ordered put as a shard member
+            auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(head_subgroup_index);
+            return subgroup_handle.template ordered_send<RPC_NAME(ordered_put_objects)>(objects,write_objects_per_shard,read_objects,read_objects_per_shard,shard_list);
+        } else {
+            // p2p put
+            node_id_t node_id = pick_member_by_policy<SubgroupType>(head_subgroup_index,head_shard_index,objects[0].get_key_ref());
+            try {
+                // as a subgroup member
+                auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(head_subgroup_index);
+                return subgroup_handle.template p2p_send<RPC_NAME(put_objects)>(node_id,objects,write_objects_per_shard,read_objects,read_objects_per_shard,shard_list);
+            } catch (derecho::invalid_subgroup_exception& ex) {
+                // as an external caller
+                auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(head_subgroup_index);
+                return subgroup_handle.template p2p_send<RPC_NAME(put_objects)>(node_id,objects,write_objects_per_shard,read_objects,read_objects_per_shard,shard_list);
+            }
+        }
+    } else {
+        std::lock_guard<std::mutex> lck(this->external_group_ptr_mutex);
+        // call as an external client (ExternalClientCaller).
+        auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(head_subgroup_index);
+        node_id_t node_id = pick_member_by_policy<SubgroupType>(head_subgroup_index,head_shard_index,objects[0].get_key_ref());
+        return caller.template p2p_send<RPC_NAME(put_objects)>(node_id,objects,write_objects_per_shard,read_objects,read_objects_per_shard,shard_list);
+    }
 }
 
 template <typename... CascadeTypes>
