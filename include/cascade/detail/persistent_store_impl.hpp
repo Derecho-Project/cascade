@@ -45,9 +45,9 @@ version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::put(const VT& value) c
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 std::pair<transaction_id,transaction_status_t> PersistentCascadeStore<KT, VT, IK, IV, ST>::put_objects(
         const std::vector<VT>& write_objects,
-        const std::unordered_map<uint32_t,std::vector<std::size_t>>& write_objects_per_shard,
+        const std::unordered_map<uint32_t,std::vector<KT>>& write_keys_per_shard,
         const std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>& read_objects,
-        const std::unordered_map<uint32_t,std::vector<std::size_t>>& read_objects_per_shard,
+        const std::unordered_map<uint32_t,std::vector<KT>>& read_keys_per_shard,
         const std::vector<uint32_t>& shard_list) const {
     debug_enter_func_with_args("write_objects.size={},read_objects.size={},shard_list.size={}", write_objects.size(),read_objects.size(),shard_list.size());
 
@@ -56,7 +56,7 @@ std::pair<transaction_id,transaction_status_t> PersistentCascadeStore<KT, VT, IK
 
     if(!write_objects.empty()){
         derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
-        auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put_objects)>(write_objects,write_objects_per_shard,read_objects,read_objects_per_shard,shard_list);
+        auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put_objects)>(write_objects,write_keys_per_shard,read_objects,read_keys_per_shard,shard_list);
         auto& replies = results.get();
 
         for(auto& reply_pair : replies) {
@@ -74,14 +74,14 @@ template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void PersistentCascadeStore<KT, VT, IK, IV, ST>::put_objects_forward(
         const transaction_id& txid,
         const std::vector<VT>& write_objects,
-        const std::unordered_map<uint32_t,std::vector<std::size_t>>& write_objects_per_shard,
+        const std::unordered_map<uint32_t,std::vector<KT>>& write_keys_per_shard,
         const std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>& read_objects,
-        const std::unordered_map<uint32_t,std::vector<std::size_t>>& read_objects_per_shard,
+        const std::unordered_map<uint32_t,std::vector<KT>>& read_keys_per_shard,
         const std::vector<uint32_t>& shard_list) const {
     debug_enter_func_with_args("write_objects.size={},read_objects.size={},shard_list.size={}", write_objects.size(),read_objects.size(),shard_list.size());
 
     derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
-    auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put_objects_forward)>(txid,write_objects,write_objects_per_shard,read_objects,read_objects_per_shard,shard_list);
+    auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put_objects_forward)>(txid,write_objects,write_keys_per_shard,read_objects,read_keys_per_shard,shard_list);
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
@@ -697,9 +697,9 @@ version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put(const VT& 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 std::pair<transaction_id,transaction_status_t> PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_objects(
         const std::vector<VT>& write_objects,
-        const std::unordered_map<uint32_t,std::vector<std::size_t>>& write_objects_per_shard,
+        const std::unordered_map<uint32_t,std::vector<KT>>& write_keys_per_shard,
         const std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>& read_objects,
-        const std::unordered_map<uint32_t,std::vector<std::size_t>>& read_objects_per_shard,
+        const std::unordered_map<uint32_t,std::vector<KT>>& read_keys_per_shard,
         const std::vector<uint32_t>& shard_list) {
     debug_enter_func_with_args("write_objects.size={},read_objects.size={},shard_list.size={}", write_objects.size(),read_objects.size(),shard_list.size());
     
@@ -709,7 +709,7 @@ std::pair<transaction_id,transaction_status_t> PersistentCascadeStore<KT, VT, IK
     if(!write_objects.empty()){
         // get an ID and add the TX to the internal structures
         auto shard_index = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_shard_num();
-        CascadeTransactionInternal* tx = new CascadeTransactionInternal(new_transaction_id(),write_objects,write_objects_per_shard,read_objects,read_objects_per_shard,shard_list,shard_index);
+        CascadeTransactionInternal* tx = new CascadeTransactionInternal(new_transaction_id(),write_objects,write_keys_per_shard,read_objects,read_keys_per_shard,shard_list,shard_index);
         enqueue_transaction(tx);
 
         // check if there is a conflicting TX in the pending list
@@ -726,7 +726,7 @@ std::pair<transaction_id,transaction_status_t> PersistentCascadeStore<KT, VT, IK
                     // no need to check conflicts: we know at this point that there is no conflict
                     dequeue_transaction(tx);
                 } else {
-                    send_tx_forward(tx,write_objects,write_objects_per_shard,read_objects,read_objects_per_shard,shard_list);
+                    send_tx_forward(tx);
                 }
             } else {
                 // this is the first shard, so we can just ABORT and remove the tx from the pending list, no need to send the result backwards to the previous shard
@@ -749,9 +749,9 @@ template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_objects_forward(
         const transaction_id& txid,
         const std::vector<VT>& write_objects,
-        const std::unordered_map<uint32_t,std::vector<std::size_t>>& write_objects_per_shard,
+        const std::unordered_map<uint32_t,std::vector<KT>>& write_keys_per_shard,
         const std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>& read_objects,
-        const std::unordered_map<uint32_t,std::vector<std::size_t>>& read_objects_per_shard,
+        const std::unordered_map<uint32_t,std::vector<KT>>& read_keys_per_shard,
         const std::vector<uint32_t>& shard_list) {
     debug_enter_func_with_args("txid=({},{},{}),write_objects.size={},read_objects.size={},shard_list.size={}", std::get<0>(txid),std::get<1>(txid),std::get<2>(txid),write_objects.size(),read_objects.size(),shard_list.size());
     // if it is a transaction that we already have, do nothing (it is being resent by a recovering node)
@@ -761,7 +761,7 @@ void PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_objects_forward(
 
     // register the new tx
     auto shard_index = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_shard_num();
-    CascadeTransactionInternal* tx = new CascadeTransactionInternal(txid,write_objects,write_objects_per_shard,read_objects,read_objects_per_shard,shard_list,shard_index);
+    CascadeTransactionInternal* tx = new CascadeTransactionInternal(txid,write_objects,write_keys_per_shard,read_objects,read_keys_per_shard,shard_list,shard_index);
     enqueue_transaction(tx);
     
     // check if there is a conflicting TX in the pending list
@@ -780,7 +780,7 @@ void PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_objects_forward(
                 // no need to check conflicts: we know at this point that there is no conflict
                 dequeue_transaction(tx);
             } else {
-                send_tx_forward(tx,write_objects,write_objects_per_shard,read_objects,read_objects_per_shard,shard_list);
+                send_tx_forward(tx);
             }
         } else {
             // send ABORT to previous shard
@@ -805,7 +805,7 @@ void PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_objects_backward(co
         dbg_default_debug("{}: received an unknown transaction ({},{},{})", __PRETTY_FUNCTION__, std::get<0>(txid),std::get<1>(txid),std::get<2>(txid));
         return;
     }
-    
+
     CascadeTransactionInternal* tx = transaction_database.at(txid);
    
     // if this was already processed, do nothing (it is being resent by a recovering node)
@@ -1109,36 +1109,43 @@ template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 PersistentCascadeStore<KT, VT, IK, IV, ST>::CascadeTransactionInternal::CascadeTransactionInternal(
                 const transaction_id& txid,
                 const std::vector<VT>& write_objects,
-                const std::unordered_map<uint32_t,std::vector<std::size_t>>& write_objects_per_shard,
+                const std::unordered_map<uint32_t,std::vector<KT>>& write_keys_per_shard,
                 const std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>& read_objects,
-                const std::unordered_map<uint32_t,std::vector<std::size_t>>& read_objects_per_shard,
+                const std::unordered_map<uint32_t,std::vector<KT>>& read_keys_per_shard,
                 const std::vector<uint32_t>& shard_list,
                 uint32_t shard_index){
     this->txid = txid; 
     this->shard_list = shard_list;
     this->this_shard_it = std::find(this->shard_list.begin(),this->shard_list.end(),shard_index);
+    this->write_keys_per_shard = write_keys_per_shard;
+    this->read_keys_per_shard = read_keys_per_shard;
 
     std::size_t idx = 0;
     for(std::size_t i=0;i<write_objects.size();i++){
         auto& obj = write_objects[i];
 
         this->write_keys.emplace(obj.get_key_ref());
-
-        if(i == write_objects_per_shard.at(shard_index).at(idx)){
+        
+        if((write_keys_per_shard.count(shard_index) > 0) && (idx < write_keys_per_shard.at(shard_index).size()) && (obj.get_key_ref() == write_keys_per_shard.at(shard_index).at(idx))){
             this->write_objects.emplace_back(obj);
             idx++;
+        } else {
+            this->other_write_objects.emplace_back(obj);
         }
     }
     
     idx = 0;
     for(std::size_t i=0;i<read_objects.size();i++){
         auto& obj = read_objects[i];
+        auto& key = std::get<0>(obj);
 
-        this->read_keys.emplace(std::get<0>(obj));
+        this->read_keys.emplace(key);
 
-        if(i == read_objects_per_shard.at(shard_index).at(idx)){
+        if((read_keys_per_shard.count(shard_index) > 0) && (idx < read_keys_per_shard.at(shard_index).size()) && (key == read_keys_per_shard.at(shard_index).at(idx))){
             this->read_objects.emplace_back(obj);
             idx++;
+        } else {
+            this->other_read_objects.emplace_back(obj);
         }
     }
 }
@@ -1216,7 +1223,7 @@ bool PersistentCascadeStore<KT, VT, IK, IV, ST>::has_conflict(const VT& value){
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 bool PersistentCascadeStore<KT, VT, IK, IV, ST>::check_previous_versions(CascadeTransactionInternal* tx){
     // check versions of to-write objects
-    if(!tx->write_objects.empty()){
+    if(!tx->write_objects.empty()){ 
         if(!this->persistent_core->ordered_check_previous_versions(tx->write_objects, this->persistent_core.getLatestVersion())){
             return false;
         }
@@ -1242,7 +1249,7 @@ void PersistentCascadeStore<KT, VT, IK, IV, ST>::commit_transaction(CascadeTrans
     tx->commit_version = std::get<0>(version_and_hlc);
 
     // set new version
-    for(const VT& value : tx->write_objects){
+    for(const VT& value : tx->write_objects){ 
         if constexpr(std::is_base_of<IKeepVersion, VT>::value) {
             value.set_version(std::get<0>(version_and_hlc));
         }
@@ -1267,13 +1274,7 @@ void PersistentCascadeStore<KT, VT, IK, IV, ST>::commit_transaction(CascadeTrans
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-void PersistentCascadeStore<KT, VT, IK, IV, ST>::send_tx_forward(
-        CascadeTransactionInternal* tx,
-        const std::vector<VT>& write_objects,
-        const std::unordered_map<uint32_t,std::vector<std::size_t>>& write_objects_per_shard,
-        const std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>& read_objects,
-        const std::unordered_map<uint32_t,std::vector<std::size_t>>& read_objects_per_shard,
-        const std::vector<uint32_t>& shard_list){
+void PersistentCascadeStore<KT, VT, IK, IV, ST>::send_tx_forward(CascadeTransactionInternal* tx){
     // only one node in the shard passes the TX forward
     auto shard_index = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_shard_num();
     std::vector<std::vector<node_id_t>> subgroup_members = group->template get_subgroup_members<PersistentCascadeStore>(this->subgroup_index);
@@ -1290,7 +1291,7 @@ void PersistentCascadeStore<KT, VT, IK, IV, ST>::send_tx_forward(
 
         // p2p_send to the next shard
         auto& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
-        subgroup_handle.template p2p_send<RPC_NAME(put_objects_forward)>(next_node_id,tx->txid,write_objects,write_objects_per_shard,read_objects,read_objects_per_shard,shard_list);
+        subgroup_handle.template p2p_send<RPC_NAME(put_objects_forward)>(next_node_id,tx->txid,tx->other_write_objects,tx->write_keys_per_shard,tx->other_read_objects,tx->read_keys_per_shard,tx->shard_list);
     }
 }
 
@@ -1329,6 +1330,10 @@ void PersistentCascadeStore<KT, VT, IK, IV, ST>::tx_committed_recursive(CascadeT
 
     dequeue_transaction(tx);
 
+    if(forward_conflicts.count(tx) == 0){
+        return;
+    }
+
     // tx was comitted, so we need to abort the TXs that were waiting for it
     for(CascadeTransactionInternal* ahead_tx : forward_conflicts.at(tx)){
         tx_aborted_recursive(ahead_tx);
@@ -1346,16 +1351,21 @@ void PersistentCascadeStore<KT, VT, IK, IV, ST>::tx_aborted_recursive(CascadeTra
     if(shard_index != tx->shard_list.front()){
         send_tx_status_backward(tx);
     }
-
+    
     dequeue_transaction(tx);
-
+    
     // tx was aborted, so we need to remove it from conflict and check if a tx can run
     backward_conflicts.erase(tx);
+
+    if(forward_conflicts.count(tx) == 0){
+        return;
+    }
+
     for(CascadeTransactionInternal* ahead_tx : forward_conflicts.at(tx)){
         // clear conflict
         auto& clist = backward_conflicts.at(ahead_tx);
         clist.erase(std::find(clist.begin(),clist.end(),tx));
-
+    
         // check if ahead_tx can run
         if(clist.empty()){
             backward_conflicts.erase(ahead_tx);
@@ -1377,7 +1387,7 @@ void PersistentCascadeStore<KT, VT, IK, IV, ST>::tx_run_recursive(CascadeTransac
             tx_committed_recursive(tx);
         } else {
             // this is not the last, send it forward
-            // TODO send_tx_forward(tx->txid,write_objects,write_objects_per_shard,read_objects,read_objects_per_shard,tx->shard_list);
+            send_tx_forward(tx);
         }
     } else {
         // abort

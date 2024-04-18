@@ -90,16 +90,16 @@ public:
     virtual version_tuple put(const VT& value) const override;
     virtual std::pair<transaction_id,transaction_status_t> put_objects(
             const std::vector<VT>& write_objects,
-            const std::unordered_map<uint32_t,std::vector<std::size_t>>& write_objects_per_shard,
+            const std::unordered_map<uint32_t,std::vector<KT>>& write_keys_per_shard,
             const std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>& read_objects,
-            const std::unordered_map<uint32_t,std::vector<std::size_t>>& read_objects_per_shard,
+            const std::unordered_map<uint32_t,std::vector<KT>>& read_keys_per_shard,
             const std::vector<uint32_t>& shard_list) const override;
     virtual void put_objects_forward(
             const transaction_id& txid,
             const std::vector<VT>& write_objects,
-            const std::unordered_map<uint32_t,std::vector<std::size_t>>& write_objects_per_shard,
+            const std::unordered_map<uint32_t,std::vector<KT>>& write_keys_per_shard,
             const std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>& read_objects,
-            const std::unordered_map<uint32_t,std::vector<std::size_t>>& read_objects_per_shard,
+            const std::unordered_map<uint32_t,std::vector<KT>>& read_keys_per_shard,
             const std::vector<uint32_t>& shard_list) const override;
     virtual void put_objects_backward(const transaction_id& txid,const transaction_status_t& status) const override;
     virtual void put_and_forget(const VT& value) const override;
@@ -120,16 +120,16 @@ public:
     virtual version_tuple ordered_put(const VT& value) override;
     virtual std::pair<transaction_id,transaction_status_t> ordered_put_objects(
             const std::vector<VT>& write_objects,
-            const std::unordered_map<uint32_t,std::vector<std::size_t>>& write_objects_per_shard,
+            const std::unordered_map<uint32_t,std::vector<KT>>& write_keys_per_shard,
             const std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>& read_objects,
-            const std::unordered_map<uint32_t,std::vector<std::size_t>>& read_objects_per_shard,
+            const std::unordered_map<uint32_t,std::vector<KT>>& read_keys_per_shard,
             const std::vector<uint32_t>& shard_list) override;
     virtual void ordered_put_objects_forward(
             const transaction_id& txid,
             const std::vector<VT>& write_objects,
-            const std::unordered_map<uint32_t,std::vector<std::size_t>>& write_objects_per_shard,
+            const std::unordered_map<uint32_t,std::vector<KT>>& write_keys_per_shard,
             const std::vector<std::tuple<KT,persistent::version_t,persistent::version_t,persistent::version_t>>& read_objects,
-            const std::unordered_map<uint32_t,std::vector<std::size_t>>& read_objects_per_shard,
+            const std::unordered_map<uint32_t,std::vector<KT>>& read_keys_per_shard,
             const std::vector<uint32_t>& shard_list) override;
     virtual void ordered_put_objects_backward(const transaction_id& txid,const transaction_status_t& status) override;
     virtual void ordered_put_and_forget(const VT& value) override;

@@ -628,8 +628,8 @@ derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> Servi
     }
 
     // STEP 3 - check where objects go: all should go to the same subgroup
-    std::unordered_map<uint32_t,std::vector<std::size_t>> write_objects_per_shard;
-    std::unordered_map<uint32_t,std::vector<std::size_t>> read_objects_per_shard;
+    std::unordered_map<uint32_t,std::vector<typename SubgroupType::KeyType>> write_keys_per_shard;
+    std::unordered_map<uint32_t,std::vector<typename SubgroupType::KeyType>> read_keys_per_shard;
     std::vector<std::tuple<typename SubgroupType::KeyType,persistent::version_t,persistent::version_t,persistent::version_t>> read_objects;
     std::vector<uint32_t> shard_list;
 
@@ -637,7 +637,7 @@ derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> Servi
     std::tie(first_subgroup_type_index,first_subgroup_index,first_shard_index) = this->template key_to_shard(objects[0].get_key_ref());
 
     shard_list.push_back(first_shard_index);
-    write_objects_per_shard[first_shard_index].push_back(0);
+    write_keys_per_shard[first_shard_index].push_back(objects[0].get_key_ref());
    
     // get mapping for objects to write 
     for(std::size_t i = 1; i < objects.size(); i++){
@@ -654,10 +654,10 @@ derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> Servi
             throw derecho::derecho_exception(std::string("All objects in ServiceClient<>::put_objects() must go to the same subgroup, but object with key ") + objects[i].get_key_ref() + " goes to subgroup index " + std::to_string(subgroup_index) + ", while object with key " + objects[0].get_key_ref() + " goes to subgroup index " + std::to_string(first_subgroup_index));
         }
 
-        if(write_objects_per_shard.count(shard_index) == 0){    
+        if(write_keys_per_shard.count(shard_index) == 0){    
             shard_list.push_back(shard_index);
         }
-        write_objects_per_shard[shard_index].push_back(i);
+        write_keys_per_shard[shard_index].push_back(objects[i].get_key_ref());
     }
         
     // get mapping for readonly objects 
@@ -678,10 +678,10 @@ derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> Servi
         }
 
         auto key_version_tuple = std::make_tuple(obj.get_key_ref(),obj.version,obj.previous_version,obj.previous_version_by_key);
-        if(read_objects_per_shard.count(shard_index) == 0){    
+        if(read_keys_per_shard.count(shard_index) == 0){    
             shard_list.push_back(shard_index);
         }
-        read_objects_per_shard[shard_index].push_back(i);
+        read_keys_per_shard[shard_index].push_back(obj.get_key_ref());
         read_objects.push_back(key_version_tuple);
     }
     
@@ -697,18 +697,18 @@ derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> Servi
         if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(head_subgroup_index)) == head_shard_index) {
             // ordered put as a shard member
             auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(head_subgroup_index);
-            return subgroup_handle.template ordered_send<RPC_NAME(ordered_put_objects)>(objects,write_objects_per_shard,read_objects,read_objects_per_shard,shard_list);
+            return subgroup_handle.template ordered_send<RPC_NAME(ordered_put_objects)>(objects,write_keys_per_shard,read_objects,read_keys_per_shard,shard_list);
         } else {
             // p2p put
             node_id_t node_id = pick_member_by_policy<SubgroupType>(head_subgroup_index,head_shard_index,objects[0].get_key_ref());
             try {
                 // as a subgroup member
                 auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(head_subgroup_index);
-                return subgroup_handle.template p2p_send<RPC_NAME(put_objects)>(node_id,objects,write_objects_per_shard,read_objects,read_objects_per_shard,shard_list);
+                return subgroup_handle.template p2p_send<RPC_NAME(put_objects)>(node_id,objects,write_keys_per_shard,read_objects,read_keys_per_shard,shard_list);
             } catch (derecho::invalid_subgroup_exception& ex) {
                 // as an external caller
                 auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(head_subgroup_index);
-                return subgroup_handle.template p2p_send<RPC_NAME(put_objects)>(node_id,objects,write_objects_per_shard,read_objects,read_objects_per_shard,shard_list);
+                return subgroup_handle.template p2p_send<RPC_NAME(put_objects)>(node_id,objects,write_keys_per_shard,read_objects,read_keys_per_shard,shard_list);
             }
         }
     } else {
@@ -716,7 +716,7 @@ derecho::rpc::QueryResults<std::pair<transaction_id,transaction_status_t>> Servi
         // call as an external client (ExternalClientCaller).
         auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(head_subgroup_index);
         node_id_t node_id = pick_member_by_policy<SubgroupType>(head_subgroup_index,head_shard_index,objects[0].get_key_ref());
-        return caller.template p2p_send<RPC_NAME(put_objects)>(node_id,objects,write_objects_per_shard,read_objects,read_objects_per_shard,shard_list);
+        return caller.template p2p_send<RPC_NAME(put_objects)>(node_id,objects,write_keys_per_shard,read_objects,read_keys_per_shard,shard_list);
     }
 }
 
