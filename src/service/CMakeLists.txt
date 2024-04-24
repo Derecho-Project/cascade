@@ -36,11 +36,11 @@ add_custom_command(TARGET udl_signature POST_BUILD
 )
 
 if (ENABLE_MPROC)
-add_library(service OBJECT 
+add_library(service OBJECT
     service.cpp data_flow_graph.cpp _user_defined_logic_interface.cpp
     mproc/mproc_manager_client.cpp)
 else ()
-add_library(service OBJECT 
+add_library(service OBJECT
     service.cpp data_flow_graph.cpp _user_defined_logic_interface.cpp)
 endif()
 target_include_directories(service PRIVATE
@@ -59,7 +59,7 @@ target_include_directories(mproc_manager PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
 )
-target_link_libraries(mproc_manager rpclib::rpc dl pthread)
+target_link_libraries(mproc_manager rpclib::rpc libwsong::ipc dl pthread)
 set_target_properties(mproc_manager PROPERTIES OUTPUT_NAME cascade_mproc_manager)
 endif()
 
