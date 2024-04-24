@@ -20,3 +20,4 @@ cd build
 cmake -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} ..
 make -j `nproc`
 make install
+rm -rf ${WORKPATH}
