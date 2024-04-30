@@ -151,7 +151,7 @@ const VT PersistentCascadeStore<KT, VT, IK, IV, ST>::get(const KT& key, const pe
                     return *IV;
                 } else {
                     // fall back to the slow path.
-                    // following the backward chain until its version is behine requested_version.
+                    // following the backward chain until its version is behind requested_version.
                     // TODO: We can introduce a per-key version index to achieve a better performance
                     //       with a 64bit per log entry memory overhead.
                     VT o = persistent_core->lockless_get(key);
