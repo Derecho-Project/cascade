@@ -29,6 +29,33 @@ private:
 #endif
 
 public:
+    /**
+     * @class DeltaType
+     * @brief the delta type that are stored in a delta.
+     * 1) The first sizeof(std::vector<KT>::size_type) bytes is the number of VT objects in the
+     * delta, followed by specified number of 
+     * 2) Serialized VT objects.
+     */
+    class DeltaType : public mutils::ByteRepresentable {
+    public:
+        /* The objects */
+        std::unordered_map<KT,VT> objects;
+        /** @fn DeltaType
+         *  @brief Constructor
+         */
+        DeltaType();
+        virtual std::size_t to_bytes(uint8_t*) const override;
+        virtual void post_object(const std::function<void(uint8_t const* const, std::size_t)>&) const override;
+        virtual std::size_t bytes_size() const override;
+        virtual void ensure_registered(mutils::DeserializationManager&);
+        static std::unique_ptr<DeltaType> from_bytes(mutils::DeserializationManager*,const uint8_t* const);
+        static mutils::context_ptr<DeltaType> from_bytes_noalloc(
+            mutils::DeserializationManager*,
+            const uint8_t* const);
+        static mutils::context_ptr<const DeltaType> from_bytes_noalloc_const(
+            mutils::DeserializationManager*,
+            const uint8_t* const);
+    };
     /** The delta is a list of keys for the objects that are changed by put or remove. */
     std::vector<KT> delta;
     /** The KV map */
