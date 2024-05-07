@@ -2430,7 +2430,8 @@ static void fn(struct mg_connection *c, int ev, void *ev_data) {
       ServiceClientAPI* capi_ptr = (ServiceClientAPI*) c->fn_data;
       ServiceClientAPI& capi = *capi_ptr;
       std::cout << "Before capi get" << std::endl;
-      // on_subgroup_type(cmd_tokens[1],get,capi,cmd_tokens[2],version,stable,subgroup_index,shard_index);
+      std::string pcss = "PCSS";
+      on_subgroup_type(pcss,get,capi,"k1",-1,true,0,0);
       std::cout << "After capi get" << std::endl;
       mg_http_reply(c, 200, "", "{%m:%d}\n", MG_ESC("status"), 1);    // Yes. Respond JSON
     } else {
