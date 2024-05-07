@@ -2407,9 +2407,31 @@ bool detached_test(ServiceClientAPI& capi, int argc, char** argv) {
 
 // Connection event handler function
 static void fn(struct mg_connection *c, int ev, void *ev_data) {
+//   ServiceClientAPI* capi_ptr = (ServiceClientAPI*) c->fn_data;
+//   ServiceClientAPI& capi = *capi_ptr;
+
+//   // May not work because fn consistenty run
+//   std::cout << "Before initial put using capi in thread" << std::endl;
+//   put<PersistentCascadeStoreWithStringKey>(capi, "initkey", "initval", -1, -1, 0, 0);
+//   std::cout << "After initial put" << std::endl;
+
   if (ev == MG_EV_HTTP_MSG) {  // New HTTP request received
     struct mg_http_message *hm = (struct mg_http_message *) ev_data;  // Parsed HTTP request
-    if (mg_match(hm->uri, mg_str("/api/hello"), NULL)) {              // REST API call?
+    if (mg_match(hm->uri, mg_str("/put"), NULL)) {              // REST API call?
+      // Does constantly fetching capi work?
+      ServiceClientAPI* capi_ptr = (ServiceClientAPI*) c->fn_data;
+      ServiceClientAPI& capi = *capi_ptr;
+      std::cout << "Before capi put" << std::endl;
+      put<PersistentCascadeStoreWithStringKey>(capi, "k1", "v1", -1, -1, 0, 0);
+      std::cout << "After capi put" << std::endl;
+      mg_http_reply(c, 200, "", "{%m:%d}\n", MG_ESC("status"), 1);    // Yes. Respond JSON
+    } else if (mg_match(hm->uri, mg_str("/get"), NULL)) {              // REST API call?
+      // Does constantly fetching capi work?
+      ServiceClientAPI* capi_ptr = (ServiceClientAPI*) c->fn_data;
+      ServiceClientAPI& capi = *capi_ptr;
+      std::cout << "Before capi get" << std::endl;
+      // on_subgroup_type(cmd_tokens[1],get,capi,cmd_tokens[2],version,stable,subgroup_index,shard_index);
+      std::cout << "After capi get" << std::endl;
       mg_http_reply(c, 200, "", "{%m:%d}\n", MG_ESC("status"), 1);    // Yes. Respond JSON
     } else {
       struct mg_http_serve_opts opts = {.root_dir = "."};  // For all other URLs,
@@ -2418,15 +2440,14 @@ static void fn(struct mg_connection *c, int ev, void *ev_data) {
   }
 }
 
-void web_service() {
+void web_service(ServiceClientAPI& capi) {
     std::cout << "Launced web service thread: " << std::endl;
     static const char *s_http_addr = "http://127.0.0.1:8000";    // HTTP port
-    static const char *s_https_addr = "https://127.0.0.1:8443";  // HTTPS port
+    // static const char *s_https_addr = "https://127.0.0.1:8443";  // HTTPS port
     struct mg_mgr mgr;                            // Event manager
     mg_log_set(MG_LL_DEBUG);                      // Set log level
     mg_mgr_init(&mgr);                            // Initialise event manager
-    mg_http_listen(&mgr, s_http_addr, fn, NULL);  // Create HTTP listener
-    mg_http_listen(&mgr, s_https_addr, fn, (void *) 1);  // HTTPS listener
+    mg_http_listen(&mgr, s_http_addr, fn, &capi);  // Create HTTP listener
     for (;;) mg_mgr_poll(&mgr, 1000);                    // Infinite event loop
     mg_mgr_free(&mgr);
     std::cout << "Exited web service thread" << std::endl;
@@ -2437,18 +2458,18 @@ int main(int argc,char** argv) {
         dbg_default_debug("Failed to set proc name to {}.",PROC_NAME);
     }
     auto& capi = ServiceClientAPI::get_service_client();
-    std::thread t(web_service);
+    std::thread t(web_service, std::ref(capi));
 #ifdef ENABLE_EVALUATION
     // start working thread.
     PerfTestServer pts(capi);
 #endif
-    // if (argc == 1) {
-    //     // by default, we use the interactive shell.
-    //     interactive_test(capi);
-    // } else {
-    //     if (!detached_test(capi,argc,argv))
-    //         return -1;
-    // }
+    if (argc == 1) {
+        // by default, we use the interactive shell.
+        interactive_test(capi);
+    } else {
+        if (!detached_test(capi,argc,argv))
+            return -1;
+    }
     t.join(); // Join the thread
     return 0;
 }
