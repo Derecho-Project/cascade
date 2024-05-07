@@ -1,3 +1,6 @@
+cmake_minimum_required(VERSION 3.10.0)
+project(subCascade LANGUAGES C CXX)
+
 set(UDL_SIGNATURE_HEADER ${CMAKE_BINARY_DIR}/include/cascade/detail/udl_signature.hpp)
 set(UDL_SIGNATURE_BOOTSTRAPPING_HEADER ${CMAKE_CURRENT_SOURCE_DIR}/bootstrapping_udl_signature.hpp)
 
@@ -36,11 +39,11 @@ add_custom_command(TARGET udl_signature POST_BUILD
 )
 
 if (ENABLE_MPROC)
-add_library(service OBJECT 
+add_library(service OBJECT
     service.cpp data_flow_graph.cpp _user_defined_logic_interface.cpp
     mproc/mproc_manager_client.cpp)
 else ()
-add_library(service OBJECT 
+add_library(service OBJECT
     service.cpp data_flow_graph.cpp _user_defined_logic_interface.cpp)
 endif()
 target_include_directories(service PRIVATE
@@ -91,9 +94,38 @@ add_custom_command(TARGET server POST_BUILD
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/layout.json
                    ${CMAKE_CURRENT_BINARY_DIR}/cfg/n6/layout.json
     COMMENT "prepare configuration"
+
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/run.sh.tmp
+                   ${CMAKE_CURRENT_BINARY_DIR}/cfg/n0/run.sh
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/run.sh.tmp
+                   ${CMAKE_CURRENT_BINARY_DIR}/cfg/n1/run.sh
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/run.sh.tmp
+                   ${CMAKE_CURRENT_BINARY_DIR}/cfg/n2/run.sh
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/run.sh.tmp
+                   ${CMAKE_CURRENT_BINARY_DIR}/cfg/n3/run.sh
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/run.sh.tmp
+                   ${CMAKE_CURRENT_BINARY_DIR}/cfg/n5/run.sh
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/run.sh.tmp
+                   ${CMAKE_CURRENT_BINARY_DIR}/cfg/n6/run.sh
+
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/clear_log.sh.tmp
+                   ${CMAKE_CURRENT_BINARY_DIR}/cfg/n0/clear_log.sh
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/clear_log.sh.tmp
+                   ${CMAKE_CURRENT_BINARY_DIR}/cfg/n1/clear_log.sh
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/clear_log.sh.tmp
+                   ${CMAKE_CURRENT_BINARY_DIR}/cfg/n2/clear_log.sh
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/clear_log.sh.tmp
+                   ${CMAKE_CURRENT_BINARY_DIR}/cfg/n3/clear_log.sh
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/clear_log.sh.tmp
+                   ${CMAKE_CURRENT_BINARY_DIR}/cfg/n4/clear_log.sh
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/clear_log.sh.tmp
+                   ${CMAKE_CURRENT_BINARY_DIR}/cfg/n5/clear_log.sh
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/clear_log.sh.tmp
+                   ${CMAKE_CURRENT_BINARY_DIR}/cfg/n6/clear_log.sh
 )
 
-add_executable(client client.cpp perftest.cpp)
+set(CMAKE_VERBOSE_MAKEFILE ON)
+add_executable(client client.cpp perftest.cpp mongoose.c)
 target_include_directories(client PRIVATE
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>

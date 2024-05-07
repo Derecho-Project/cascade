@@ -2,6 +2,9 @@
 #include <iostream>
 #include <string>
 #include <fstream>
+#include <thread>
+#include <chrono>
+#include <atomic>
 #include <typeindex>
 #include <stdio.h>
 #include <readline/readline.h>
@@ -11,6 +14,8 @@
 #ifdef ENABLE_EVALUATION
 #include "perftest.hpp"
 #endif//ENABLE_EVALUATION
+
+#include "mongoose.h"
 
 using namespace derecho::cascade;
 
@@ -254,10 +259,10 @@ void put(ServiceClientAPI& capi, const std::string& key, const std::string& valu
 }
 
 struct object {
-    std::string key;               
-    std::string value;             
-    persistent::version_t pver;             
-    persistent::version_t pver_bk; 
+    std::string key;
+    std::string value;
+    persistent::version_t pver;
+    persistent::version_t pver_bk;
     object() = default;
 };
 
@@ -308,9 +313,9 @@ void put_objects(ServiceClientAPI& capi, std::map<std::pair<uint32_t,uint32_t>,s
     check_put_objects_and_remove_result(capi, result);
 }
 
-void op_put_objects(ServiceClientAPI& capi, const std::vector<std::string>& key_list, const std::vector<std::string>& value_list, 
-                 std::vector<persistent::version_t>& pver_list, std::vector<persistent::version_t>& pver_bk_list, 
-                 const std::vector<std::string>& readonly_key_list, const std::vector<std::string>& readonly_value_list, 
+void op_put_objects(ServiceClientAPI& capi, const std::vector<std::string>& key_list, const std::vector<std::string>& value_list,
+                 std::vector<persistent::version_t>& pver_list, std::vector<persistent::version_t>& pver_bk_list,
+                 const std::vector<std::string>& readonly_key_list, const std::vector<std::string>& readonly_value_list,
                  std::vector<persistent::version_t>& readonly_pver_list, std::vector<persistent::version_t>& readonly_pver_bk_list){
     std::vector<ObjectWithStringKey> objects;
     for (size_t i = 0; i < key_list.size(); i++) {
@@ -2400,21 +2405,50 @@ bool detached_test(ServiceClientAPI& capi, int argc, char** argv) {
     return do_command(capi, cmd_tokens);
 }
 
+// Connection event handler function
+static void fn(struct mg_connection *c, int ev, void *ev_data) {
+  if (ev == MG_EV_HTTP_MSG) {  // New HTTP request received
+    struct mg_http_message *hm = (struct mg_http_message *) ev_data;  // Parsed HTTP request
+    if (mg_match(hm->uri, mg_str("/api/hello"), NULL)) {              // REST API call?
+      mg_http_reply(c, 200, "", "{%m:%d}\n", MG_ESC("status"), 1);    // Yes. Respond JSON
+    } else {
+      struct mg_http_serve_opts opts = {.root_dir = "."};  // For all other URLs,
+      mg_http_serve_dir(c, hm, &opts);                     // Serve static files
+    }
+  }
+}
+
+void web_service() {
+    std::cout << "Launced web service thread: " << std::endl;
+    static const char *s_http_addr = "http://127.0.0.1:8000";    // HTTP port
+    static const char *s_https_addr = "https://127.0.0.1:8443";  // HTTPS port
+    struct mg_mgr mgr;                            // Event manager
+    mg_log_set(MG_LL_DEBUG);                      // Set log level
+    mg_mgr_init(&mgr);                            // Initialise event manager
+    mg_http_listen(&mgr, s_http_addr, fn, NULL);  // Create HTTP listener
+    mg_http_listen(&mgr, s_https_addr, fn, (void *) 1);  // HTTPS listener
+    for (;;) mg_mgr_poll(&mgr, 1000);                    // Infinite event loop
+    mg_mgr_free(&mgr);
+    std::cout << "Exited web service thread" << std::endl;
+}
+
 int main(int argc,char** argv) {
     if( prctl(PR_SET_NAME, PROC_NAME, 0, 0, 0) != 0 ) {
         dbg_default_debug("Failed to set proc name to {}.",PROC_NAME);
     }
     auto& capi = ServiceClientAPI::get_service_client();
+    std::thread t(web_service);
 #ifdef ENABLE_EVALUATION
     // start working thread.
     PerfTestServer pts(capi);
 #endif
-    if (argc == 1) {
-        // by default, we use the interactive shell.
-        interactive_test(capi);
-    } else {
-        if (!detached_test(capi,argc,argv))
-            return -1;
-    }
+    // if (argc == 1) {
+    //     // by default, we use the interactive shell.
+    //     interactive_test(capi);
+    // } else {
+    //     if (!detached_test(capi,argc,argv))
+    //         return -1;
+    // }
+    t.join(); // Join the thread
     return 0;
 }
