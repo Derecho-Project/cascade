@@ -206,7 +206,7 @@ namespace cascade {
                 TimestampLogger::log(TLT_ACTION_FIRE_START,
                                      0,
                                      dynamic_cast<const IHasMessageID*>(value_ptr.get())->get_message_id(),
-                                     get_time_ns(), 0);
+                                     0);
                 dbg_default_trace("In {}: [worker_id={}] action is fired.", __PRETTY_FUNCTION__, worker_id);
                 (*ocdpo_ptr)(sender,key_string,prefix_length,version,value_ptr.get(),outputs,ctxt,worker_id);
             }
@@ -714,8 +714,6 @@ namespace cascade {
          *                                        has seen. Cascade will reject the write if the corresponding key has been updated
          *                                        already. TODO: should we make it an optional feature?
          * @param[in] mapped_readonly_objects   a map between subgroup/shard index and a list of objects in the corresponding shard that must match versions
-         * @param[in] subgroup_index            the subgroup index of CascadeType
-         * @param[in] shard_index               the shard index that will first receive the transaction
          *
          * @return a future to the transaction id and current status
          */
@@ -753,10 +751,17 @@ namespace cascade {
          * "type_recursive_put_objects" is a helper function for internal use only.
          * @param[in]   type_index  the index of the subgroup type in the CascadeTypes... list. And the FirstType,
          *                          SecondType, ..., RestTypes should be in the same order.
-         * @param[in]   objects      the list of objects to write
-         * @param[in]   subgroup_index
-         *                          the subgroup index in the subgroup type designated by type_index
-         * @param[in]   shard_index the shard index
+         * @param[in] mapped_objects            a map between subgroup/shard index and a list of objects to write in the corresponding shard.
+         *                                      User provided SubgroupType::ObjectType must have the following two members:
+         *                                      - SubgroupType::ObjectType::key of SubgroupType::KeyType, which must be set to a
+         *                                        valid key.
+         *                                      - SubgroupType::ObjectType::ver of std::tuple<persistent::version_t, uint64_t>.
+         *                                        Similar to the return object, this member is a two tuple with the first member
+         *                                        for a version and the second for a timestamp. A caller of put can specify either
+         *                                        of the version and timestamp meaning what is the latest version/timestamp the caller
+         *                                        has seen. Cascade will reject the write if the corresponding key has been updated
+         *                                        already. TODO: should we make it an optional feature?
+         * @param[in] mapped_readonly_objects   a map between subgroup/shard index and a list of objects in the corresponding shard that must match versions
          *
          * @return a future to the version and timestamp of the put operation.
          */

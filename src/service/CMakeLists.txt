@@ -51,7 +51,7 @@ target_include_directories(service PRIVATE
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
-target_link_libraries(service derecho::derecho)
+target_link_libraries(service derecho::derecho libwsong::perf)
 add_dependencies(service udl_signature)
 
 if (ENABLE_MPROC)
@@ -73,7 +73,7 @@ target_include_directories(server PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
 )
-target_link_libraries(server cascade dl pthread)
+target_link_libraries(server cascade dl pthread libwsong::perf)
 target_link_options(server PUBLIC -rdynamic)
 set_target_properties(server PROPERTIES OUTPUT_NAME cascade_server)
 add_custom_command(TARGET server POST_BUILD
@@ -135,7 +135,7 @@ target_include_directories(client PRIVATE
 target_include_directories(client PUBLIC
     $<BUILD_INTERFACE:${Readline_INCLUDE_DIRS}>
 )
-target_link_libraries(client cascade ${Readline_LIBRARIES} pthread)
+target_link_libraries(client cascade ${Readline_LIBRARIES} pthread libwsong::perf)
 if(ENABLE_EVALUATION)
     target_link_libraries(client rpclib::rpc)
 endif()

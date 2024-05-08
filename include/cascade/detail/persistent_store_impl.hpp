@@ -176,37 +176,48 @@ const VT PersistentCascadeStore<KT, VT, IK, IV, ST>::get(const KT& key, const pe
 #endif
         return persistent_core->lockless_get(key);
     } else {
-        return persistent_core.template getDelta<VT>(requested_version, exact, [this, key, requested_version, exact, ver](const VT& v) {
-            if(key == v.get_key_ref()) {
-                debug_leave_func_with_value("key:{} is found at version:0x{:x}", key, requested_version);
-#if __cplusplus > 201703L
-                LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_END, group,*IV,ver);
-#else
-                LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_END, group,*IV,ver);
-#endif
-                return v;
-            } else {
-                if(exact) {
-                    // return invalid object for EXACT search.
-                    debug_leave_func_with_value("No data found for key:{} at version:0x{:x}", key, requested_version);
+        return persistent_core.template getDelta<std::vector<VT>>(requested_version, exact, [this, key, requested_version, exact, ver](const std::vector<VT>& vv) {
+            for (const auto& v:vv) {
+                if(key == v.get_key_ref()) {
+                    debug_leave_func_with_value("key:{} is found at version:0x{:x}", key, requested_version);
 #if __cplusplus > 201703L
                     LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_END, group,*IV,ver);
 #else
                     LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_END, group,*IV,ver);
 #endif
-                    return *IV;
-                } else {
-                    // fall back to the slow path.
-                    auto versioned_state_ptr = persistent_core.get(requested_version);
-                    if(versioned_state_ptr->kv_map.find(key) != versioned_state_ptr->kv_map.end()) {
+                    return v;
+                }
+            }
+
+            if(exact) {
+                // return invalid object for EXACT search.
+                debug_leave_func_with_value("No data found for key:{} at version:0x{:x}", key, requested_version);
 #if __cplusplus > 201703L
-                        LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_END, group,*IV,ver);
+                LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_END, group,*IV,ver);
 #else
-                        LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_END, group,*IV,ver);
+                LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_END, group,*IV,ver);
 #endif
-                        debug_leave_func_with_value("Reconstructed version:0x{:x} for key:{}", requested_version, key);
-                        return versioned_state_ptr->kv_map.at(key);
-                    }
+                return *IV;
+            } else {
+                // fall back to the slow path.
+                // following the backward chain until its version is behind requested_version.
+                // TODO: We can introduce a per-key version index to achieve a better performance
+                //       with a 64bit per log entry memory overhead.
+                VT o = persistent_core->lockless_get(key);
+                persistent::version_t target_version = o.version;
+                while (target_version > requested_version) {
+                    target_version = 
+                        persistent_core.template getDelta<std::vector<VT>>(target_version,true,
+                            [&key](const std::vector<VT>& vv){
+                                for (const auto& v:vv) {
+                                    if (key == v.get_key_ref()) {
+                                        return v.previous_version_by_key;
+                                    }
+                                }
+                                return persistent::INVALID_VERSION;
+                            });
+                }
+                if (target_version == persistent::INVALID_VERSION) {
 #if __cplusplus > 201703L
                     LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_END, group,*IV,ver);
 #else
@@ -214,6 +225,21 @@ const VT PersistentCascadeStore<KT, VT, IK, IV, ST>::get(const KT& key, const pe
 #endif
                     debug_leave_func_with_value("No data found for key:{} before version:0x{:x}", key, requested_version);
                     return *IV;
+                } else {
+#if __cplusplus > 201703L
+                    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_END, group,*IV,ver);
+#else
+                    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_END, group,*IV,ver);
+#endif
+                    return persistent_core.template getDelta<std::vector<VT>>(target_version,true,
+                            [&key](const std::vector<VT>& vv){
+                                for (const auto& v:vv) {
+                                    if (key == v.get_key_ref()) {
+                                        return v;
+                                    }
+                                }
+                                return *IV;
+                            });
                 }
             }
         });
@@ -261,7 +287,9 @@ transaction_status_t PersistentCascadeStore<KT, VT, IK, IV, ST>::get_transaction
 
         // check next shard if this is not the last
         transaction_status_t next_status = transaction_status_t::COMMIT;
-        if(shard_id != tx->shard_list.back()){
+        
+        // TODO commenting this part for now: is it necessary?
+        /*if(shard_id != tx->shard_list.back()){
             // get next shard
             auto it = std::next(std::find(tx->shard_list.begin(),tx->shard_list.end(),shard_id));
             auto next_subgroup_index = (*it).first;
@@ -293,7 +321,7 @@ transaction_status_t PersistentCascadeStore<KT, VT, IK, IV, ST>::get_transaction
                     next_status = reply_pair.second.get();
                 }
             }
-        }
+        }*/
         
         // check for this shard
         if(next_status == transaction_status_t::COMMIT){
@@ -433,46 +461,71 @@ uint64_t PersistentCascadeStore<KT, VT, IK, IV, ST>::get_size(const KT& key, con
 #endif
          return rvo_val;
     } else {
-        return persistent_core.template getDelta<VT>(requested_version, exact, [this, key, requested_version, exact, ver](const VT& v) -> uint64_t {
-            if(key == v.get_key_ref()) {
-                debug_leave_func_with_value("key:{} is found at version:0x{:x}", key, requested_version);
-                uint64_t size = mutils::bytes_size(v);
+        return persistent_core.template getDelta<std::vector<VT>>(requested_version, exact, [this, key, requested_version, exact, ver](const std::vector<VT>& vv) -> uint64_t {
+            for (const auto& v: vv) {
+                if(key == v.get_key_ref()) {
+                    debug_leave_func_with_value("key:{} is found at version:0x{:x}", key, requested_version);
+                    uint64_t size = mutils::bytes_size(v);
+#if __cplusplus > 201703L
+                    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_SIZE_END, group,*IV,ver);
+#else
+                    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_SIZE_END, group,*IV,ver);
+#endif
+                    return size;
+                }
+            }
+
+            if(exact) {
+                // return invalid object for EXACT search.
+                debug_leave_func_with_value("No data found for key:{} at version:0x{:x}", key, requested_version);
 #if __cplusplus > 201703L
                 LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_SIZE_END, group,*IV,ver);
 #else
                 LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_SIZE_END, group,*IV,ver);
 #endif
-                return size;
+                return 0ull;
             } else {
-                if(exact) {
-                    // return invalid object for EXACT search.
-                    debug_leave_func_with_value("No data found for key:{} at version:0x{:x}", key, requested_version);
+                // fall back to the slow path.
+                // following the backward chain until its version is behind requested_version.
+                // TODO: We can introduce a per-key version index to achieve a better performance
+                //       with a 64bit per log entry memory overhead.
+                VT o = persistent_core->lockless_get(key);
+                persistent::version_t target_version = o.version;
+                while (target_version > requested_version) {
+                    target_version = 
+                        persistent_core.template getDelta<std::vector<VT>>(target_version,true,
+                            [&key](const std::vector<VT>& vv){
+                                for (const auto& v:vv) {
+                                    if (key == v.get_key_ref()) {
+                                        return v.previous_version_by_key;
+                                    }
+                                }
+                                return persistent::INVALID_VERSION;
+                            });
+                }
+                if (target_version == persistent::INVALID_VERSION) {
 #if __cplusplus > 201703L
                     LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_SIZE_END, group,*IV,ver);
 #else
                     LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_SIZE_END, group,*IV,ver);
 #endif
+                    debug_leave_func_with_value("No data found for key:{} before version:0x{:x}", key, requested_version);
                     return 0ull;
                 } else {
-                    // fall back to the slow path.
-                    auto versioned_state_ptr = persistent_core.get(requested_version);
-                    if(versioned_state_ptr->kv_map.find(key) != versioned_state_ptr->kv_map.end()) {
-                        debug_leave_func_with_value("Reconstructed version:0x{:x} for key:{}", requested_version, key);
-                        uint64_t size = mutils::bytes_size(versioned_state_ptr->kv_map.at(key));
-#if __cplusplus > 201703L
-                        LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_SIZE_END, group,*IV,ver);
-#else
-                        LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_SIZE_END, group,*IV,ver);
-#endif
-                        return size;
-                    }
-                    debug_leave_func_with_value("No data found for key:{} before version:0x{:x}", key, requested_version);
 #if __cplusplus > 201703L
                     LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_SIZE_END, group,*IV,ver);
 #else
                     LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_SIZE_END, group,*IV,ver);
 #endif
-                    return 0ull;
+                    return persistent_core.template getDelta<std::vector<VT>>(target_version,true,
+                            [&key](const std::vector<VT>& vv){
+                                for (const auto& v:vv) {
+                                    if (key == v.get_key_ref()) {
+                                        return static_cast<uint64_t>(mutils::bytes_size(v));
+                                    }
+                                }
+                                return static_cast<uint64_t>(0ull);
+                            });
                 }
             }
         });
@@ -916,8 +969,8 @@ void PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_objects_backward(co
 
     // start all blocked transactions in the queue that are not conflicting with any other ahead of them in the queue
     std::vector<transaction_id> to_remove;
-    for(size_t i=0; i<pending_transactions.size();i++){
-        auto& pending_txid = pending_transactions[i];
+    for(auto it1 = pending_transactions.begin(); it1 != pending_transactions.end(); it1++){
+        auto& pending_txid = *it1;
         if(versions_checked.at(pending_txid)){
             // if versions were checked, it is already running
             continue;
@@ -927,8 +980,8 @@ void PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_objects_backward(co
         bool can_run = true;
 
         // check conflict with each tx ahead of it in the queue
-        for(size_t j=0;j<i;j++){
-            auto& ahead_txid = pending_transactions[j];
+        for(auto it2 = pending_transactions.begin(); it2 != it1; it2++){ 
+            auto& ahead_txid = *it2;
             CascadeTransaction* ahead_tx = transaction_database.at(ahead_txid);
 
             // check if there is conflict and if ahead_tx was not finished in this loop
@@ -1342,8 +1395,11 @@ bool PersistentCascadeStore<KT, VT, IK, IV, ST>::has_conflict(const CascadeTrans
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 bool PersistentCascadeStore<KT, VT, IK, IV, ST>::has_conflict(const CascadeTransaction* tx,size_t num){
+    auto it = pending_transactions.begin();
     for(size_t i=0;i<num;i++){
-        auto& pending_txid = pending_transactions.at(i);
+        auto& pending_txid = *it;
+        it++;
+
         if(pending_txid == tx->txid){
             continue;
         }

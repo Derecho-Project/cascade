@@ -12,6 +12,7 @@
 #include <memory>
 #include <tuple>
 #include <vector>
+#include <list>
 #include <utility>
 
 namespace derecho {
@@ -74,7 +75,7 @@ private:
     };
 
     std::map<transaction_id,CascadeTransaction*> transaction_database;
-    std::vector<transaction_id> pending_transactions;
+    std::list<transaction_id> pending_transactions;
     std::map<transaction_id,bool> versions_checked;
 
     transaction_id new_transaction_id();
