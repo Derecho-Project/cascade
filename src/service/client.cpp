@@ -541,6 +541,29 @@ void get(ServiceClientAPI& capi, const std::string& key, persistent::version_t v
 }
 
 template <typename SubgroupType>
+void get_http(ServiceClientAPI& capi, const std::string& key, persistent::version_t ver, bool stable, uint32_t subgroup_index,uint32_t shard_index, struct mg_connection * c) {
+    // std::cout << "Entered get_http with key: " << key << std::endl;
+    if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
+        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get<SubgroupType>(
+                static_cast<uint64_t>(std::stol(key,nullptr,0)),ver,stable,subgroup_index,shard_index);
+        check_get_result(result);
+    } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
+        derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get<SubgroupType>(
+                key,ver,stable,subgroup_index,shard_index);
+        for (auto& reply_future:result.get()) {
+            auto reply = reply_future.second.get();
+            // std::cout << "reply: " << reply << std::endl;
+            const uint8_t* bytes_val = reply.blob.bytes;
+            const char* c_str_val = (const char*) bytes_val;
+            // std::cout << "c_str_val: " << c_str_val << std::endl;
+            const char* c_str_key = key.c_str();
+            mg_http_reply(c, 200, "", "Got key: %s, value: %s\n", c_str_key, c_str_val);
+        }
+    }
+}
+
+
+template <typename SubgroupType>
 void get_by_time(ServiceClientAPI& capi, const std::string& key, uint64_t ts_us, bool stable, uint32_t subgroup_index, uint32_t shard_index) {
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
         derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> result = capi.template get_by_time<SubgroupType>(
@@ -2407,36 +2430,35 @@ bool detached_test(ServiceClientAPI& capi, int argc, char** argv) {
 
 // Connection event handler function
 static void fn(struct mg_connection *c, int ev, void *ev_data) {
-//   ServiceClientAPI* capi_ptr = (ServiceClientAPI*) c->fn_data;
-//   ServiceClientAPI& capi = *capi_ptr;
-
-//   // May not work because fn consistenty run
-//   std::cout << "Before initial put using capi in thread" << std::endl;
-//   put<PersistentCascadeStoreWithStringKey>(capi, "initkey", "initval", -1, -1, 0, 0);
-//   std::cout << "After initial put" << std::endl;
-
-  if (ev == MG_EV_HTTP_MSG) {  // New HTTP request received
-    struct mg_http_message *hm = (struct mg_http_message *) ev_data;  // Parsed HTTP request
-    if (mg_match(hm->uri, mg_str("/put"), NULL)) {              // REST API call?
-      // Does constantly fetching capi work?
-      ServiceClientAPI* capi_ptr = (ServiceClientAPI*) c->fn_data;
-      ServiceClientAPI& capi = *capi_ptr;
-      std::cout << "Before capi put" << std::endl;
-      put<PersistentCascadeStoreWithStringKey>(capi, "k1", "v1", -1, -1, 0, 0);
-      std::cout << "After capi put" << std::endl;
-      mg_http_reply(c, 200, "", "{%m:%d}\n", MG_ESC("status"), 1);    // Yes. Respond JSON
-    } else if (mg_match(hm->uri, mg_str("/get"), NULL)) {              // REST API call?
-      // Does constantly fetching capi work?
-      ServiceClientAPI* capi_ptr = (ServiceClientAPI*) c->fn_data;
-      ServiceClientAPI& capi = *capi_ptr;
-      std::cout << "Before capi get" << std::endl;
-      std::string pcss = "PCSS";
-      on_subgroup_type(pcss,get,capi,"k1",-1,true,0,0);
-      std::cout << "After capi get" << std::endl;
-      mg_http_reply(c, 200, "", "{%m:%d}\n", MG_ESC("status"), 1);    // Yes. Respond JSON
+  if (ev == MG_EV_HTTP_MSG) {
+    struct mg_http_message *hm = (struct mg_http_message *) ev_data;
+    if (mg_http_match_uri(hm, "/get")) {
+      struct mg_str json = hm->body;
+      double num1;
+      // parse key
+      if (mg_json_get_num(json, "$[0]", &num1)) {
+          ServiceClientAPI* capi_ptr = (ServiceClientAPI*) c->fn_data;
+          ServiceClientAPI& capi = *capi_ptr;
+          std::string key = "k" + std::to_string((int) num1);
+          // std::cout << "fn: before get http" << std::endl;
+          get_http<PersistentCascadeStoreWithStringKey>(capi, key, -1, true, 0, 0, c);
+          // std::cout << "fn: after get http" << std::endl;
+      }
+    } else if (mg_http_match_uri(hm, "/put")) {
+      struct mg_str json = hm->body;
+      double num1, num2;
+      // parse key, value
+      if (mg_json_get_num(json, "$[0]", &num1) &&
+          mg_json_get_num(json, "$[1]", &num2)) {
+          mg_http_reply(c, 200, "", "Put for key: k%d, value: v%d\n", (int) num1, (int) num2);
+          std::string key = "k" + std::to_string((int) num1);
+          std::string val = "v" + std::to_string((int) num2);
+          ServiceClientAPI* capi_ptr = (ServiceClientAPI*) c->fn_data;
+          ServiceClientAPI& capi = *capi_ptr;
+          put<PersistentCascadeStoreWithStringKey>(capi, key, val, -1, -1, 0, 0);
+      }
     } else {
-      struct mg_http_serve_opts opts = {.root_dir = "."};  // For all other URLs,
-      mg_http_serve_dir(c, hm, &opts);                     // Serve static files
+      mg_http_reply(c, 200, "", "Cascade CBDC Web Server\n");
     }
   }
 }
@@ -2444,7 +2466,6 @@ static void fn(struct mg_connection *c, int ev, void *ev_data) {
 void web_service(ServiceClientAPI& capi) {
     std::cout << "Launced web service thread: " << std::endl;
     static const char *s_http_addr = "http://127.0.0.1:8000";    // HTTP port
-    // static const char *s_https_addr = "https://127.0.0.1:8443";  // HTTPS port
     struct mg_mgr mgr;                            // Event manager
     mg_log_set(MG_LL_DEBUG);                      // Set log level
     mg_mgr_init(&mgr);                            // Initialise event manager
