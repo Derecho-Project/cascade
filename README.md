@@ -72,6 +72,7 @@ We recommend coordinating with [Weijia Song](mailto:songweijia@gmail.com) if you
 | --- | --- |
 | `v1.0.0` | [Commit 982f54a on `master`](https://github.com/Derecho-Project/derecho/commit/982f54a28ae62e85772cb4f071c46c138fd95016) |
 | `v1.0.1` | [v2.4.0](https://github.com/Derecho-Project/derecho/releases/tag/v2.4.0) |
+| `master` HEAD | [v2.4.1rc](https://github.com/Derecho-Project/derecho/releases/tag/v2.4.1rc) |
 
 ## Build Cascade
 1) Download Cascade Source Code
