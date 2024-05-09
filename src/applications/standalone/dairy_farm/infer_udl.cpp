@@ -239,7 +239,7 @@ class DairyFarmInferOCDPO: public OffCriticalDataPathObserver {
 private:
     mutable std::mutex p2p_send_mutex;
 
-    virtual void operator () (const node_id_t,
+    virtual void operator () (const derecho::node_id_t,
                               const std::string& key_string,
                               const uint32_t prefix_length,
                               persistent::version_t version,

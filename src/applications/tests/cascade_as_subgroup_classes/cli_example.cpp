@@ -59,7 +59,7 @@ static void client_help() {
 // put_type = 1 : persistent
 // put_type = 2 : trigger
 static void client_put(derecho::ExternalGroupClient<VCS,PCS,TCS>& group,
-                       node_id_t member,
+                       derecho::node_id_t member,
                        const std::vector<std::string>& tokens,
                        bool is_persistent) {
     if (tokens.size() != 3) {
@@ -88,7 +88,7 @@ static void client_put(derecho::ExternalGroupClient<VCS,PCS,TCS>& group,
 }
 
 static void client_trigger_put(derecho::ExternalGroupClient<VCS,PCS,TCS>& group,
-                               node_id_t member,
+                               derecho::node_id_t member,
                                const std::vector<std::string>& tokens) {
     if (tokens.size() != 3) {
         std::cout << "Invalid format of 'put' command." << std::endl;
@@ -107,7 +107,7 @@ static void client_trigger_put(derecho::ExternalGroupClient<VCS,PCS,TCS>& group,
 
 // get
 static void client_get(derecho::ExternalGroupClient<VCS,PCS,TCS>& group,
-                       node_id_t member,
+                       derecho::node_id_t member,
                        const std::vector<std::string>& tokens,
                        bool is_persistent,
                        bool is_stable) {
@@ -152,7 +152,7 @@ static void client_get(derecho::ExternalGroupClient<VCS,PCS,TCS>& group,
 
 // list
 static void client_list(derecho::ExternalGroupClient<VCS,PCS,TCS>& group,
-                        node_id_t member,
+                        derecho::node_id_t member,
                         const std::vector<std::string>& tokens,
                         bool is_persistent) {
     uint64_t ver = CURRENT_VERSION;
@@ -195,7 +195,7 @@ static void client_list(derecho::ExternalGroupClient<VCS,PCS,TCS>& group,
 
 // remove
 static void client_remove(derecho::ExternalGroupClient<VCS,PCS,TCS>& group,
-                          node_id_t member,
+                          derecho::node_id_t member,
                           const std::vector<std::string>& tokens,
                           bool is_persistent) {
     if (tokens.size() != 2) {
@@ -226,28 +226,28 @@ void do_client() {
     std::cout << "Finished constructing ExternalGroupClient." << std::endl;
 
     /** 2 - get members */
-    std::vector<node_id_t> g_members = group.get_members();
+    std::vector<derecho::node_id_t> g_members = group.get_members();
     std::cout << "Members in top derecho group:[ ";
     for(auto& nid:g_members) {
         std::cout << nid << " ";
     }
     std::cout << "]" << std::endl;
 
-    std::vector<node_id_t> vcs_members = group.template get_shard_members<VCS>(0,0);
+    std::vector<derecho::node_id_t> vcs_members = group.template get_shard_members<VCS>(0,0);
     std::cout << "Members in the single shard of Volatile Cascade Store:[ ";
     for (auto& nid:vcs_members) {
         std::cout << nid << " ";
     }
     std::cout << "]" << std::endl;
 
-    std::vector<node_id_t> pcs_members = group.template get_shard_members<PCS>(0,0);
+    std::vector<derecho::node_id_t> pcs_members = group.template get_shard_members<PCS>(0,0);
     std::cout << "Members in the single shard of Persistent Cascade Store:[ ";
     for (auto& nid:pcs_members) {
         std::cout << nid << " ";
     }
     std::cout << "]" << std::endl;
 
-    std::vector<node_id_t> tcs_members = group.template get_shard_members<TCS>(0,0);
+    std::vector<derecho::node_id_t> tcs_members = group.template get_shard_members<TCS>(0,0);
     std::cout << "Members in the single shard of Trigger Cascade (NO)Store:[ ";
     for (auto& nid:tcs_members) {
         std::cout << nid << " ";

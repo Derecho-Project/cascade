@@ -20,7 +20,7 @@ std::string get_description() {
 
 class DairyFarmStorageOCDPO: public OffCriticalDataPathObserver {
 
-    virtual void operator () (const node_id_t,
+    virtual void operator () (const derecho::node_id_t,
                               const std::string&,
                               const uint32_t,
                               persistent::version_t,
