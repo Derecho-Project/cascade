@@ -16,7 +16,7 @@ std::string get_description() {
 }
 
 class ConsolePrinterOCDPO: public OffCriticalDataPathObserver {
-    virtual void operator () (const node_id_t sender,
+    virtual void operator () (const derecho::node_id_t sender,
                               const std::string& key_string,
                               const uint32_t prefix_length,
                               persistent::version_t version,
