@@ -92,7 +92,7 @@ derecho::cascade::ServiceClientAPI *get_api(JNIEnv *env, jobject obj)
 /**
  * Translate a C++ int vector to a Java Integer List.
  */
-jobject cpp_int_vector_to_java_list(JNIEnv *env, std::vector<node_id_t> vec)
+jobject cpp_int_vector_to_java_list(JNIEnv *env, std::vector<derecho::node_id_t> vec)
 {
     // create a Java array list
     jclass arr_list_cls = env->FindClass("java/util/ArrayList");
@@ -108,7 +108,7 @@ jobject cpp_int_vector_to_java_list(JNIEnv *env, std::vector<node_id_t> vec)
     jmethodID integer_init_mid = env->GetMethodID(integer_cls, "<init>", "(I)V");
 
     // fill everything in
-    for (node_id_t id : vec)
+    for (derecho::node_id_t id : vec)
     {
         jobject int_obj = env->NewObject(integer_cls, integer_init_mid, id);
         env->CallObjectMethod(arr_obj, list_add_mid, int_obj);
@@ -125,7 +125,7 @@ JNIEXPORT jobject JNICALL Java_io_cascade_Client_getMembers(JNIEnv *env, jobject
 {
     // get members first!
     derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
-    std::vector<node_id_t> members = capi->get_members();
+    std::vector<derecho::node_id_t> members = capi->get_members();
 
     // create an array list
     return cpp_int_vector_to_java_list(env, members);
@@ -141,7 +141,7 @@ JNIEXPORT jobject JNICALL Java_io_cascade_Client_getShardMembers__JJ(JNIEnv *env
 {
     // get shard members in C++
     derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
-    std::vector<node_id_t> members = capi->get_shard_members(subgroupID, shardID);
+    std::vector<derecho::node_id_t> members = capi->get_shard_members(subgroupID, shardID);
 
     // create an array list
     return cpp_int_vector_to_java_list(env, members);
@@ -168,7 +168,7 @@ JNIEXPORT jobject JNICALL Java_io_cascade_Client_getShardMembers(JNIEnv *env, jo
     // get the value of the service type
     int service_type = get_int_value(env, j_service_type);
     derecho::cascade::ServiceClientAPI *capi = get_api(env, obj);
-    std::vector<node_id_t> members;
+    std::vector<derecho::node_id_t> members;
 
     // call get shard members
     on_service_type(service_type, members = capi->get_shard_members, subgroup_index, shard_index);

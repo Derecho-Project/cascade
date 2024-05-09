@@ -108,7 +108,7 @@ int main(int argc, char** argv) {
     uint64_t next_ns = 0;
     uint64_t end_ns = now_ns + duration_sec*1e9;
 #ifdef ENABLE_EVALUATION
-    node_id_t my_node_id = capi.get_my_id();
+    derecho::node_id_t my_node_id = capi.get_my_id();
     uint64_t msg_id = 0;
 #endif
 
