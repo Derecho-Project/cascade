@@ -4,8 +4,8 @@ set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 project(cascade CXX)
 
 # Version
-set(cascade_VERSION 1.0rc0)
-set(cascade_build_VERSION 1.0rc0)
+set(cascade_VERSION 1.0.1)
+set(cascade_build_VERSION 1.0.1)
 
 # C++ STANDARD
 set(CMAKE_CXX_STANDARD 17)
