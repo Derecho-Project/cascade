@@ -6,6 +6,7 @@
 #include "debug_util.hpp"
 
 #include <derecho/core/derecho.hpp>
+#include <derecho/mutils-serialization/SerializationSupport.hpp>
 #include <derecho/persistent/Persistent.hpp>
 
 #ifdef ENABLE_EVALUATION
@@ -20,82 +21,123 @@
 
 namespace derecho {
 namespace cascade {
+
 template <typename KT, typename VT, KT* IK, VT* IV>
-void DeltaCascadeStoreCore<KT, VT, IK, IV>::_Delta::set_data_len(const size_t& dlen) {
-    assert(capacity >= dlen);
-    this->len = dlen;
+DeltaCascadeStoreCore<KT, VT, IK, IV>::DeltaType::DeltaType() {}
+
+template <typename KT, typename VT, KT* IK, VT* IV>
+std::size_t DeltaCascadeStoreCore<KT, VT, IK, IV>::DeltaType::to_bytes(uint8_t*) const {
+    dbg_default_warn("{} should not be called. It is not designed for serialization.",__PRETTY_FUNCTION__);
+    return 0;
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-uint8_t* DeltaCascadeStoreCore<KT, VT, IK, IV>::_Delta::data_ptr() {
-    assert(buffer != nullptr);
-    return buffer;
+void DeltaCascadeStoreCore<KT, VT, IK, IV>::DeltaType::post_object(
+        const std::function<void(uint8_t const* const buf, std::size_t)>&) const {
+    dbg_default_warn("{} should not be called. It is not designed for serialization.",__PRETTY_FUNCTION__);
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-void DeltaCascadeStoreCore<KT, VT, IK, IV>::_Delta::calibrate(const size_t& dlen) {
-    size_t new_cap = dlen;
-    if(this->capacity >= new_cap) {
-        return;
+std::size_t DeltaCascadeStoreCore<KT, VT, IK, IV>::DeltaType::bytes_size() const {
+    dbg_default_warn("{} should not be called. It is not designed for serialization.",__PRETTY_FUNCTION__);
+    return 0;
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV>
+void DeltaCascadeStoreCore<KT, VT, IK, IV>::DeltaType::ensure_registered(mutils::DeserializationManager&) {}
+
+template <typename KT, typename VT, KT* IK, VT* IV>
+std::unique_ptr<typename DeltaCascadeStoreCore<KT, VT, IK, IV>::DeltaType>
+DeltaCascadeStoreCore<KT, VT, IK, IV>::DeltaType::from_bytes(
+    mutils::DeserializationManager* dsm,const uint8_t* const v) {
+    size_t pos = 0;
+    std::size_t num_objects = *mutils::from_bytes_noalloc<std::size_t>(dsm,v + pos);
+    pos += mutils::bytes_size(num_objects);
+    auto pdelta = std::make_unique<DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaType>();
+    while (num_objects--) {
+        auto po = mutils::from_bytes<VT>(dsm,v + pos);
+        pos += mutils::bytes_size(*po);
+        KT key = po->get_key_ref();
+        pdelta->objects.emplace(std::move(key),std::move(*po));
     }
-    // calculate new capacity
-    int width = sizeof(size_t) << 3;
-    int right_shift_bits = 1;
-    new_cap--;
-    while(right_shift_bits < width) {
-        new_cap |= new_cap >> right_shift_bits;
-        right_shift_bits = right_shift_bits << 1;
+    return pdelta;
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV>
+mutils::context_ptr<typename DeltaCascadeStoreCore<KT, VT, IK, IV>::DeltaType>
+DeltaCascadeStoreCore<KT, VT, IK, IV>::DeltaType::from_bytes_noalloc(
+    mutils::DeserializationManager* dsm,const uint8_t* const v) {
+    size_t pos = 0;
+    std::size_t num_objects = *mutils::from_bytes_noalloc<std::size_t>(dsm,v + pos);
+    pos += mutils::bytes_size(num_objects);
+    auto* pdelta = new DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaType();
+    while (num_objects--) {
+        auto po = mutils::from_bytes_noalloc<VT>(dsm,const_cast<uint8_t* const>(v) + pos);
+        pos += mutils::bytes_size(*po);
+        KT key = po->get_key_ref();
+        pdelta->objects.emplace(std::move(key),std::move(*po));
     }
-    new_cap++;
-    // resize
-    this->buffer = (uint8_t*)realloc(buffer, new_cap);
-    if(this->buffer == nullptr) {
-        dbg_default_crit("{}:{} Failed to allocate delta buffer. errno={}", __FILE__, __LINE__, errno);
-        throw derecho::derecho_exception("Failed to allocate delta buffer.");
-    } else {
-        this->capacity = new_cap;
+    return mutils::context_ptr<DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaType>(pdelta);
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV>
+mutils::context_ptr<const typename DeltaCascadeStoreCore<KT, VT, IK, IV>::DeltaType>
+DeltaCascadeStoreCore<KT, VT, IK, IV>::DeltaType::from_bytes_noalloc_const(
+    mutils::DeserializationManager* dsm,const uint8_t* const v) {
+    size_t pos = 0;
+    std::size_t num_objects = *mutils::from_bytes_noalloc<std::size_t>(dsm,v + pos);
+    pos += mutils::bytes_size(num_objects);
+    auto* pdelta = new DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaType();
+    while (num_objects--) {
+        auto po = mutils::from_bytes_noalloc<VT>(dsm,const_cast<uint8_t* const>(v) + pos);
+        pos += mutils::bytes_size(*po);
+        KT key = po->get_key_ref();
+        pdelta->objects.emplace(std::move(key),std::move(*po));
     }
+    return mutils::context_ptr<const DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaType>(pdelta);
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-bool DeltaCascadeStoreCore<KT, VT, IK, IV>::_Delta::is_empty() {
-    return (this->len == 0);
-}
-
-template <typename KT, typename VT, KT* IK, VT* IV>
-void DeltaCascadeStoreCore<KT, VT, IK, IV>::_Delta::clean() {
-    this->len = 0;
-}
-
-template <typename KT, typename VT, KT* IK, VT* IV>
-void DeltaCascadeStoreCore<KT, VT, IK, IV>::_Delta::destroy() {
-    if(this->capacity > 0) {
-        free(this->buffer);
+size_t DeltaCascadeStoreCore<KT, VT, IK, IV>::currentDeltaSize() {
+    size_t delta_size = 0;
+    if (delta.size() > 0) {
+        delta_size += mutils::bytes_size(static_cast<std::size_t>(delta.size()));
+        for (const auto& k:delta) {
+            delta_size+=mutils::bytes_size(this->kv_map[k]);
+        }
     }
+    return delta_size;
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-void DeltaCascadeStoreCore<KT, VT, IK, IV>::initialize_delta() {
-    delta.buffer = (uint8_t*)malloc(DEFAULT_DELTA_BUFFER_CAPACITY);
-    if(delta.buffer == nullptr) {
-        dbg_default_crit("{}:{} Failed to allocate delta buffer. errno={}", __FILE__, __LINE__, errno);
-        throw derecho::derecho_exception("Failed to allocate delta buffer.");
+size_t DeltaCascadeStoreCore<KT, VT, IK, IV>::currentDeltaToBytes(uint8_t * const buf, size_t buf_size) {
+    size_t delta_size = currentDeltaSize();
+    if (delta_size == 0) return 0;
+    if (delta_size > buf_size) {
+        dbg_default_error("{}: failed because we need {} bytes for delta, but only a buffer with {} bytes given.\n",
+            __PRETTY_FUNCTION__, delta_size, buf_size);
     }
-    delta.capacity = DEFAULT_DELTA_BUFFER_CAPACITY;
-    delta.len = 0;
+    size_t offset = mutils::to_bytes(static_cast<std::size_t>(delta.size()),buf);
+    for(const auto& k:delta) {
+        offset += mutils::to_bytes(this->kv_map[k],buf+offset);
+    }
+    delta.clear();
+    return offset;
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-void DeltaCascadeStoreCore<KT, VT, IK, IV>::finalizeCurrentDelta(const persistent::DeltaFinalizer& df) {
-    df(this->delta.buffer, this->delta.len);
-    this->delta.clean();
-}
-
-template <typename KT, typename VT, KT* IK, VT* IV>
-void DeltaCascadeStoreCore<KT, VT, IK, IV>::applyDelta(uint8_t const* const delta) {
-    mutils::deserialize_and_run(nullptr, delta, [this](const VT& value) {
-        this->apply_ordered_put(value);
-    });
+void DeltaCascadeStoreCore<KT, VT, IK, IV>::applyDelta(uint8_t const* const serialized_delta) {
+    std::size_t num_objects = *mutils::from_bytes<std::size_t>(nullptr,serialized_delta);
+    size_t offset = mutils::bytes_size(num_objects);
+    while (num_objects--) {
+        offset +=
+            mutils::deserialize_and_run(nullptr, serialized_delta + offset,
+                [this](const VT& value) {
+                    this->apply_ordered_put(value);
+                    return mutils::bytes_size(value);
+                }
+            );
+    }
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
@@ -166,10 +208,8 @@ bool DeltaCascadeStoreCore<KT, VT, IK, IV>::ordered_put(const VT& value, persist
         value.set_previous_version(prev_ver, prev_ver_by_key);
     }
     // create delta.
-    assert(this->delta.is_empty());
-    this->delta.calibrate(mutils::bytes_size(value));
-    mutils::to_bytes(value, this->delta.data_ptr());
-    this->delta.set_data_len(mutils::bytes_size(value));
+    assert(this->delta.empty());
+    this->delta.push_back(value.get_key_ref());
     // apply_ordered_put
     apply_ordered_put(value);
     return true;
@@ -191,10 +231,8 @@ bool DeltaCascadeStoreCore<KT, VT, IK, IV>::ordered_remove(const VT& value, pers
         value.set_previous_version(prev_ver, kv_map.at(key).get_version());
     }
     // create delta.
-    assert(this->delta.is_empty());
-    this->delta.calibrate(mutils::bytes_size(value));
-    mutils::to_bytes(value, this->delta.data_ptr());
-    this->delta.set_data_len(mutils::bytes_size(value));
+    assert(this->delta.empty());
+    this->delta.push_back(key);
     // apply_ordered_put
     apply_ordered_put(value);
     return true;
@@ -346,28 +384,22 @@ uint64_t DeltaCascadeStoreCore<KT, VT, IK, IV>::lockless_get_size(const KT& key)
 template <typename KT, typename VT, KT* IK, VT* IV>
 DeltaCascadeStoreCore<KT, VT, IK, IV>::DeltaCascadeStoreCore() : lockless_v1(persistent::INVALID_VERSION),
                                                                  lockless_v2(persistent::INVALID_VERSION) {
-    initialize_delta();
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
 DeltaCascadeStoreCore<KT, VT, IK, IV>::DeltaCascadeStoreCore(const std::map<KT, VT>& _kv_map) : lockless_v1(persistent::INVALID_VERSION),
                                                                                                 lockless_v2(persistent::INVALID_VERSION),
                                                                                                 kv_map(_kv_map) {
-    initialize_delta();
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
 DeltaCascadeStoreCore<KT, VT, IK, IV>::DeltaCascadeStoreCore(std::map<KT, VT>&& _kv_map) : lockless_v1(persistent::INVALID_VERSION),
                                                                                            lockless_v2(persistent::INVALID_VERSION),
                                                                                            kv_map(std::move(_kv_map)) {
-    initialize_delta();
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
 DeltaCascadeStoreCore<KT, VT, IK, IV>::~DeltaCascadeStoreCore() {
-    if(this->delta.buffer != nullptr) {
-        free(this->delta.buffer);
-    }
 }
 
 }  // namespace cascade
