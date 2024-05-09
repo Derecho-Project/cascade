@@ -465,7 +465,7 @@ PYBIND11_MODULE(member_client, m) {
             .def(
                     "get_subgroup_members",
                     [](ServiceClientAPI_PythonWrapper& capi, std::string service_type, uint32_t subgroup_index) {
-                        std::vector<std::vector<node_id_t>> members;
+                        std::vector<std::vector<derecho::node_id_t>> members;
                         on_all_subgroup_type(service_type, members = capi.ref.template get_subgroup_members, subgroup_index);
                         return members;
                     },
@@ -488,7 +488,7 @@ PYBIND11_MODULE(member_client, m) {
             .def(
                     "get_shard_members",
                     [](ServiceClientAPI_PythonWrapper& capi, std::string service_type, uint32_t subgroup_index, uint32_t shard_index) {
-                        std::vector<node_id_t> members;
+                        std::vector<derecho::node_id_t> members;
                         on_all_subgroup_type(service_type, members = capi.ref.template get_shard_members, subgroup_index, shard_index);
                         return members;
                     },

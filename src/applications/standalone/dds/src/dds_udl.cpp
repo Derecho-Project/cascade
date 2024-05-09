@@ -26,7 +26,7 @@ class DDSOCDPO: public OffCriticalDataPathObserver {
     /* control plane suffix */
     std::string control_plane_suffix;
     /* subscriber registry */
-    std::unordered_map<std::string,std::unordered_set<node_id_t>> subscriber_registry;
+    std::unordered_map<std::string,std::unordered_set<derecho::node_id_t>> subscriber_registry;
 #ifdef USE_DDS_TIMESTAMP_LOG
 #define INIT_TIMESTAMP_SLOTS    (262144)
     /* log the server timestamp, they are grouped by topic name */
@@ -35,7 +35,7 @@ class DDSOCDPO: public OffCriticalDataPathObserver {
     /* Is shared_mutex fast enough? */
     mutable std::shared_mutex subscriber_registry_mutex;
 
-    virtual void operator () (const node_id_t sender,
+    virtual void operator () (const derecho::node_id_t sender,
                               const std::string& key_string,
                               const uint32_t prefix_length,
                               persistent::version_t, // version
@@ -64,7 +64,7 @@ class DDSOCDPO: public OffCriticalDataPathObserver {
                         if (command.command_type == DDSCommand::SUBSCRIBE) {
                             std::unique_lock<std::shared_mutex> wlock(this->subscriber_registry_mutex);
                             if (subscriber_registry.find(command.topic) == subscriber_registry.end()) {
-                                subscriber_registry.emplace(command.topic,std::unordered_set<node_id_t>{});
+                                subscriber_registry.emplace(command.topic,std::unordered_set<derecho::node_id_t>{});
 #ifdef USE_DDS_TIMESTAMP_LOG
                                 // only add log for new topic.
                                 server_timestamp.emplace(command.topic,std::vector<uint64_t>{});
