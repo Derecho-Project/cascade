@@ -66,7 +66,11 @@ We recommend coordinating with [Weijia Song](mailto:songweijia@gmail.com) if you
 - Python 3.8 or newer and [pybind11](https://github.com/pybind/pybind11) (Optional for Python API)
 - OpenJDK 11.06 or newer. On Ubuntu, use `apt install openjdk-11-jdk` to install it. (Optional for Java API)
 - .NET Framework 6x. Please follow the instructions from Microsoft to install it based on Linux distro [here](https://learn.microsoft.com/en-us/dotnet/core/install/linux-ubuntu). (Optional for C\# API)
-- Derecho v2.4.0 Plesae follow this [document](http://github.com/Derecho-Project/derecho) to install Derecho. Note: this cascade version replies on Derecho commit 45d81d0 on the master branch.
+- Derecho. Plesae follow this [document](http://github.com/Derecho-Project/derecho) to install Derecho. Please follow the following Derecho/Cascade compatible table to choose the compatible derecho version:
+
+|  Cascade | Derecho |
+| --- | --- |
+| `v1.0.0` | [Commit 982f54a on `master`](https://github.com/Derecho-Project/derecho/commit/982f54a28ae62e85772cb4f071c46c138fd95016) |
 
 ## Build Cascade
 1) Download Cascade Source Code
