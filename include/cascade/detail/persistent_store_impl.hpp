@@ -154,15 +154,17 @@ const VT PersistentCascadeStore<KT, VT, IK, IV, ST>::get(const KT& key, const pe
 #endif
         return persistent_core->lockless_get(key);
     } else {
-        return persistent_core.template getDelta<VT>(requested_version, exact, [this, key, requested_version, exact, ver](const VT& v) {
-            if(key == v.get_key_ref()) {
+        return persistent_core.template getDelta<typename DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaType>(requested_version, exact,
+        [this, key, requested_version, exact, ver](const typename DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaType& delta) {
+            if(delta.objects.find(key) != delta.objects.cend()) {
                 debug_leave_func_with_value("key:{} is found at version:0x{:x}", key, requested_version);
 #if __cplusplus > 201703L
                 LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_END, group,*IV,ver);
 #else
                 LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_END, group,*IV,ver);
 #endif
-                return v;
+                // This return is a copy to make sure returned value does not rely on the data in the delta log.
+                return delta.objects.at(key);
             } else {
                 if(exact) {
                     // return invalid object for EXACT search.
@@ -175,23 +177,39 @@ const VT PersistentCascadeStore<KT, VT, IK, IV, ST>::get(const KT& key, const pe
                     return *IV;
                 } else {
                     // fall back to the slow path.
-                    auto versioned_state_ptr = persistent_core.get(requested_version);
-                    if(versioned_state_ptr->kv_map.find(key) != versioned_state_ptr->kv_map.end()) {
+                    // following the backward chain until its version is behind requested_version.
+                    // TODO: We can introduce a per-key version index to achieve a better performance
+                    //       with a 64bit per log entry memory overhead.
+                    VT o = persistent_core->lockless_get(key);
+                    persistent::version_t target_version = o.version;
+                    while (target_version > requested_version) {
+                        target_version = 
+                            persistent_core.template getDelta<typename DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaType>(target_version,true,
+                                [&key](const typename DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaType& delta){
+                                    return delta.objects.at(key).previous_version_by_key;
+                                });
+                    }
+                    if (target_version == persistent::INVALID_VERSION) {
 #if __cplusplus > 201703L
                         LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_END, group,*IV,ver);
 #else
                         LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_END, group,*IV,ver);
 #endif
-                        debug_leave_func_with_value("Reconstructed version:0x{:x} for key:{}", requested_version, key);
-                        return versioned_state_ptr->kv_map.at(key);
-                    }
+                        debug_leave_func_with_value("No data found for key:{} before version:0x{:x}", key, requested_version);
+                        return *IV;
+                    } else {
 #if __cplusplus > 201703L
-                    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_END, group,*IV,ver);
+                        LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_END, group,*IV,ver);
 #else
-                    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_END, group,*IV,ver);
+                        LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_END, group,*IV,ver);
 #endif
-                    debug_leave_func_with_value("No data found for key:{} before version:0x{:x}", key, requested_version);
-                    return *IV;
+                        return persistent_core.template getDelta<typename DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaType>(target_version,true,
+                                [&key](const typename DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaType& delta){
+                                    // This return is a copy, which make sure the returned value does not rely on the data in
+                                    // the delta log.
+                                    return delta.objects.at(key);
+                                });
+                    }
                 }
             }
         });
@@ -310,10 +328,10 @@ uint64_t PersistentCascadeStore<KT, VT, IK, IV, ST>::get_size(const KT& key, con
 #endif
          return rvo_val;
     } else {
-        return persistent_core.template getDelta<VT>(requested_version, exact, [this, key, requested_version, exact, ver](const VT& v) -> uint64_t {
-            if(key == v.get_key_ref()) {
+        return persistent_core.template getDelta<typename DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaType>(requested_version, exact, [this, &key, requested_version, exact, ver](const typename DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaType& delta) -> uint64_t {
+            if(delta.objects.find(key)!=delta.objects.cend()) {
                 debug_leave_func_with_value("key:{} is found at version:0x{:x}", key, requested_version);
-                uint64_t size = mutils::bytes_size(v);
+                uint64_t size = mutils::bytes_size(delta.objects.at(key));
 #if __cplusplus > 201703L
                 LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_SIZE_END, group,*IV,ver);
 #else
@@ -332,10 +350,37 @@ uint64_t PersistentCascadeStore<KT, VT, IK, IV, ST>::get_size(const KT& key, con
                     return 0ull;
                 } else {
                     // fall back to the slow path.
-                    auto versioned_state_ptr = persistent_core.get(requested_version);
-                    if(versioned_state_ptr->kv_map.find(key) != versioned_state_ptr->kv_map.end()) {
-                        debug_leave_func_with_value("Reconstructed version:0x{:x} for key:{}", requested_version, key);
-                        uint64_t size = mutils::bytes_size(versioned_state_ptr->kv_map.at(key));
+                    // following the backward chain until its version is behind requested_version.
+                    // TODO: We can introduce a per-key version index to achieve a better performance
+                    //       with a 64bit per log entry memory overhead.
+                    VT o = persistent_core->lockless_get(key);
+                    persistent::version_t target_version = o.version;
+                    while (target_version > requested_version) {
+                        target_version =
+                            persistent_core.template getDelta<typename DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaType>(target_version,true,
+                                [&key](const typename DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaType& delta){
+                                    if (delta.objects.find(key) != delta.objects.cend()) {
+                                        return delta.objects.at(key).previous_version_by_key;
+                                    }
+                                    return persistent::INVALID_VERSION;
+                                });
+                    }
+                    if (target_version == persistent::INVALID_VERSION) {
+#if __cplusplus > 201703L
+                        LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_SIZE_END, group,*IV,ver);
+#else
+                        LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_SIZE_END, group,*IV,ver);
+#endif
+                        debug_leave_func_with_value("No data found for key:{} before version:0x{:x}", key, requested_version);
+                        return 0ull;
+                    } else {
+                        auto size = persistent_core.template getDelta<typename DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaType>(target_version,true,
+                                [&key](const typename DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaType& delta){
+                                    if (delta.objects.find(key) != delta.objects.cend()) {
+                                        return static_cast<uint64_t>(mutils::bytes_size(delta.objects.at(key)));
+                                    }
+                                    return static_cast<uint64_t>(0ull);
+                                });
 #if __cplusplus > 201703L
                         LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_SIZE_END, group,*IV,ver);
 #else
@@ -343,13 +388,6 @@ uint64_t PersistentCascadeStore<KT, VT, IK, IV, ST>::get_size(const KT& key, con
 #endif
                         return size;
                     }
-                    debug_leave_func_with_value("No data found for key:{} before version:0x{:x}", key, requested_version);
-#if __cplusplus > 201703L
-                    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_SIZE_END, group,*IV,ver);
-#else
-                    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_SIZE_END, group,*IV,ver);
-#endif
-                    return 0ull;
                 }
             }
         });

@@ -775,7 +775,7 @@ class CascadeClientShell(cmd.Cmd):
             if len(args) < 2:
                 print(bcolors.FAIL + 'No filename is given.' + bcolors.RESET)
                 return
-            tl.flush(args[1],True)
+            tl.flush(args[1])
         else:
             print(bcolors.FAIL + f"Unknown timestamp_logger command: {cmd}." + bcolors.RESET)
 

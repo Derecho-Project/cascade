@@ -20,13 +20,6 @@ namespace cascade {
 template <typename KT, typename VT, KT* IK, VT* IV>
 class DeltaCascadeStoreCore : public mutils::ByteRepresentable,
                               public persistent::IDeltaSupport<DeltaCascadeStoreCore<KT, VT, IK, IV>> {
-    // TODO: use max payload size in subgroup configuration.
-#define DEFAULT_DELTA_BUFFER_CAPACITY (4096)
-    /**
-     * Initialize the delta data structure.
-     */
-    void initialize_delta();
-
 private:
 #if defined(__i386__) || defined(__x86_64__) || defined(_M_AMD64) || defined(_M_IX86)
     mutable std::atomic<persistent::version_t> lockless_v1;
@@ -36,39 +29,46 @@ private:
 #endif
 
 public:
-    // delta
-    typedef struct {
-        size_t capacity;
-        size_t len;
-        uint8_t* buffer;
-        // methods
-        inline void set_data_len(const size_t& dlen);
-        inline uint8_t* data_ptr();
-        inline void calibrate(const size_t& dlen);
-        inline bool is_empty();
-        inline void clean();
-        inline void destroy();
-    } _Delta;
-    _Delta delta;
-
-    struct DeltaBytesFormat {
-        uint32_t op;
-        uint8_t first_data_byte;
+    /**
+     * @class DeltaType
+     * @brief the delta type that are stored in a delta.
+     * 1) The first sizeof(std::vector<KT>::size_type) bytes is the number of VT objects in the
+     * delta, followed by specified number of 
+     * 2) Serialized VT objects.
+     */
+    class DeltaType : public mutils::ByteRepresentable {
+    public:
+        /* The objects */
+        std::unordered_map<KT,VT> objects;
+        /** @fn DeltaType
+         *  @brief Constructor
+         */
+        DeltaType();
+        virtual std::size_t to_bytes(uint8_t*) const override;
+        virtual void post_object(const std::function<void(uint8_t const* const, std::size_t)>&) const override;
+        virtual std::size_t bytes_size() const override;
+        virtual void ensure_registered(mutils::DeserializationManager&);
+        static std::unique_ptr<DeltaType> from_bytes(mutils::DeserializationManager*,const uint8_t* const);
+        static mutils::context_ptr<DeltaType> from_bytes_noalloc(
+            mutils::DeserializationManager*,
+            const uint8_t* const);
+        static mutils::context_ptr<const DeltaType> from_bytes_noalloc_const(
+            mutils::DeserializationManager*,
+            const uint8_t* const);
     };
-
+    /** The delta is a list of keys for the objects that are changed by put or remove. */
+    std::vector<KT> delta;
+    /** The KV map */
     std::map<KT, VT> kv_map;
 
     //////////////////////////////////////////////////////////////////////////
-    // Delta is represented by an operation id and a list of
-    // argument. The operation id (OPID) is a 4 bytes integer.
-    // 1) put(const Object& object):
-    // [OPID:PUT]   [value]
-    // 2) remove(const KT& key)
-    // [OPID:REMOVE][key]
-    // 3) get(const KT& key)
-    // no need to prepare a delta
+    // Delta is represented by a list of objects for both put and remove
+    // operations, where the latter one is a list of objects with only key but
+    // is empty. Get operations will not create a delta. The first 4 bytes of
+    // the delta is the number of deltas.
     ///////////////////////////////////////////////////////////////////////////
-    virtual void finalizeCurrentDelta(const persistent::DeltaFinalizer& df) override;
+    virtual size_t currentDeltaSize() override;
+    virtual size_t currentDeltaToBytes(uint8_t * const buf, size_t buf_size) override;
     virtual void applyDelta(uint8_t const* const delta) override;
     static std::unique_ptr<DeltaCascadeStoreCore<KT, VT, IK, IV>> create(mutils::DeserializationManager* dm);
     /**

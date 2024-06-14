@@ -205,7 +205,7 @@ namespace cascade {
                 TimestampLogger::log(TLT_ACTION_FIRE_START,
                                      0,
                                      dynamic_cast<const IHasMessageID*>(value_ptr.get())->get_message_id(),
-                                     get_time_ns(), 0);
+                                     0);
                 dbg_default_trace("In {}: [worker_id={}] action is fired.", __PRETTY_FUNCTION__, worker_id);
                 (*ocdpo_ptr)(sender,key_string,prefix_length,version,value_ptr.get(),outputs,ctxt,worker_id);
             }

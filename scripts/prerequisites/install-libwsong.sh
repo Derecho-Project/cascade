@@ -1,5 +1,5 @@
-#!/bin/bash
-set -eu
+#!/usr/bin/env bash
+set -eU
 export TMPDIR=/var/tmp
 WORKPATH=`mktemp -d`
 INSTALL_PREFIX="/usr/local"
@@ -10,9 +10,9 @@ fi
 echo "Using INSTALL_PREFIX=${INSTALL_PREFIX}"
 
 cd ${WORKPATH}
-git clone https://github.com/songweijia/hyperscan.git
-cd hyperscan
-git checkout 5a95f964c99d09420166933936d4476c990e25e8
+git clone https://github.com/songweijia/libwsong.git
+cd libwsong
+git checkout 47c37bc706cc859f8b60ca4d19b0608e28a2e530
 mkdir build
 cd build
 cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} ..

@@ -49,7 +49,7 @@ Service<CascadeTypes...>::Service(const std::vector<DeserializationContext*>& ds
                     nullptr,
                     // persistent
                     [this](subgroup_id_t sgid, persistent::version_t ver){
-                        TimestampLogger::log(TLT_PERSISTED,group->get_my_id(),0,get_walltime(),ver);
+                        TimestampLogger::log(TLT_PERSISTED,group->get_my_id(),0,ver);
                     },
                     nullptr
 #endif
@@ -147,7 +147,7 @@ std::unique_ptr<CascadeType> client_stub_factory() {
 
 #ifdef ENABLE_EVALUATION
 #define LOG_SERVICE_CLIENT_TIMESTAMP(tag,msgid) \
-    TimestampLogger::log(tag,this->get_my_id(),msgid,get_walltime());
+    TimestampLogger::log(tag,this->get_my_id(),msgid);
 #else
 #define LOG_SERVICE_CLIENT_TIMESTAMP(tag,msgid)
 #endif

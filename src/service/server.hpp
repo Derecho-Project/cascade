@@ -36,7 +36,7 @@ template <typename CascadeType>
 class CascadeServiceCDPO : public CriticalDataPathObserver<CascadeType> {
     virtual void operator()(const uint32_t sgidx,
                             const uint32_t shidx,
-                            const node_id_t sender_id,
+                            const derecho::node_id_t sender_id,
                             const typename CascadeType::KeyType& key,
                             const typename CascadeType::ObjectType& value,
                             ICascadeContext* cascade_ctxt,
@@ -146,13 +146,11 @@ class CascadeServiceCDPO : public CriticalDataPathObserver<CascadeType> {
                         TimestampLogger::log(TLT_ACTION_POST_START,
                                              engine->get_service_client_ref().get_my_id(),
                                              dynamic_cast<const IHasMessageID*>(&value)->get_message_id(),
-                                             get_time_ns(),
                                              apei.uint64_val);
                         engine->post(std::move(action), oi.statefulness, is_trigger);
                         TimestampLogger::log(TLT_ACTION_POST_END,
                                              engine->get_service_client_ref().get_my_id(),
                                              dynamic_cast<const IHasMessageID*>(&value)->get_message_id(),
-                                             get_time_ns(),
                                              apei.uint64_val);
                     }
                 }

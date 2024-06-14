@@ -343,7 +343,7 @@ int do_client(int argc,char** args) {
 
         ExternalClientCaller<PCS,std::remove_reference<decltype(group)>::type>& pcs_ec = group.get_subgroup_caller<PCS>();
         auto members = group.template get_shard_members<PCS>(0,0);
-        node_id_t server_id = members[my_node_id % members.size()];
+        derecho::node_id_t server_id = members[my_node_id % members.size()];
 
         for(uint64_t i = 0; i < num_messages; i++) {
             ObjectWithUInt64Key o(randomize_key(i)%max_distinct_objects,Blob(bbuf, msg_size));
@@ -363,7 +363,7 @@ int do_client(int argc,char** args) {
 
         ExternalClientCaller<VCS,std::remove_reference<decltype(group)>::type>& vcs_ec = group.get_subgroup_caller<VCS>();
         auto members = group.template get_shard_members<VCS>(0,0);
-        node_id_t server_id = members[my_node_id % members.size()];
+        derecho::node_id_t server_id = members[my_node_id % members.size()];
 
         for(uint64_t i = 0; i < num_messages; i++) {
             ObjectWithUInt64Key o(randomize_key(i)%max_distinct_objects,Blob(bbuf, msg_size));
