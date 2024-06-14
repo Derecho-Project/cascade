@@ -698,7 +698,6 @@ derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::put_ob
     }
 
     // STEP 3 - check if all objects go to the same subgroup and shard 
-    // TODO support multiple shards, and maybe also multiple subgroups and subgroup types
     uint32_t first_subgroup_type_index,first_subgroup_index,first_shard_index;
     std::tie(first_subgroup_type_index,first_subgroup_index,first_shard_index) = this->template key_to_shard(values[0].get_key_ref());
     for(unsigned int i = 1; i < values.size(); i++){

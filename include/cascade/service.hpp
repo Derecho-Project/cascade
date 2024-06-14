@@ -784,7 +784,7 @@ namespace cascade {
 
         /**
          * Multi-object atomic put. This operation will check if the previous version of each given object still matches the latest version. In case of a mismatch for at least one object, the whole operation fails.
-         * TODO: currently, all given objects must go to the same shard, but we should support cross-shard atomic multi-object puts in the future (and maybe even cross-subgroup).
+         * All given objects must go to the same shard.
          *
          * @param[in] objects           a list of objects to write, the object pools are extracted from the objects keys.
          *
