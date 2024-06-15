@@ -238,7 +238,7 @@ auto get_by_time(ServiceClientAPI& capi, const std::string& key, uint64_t ts_us,
 */
 template <typename SubgroupType>
 auto put_internal(ServiceClientAPI& capi, const typename SubgroupType::ObjectType& obj, uint32_t subgroup_index = UINT32_MAX, uint32_t shard_index = 0) {
-    derecho::rpc::QueryResults<version_tuple> result = (subgroup_index == UINT32_MAX) ? capi.put(obj) : capi.template put<SubgroupType>(obj, subgroup_index, shard_index);
+    derecho::rpc::QueryResults<version_tuple> result = (subgroup_index == UINT32_MAX) ? capi.put(obj,false) : capi.template put<SubgroupType>(obj, subgroup_index, shard_index, false);
     QueryResultsStore<version_tuple, VersionTimestampPair>* s = new QueryResultsStore<version_tuple, VersionTimestampPair>(std::move(result), bundle_f);
     return s;
 }
@@ -255,9 +255,9 @@ auto put_internal(ServiceClientAPI& capi, const typename SubgroupType::ObjectTyp
 template <typename SubgroupType>
 void put_and_forget(ServiceClientAPI& capi, const typename SubgroupType::ObjectType& obj, uint32_t subgroup_index = UINT32_MAX, uint32_t shard_index = 0) {
     if(subgroup_index == UINT32_MAX) {
-        capi.put_and_forget(obj);
+        capi.put_and_forget(obj,false);
     } else {
-        capi.template put_and_forget<SubgroupType>(obj, subgroup_index, shard_index);
+        capi.template put_and_forget<SubgroupType>(obj, subgroup_index, shard_index, false);
     }
 }
 
@@ -747,11 +747,11 @@ EXPORT auto EXPORT_put(ServiceClientAPI& capi, char* key, uint8_t* bytes, std::s
         if (trigger) {
             capi.trigger_put(obj);
         } else if (blocking) {
-            auto result = capi.put(obj);
+            auto result = capi.put(obj,false);
             auto s = new QueryResultsStore<version_tuple, VersionTimestampPair>(std::move(result), bundle_f);
             return s;
         } else {
-            capi.put_and_forget(obj);
+            capi.put_and_forget(obj,false);
         }
     } else {
         if (trigger) {

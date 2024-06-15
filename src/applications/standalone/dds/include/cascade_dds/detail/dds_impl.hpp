@@ -119,7 +119,7 @@ public:
 
         // send message
         dbg_default_trace("in {}: put object with key:{}", __PRETTY_FUNCTION__, cascade_key);
-        capi.put_and_forget(object);
+        capi.put_and_forget(object,false);
 #if !defined(USE_DDS_TIMESTAMP_LOG)
         TimestampLogger::log(TLT_DDS_PUBLISHER_SEND_END,capi.get_my_id(),message_id,get_time_ns());
 #endif
