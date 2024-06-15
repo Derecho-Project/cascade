@@ -78,7 +78,7 @@ public:
     /**
      * Ordered put, and generate a delta.
      */
-    virtual bool ordered_put(const VT& value, persistent::version_t prever);
+    virtual bool ordered_put(const VT& value, persistent::version_t prever, bool as_trigger);
     /**
      * Ordered remove, and generate a delta.
      */
