@@ -165,8 +165,8 @@ static void print_red(std::string msg) {
     @return QueryResultsStore that handles the tuple of version and ts_us.
 */
 template <typename SubgroupType>
-auto put(ServiceClientAPI& capi, const typename SubgroupType::ObjectType& obj, uint32_t subgroup_index = UINT32_MAX, uint32_t shard_index = 0) {
-    derecho::rpc::QueryResults<derecho::cascade::version_tuple> result = (subgroup_index == UINT32_MAX) ? capi.put(obj) : capi.template put<SubgroupType>(obj, subgroup_index, shard_index);
+auto put(ServiceClientAPI& capi, const typename SubgroupType::ObjectType& obj, uint32_t subgroup_index = UINT32_MAX, uint32_t shard_index = 0, bool as_trigger = false) {
+    derecho::rpc::QueryResults<derecho::cascade::version_tuple> result = (subgroup_index == UINT32_MAX) ? capi.put(obj, as_trigger) : capi.template put<SubgroupType>(obj, subgroup_index, shard_index, as_trigger);
 
     QueryResultsStore<derecho::cascade::version_tuple, std::vector<long>>* s = new QueryResultsStore<derecho::cascade::version_tuple, std::vector<long>>(std::move(result), bundle_f);
     return py::cast(s);
@@ -183,11 +183,11 @@ auto put(ServiceClientAPI& capi, const typename SubgroupType::ObjectType& obj, u
     @return QueryResultsStore that handles the tuple of version and ts_us.
 */
 template <typename SubgroupType>
-void put_and_forget(ServiceClientAPI& capi, const typename SubgroupType::ObjectType& obj, uint32_t subgroup_index = UINT32_MAX, uint32_t shard_index = 0) {
+void put_and_forget(ServiceClientAPI& capi, const typename SubgroupType::ObjectType& obj, uint32_t subgroup_index = UINT32_MAX, uint32_t shard_index = 0, bool as_trigger = false) {
     if(subgroup_index == UINT32_MAX) {
-        capi.put_and_forget(obj);
+        capi.put_and_forget(obj, as_trigger);
     } else {
-        capi.template put_and_forget<SubgroupType>(obj, subgroup_index, shard_index);
+        capi.template put_and_forget<SubgroupType>(obj, subgroup_index, shard_index, as_trigger);
     }
 }
 
@@ -611,6 +611,7 @@ PYBIND11_MODULE(member_client, m) {
                         persistent::version_t previous_version_by_key = CURRENT_VERSION;
                         bool blocking = true;
                         bool trigger = false;
+                        bool as_trigger = false;
 #ifdef ENABLE_EVALUATION
                         uint64_t message_id = 0;
 #endif
@@ -635,6 +636,9 @@ PYBIND11_MODULE(member_client, m) {
                         if (kwargs.contains("trigger")) {
                             trigger = kwargs["trigger"].cast<bool>();
                         }
+                        if (kwargs.contains("as_trigger")) {
+                            as_trigger = kwargs["as_trigger"].cast<bool>();
+                        }
 #ifdef ENABLE_EVALUATION
                         if (kwargs.contains("message_id")) {
                             message_id = kwargs["message_id"].cast<uint64_t>();
@@ -652,19 +656,19 @@ PYBIND11_MODULE(member_client, m) {
                             if (trigger) {
                                 capi.ref.trigger_put(obj);
                             } else if (blocking) {
-                                auto result = capi.ref.put(obj);
+                                auto result = capi.ref.put(obj,as_trigger);
                                 auto s = new QueryResultsStore<derecho::cascade::version_tuple, std::vector<long>>(std::move(result), bundle_f);
                                 return py::cast(s);
                             } else {
-                                capi.ref.put_and_forget(obj);
+                                capi.ref.put_and_forget(obj,as_trigger);
                             }
                         } else {
                             if (trigger) {
                                 on_all_subgroup_type(subgroup_type, trigger_put, capi.ref, obj, subgroup_index, shard_index);
                             } else if (blocking) {
-                                on_all_subgroup_type(subgroup_type, return put, capi.ref, obj, subgroup_index, shard_index);
+                                on_all_subgroup_type(subgroup_type, return put, capi.ref, obj, subgroup_index, shard_index, as_trigger);
                             } else {
-                                on_all_subgroup_type(subgroup_type, put_and_forget, capi.ref, obj, subgroup_index, shard_index);
+                                on_all_subgroup_type(subgroup_type, put_and_forget, capi.ref, obj, subgroup_index, shard_index, as_trigger);
                             }
                         }
 
@@ -684,6 +688,7 @@ PYBIND11_MODULE(member_client, m) {
                     "\t@argX    pervious_version_by_key \n"
                     "\t@argX    blocking \n"
                     "\t@argX    trigger         Using trigger put, always non-blocking regardless of blocking argument.\n"
+                    "\t@argX    as_trigger      Enable 'trigger' flag for normal put. If true, the value will ONLY trigger the UDL and NOT apply to the K/V. Defaulted to false\n"
 #ifdef ENABLE_EVALUATION
                     "\t@argX    message_id \n"
 #endif

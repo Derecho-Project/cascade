@@ -179,7 +179,7 @@ std::unique_ptr<DeltaCascadeStoreCore<KT, VT, IK, IV>> DeltaCascadeStoreCore<KT,
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-bool DeltaCascadeStoreCore<KT, VT, IK, IV>::ordered_put(const VT& value, persistent::version_t prev_ver) {
+bool DeltaCascadeStoreCore<KT, VT, IK, IV>::ordered_put(const VT& value, persistent::version_t prev_ver, bool as_trigger) {
     // call validator
     if constexpr(std::is_base_of<IValidator<KT, VT>, VT>::value) {
         if(!value.validate(this->kv_map)) {
@@ -208,12 +208,15 @@ bool DeltaCascadeStoreCore<KT, VT, IK, IV>::ordered_put(const VT& value, persist
         value.set_previous_version(prev_ver, prev_ver_by_key);
     }
     
-    // create delta.
-    assert(this->delta.empty());
-    this->delta.push_back(value.get_key_ref());
+    if (!as_trigger) {
+        // create delta.
+        assert(this->delta.empty());
+        this->delta.push_back(value.get_key_ref());
+        
+        // apply_ordered_put
+        apply_ordered_put(value);
+    }
     
-    // apply_ordered_put
-    apply_ordered_put(value);
     return true;
 }
 

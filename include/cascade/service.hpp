@@ -689,15 +689,17 @@ namespace cascade {
          *                            of the version and timestamp meaning what is the latest version/timestamp the caller
          *                            has seen. Cascade will reject the write if the corresponding key has been updated
          *                            already. TODO: should we make it an optional feature?
-         * @param[in] subgroup_index   the subgroup index of CascadeType
+         * @param[in] subgroup_index    the subgroup index of CascadeType
          * @param[in] shard_index       the shard index.
+         * @param[in] as_trigger        If true, the object will NOT apply to the K/V store. The object will only be
+         *                              used to update the state.
          *
          * @return a future to the version and timestamp of the put operation.
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
          */
         template <typename SubgroupType>
         derecho::rpc::QueryResults<version_tuple> put(const typename SubgroupType::ObjectType& object,
-                uint32_t subgroup_index, uint32_t shard_index);
+                uint32_t subgroup_index, uint32_t shard_index, bool as_trigger = false);
 
         /**
          * "put_objects" atomically writes multiple objects, controlled by the given subgroup/shard.
@@ -731,6 +733,8 @@ namespace cascade {
          * @param[in]   subgroup_index
          *                          the subgroup index in the subgroup type designated by type_index
          * @param[in]   shard_index the shard index
+         * @param[in]   as_trigger  If true, the object will NOT apply to the K/V store. The object will only be
+         *                          used to update the state.
          *
          * @return a future to the version and timestamp of the put operation.
          */
@@ -739,14 +743,16 @@ namespace cascade {
                 uint32_t type_index,
                 const ObjectType& object,
                 uint32_t subgroup_index,
-                uint32_t shard_index);
+                uint32_t shard_index,
+                bool as_trigger = false);
 
         template <typename ObjectType, typename LastType>
         derecho::rpc::QueryResults<version_tuple> type_recursive_put(
                 uint32_t type_index,
                 const ObjectType& object,
                 uint32_t subgroup_index,
-                uint32_t shard_index);
+                uint32_t shard_index,
+                bool as_trigger = false);
 
         /**
          * "type_recursive_put_objects" is a helper function for internal use only.
@@ -776,11 +782,13 @@ namespace cascade {
         /**
          * object pool version
          * @param[in] object            the object to write, the object pool is extracted from the object key.
+         * @param[in] as_trigger        If true, the object will NOT apply to the K/V store. The object will only be
+         *                              used to update the state.
          *
          * @return a future to the version and timestamp of the put operation.
          */
         template <typename ObjectType>
-        derecho::rpc::QueryResults<version_tuple> put(const ObjectType& object);
+        derecho::rpc::QueryResults<version_tuple> put(const ObjectType& object, bool as_trigger = false);
 
         /**
          * Multi-object atomic put. This operation will check if the previous version of each given object still matches the latest version. In case of a mismatch for at least one object, the whole operation fails.
@@ -808,10 +816,12 @@ namespace cascade {
          *                            already. TODO: should we make it an optional feature?
          * @param[in] subgroup_index   the subgroup index of CascadeType
          * @param[in] shard_index       the shard index.
+         * @param[in] as_trigger        If true, the object will NOT apply to the K/V store. The object will only be
+         *                              used to update the state.
          */
         template <typename SubgroupType>
         void put_and_forget(const typename SubgroupType::ObjectType& object,
-                uint32_t subgroup_index, uint32_t shard_index);
+                uint32_t subgroup_index, uint32_t shard_index, bool as_trigger = false);
 
         /**
          * "type_recursive_put_and_forget" is a helper function for internal use only.
@@ -821,6 +831,8 @@ namespace cascade {
          * @param[in] subgroup_index    
          *                          the subgroup index in the subgroup type designated by type_index
          * @param[in] shard_index   the shard index
+         * @param[in] as_trigger    If true, the object will NOT apply to the K/V store. The object will only be
+         *                          used to update the state.
          */
     protected:
         template <typename ObjectType, typename FirstType, typename SecondType, typename... RestTypes>
@@ -828,21 +840,25 @@ namespace cascade {
                 uint32_t type_index,
                 const ObjectType& object,
                 uint32_t subgroup_index,
-                uint32_t shard_index);
+                uint32_t shard_index,
+                bool as_trigger = false);
 
         template <typename ObjectType, typename LastType>
         void type_recursive_put_and_forget(
                 uint32_t type_index,
                 const ObjectType& object,
                 uint32_t subgroup_index,
-                uint32_t shard_index);
+                uint32_t shard_index,
+                bool as_trigger = false);
     public:
         /**
          * object pool version
-         * @param[in] object    the object to write, the object pool is extracted from the object key.
+         * @param[in] object        the object to write, the object pool is extracted from the object key.
+         * @param[in] as_trigger    If true, the object will NOT apply to the K/V store. The object will only be
+         *                          used to update the state.
          */
         template <typename ObjectType>
-        void put_and_forget(const ObjectType& object);
+        void put_and_forget(const ObjectType& object, bool as_trigger = false);
 
         /**
          * "trigger_put" writes an object to a given subgroup/shard.

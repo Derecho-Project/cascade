@@ -17,12 +17,12 @@ namespace derecho {
 namespace cascade {
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-version_tuple VolatileCascadeStore<KT, VT, IK, IV>::put(const VT& value) const {
+version_tuple VolatileCascadeStore<KT, VT, IK, IV>::put(const VT& value, bool as_trigger) const {
     debug_enter_func_with_args("value.get_key_ref={}", value.get_key_ref());
     LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_PUT_START, group, value);
 
     derecho::Replicated<VolatileCascadeStore>& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
-    auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put)>(value);
+    auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put)>(value,as_trigger);
     auto& replies = results.get();
     version_tuple ret{CURRENT_VERSION, 0};
     // TODO: verfiy consistency ?
@@ -60,12 +60,12 @@ version_tuple VolatileCascadeStore<KT, VT, IK, IV>::put_objects(const std::vecto
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-void VolatileCascadeStore<KT, VT, IK, IV>::put_and_forget(const VT& value) const {
+void VolatileCascadeStore<KT, VT, IK, IV>::put_and_forget(const VT& value, bool as_trigger) const {
     debug_enter_func_with_args("value.get_key_ref={}", value.get_key_ref());
     LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_PUT_AND_FORGET_START, group, value);
 
     derecho::Replicated<VolatileCascadeStore>& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
-    subgroup_handle.template ordered_send<RPC_NAME(ordered_put_and_forget)>(value);
+    subgroup_handle.template ordered_send<RPC_NAME(ordered_put_and_forget)>(value,as_trigger);
 
     LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_PUT_AND_FORGET_END, group, value);
     debug_leave_func();
@@ -91,12 +91,12 @@ double internal_perf_put(derecho::Replicated<CascadeType>& subgroup_handle, cons
     uint64_t start_ns = now_ns;
     uint64_t end_ns = now_ns + duration_sec * INT64_1E9;
     while(end_ns > now_ns) {
-        subgroup_handle.template ordered_send<RPC_NAME(ordered_put_and_forget)>(objects.at(now_ns % num_distinct_objects));
+        subgroup_handle.template ordered_send<RPC_NAME(ordered_put_and_forget)>(objects.at(now_ns % num_distinct_objects),false);
         now_ns = get_walltime();
         num_messages_sent++;
     }
     // send a normal put
-    auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put)>(objects.at(now_ns % num_distinct_objects));
+    auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put)>(objects.at(now_ns % num_distinct_objects),false);
     auto& replies = results.get();
     version_tuple ret(CURRENT_VERSION, 0);
     // TODO: verfiy consistency ?
@@ -391,7 +391,7 @@ std::vector<KT> VolatileCascadeStore<KT, VT, IK, IV>::ordered_list_keys(const st
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-version_tuple VolatileCascadeStore<KT, VT, IK, IV>::ordered_put(const VT& value) {
+version_tuple VolatileCascadeStore<KT, VT, IK, IV>::ordered_put(const VT& value, bool as_trigger) {
     debug_enter_func_with_args("key={}", value.get_key_ref());
 
     auto version_and_hlc = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
@@ -404,7 +404,7 @@ version_tuple VolatileCascadeStore<KT, VT, IK, IV>::ordered_put(const VT& value)
 
     version_tuple version_and_timestamp{persistent::INVALID_VERSION, 0};
 
-    if(this->internal_ordered_put(value) == true) {
+    if(this->internal_ordered_put(value,as_trigger) == true) {
         version_and_timestamp = {std::get<0>(version_and_hlc),std::get<1>(version_and_hlc).m_rtc_us};
     }
 
@@ -454,7 +454,7 @@ version_tuple VolatileCascadeStore<KT, VT, IK, IV>::ordered_put_objects(const st
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-void VolatileCascadeStore<KT, VT, IK, IV>::ordered_put_and_forget(const VT& value) {
+void VolatileCascadeStore<KT, VT, IK, IV>::ordered_put_and_forget(const VT& value, bool as_trigger) {
     debug_enter_func_with_args("key={}", value.get_key_ref());
 #ifdef ENABLE_EVALUATION
     auto version_and_hlc = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
@@ -464,7 +464,7 @@ void VolatileCascadeStore<KT, VT, IK, IV>::ordered_put_and_forget(const VT& valu
 #else
     LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_PUT_AND_FORGET_START,group,value,std::get<0>(version_and_hlc));
 #endif
-    internal_ordered_put(value);
+    internal_ordered_put(value,as_trigger);
 #if __cplusplus > 201703L
     LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_PUT_AND_FORGET_END,group,value,std::get<0>(version_and_hlc));
 #else
@@ -474,7 +474,7 @@ void VolatileCascadeStore<KT, VT, IK, IV>::ordered_put_and_forget(const VT& valu
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-bool VolatileCascadeStore<KT, VT, IK, IV>::internal_ordered_put(const VT& value) { 
+bool VolatileCascadeStore<KT, VT, IK, IV>::internal_ordered_put(const VT& value, bool as_trigger) {
     /* TODO to avoid code repetition, this could use the new vector version:
      * return this->internal_ordered_put_objects({value});
      */
@@ -516,29 +516,31 @@ bool VolatileCascadeStore<KT, VT, IK, IV>::internal_ordered_put(const VT& value)
         }
     }
 
+    if (!as_trigger) {
     // for lockless check
     this->lockless_v1.store(std::get<0>(version_and_hlc), std::memory_order_relaxed);
     // compiler reordering barrier
 #ifdef __GNUC__
-    asm volatile("" ::
+        asm volatile("" ::
                          : "memory");
 #else
 #error Lockless support is currently for GCC only
 #endif
 
-    this->kv_map.erase(value.get_key_ref());           // remove
-    this->kv_map.emplace(value.get_key_ref(), value);  // copy constructor
-    this->update_version = std::get<0>(version_and_hlc);
+        this->kv_map.erase(value.get_key_ref());           // remove
+        this->kv_map.emplace(value.get_key_ref(), value);  // copy constructor
+        this->update_version = std::get<0>(version_and_hlc);
 
-    // for lockless check
-    // compiler reordering barrier
+        // for lockless check
+        // compiler reordering barrier
 #ifdef __GNUC__
-    asm volatile("" ::
+        asm volatile("" ::
                          : "memory");
 #else
 #error Lockless support is currently for GCC only
 #endif
-    this->lockless_v2.store(std::get<0>(version_and_hlc), std::memory_order_relaxed);
+        this->lockless_v2.store(std::get<0>(version_and_hlc), std::memory_order_relaxed);
+    }
 
     if(cascade_watcher_ptr) {
         (*cascade_watcher_ptr)(

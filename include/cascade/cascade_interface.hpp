@@ -91,16 +91,17 @@ public:
     KT* InvKeyPtr = IK;
     VT* InvValPtr = IV;
     /**
-     * @brief   put(const VT&)
+     * @brief   put(const VT&, bool )
      *
      * Put a value. VT must implement ICascadeObject interface. The key is given in value and retrieved by
      * ICascadeObject::get_key_ref()
      *
-     * @param[in]   value   The K/V pair value
+     * @param[in]   value       The K/V pair value
+     * @param[in]   as_trigger  The object will NOT be used to update the K/V state.
      *
      * @return      a tuple including version number (version_t) and a timestamp in microseconds.
      */
-    virtual version_tuple put(const VT& value) const = 0;
+    virtual version_tuple put(const VT& value, bool as_trigger) const = 0;
 
     /**
      * @brief   put_objects(const std::vector<VT>&)
@@ -121,10 +122,11 @@ public:
      * ICascadeObject::get_key_ref(). This function ignores any return value.
      *
      * @param[in]   value   The K/V pair value
+     * @param[in]   as_trigger  The object will NOT be used to update the K/V state.
      *
      * @return      void
      */
-    virtual void put_and_forget(const VT& value) const = 0;
+    virtual void put_and_forget(const VT& value, bool as_trigger) const = 0;
 
 #ifdef ENABLE_EVALUATION
     /**
@@ -348,11 +350,12 @@ protected:
     /**
      * @brief   ordered_put
      *
-     * @param[in]   value   The K/V pair object.
+     * @param[in]   value       The K/V pair object.
+     * @param[in]   as_trigger  If true, the value will NOT apply to the K/V state.
      *
      * @return  A tuple including version number (version_t) and a timestamp in microseconds.
      */
-    virtual version_tuple ordered_put(const VT& value) = 0;
+    virtual version_tuple ordered_put(const VT& value, bool as_trigger) = 0;
 
     /**
      * @brief   ordered_put_objects
@@ -366,9 +369,10 @@ protected:
     /**
      * @brief   ordered_put_and_forget
      *
-     * @param[in]   value   The K/V pair object.
+     * @param[in]   value       The K/V pair object.
+     * @param[in]   as_trigger  If true, the value will NOT apply to the K/V state.
      */
-    virtual void ordered_put_and_forget(const VT& value) = 0;
+    virtual void ordered_put_and_forget(const VT& value, bool as_trigger) = 0;
 
     /**
      * @brief   ordered_remove
