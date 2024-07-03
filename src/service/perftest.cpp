@@ -135,7 +135,7 @@ bool PerfTestServer::eval_put(uint64_t max_operation_per_second,
             TimestampLogger::log(TLT_READY_TO_SEND,this->capi.get_my_id(),message_id);
             if (subgroup_index == INVALID_SUBGROUP_INDEX ||
                 shard_index == INVALID_SHARD_INDEX) {
-                future_appender(this->capi.put(objects.at(now_ns%num_distinct_objects)));
+                future_appender(this->capi.put(objects.at(now_ns%num_distinct_objects),false));
             } else {
                 on_subgroup_type_index_with_return(
                     std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),
@@ -309,7 +309,7 @@ bool PerfTestServer::eval_get(int32_t log_depth,
         std::unique_ptr<QueryResults<cascade::version_tuple>> put_result_future;
         if(subgroup_index == INVALID_SUBGROUP_INDEX || shard_index == INVALID_SHARD_INDEX) {
             // put returns the QueryResults by value, so we have to move-construct it into a unique_ptr
-            put_result_future = std::make_unique<QueryResults<cascade::version_tuple>>(std::move(this->capi.put(object)));
+            put_result_future = std::make_unique<QueryResults<cascade::version_tuple>>(std::move(this->capi.put(object,false)));
         } else {
             // Manual copy of on_subgroup_type_index macro so I can use make_unique
             std::type_index tindex = std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index);
@@ -517,7 +517,7 @@ bool PerfTestServer::eval_get_by_time(uint64_t ms_in_past,
                     put_futures_queue.emplace(current_object, std::move(query_results));
                 };
         if(subgroup_index == INVALID_SUBGROUP_INDEX || shard_index == INVALID_SHARD_INDEX) {
-            future_appender(this->capi.put(objects.at(current_object)));
+            future_appender(this->capi.put(objects.at(current_object),false));
         } else {
             on_subgroup_type_index_with_return(
                     std::decay_t<decltype(capi)>::subgroup_type_order.at(subgroup_type_index),

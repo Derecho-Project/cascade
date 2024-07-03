@@ -73,13 +73,13 @@ static void client_put(derecho::ExternalGroupClient<VCS,PCS,TCS>& group,
 
     if (is_persistent) {
         ExternalClientCaller<PCS,std::remove_reference<decltype(group)>::type>& pcs_ec = group.get_subgroup_caller<PCS>();
-        auto result = pcs_ec.p2p_send<RPC_NAME(put)>(member,o);
+        auto result = pcs_ec.p2p_send<RPC_NAME(put)>(member,o,false);
         auto reply = result.get().get(member);
         std::cout << "put finished with timestamp=" << std::get<1>(reply)
                   << ",version=" << std::get<0>(reply) << std::endl;
     } else {
         ExternalClientCaller<VCS,std::remove_reference<decltype(group)>::type>& vcs_ec = group.get_subgroup_caller<VCS>();
-        auto result = vcs_ec.p2p_send<RPC_NAME(put)>(member,o);
+        auto result = vcs_ec.p2p_send<RPC_NAME(put)>(member,o,false);
         auto reply = result.get().get(member);
         std::cout << "put finished with timestamp=" << std::get<1>(reply)
                   << ",version=" << std::get<0>(reply) << std::endl;

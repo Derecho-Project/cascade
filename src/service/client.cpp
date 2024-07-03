@@ -229,7 +229,7 @@ void op_put(ServiceClientAPI& capi, const std::string& key, const std::string& v
     obj.previous_version = pver;
     obj.previous_version_by_key = pver_bk;
     obj.blob = Blob(reinterpret_cast<const uint8_t*>(value.c_str()),value.length());
-    derecho::rpc::QueryResults<derecho::cascade::version_tuple> result = capi.put(obj);
+    derecho::rpc::QueryResults<derecho::cascade::version_tuple> result = capi.put(obj,false);
     check_put_and_remove_result(result);
 }
 
@@ -251,7 +251,7 @@ void op_put_file(ServiceClientAPI& capi, const std::string& key, const std::stri
     ObjectWithStringKey obj(key,message_generator,file_size);
     obj.previous_version = pver;
     obj.previous_version_by_key = pver_bk;
-    derecho::rpc::QueryResults<derecho::cascade::version_tuple> result = capi.put(obj);
+    derecho::rpc::QueryResults<derecho::cascade::version_tuple> result = capi.put(obj,false);
     value_file.close();
     check_put_and_remove_result(result);
 }
