@@ -40,7 +40,7 @@ int main(int argc, char** argv) {
     obj.previous_version = INVALID_VERSION;
     obj.previous_version_by_key = INVALID_VERSION;
     obj.blob = Blob(reinterpret_cast<const uint8_t*>(OBJECT_VALUE),std::strlen(OBJECT_VALUE));
-    auto result_4 = capi.put(obj);
+    auto result_4 = capi.put(obj,false);
     for (auto& reply_future:result_4.get()) {
         auto reply = reply_future.second.get();
         std::cout << "node(" << reply_future.first << ") replied with version:" << std::get<0>(reply)

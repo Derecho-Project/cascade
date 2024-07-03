@@ -347,7 +347,7 @@ int do_client(int argc,char** args) {
 
         for(uint64_t i = 0; i < num_messages; i++) {
             ObjectWithUInt64Key o(randomize_key(i)%max_distinct_objects,Blob(bbuf, msg_size));
-            cs.do_send(i,[&o,&pcs_ec,&server_id](){return std::move(pcs_ec.p2p_send<RPC_NAME(put)>(server_id,o));});
+            cs.do_send(i,[&o,&pcs_ec,&server_id](){return std::move(pcs_ec.p2p_send<RPC_NAME(put)>(server_id,o,false));});
         }
         free(bbuf);
 
@@ -367,7 +367,7 @@ int do_client(int argc,char** args) {
 
         for(uint64_t i = 0; i < num_messages; i++) {
             ObjectWithUInt64Key o(randomize_key(i)%max_distinct_objects,Blob(bbuf, msg_size));
-            cs.do_send(i,[&o,&vcs_ec,&server_id](){return std::move(vcs_ec.p2p_send<RPC_NAME(put)>(server_id,o));});
+            cs.do_send(i,[&o,&vcs_ec,&server_id](){return std::move(vcs_ec.p2p_send<RPC_NAME(put)>(server_id,o,false));});
         }
         free(bbuf);
 

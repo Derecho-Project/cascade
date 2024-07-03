@@ -159,7 +159,7 @@ void DDSMetadataClient::create_topic(const Topic& topic) {
     Blob blob(stack_buffer,size,true);
     ObjectWithStringKey topic_object(metadata_pathname+PATH_SEPARATOR+topic.name,blob);
     dbg_default_trace("create topic:{}", topic.name);
-    auto result = capi.put(topic_object);
+    auto result = capi.put(topic_object,false);
     for (auto& reply_future: result.get() ) {
         auto reply = reply_future.second.get();
         dbg_default_trace("Node {} replied with (v:0x{:x},t:{}us)", reply_future.first, 
