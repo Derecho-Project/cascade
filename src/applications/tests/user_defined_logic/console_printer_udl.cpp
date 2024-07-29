@@ -26,6 +26,13 @@ class ConsolePrinterOCDPO: public OffCriticalDataPathObserver {
                               uint32_t worker_id) override {
         std::cout << "[console printer ocdpo]: I(" << worker_id << ") received an object with key=" << key_string 
                   << ", matching prefix=" << key_string.substr(0,prefix_length) << std::endl;
+        auto* typed_ctxt = dynamic_cast<DefaultCascadeContextType*>(ctxt);
+        std::string prefix = key_string.substr(0,prefix_length);
+        std::cout << "[console printer ocdpo]: my shard @" 
+                  << prefix 
+                  << " is:" 
+                  << typed_ctxt->get_service_client_ref().get_my_shard(prefix)
+                  << std::endl;
     }
 
     static std::shared_ptr<OffCriticalDataPathObserver> ocdpo_ptr;
