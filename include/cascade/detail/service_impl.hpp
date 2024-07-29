@@ -370,7 +370,7 @@ int32_t ServiceClient<CascadeTypes...>::type_recursive_get_my_shard (
 template <typename... CascadeTypes>
 int32_t ServiceClient<CascadeTypes...>::get_my_shard (
         uint32_t subgroup_type_index, uint32_t subgroup_index) const {
-    return type_recursive_get_my_shard(subgroup_type_index,subgroup_index);
+    return this->template type_recursive_get_my_shard<CascadeTypes...>(subgroup_type_index,subgroup_index);
 }
 
 template <typename... CascadeTypes>
