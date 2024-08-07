@@ -603,6 +603,9 @@ namespace cascade {
          *                              shard index.
          * - get_number_of_subgroups    returns the number of subgroups of a given type
          * - get_number_of_shards       returns the number of shards of a given subgroup
+         * - get_my_shard               returns the shard number that this node is a member of in the specific
+         *                              subgroup (by subgroup type and index), or -1 if this node is not a member
+         *                              of any shard in the specified subgroup.
          * During view change, the Client might experience failure if the member is gone. In such a case, the client needs
          * refresh its local member cache by calling get_shard_members.
          */
@@ -657,6 +660,31 @@ namespace cascade {
          * @param[in] object_pool_pathname  - the object pool name
          */
         uint32_t get_number_of_shards(const std::string& object_pool_pathname);
+   
+        template <typename SubgroupType>
+        int32_t get_my_shard(uint32_t subgroup_index) const;
+    protected:
+        template <typename FirstType,typename SecondType, typename...RestTypes>
+        int32_t type_recursive_get_my_shard(uint32_t type_index, uint32_t subgroup_index) const;
+        template <typename LastType>
+        int32_t type_recursive_get_my_shard(uint32_t type_index, uint32_t subgroup_index) const;
+    public:
+        /**
+         * @fn int32_t get_my_shard(uint32_t subgroup_type_index, uint32_t subgroup_index) const
+         * @brief find the shard I belong to, given the subgroup specified by type and index.
+         * @param[in]   subgroup_type_index     - the type index of the subgroup type.
+         * @param[in]   subgroup_index          - the subgroup index in the given type.
+         * @return  The number of the shard, or -1 if current node is not in the specified subgroup.
+         */
+        int32_t get_my_shard(uint32_t subgroup_type_index, uint32_t subgroup_index) const;
+
+        /**
+         * @fn int32_t get_my_shard(const std::string& object_pool_pathname)
+         * @brief find the shard I belong to, given the object pool specified by object pool path name.
+         * @param[in]   object_pool_pathname    - the object pool path name.
+         * @return  The number of the shard, or -1 if current node is not in the specified subgroup.
+         */
+        int32_t get_my_shard(const std::string& object_pool_pathname);
 
         /**
          * Member selection policy control API.

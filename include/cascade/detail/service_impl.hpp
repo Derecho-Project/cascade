@@ -337,6 +337,54 @@ uint32_t ServiceClient<CascadeTypes...>::get_number_of_shards (
 
 template <typename... CascadeTypes>
 template <typename SubgroupType>
+int32_t ServiceClient<CascadeTypes...>::get_my_shard(uint32_t subgroup_index) const {
+    if (!is_external_client()) {
+        return group_ptr->template get_my_shard<SubgroupType>(subgroup_index);
+    } else {
+        return -1;
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename FirstType,typename SecondType, typename...RestTypes>
+int32_t ServiceClient<CascadeTypes...>::type_recursive_get_my_shard (
+        uint32_t type_index,uint32_t subgroup_index) const {
+    if (type_index == 0) {
+        return this->template get_my_shard<FirstType>(subgroup_index);
+    } else {
+        return this->template type_recursive_get_number_of_shards<SecondType,RestTypes...>(type_index-1,subgroup_index);
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename LastType>
+int32_t ServiceClient<CascadeTypes...>::type_recursive_get_my_shard (
+        uint32_t type_index, uint32_t subgroup_index) const {
+    if (type_index == 0) {
+        return this->template get_my_shard<LastType>(subgroup_index);
+    } else {
+        throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) + " type index is out of boundary");
+    }
+}
+
+template <typename... CascadeTypes>
+int32_t ServiceClient<CascadeTypes...>::get_my_shard (
+        uint32_t subgroup_type_index, uint32_t subgroup_index) const {
+    return this->template type_recursive_get_my_shard<CascadeTypes...>(subgroup_type_index,subgroup_index);
+}
+
+template <typename... CascadeTypes>
+int32_t ServiceClient<CascadeTypes...>::get_my_shard (
+        const std::string& object_pool_pathname) {
+    auto opm = find_object_pool(object_pool_pathname);
+    if (!opm.is_valid() || opm.is_null() || opm.deleted) {
+        throw derecho::derecho_exception("Failed to find object_pool:" + object_pool_pathname);
+    }
+    return get_my_shard(opm.subgroup_type_index,opm.subgroup_index);
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
 void ServiceClient<CascadeTypes...>::set_member_selection_policy(uint32_t subgroup_index,uint32_t shard_index,
         ShardMemberSelectionPolicy policy, node_id_t user_specified_node_id) {
     // write lock policies
