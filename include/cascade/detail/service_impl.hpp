@@ -621,7 +621,8 @@ template <typename SubgroupType>
 derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::put_objects(
         const std::vector<typename SubgroupType::ObjectType>& values,
         uint32_t subgroup_index,
-        uint32_t shard_index) {
+        uint32_t shard_index,
+        bool as_trigger) {
     // check if vector is empty
     if(values.empty()){
         throw derecho::derecho_exception(std::string("ServiceClient<>::put_objects() received an empty vector"));    
@@ -634,18 +635,18 @@ derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::put_ob
         if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
             // ordered put as a shard member
             auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
-            return subgroup_handle.template ordered_send<RPC_NAME(ordered_put_objects)>(values);
+            return subgroup_handle.template ordered_send<RPC_NAME(ordered_put_objects)>(values,as_trigger);
         } else {
             // p2p put
             node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index,values[0].get_key_ref());
             try {
                 // as a subgroup member
                 auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
-                return subgroup_handle.template p2p_send<RPC_NAME(put_objects)>(node_id,values);
+                return subgroup_handle.template p2p_send<RPC_NAME(put_objects)>(node_id,values,as_trigger);
             } catch (derecho::invalid_subgroup_exception& ex) {
                 // as an external caller
                 auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
-                return subgroup_handle.template p2p_send<RPC_NAME(put_objects)>(node_id,values);
+                return subgroup_handle.template p2p_send<RPC_NAME(put_objects)>(node_id,values,as_trigger);
             }
         }
     } else {
@@ -653,7 +654,49 @@ derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::put_ob
         // call as an external client (ExternalClientCaller).
         auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
         node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index,values[0].get_key_ref());
-        return caller.template p2p_send<RPC_NAME(put_objects)>(node_id,values);
+        return caller.template p2p_send<RPC_NAME(put_objects)>(node_id,values,as_trigger);
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+void ServiceClient<CascadeTypes...>::put_objects_and_forget(
+        const std::vector<typename SubgroupType::ObjectType>& values,
+        uint32_t subgroup_index,
+        uint32_t shard_index,
+        bool as_trigger) {
+    // check if vector is empty
+    if(values.empty()){
+        throw derecho::derecho_exception(std::string("ServiceClient<>::put_objects() received an empty vector"));    
+    }
+
+    LOG_SERVICE_CLIENT_TIMESTAMP(TLT_SERVICE_CLIENT_PUT_START,
+            (std::is_base_of<IHasMessageID,typename SubgroupType::ObjectType>::value?values[0].get_message_id():0));
+    if (!is_external_client()) {
+        std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
+        if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
+            // ordered put as a shard member
+            auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
+            subgroup_handle.template ordered_send<RPC_NAME(ordered_put_objects_and_forget)>(values,as_trigger);
+        } else {
+            // p2p put
+            node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index,values[0].get_key_ref());
+            try {
+                // as a subgroup member
+                auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
+                subgroup_handle.template p2p_send<RPC_NAME(put_objects_and_forget)>(node_id,values,as_trigger);
+            } catch (derecho::invalid_subgroup_exception& ex) {
+                // as an external caller
+                auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
+                subgroup_handle.template p2p_send<RPC_NAME(put_objects_and_forget)>(node_id,values,as_trigger);
+            }
+        }
+    } else {
+        std::lock_guard<std::mutex> lck(this->external_group_ptr_mutex);
+        // call as an external client (ExternalClientCaller).
+        auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
+        node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index,values[0].get_key_ref());
+        caller.template p2p_send<RPC_NAME(put_objects_and_forget)>(node_id,values,as_trigger);
     }
 }
 
@@ -693,11 +736,12 @@ derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::type_r
         uint32_t type_index,
         const std::vector<ObjectType>& values,
         uint32_t subgroup_index,
-        uint32_t shard_index) {
+        uint32_t shard_index,
+        bool as_trigger) {
     if (type_index == 0) {
-        return this->template put_objects<FirstType>(values,subgroup_index,shard_index);
+        return this->template put_objects<FirstType>(values,subgroup_index,shard_index,as_trigger);
     } else {
-        return this->template type_recursive_put_objects<ObjectType, SecondType, RestTypes...>(type_index-1,values,subgroup_index,shard_index);
+        return this->template type_recursive_put_objects<ObjectType, SecondType, RestTypes...>(type_index-1,values,subgroup_index,shard_index,as_trigger);
     }
 }
 
@@ -707,9 +751,40 @@ derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::type_r
         uint32_t type_index,
         const std::vector<ObjectType>& values,
         uint32_t subgroup_index,
-        uint32_t shard_index) {
+        uint32_t shard_index,
+        bool as_trigger) {
     if (type_index == 0) {
-        return this->template put_objects<LastType>(values,subgroup_index,shard_index);
+        return this->template put_objects<LastType>(values,subgroup_index,shard_index,as_trigger);
+    } else {
+        throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) + ": type index is out of boundary.");
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename ObjectType, typename FirstType, typename SecondType, typename... RestTypes>
+void ServiceClient<CascadeTypes...>::type_recursive_put_objects_and_forget( 
+        uint32_t type_index,
+        const std::vector<ObjectType>& values,
+        uint32_t subgroup_index,
+        uint32_t shard_index,
+        bool as_trigger) {
+    if (type_index == 0) {
+        this->template put_objects_and_forget<FirstType>(values,subgroup_index,shard_index,as_trigger);
+    } else {
+        this->template type_recursive_put_objects_and_forget<ObjectType, SecondType, RestTypes...>(type_index-1,values,subgroup_index,shard_index,as_trigger);
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename ObjectType, typename LastType>
+void ServiceClient<CascadeTypes...>::type_recursive_put_objects_and_forget(
+        uint32_t type_index,
+        const std::vector<ObjectType>& values,
+        uint32_t subgroup_index,
+        uint32_t shard_index,
+        bool as_trigger) {
+    if (type_index == 0) {
+        this->template put_objects_and_forget<LastType>(values,subgroup_index,shard_index,as_trigger);
     } else {
         throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) + ": type index is out of boundary.");
     }
@@ -736,7 +811,7 @@ derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::put(
 template <typename... CascadeTypes>
 template <typename ObjectType>
 derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::put_objects(
-        const std::vector<ObjectType>& values) {
+        const std::vector<ObjectType>& values,bool as_trigger) {
     
     // STEP 1 - make sure object type is supported
     if constexpr (!std::is_base_of_v<ICascadeObject<std::string,ObjectType>,ObjectType>) {
@@ -772,7 +847,49 @@ derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::put_ob
     }
 
     // STEP 4 - call recursive put
-    return this->template type_recursive_put_objects<ObjectType,CascadeTypes...>(first_subgroup_type_index,values,first_subgroup_index,first_shard_index);
+    return this->template type_recursive_put_objects<ObjectType,CascadeTypes...>(first_subgroup_type_index,values,first_subgroup_index,first_shard_index,as_trigger);
+}
+
+template <typename... CascadeTypes>
+template <typename ObjectType>
+void ServiceClient<CascadeTypes...>::put_objects_and_forget(
+        const std::vector<ObjectType>& values,bool as_trigger) {
+    
+    // STEP 1 - make sure object type is supported
+    if constexpr (!std::is_base_of_v<ICascadeObject<std::string,ObjectType>,ObjectType>) {
+        throw derecho::derecho_exception(std::string("ServiceClient<>::put() only support object of type ICascadeObject<std::string,ObjectType>,but we get ") + typeid(ObjectType).name());
+    }
+
+    // STEP 2 - check if vector is empty
+    if(values.empty()){
+        throw derecho::derecho_exception(std::string("ServiceClient<>::put_objects() received an empty vector"));    
+    }
+
+    // STEP 3 - check if all objects go to the same subgroup and shard 
+    uint32_t first_subgroup_type_index,first_subgroup_index,first_shard_index;
+    std::tie(first_subgroup_type_index,first_subgroup_index,first_shard_index) = this->template key_to_shard(values[0].get_key_ref());
+    for(unsigned int i = 1; i < values.size(); i++){
+        uint32_t subgroup_type_index,subgroup_index,shard_index;
+        std::tie(subgroup_type_index,subgroup_index,shard_index) = this->template key_to_shard(values[i].get_key_ref());
+
+        // subgroup type
+        if(subgroup_type_index != first_subgroup_type_index){
+            throw derecho::derecho_exception(std::string("All objects in ServiceClient<>::put_objects() must go to a subgroup of the same type, but object with key ") + values[i].get_key_ref() + " goes to subgroup type index " + std::to_string(subgroup_type_index) + ", while object with key " + values[0].get_key_ref() + " goes to subgroup type index " + std::to_string(first_subgroup_type_index));
+        }
+        
+        // subgroup index
+        if(subgroup_index != first_subgroup_index){
+            throw derecho::derecho_exception(std::string("All objects in ServiceClient<>::put_objects() must go to the same subgroup, but object with key ") + values[i].get_key_ref() + " goes to subgroup index " + std::to_string(subgroup_index) + ", while object with key " + values[0].get_key_ref() + " goes to subgroup index " + std::to_string(first_subgroup_index));
+        }
+        
+        // shard_index
+        if(shard_index != first_shard_index){
+            throw derecho::derecho_exception(std::string("All objects in ServiceClient<>::put_objects() must go to the same shard, but object with key ") + values[i].get_key_ref() + " goes to shard index " + std::to_string(shard_index) + ", while object with key " + values[0].get_key_ref() + " goes to shard index " + std::to_string(first_shard_index));
+        }
+    }
+
+    // STEP 4 - call recursive put
+    this->template type_recursive_put_objects_and_forget<ObjectType,CascadeTypes...>(first_subgroup_type_index,values,first_subgroup_index,first_shard_index,as_trigger);
 }
 
 template <typename... CascadeTypes>

@@ -1267,7 +1267,7 @@ std::vector<command_entry_t> commands =
             std::vector<persistent::version_t> pver_list;
             std::vector<persistent::version_t> pver_bk_list;
             CHECK_FORMAT(cmd_tokens, 12);
-            for (int i = 2; i <= cmd_tokens.size() - 6; i++) {
+            for (uint64_t i = 2; i <= cmd_tokens.size() - 6; i++) {
                 key_list.push_back(cmd_tokens[i]);
                 value_list.push_back(cmd_tokens[i + 1]);
                 pver_list.push_back(static_cast<persistent::version_t>(std::stol(cmd_tokens[i + 2],nullptr,0)));

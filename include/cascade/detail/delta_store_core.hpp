@@ -82,7 +82,7 @@ public:
     /**
      * Ordered put_objects, and generate a delta.
      */
-    virtual bool ordered_put_objects(const std::vector<VT>& values, persistent::version_t prever);
+    virtual bool ordered_put_objects(const std::vector<VT>& values, persistent::version_t prever, bool as_trigger);
     /**
      * Ordered remove, and generate a delta.
      */

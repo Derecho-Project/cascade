@@ -221,7 +221,7 @@ bool DeltaCascadeStoreCore<KT, VT, IK, IV>::ordered_put(const VT& value, persist
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-bool DeltaCascadeStoreCore<KT, VT, IK, IV>::ordered_put_objects(const std::vector<VT>& values, persistent::version_t prev_ver) {
+bool DeltaCascadeStoreCore<KT, VT, IK, IV>::ordered_put_objects(const std::vector<VT>& values, persistent::version_t prev_ver, bool as_trigger) {
     // validate and check versions of all objects before any update: if there is at least one mismatch, fail the whole operation
     for(const VT& value : values){
         // call validator
@@ -257,10 +257,12 @@ bool DeltaCascadeStoreCore<KT, VT, IK, IV>::ordered_put_objects(const std::vecto
     // everything is fine, perform updates
 
     // create delta and apply puts
-    assert(this->delta.empty());
-    for(const VT& value : values){
-        this->delta.push_back(value.get_key_ref());
-        apply_ordered_put(value);
+    if (!as_trigger) {
+        assert(this->delta.empty());
+        for(const VT& value : values){
+            this->delta.push_back(value.get_key_ref());
+            apply_ordered_put(value);
+        }
     }
 
     return true;

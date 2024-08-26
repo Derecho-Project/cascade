@@ -744,13 +744,38 @@ namespace cascade {
          *                            already. TODO: should we make it an optional feature?
          * @param[in] subgroup_index   the subgroup index of CascadeType
          * @param[in] shard_index       the shard index.
+         * @param[in] as_trigger        If true, the objects will NOT apply to the K/V store. The objects will only be
+         *                              used to update the state.
          *
          * @return a future to the version and timestamp of the put operation.
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
          */
         template <typename SubgroupType>
         derecho::rpc::QueryResults<version_tuple> put_objects(const std::vector<typename SubgroupType::ObjectType>& objects,
-                uint32_t subgroup_index, uint32_t shard_index);
+                uint32_t subgroup_index, uint32_t shard_index, bool as_trigger = false);
+
+        /**
+         * "put_objects_and_forget" atomically writes multiple objects, controlled by the given subgroup/shard. No return value.
+         *
+         * @param[in] object            a list of objects to write.
+         *                          User provided SubgroupType::ObjectType must have the following two members:
+         *                          - SubgroupType::ObjectType::key of SubgroupType::KeyType, which must be set to a
+         *                            valid key.
+         *                          - SubgroupType::ObjectType::ver of std::tuple<persistent::version_t, uint64_t>.
+         *                            Similar to the return object, this member is a two tuple with the first member
+         *                            for a version and the second for a timestamp. A caller of put can specify either
+         *                            of the version and timestamp meaning what is the latest version/timestamp the caller
+         *                            has seen. Cascade will reject the write if the corresponding key has been updated
+         *                            already. TODO: should we make it an optional feature?
+         * @param[in] subgroup_index   the subgroup index of CascadeType
+         * @param[in] shard_index       the shard index.
+         * @param[in] as_trigger        If true, the objects will NOT apply to the K/V store. The objects will only be
+         *                              used to update the state.
+         *
+         */
+        template <typename SubgroupType>
+        void put_objects_and_forget(const std::vector<typename SubgroupType::ObjectType>& objects,
+                uint32_t subgroup_index, uint32_t shard_index, bool as_trigger = false);
 
     protected:
         /**
@@ -790,6 +815,8 @@ namespace cascade {
          * @param[in]   subgroup_index
          *                          the subgroup index in the subgroup type designated by type_index
          * @param[in]   shard_index the shard index
+         * @param[in]   as_trigger  If true, the objects will NOT apply to the K/V store. The objects will only be
+         *                          used to update the state.
          *
          * @return a future to the version and timestamp of the put operation.
          */
@@ -798,14 +825,45 @@ namespace cascade {
                 uint32_t type_index,
                 const std::vector<ObjectType>& objects,
                 uint32_t subgroup_index,
-                uint32_t shard_index);
+                uint32_t shard_index,
+                bool as_trigger = false);
 
         template <typename ObjectType, typename LastType>
         derecho::rpc::QueryResults<version_tuple> type_recursive_put_objects(
                 uint32_t type_index,
                 const std::vector<ObjectType>& objects,
                 uint32_t subgroup_index,
-                uint32_t shard_index);
+                uint32_t shard_index,
+                bool as_trigger = false);
+
+        /**
+         * "type_recursive_put_objects_and_forget" is a helper function for internal use only.
+         * @param[in]   type_index  the index of the subgroup type in the CascadeTypes... list. And the FirstType,
+         *                          SecondType, ..., RestTypes should be in the same order.
+         * @param[in]   objects      the list of objects to write
+         * @param[in]   subgroup_index
+         *                          the subgroup index in the subgroup type designated by type_index
+         * @param[in]   shard_index the shard index
+         * @param[in]   as_trigger  If true, the objects will NOT apply to the K/V store. The objects will only be
+         *                          used to update the state.
+         *
+         */
+        template <typename ObjectType, typename FirstType, typename SecondType, typename... RestTypes>
+        void type_recursive_put_objects_and_forget(
+                uint32_t type_index,
+                const std::vector<ObjectType>& objects,
+                uint32_t subgroup_index,
+                uint32_t shard_index,
+                bool as_trigger = false);
+
+        template <typename ObjectType, typename LastType>
+        void type_recursive_put_objects_and_forget(
+                uint32_t type_index,
+                const std::vector<ObjectType>& objects,
+                uint32_t subgroup_index,
+                uint32_t shard_index,
+                bool as_trigger = false);
+    
     public:
         /**
          * object pool version
@@ -823,11 +881,25 @@ namespace cascade {
          * All given objects must go to the same shard.
          *
          * @param[in] objects           a list of objects to write, the object pools are extracted from the objects keys.
+         * @param[in] as_trigger        If true, the objects will NOT apply to the K/V store. The objects will only be
+         *                              used to update the state.
          *
          * @return a future to the version and timestamp of the put operation.
          */
         template <typename ObjectType>
-        derecho::rpc::QueryResults<version_tuple> put_objects(const std::vector<ObjectType>& objects);
+        derecho::rpc::QueryResults<version_tuple> put_objects(const std::vector<ObjectType>& objects, bool as_trigger = false);
+        
+        /**
+         * Multi-object atomic put. This operation will check if the previous version of each given object still matches the latest version. In case of a mismatch for at least one object, the whole operation fails. No return value.
+         * All given objects must go to the same shard.
+         *
+         * @param[in] objects           a list of objects to write, the object pools are extracted from the objects keys.
+         * @param[in] as_trigger        If true, the objects will NOT apply to the K/V store. The objects will only be
+         *                              used to update the state.
+         *
+         */
+        template <typename ObjectType>
+        void put_objects_and_forget(const std::vector<ObjectType>& objects, bool as_trigger = false);
 
         /**
          * "put_and_forget" writes an object to a given subgroup/shard, but no return value.

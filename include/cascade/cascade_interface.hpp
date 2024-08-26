@@ -104,19 +104,20 @@ public:
     virtual version_tuple put(const VT& value, bool as_trigger) const = 0;
 
     /**
-     * @brief   put_objects(const std::vector<VT>&)
+     * @brief   put_objects(const std::vector<VT>&, bool)
      *
      * Put a list of values. VT must implement ICascadeObject interface. Keys are given in the values and retrieved by
      * ICascadeObject::get_key_ref()
      *
      * @param[in]   values   The list of K/V pair values
+     * @param[in]   as_trigger  The object will NOT be used to update the K/V state.
      *
      * @return      a tuple including version number (version_t) and a timestamp in microseconds.
      */
-    virtual version_tuple put_objects(const std::vector<VT>& values) const = 0;
+    virtual version_tuple put_objects(const std::vector<VT>& values, bool as_trigger) const = 0;
 
     /**
-     * @brief   put_and_forget(const VT&)
+     * @brief   put_and_forget(const VT&, bool)
      *
      * Put a value. VT must implement ICascadeObject interface. The key is given in value and retrieved by
      * ICascadeObject::get_key_ref(). This function ignores any return value.
@@ -127,6 +128,19 @@ public:
      * @return      void
      */
     virtual void put_and_forget(const VT& value, bool as_trigger) const = 0;
+    
+    /**
+     * @brief   put_objects_and_forget(const std::vector<VT>&, bool)
+     *
+     * Put a list of values. VT must implement ICascadeObject interface. Keys are given in the values and retrieved by
+     * ICascadeObject::get_key_ref(). This function ignores any return value.
+     *
+     * @param[in]   values   The list of K/V pair values
+     * @param[in]   as_trigger  The object will NOT be used to update the K/V state.
+     *
+     * @return      void
+     */
+    virtual void put_objects_and_forget(const std::vector<VT>& values, bool as_trigger) const = 0;
 
 #ifdef ENABLE_EVALUATION
     /**
@@ -361,10 +375,11 @@ protected:
      * @brief   ordered_put_objects
      *
      * @param[in]   values   The list of K/V pair objects.
+     * @param[in]   as_trigger  If true, the value will NOT apply to the K/V state.
      *
      * @return  A tuple including version number (version_t) and a timestamp in microseconds.
      */
-    virtual version_tuple ordered_put_objects(const std::vector<VT>& values) = 0;
+    virtual version_tuple ordered_put_objects(const std::vector<VT>& values, bool as_trigger) = 0;
 
     /**
      * @brief   ordered_put_and_forget
@@ -373,6 +388,16 @@ protected:
      * @param[in]   as_trigger  If true, the value will NOT apply to the K/V state.
      */
     virtual void ordered_put_and_forget(const VT& value, bool as_trigger) = 0;
+    
+    /**
+     * @brief   ordered_put_objects
+     *
+     * @param[in]   values   The list of K/V pair objects.
+     * @param[in]   as_trigger  If true, the value will NOT apply to the K/V state.
+     *
+     * @return  void
+     */
+    virtual void ordered_put_objects_and_forget(const std::vector<VT>& values, bool as_trigger) = 0;
 
     /**
      * @brief   ordered_remove
