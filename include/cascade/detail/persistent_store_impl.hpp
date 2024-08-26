@@ -24,12 +24,12 @@ namespace derecho {
 namespace cascade {
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::put(const VT& value) const {
+version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::put(const VT& value, bool as_trigger) const {
     debug_enter_func_with_args("value.get_key_ref()={}", value.get_key_ref());
     LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_PUT_START, group, value);
 
     derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
-    auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put)>(value);
+    auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put)>(value, as_trigger);
     auto& replies = results.get();
     version_tuple ret{CURRENT_VERSION, 0, CURRENT_VERSION, CURRENT_VERSION};
     // TODO: verfiy consistency ?
@@ -47,12 +47,12 @@ version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::put(const VT& value) c
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-void PersistentCascadeStore<KT, VT, IK, IV, ST>::put_and_forget(const VT& value) const {
+void PersistentCascadeStore<KT, VT, IK, IV, ST>::put_and_forget(const VT& value, bool as_trigger) const {
     debug_enter_func_with_args("value.get_key_ref()={}", value.get_key_ref());
     LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_PUT_AND_FORGET_START, group, value);
 
     derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
-    subgroup_handle.template ordered_send<RPC_NAME(ordered_put_and_forget)>(value);
+    subgroup_handle.template ordered_send<RPC_NAME(ordered_put_and_forget)>(value, as_trigger);
 
     LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_PUT_AND_FORGET_END, group, value);
     debug_leave_func();
@@ -134,15 +134,17 @@ const VT PersistentCascadeStore<KT, VT, IK, IV, ST>::get(const KT& key, const pe
 #endif
         return persistent_core->lockless_get(key);
     } else {
-        return persistent_core.template getDelta<VT>(requested_version, exact, [this, key, requested_version, exact, ver](const VT& v) {
-            if(key == v.get_key_ref()) {
+        return persistent_core.template getDelta<typename DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaType>(requested_version, exact,
+        [this, key, requested_version, exact, ver](const typename DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaType& delta) {
+            if(delta.objects.find(key) != delta.objects.cend()) {
                 debug_leave_func_with_value("key:{} is found at version:0x{:x}", key, requested_version);
 #if __cplusplus > 201703L
                 LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_END, group, *IV, ver);
 #else
                 LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_END, group,*IV,ver);
 #endif
-                return v;
+                // This return is a copy to make sure returned value does not rely on the data in the delta log.
+                return delta.objects.at(key);
             } else {
                 if(exact) {
                     // return invalid object for EXACT search.
@@ -155,23 +157,39 @@ const VT PersistentCascadeStore<KT, VT, IK, IV, ST>::get(const KT& key, const pe
                     return *IV;
                 } else {
                     // fall back to the slow path.
-                    auto versioned_state_ptr = persistent_core.get(requested_version);
-                    if(versioned_state_ptr->kv_map.find(key) != versioned_state_ptr->kv_map.end()) {
+                    // following the backward chain until its version is behind requested_version.
+                    // TODO: We can introduce a per-key version index to achieve a better performance
+                    //       with a 64bit per log entry memory overhead.
+                    VT o = persistent_core->lockless_get(key);
+                    persistent::version_t target_version = o.version;
+                    while (target_version > requested_version) {
+                        target_version =
+                            persistent_core.template getDelta<typename DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaType>(target_version,true,
+                                [&key](const typename DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaType& delta){
+                                    return delta.objects.at(key).previous_version_by_key;
+                                });
+                    }
+                    if (target_version == persistent::INVALID_VERSION) {
 #if __cplusplus > 201703L
                         LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_END, group, *IV, ver);
 #else
                         LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_END, group,*IV,ver);
 #endif
-                        debug_leave_func_with_value("Reconstructed version:0x{:x} for key:{}", requested_version, key);
-                        return versioned_state_ptr->kv_map.at(key);
-                    }
+                        debug_leave_func_with_value("No data found for key:{} before version:0x{:x}", key, requested_version);
+                        return *IV;
+                    } else {
 #if __cplusplus > 201703L
-                    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_END, group, *IV, ver);
+                        LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_END, group,*IV,ver);
 #else
-                    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_END, group,*IV,ver);
+                        LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_END, group,*IV,ver);
 #endif
-                    debug_leave_func_with_value("No data found for key:{} before version:0x{:x}", key, requested_version);
-                    return *IV;
+                        return persistent_core.template getDelta<typename DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaType>(target_version,true,
+                                [&key](const typename DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaType& delta){
+                                    // This return is a copy, which make sure the returned value does not rely on the data in
+                                    // the delta log.
+                                    return delta.objects.at(key);
+                                });
+                    }
                 }
             }
         });
@@ -290,10 +308,10 @@ uint64_t PersistentCascadeStore<KT, VT, IK, IV, ST>::get_size(const KT& key, con
 #endif
         return rvo_val;
     } else {
-        return persistent_core.template getDelta<VT>(requested_version, exact, [this, key, requested_version, exact, ver](const VT& v) -> uint64_t {
-            if(key == v.get_key_ref()) {
+        return persistent_core.template getDelta<typename DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaType>(requested_version, exact, [this, &key, requested_version, exact, ver](const typename DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaType& delta) -> uint64_t {
+            if(delta.objects.find(key)!=delta.objects.cend()) {
                 debug_leave_func_with_value("key:{} is found at version:0x{:x}", key, requested_version);
-                uint64_t size = mutils::bytes_size(v);
+                uint64_t size = mutils::bytes_size(delta.objects.at(key));
 #if __cplusplus > 201703L
                 LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_SIZE_END, group, *IV, ver);
 #else
@@ -312,10 +330,37 @@ uint64_t PersistentCascadeStore<KT, VT, IK, IV, ST>::get_size(const KT& key, con
                     return 0ull;
                 } else {
                     // fall back to the slow path.
-                    auto versioned_state_ptr = persistent_core.get(requested_version);
-                    if(versioned_state_ptr->kv_map.find(key) != versioned_state_ptr->kv_map.end()) {
-                        debug_leave_func_with_value("Reconstructed version:0x{:x} for key:{}", requested_version, key);
-                        uint64_t size = mutils::bytes_size(versioned_state_ptr->kv_map.at(key));
+                    // following the backward chain until its version is behind requested_version.
+                    // TODO: We can introduce a per-key version index to achieve a better performance
+                    //       with a 64bit per log entry memory overhead.
+                    VT o = persistent_core->lockless_get(key);
+                    persistent::version_t target_version = o.version;
+                    while (target_version > requested_version) {
+                        target_version =
+                            persistent_core.template getDelta<typename DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaType>(target_version,true,
+                                [&key](const typename DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaType& delta){
+                                    if (delta.objects.find(key) != delta.objects.cend()) {
+                                        return delta.objects.at(key).previous_version_by_key;
+                                    }
+                                    return persistent::INVALID_VERSION;
+                                });
+                    }
+                    if (target_version == persistent::INVALID_VERSION) {
+#if __cplusplus > 201703L
+                        LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_SIZE_END, group,*IV,ver);
+#else
+                        LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_SIZE_END, group,*IV,ver);
+#endif
+                        debug_leave_func_with_value("No data found for key:{} before version:0x{:x}", key, requested_version);
+                        return 0ull;
+                    } else {
+                        auto size = persistent_core.template getDelta<typename DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaType>(target_version,true,
+                                [&key](const typename DeltaCascadeStoreCore<KT,VT,IK,IV>::DeltaType& delta){
+                                    if (delta.objects.find(key) != delta.objects.cend()) {
+                                        return static_cast<uint64_t>(mutils::bytes_size(delta.objects.at(key)));
+                                    }
+                                    return static_cast<uint64_t>(0ull);
+                                });
 #if __cplusplus > 201703L
                         LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_SIZE_END, group, *IV, ver);
 #else
@@ -323,13 +368,6 @@ uint64_t PersistentCascadeStore<KT, VT, IK, IV, ST>::get_size(const KT& key, con
 #endif
                         return size;
                     }
-                    debug_leave_func_with_value("No data found for key:{} before version:0x{:x}", key, requested_version);
-#if __cplusplus > 201703L
-                    LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_GET_SIZE_END, group, *IV, ver);
-#else
-                    LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_GET_SIZE_END, group,*IV,ver);
-#endif
-                    return 0ull;
                 }
             }
         });
@@ -463,7 +501,7 @@ std::vector<KT> PersistentCascadeStore<KT, VT, IK, IV, ST>::list_keys_by_time(co
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put(const VT& value) {
+version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put(const VT& value,bool as_trigger) {
     debug_enter_func_with_args("key={}", value.get_key_ref());
 #ifdef ENABLE_EVALUATION
     auto version_and_hlc = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
@@ -474,7 +512,7 @@ version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put(const VT& 
 #else
     LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_PUT_START, group, value, std::get<0>(version_and_hlc));
 #endif
-    auto ret = this->internal_ordered_put(value);
+    auto ret = this->internal_ordered_put(value, as_trigger);
 
 #if __cplusplus > 201703L
     LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_PUT_END, group, value, std::get<0>(version_and_hlc));
@@ -494,7 +532,7 @@ version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put(const VT& 
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-void PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_and_forget(const VT& value) {
+void PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_and_forget(const VT& value,bool as_trigger) {
     debug_enter_func_with_args("key={}", value.get_key_ref());
 #ifdef ENABLE_EVALUATION
     auto version_and_hlc = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
@@ -506,7 +544,7 @@ void PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_and_forget(const VT
     LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_PUT_AND_FORGET_START, group, value, std::get<0>(version_and_hlc));
 #endif
 
-    this->internal_ordered_put(value);
+    this->internal_ordered_put(value,as_trigger);
 
 #if __cplusplus > 201703L
     LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_PUT_AND_FORGET_END, group, value, std::get<0>(version_and_hlc));
@@ -524,7 +562,7 @@ void PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_and_forget(const VT
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put(const VT& value) {
+version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put(const VT& value, bool as_trigger) {
     auto version_and_hlc = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
     if constexpr(std::is_base_of<IKeepVersion, VT>::value) {
         value.set_version(std::get<0>(version_and_hlc));
@@ -535,7 +573,7 @@ version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put(c
 
     try {
         auto previous_version = this->persistent_core.getLatestVersion();
-        auto previous_version_by_key = this->persistent_core->ordered_put(value, previous_version);
+        auto previous_version_by_key = this->persistent_core->ordered_put(value, previous_version, as_trigger);
         debug_leave_func_with_value("version=0x{:x},timestamp={},previous_version=0x{:x},previous_version_by_key=0x{:x}",
                                     std::get<0>(version_and_hlc),
                                     std::get<1>(version_and_hlc).m_rtc_us,

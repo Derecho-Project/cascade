@@ -127,7 +127,7 @@ void print_member_selection_policy(ServiceClientAPI& capi, uint32_t subgroup_ind
 
 template <typename SubgroupType>
 void set_member_selection_policy(ServiceClientAPI& capi, uint32_t subgroup_index, uint32_t shard_index,
-        ShardMemberSelectionPolicy policy, node_id_t user_specified_node_id) {
+        ShardMemberSelectionPolicy policy, derecho::node_id_t user_specified_node_id) {
     capi.template set_member_selection_policy<SubgroupType>(subgroup_index,shard_index,policy,user_specified_node_id);
 }
 
@@ -235,7 +235,7 @@ void op_put(ServiceClientAPI& capi, const std::string& key, const std::string& v
     obj.previous_version = pver;
     obj.previous_version_by_key = pver_bk;
     obj.blob = Blob(reinterpret_cast<const uint8_t*>(value.c_str()),value.length());
-    derecho::rpc::QueryResults<derecho::cascade::version_tuple> result = capi.put(obj);
+    derecho::rpc::QueryResults<derecho::cascade::version_tuple> result = capi.put(obj,false);
     check_put_and_remove_result(result);
 }
 
@@ -257,7 +257,7 @@ void op_put_file(ServiceClientAPI& capi, const std::string& key, const std::stri
     ObjectWithStringKey obj(key,message_generator,file_size);
     obj.previous_version = pver;
     obj.previous_version_by_key = pver_bk;
-    derecho::rpc::QueryResults<derecho::cascade::version_tuple> result = capi.put(obj);
+    derecho::rpc::QueryResults<derecho::cascade::version_tuple> result = capi.put(obj,false);
     value_file.close();
     check_put_and_remove_result(result);
 }
@@ -338,7 +338,7 @@ void op_trigger_put(ServiceClientAPI& capi, const std::string& key, const std::s
 }
 
 template <typename SubgroupType>
-void collective_trigger_put(ServiceClientAPI& capi, const std::string& key, const std::string& value, uint32_t subgroup_index, std::vector<node_id_t> nodes) {
+void collective_trigger_put(ServiceClientAPI& capi, const std::string& key, const std::string& value, uint32_t subgroup_index, std::vector<derecho::node_id_t> nodes) {
     typename SubgroupType::ObjectType obj;
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
         obj.key = static_cast<uint64_t>(std::stol(key,nullptr,0));
@@ -350,7 +350,7 @@ void collective_trigger_put(ServiceClientAPI& capi, const std::string& key, cons
     }
 
     obj.blob = Blob(reinterpret_cast<const uint8_t*>(value.c_str()),value.length());
-    std::unordered_map<node_id_t,std::unique_ptr<derecho::rpc::QueryResults<void>>> nodes_and_futures;
+    std::unordered_map<derecho::node_id_t,std::unique_ptr<derecho::rpc::QueryResults<void>>> nodes_and_futures;
     for (auto& nid: nodes) {
         nodes_and_futures.emplace(nid,nullptr);
     }
@@ -1085,9 +1085,9 @@ std::vector<command_entry_t> commands =
                 print_red("Invalid policy name:" + cmd_tokens[4]);
                 return false;
             }
-            node_id_t user_specified_node_id = INVALID_NODE_ID;
+            derecho::node_id_t user_specified_node_id = INVALID_NODE_ID;
             if (cmd_tokens.size() >= 6) {
-                user_specified_node_id = static_cast<node_id_t>(std::stoi(cmd_tokens[5],nullptr,0));
+                user_specified_node_id = static_cast<derecho::node_id_t>(std::stoi(cmd_tokens[5],nullptr,0));
             }
             on_subgroup_type(cmd_tokens[1],set_member_selection_policy,capi,subgroup_index,shard_index,policy,user_specified_node_id);
             return true;
@@ -1306,12 +1306,12 @@ std::vector<command_entry_t> commands =
         "collective_trigger_put <type> <key> <value> <subgroup_index> <node id 1> [node id 2, ...] \n"
         "    type := " SUBGROUP_TYPE_LIST,
         [](ServiceClientAPI& capi, const std::vector<std::string>& cmd_tokens) {
-            std::vector<node_id_t> nodes;
+            std::vector<derecho::node_id_t> nodes;
             CHECK_FORMAT(cmd_tokens,6);
             uint32_t subgroup_index = static_cast<uint32_t>(std::stoi(cmd_tokens[4],nullptr,0));
             size_t arg_idx = 5;
             while(arg_idx < cmd_tokens.size()) {
-                nodes.push_back(static_cast<node_id_t>(std::stoi(cmd_tokens[arg_idx++],nullptr,0)));
+                nodes.push_back(static_cast<derecho::node_id_t>(std::stoi(cmd_tokens[arg_idx++],nullptr,0)));
             }
             on_subgroup_type(cmd_tokens[1],collective_trigger_put,capi,cmd_tokens[2]/*key*/,cmd_tokens[3]/*value*/,subgroup_index,nodes);
             return true;

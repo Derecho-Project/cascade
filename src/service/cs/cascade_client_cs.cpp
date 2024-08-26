@@ -236,7 +236,7 @@ auto get_by_time(ServiceClientAPI& capi, const std::string& key, uint64_t ts_us,
 */
 template <typename SubgroupType>
 auto put_internal(ServiceClientAPI& capi, const typename SubgroupType::ObjectType& obj, uint32_t subgroup_index = UINT32_MAX, uint32_t shard_index = 0) {
-    derecho::rpc::QueryResults<version_tuple> result = (subgroup_index == UINT32_MAX) ? capi.put(obj) : capi.template put<SubgroupType>(obj, subgroup_index, shard_index);
+    derecho::rpc::QueryResults<version_tuple> result = (subgroup_index == UINT32_MAX) ? capi.put(obj,false) : capi.template put<SubgroupType>(obj, subgroup_index, shard_index, false);
     QueryResultsStore<version_tuple, VersionTimestampPair>* s = new QueryResultsStore<version_tuple, VersionTimestampPair>(std::move(result), bundle_f);
     return s;
 }
@@ -253,9 +253,9 @@ auto put_internal(ServiceClientAPI& capi, const typename SubgroupType::ObjectTyp
 template <typename SubgroupType>
 void put_and_forget(ServiceClientAPI& capi, const typename SubgroupType::ObjectType& obj, uint32_t subgroup_index = UINT32_MAX, uint32_t shard_index = 0) {
     if(subgroup_index == UINT32_MAX) {
-        capi.put_and_forget(obj);
+        capi.put_and_forget(obj,false);
     } else {
-        capi.template put_and_forget<SubgroupType>(obj, subgroup_index, shard_index);
+        capi.template put_and_forget<SubgroupType>(obj, subgroup_index, shard_index, false);
     }
 }
 
@@ -454,16 +454,16 @@ struct TwoDimensionalNodeList {
 struct PolicyMetadataInternal {
     const char* policyString;
     ShardMemberSelectionPolicy policy;
-    node_id_t userNode;
+    derecho::node_id_t userNode;
 };
 
-TwoDimensionalNodeList convert_2d_vector(std::vector<std::vector<node_id_t>> vector) {
+TwoDimensionalNodeList convert_2d_vector(std::vector<std::vector<derecho::node_id_t>> vector) {
     // heap-allocated so that they persist into the managed code without being destructed
-    auto flattened_list = new std::vector<node_id_t>();
+    auto flattened_list = new std::vector<derecho::node_id_t>();
     auto vector_sizes = new std::vector<uint64_t>();
     for (const auto& inner_list : vector) {
         vector_sizes->push_back(inner_list.size());
-        for (const node_id_t node : inner_list) {
+        for (const derecho::node_id_t node : inner_list) {
             flattened_list->push_back(node);
         }
     }
@@ -510,7 +510,7 @@ EXPORT bool deleteStringVectorPointer(std::vector<std::string>* ptr) {
     return true;
 }
 
-EXPORT bool deleteNodeIdVectorPointer(std::vector<node_id_t>* ptr) {
+EXPORT bool deleteNodeIdVectorPointer(std::vector<derecho::node_id_t>* ptr) {
     delete ptr;
     return true;
 }
@@ -538,25 +538,25 @@ EXPORT uint32_t EXPORT_getMyId(ServiceClientAPI& capi) {
 
 EXPORT StdVectorWrapper EXPORT_getMembers(ServiceClientAPI& capi) {
     // heap-allocated so that it persists into the managed code without being destructed
-    auto vec = new std::vector<node_id_t>(capi.get_members());
+    auto vec = new std::vector<derecho::node_id_t>(capi.get_members());
     return {vec->data(), vec, vec->size()};
 }
 
 EXPORT TwoDimensionalNodeList EXPORT_getSubgroupMembers(ServiceClientAPI& capi, char* serviceType, uint32_t subgroupIndex) {
-    std::vector<std::vector<node_id_t>> members;
+    std::vector<std::vector<derecho::node_id_t>> members;
     on_all_subgroup_type(std::string(serviceType), members = capi.template get_subgroup_members, subgroupIndex);
     return convert_2d_vector(members);
 }
 
 EXPORT TwoDimensionalNodeList EXPORT_getSubgroupMembersByObjectPool(ServiceClientAPI& capi, char* objectPoolPathname) {
-    std::vector<std::vector<node_id_t>> members = capi.get_subgroup_members(objectPoolPathname);
+    std::vector<std::vector<derecho::node_id_t>> members = capi.get_subgroup_members(objectPoolPathname);
     return convert_2d_vector(members);
 }
 
 EXPORT StdVectorWrapper EXPORT_getShardMembers(ServiceClientAPI& capi, char* serviceType, uint32_t subgroupIndex, uint32_t shardIndex) {
     // heap-allocated so that it persists into the managed code without being destructed
-    auto members_ptr = new std::vector<node_id_t>();
-    std::vector<node_id_t> members;
+    auto members_ptr = new std::vector<derecho::node_id_t>();
+    std::vector<derecho::node_id_t> members;
     on_all_subgroup_type(std::string(serviceType), members = capi.template get_shard_members, subgroupIndex, shardIndex);
     for (auto member : members) {
         members_ptr->push_back(member);
@@ -567,7 +567,7 @@ EXPORT StdVectorWrapper EXPORT_getShardMembers(ServiceClientAPI& capi, char* ser
 
 EXPORT StdVectorWrapper EXPORT_getShardMembersByObjectPool(ServiceClientAPI& capi, char* objectPoolPathname, uint32_t shardIndex) {
     // heap-allocated so that it persists into the managed code without being destructed
-    auto members = new std::vector<node_id_t>();
+    auto members = new std::vector<derecho::node_id_t>();
     for (auto member : capi.get_shard_members(objectPoolPathname, shardIndex)) {
         members->push_back(member);
     }
@@ -586,7 +586,7 @@ EXPORT uint32_t EXPORT_getNumberOfShards(ServiceClientAPI& capi, char* serviceTy
     return num_shards;
 }
 
-EXPORT void EXPORT_setMemberSelectionPolicy(ServiceClientAPI& capi, char* serviceType, uint32_t subgroupIndex, uint32_t shardIndex, char* policy, node_id_t userNode) {
+EXPORT void EXPORT_setMemberSelectionPolicy(ServiceClientAPI& capi, char* serviceType, uint32_t subgroupIndex, uint32_t shardIndex, char* policy, derecho::node_id_t userNode) {
     ShardMemberSelectionPolicy real_policy = parse_policy_name(std::string(policy));
     on_all_subgroup_type(std::string(serviceType), capi.template set_member_selection_policy, subgroupIndex, shardIndex, real_policy, userNode);
 }
@@ -745,11 +745,11 @@ EXPORT auto EXPORT_put(ServiceClientAPI& capi, char* key, uint8_t* bytes, std::s
         if (trigger) {
             capi.trigger_put(obj);
         } else if (blocking) {
-            auto result = capi.put(obj);
+            auto result = capi.put(obj,false);
             auto s = new QueryResultsStore<version_tuple, VersionTimestampPair>(std::move(result), bundle_f);
             return s;
         } else {
-            capi.put_and_forget(obj);
+            capi.put_and_forget(obj,false);
         }
     } else {
         if (trigger) {

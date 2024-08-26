@@ -209,7 +209,7 @@ namespace cascade {
                 TimestampLogger::log(TLT_ACTION_FIRE_START,
                                      0,
                                      dynamic_cast<const IHasMessageID*>(value_ptr.get())->get_message_id(),
-                                     get_time_ns(), 0);
+                                     0);
                 dbg_default_trace("In {}: [worker_id={}] action is fired.", __PRETTY_FUNCTION__, worker_id);
                 (*ocdpo_ptr)(sender,key_string,prefix_length,version,value_ptr.get(),outputs,ctxt,worker_id);
             }
@@ -617,6 +617,9 @@ namespace cascade {
          *                              shard index.
          * - get_number_of_subgroups    returns the number of subgroups of a given type
          * - get_number_of_shards       returns the number of shards of a given subgroup
+         * - get_my_shard               returns the shard number that this node is a member of in the specific
+         *                              subgroup (by subgroup type and index), or -1 if this node is not a member
+         *                              of any shard in the specified subgroup.
          * During view change, the Client might experience failure if the member is gone. In such a case, the client needs
          * refresh its local member cache by calling get_shard_members.
          */
@@ -671,6 +674,31 @@ namespace cascade {
          * @param[in] object_pool_pathname  - the object pool name
          */
         uint32_t get_number_of_shards(const std::string& object_pool_pathname);
+   
+        template <typename SubgroupType>
+        int32_t get_my_shard(uint32_t subgroup_index) const;
+    protected:
+        template <typename FirstType,typename SecondType, typename...RestTypes>
+        int32_t type_recursive_get_my_shard(uint32_t type_index, uint32_t subgroup_index) const;
+        template <typename LastType>
+        int32_t type_recursive_get_my_shard(uint32_t type_index, uint32_t subgroup_index) const;
+    public:
+        /**
+         * @fn int32_t get_my_shard(uint32_t subgroup_type_index, uint32_t subgroup_index) const
+         * @brief find the shard I belong to, given the subgroup specified by type and index.
+         * @param[in]   subgroup_type_index     - the type index of the subgroup type.
+         * @param[in]   subgroup_index          - the subgroup index in the given type.
+         * @return  The number of the shard, or -1 if current node is not in the specified subgroup.
+         */
+        int32_t get_my_shard(uint32_t subgroup_type_index, uint32_t subgroup_index) const;
+
+        /**
+         * @fn int32_t get_my_shard(const std::string& object_pool_pathname)
+         * @brief find the shard I belong to, given the object pool specified by object pool path name.
+         * @param[in]   object_pool_pathname    - the object pool path name.
+         * @return  The number of the shard, or -1 if current node is not in the specified subgroup.
+         */
+        int32_t get_my_shard(const std::string& object_pool_pathname);
 
         /**
          * Member selection policy control API.
@@ -703,15 +731,17 @@ namespace cascade {
          *                            of the version and timestamp meaning what is the latest version/timestamp the caller
          *                            has seen. Cascade will reject the write if the corresponding key has been updated
          *                            already. TODO: should we make it an optional feature?
-         * @param[in] subgroup_index   the subgroup index of CascadeType
+         * @param[in] subgroup_index    the subgroup index of CascadeType
          * @param[in] shard_index       the shard index.
+         * @param[in] as_trigger        If true, the object will NOT apply to the K/V store. The object will only be
+         *                              used to update the state.
          *
          * @return a future to the version, timestamp, previous_version, and previous_version_by_key of the put operation.
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
          */
         template <typename SubgroupType>
         derecho::rpc::QueryResults<version_tuple> put(const typename SubgroupType::ObjectType& object,
-                uint32_t subgroup_index, uint32_t shard_index);
+                uint32_t subgroup_index, uint32_t shard_index, bool as_trigger = false);
         /**
          * "type_recursive_put" is a helper function for internal use only.
          * @param[in]   type_index  the index of the subgroup type in the CascadeTypes... list. And the FirstType,
@@ -720,6 +750,8 @@ namespace cascade {
          * @param[in]   subgroup_index
          *                          the subgroup index in the subgroup type designated by type_index
          * @param[in]   shard_index the shard index
+         * @param[in]   as_trigger  If true, the object will NOT apply to the K/V store. The object will only be
+         *                          used to update the state.
          *
          * @return a future to the version, timestamp, previous_version, and previous_version_by_key of the put operation.
          */
@@ -729,23 +761,27 @@ namespace cascade {
                 uint32_t type_index,
                 const ObjectType& object,
                 uint32_t subgroup_index,
-                uint32_t shard_index);
+                uint32_t shard_index,
+                bool as_trigger = false);
 
         template <typename ObjectType, typename LastType>
         derecho::rpc::QueryResults<version_tuple> type_recursive_put(
                 uint32_t type_index,
                 const ObjectType& object,
                 uint32_t subgroup_index,
-                uint32_t shard_index);
+                uint32_t shard_index,
+                bool as_trigger = false);
     public:
         /**
          * object pool version
          * @param[in] object            the object to write, the object pool is extracted from the object key.
+         * @param[in] as_trigger        If true, the object will NOT apply to the K/V store. The object will only be
+         *                              used to update the state.
          *
          * @return a future to the version, timestamp, previous_version, and previous_version_by_key of the put operation.
          */
         template <typename ObjectType>
-        derecho::rpc::QueryResults<version_tuple> put(const ObjectType& object);
+        derecho::rpc::QueryResults<version_tuple> put(const ObjectType& object, bool as_trigger = false);
 
         /**
          * "put_and_forget" writes an object to a given subgroup/shard, but no return value.
@@ -762,10 +798,12 @@ namespace cascade {
          *                            already. TODO: should we make it an optional feature?
          * @param[in] subgroup_index   the subgroup index of CascadeType
          * @param[in] shard_index       the shard index.
+         * @param[in] as_trigger        If true, the object will NOT apply to the K/V store. The object will only be
+         *                              used to update the state.
          */
         template <typename SubgroupType>
         void put_and_forget(const typename SubgroupType::ObjectType& object,
-                uint32_t subgroup_index, uint32_t shard_index);
+                uint32_t subgroup_index, uint32_t shard_index, bool as_trigger = false);
 
         /**
          * "type_recursive_put_and_forget" is a helper function for internal use only.
@@ -775,6 +813,8 @@ namespace cascade {
          * @param[in] subgroup_index
          *                          the subgroup index in the subgroup type designated by type_index
          * @param[in] shard_index   the shard index
+         * @param[in] as_trigger    If true, the object will NOT apply to the K/V store. The object will only be
+         *                          used to update the state.
          */
     protected:
         template <typename ObjectType, typename FirstType, typename SecondType, typename... RestTypes>
@@ -782,21 +822,25 @@ namespace cascade {
                 uint32_t type_index,
                 const ObjectType& object,
                 uint32_t subgroup_index,
-                uint32_t shard_index);
+                uint32_t shard_index,
+                bool as_trigger = false);
 
         template <typename ObjectType, typename LastType>
         void type_recursive_put_and_forget(
                 uint32_t type_index,
                 const ObjectType& object,
                 uint32_t subgroup_index,
-                uint32_t shard_index);
+                uint32_t shard_index,
+                bool as_trigger = false);
     public:
         /**
          * object pool version
-         * @param[in] object    the object to write, the object pool is extracted from the object key.
+         * @param[in] object        the object to write, the object pool is extracted from the object key.
+         * @param[in] as_trigger    If true, the object will NOT apply to the K/V store. The object will only be
+         *                          used to update the state.
          */
         template <typename ObjectType>
-        void put_and_forget(const ObjectType& object);
+        void put_and_forget(const ObjectType& object, bool as_trigger = false);
 
         /**
          * "trigger_put" writes an object to a given subgroup/shard.

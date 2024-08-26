@@ -48,7 +48,7 @@ target_include_directories(service PRIVATE
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
-target_link_libraries(service derecho::derecho wanagent::wanagent)
+target_link_libraries(service derecho::derecho libwsong::perf wanagent::wanagent)
 add_dependencies(service udl_signature)
 
 if (ENABLE_MPROC)
@@ -59,7 +59,7 @@ target_include_directories(mproc_manager PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
 )
-target_link_libraries(mproc_manager rpclib::rpc dl pthread)
+target_link_libraries(mproc_manager rpclib::rpc libwsong::ipc dl pthread)
 set_target_properties(mproc_manager PROPERTIES OUTPUT_NAME cascade_mproc_manager)
 endif()
 
@@ -70,12 +70,27 @@ target_include_directories(server PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
 )
-target_link_libraries(server cascade dl pthread)
+target_link_libraries(server cascade dl pthread libwsong::perf)
 target_link_options(server PUBLIC -rdynamic)
 set_target_properties(server PROPERTIES OUTPUT_NAME cascade_server)
 add_custom_command(TARGET server POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/cfg
-    ${CMAKE_CURRENT_BINARY_DIR}/cfg
+                                               ${CMAKE_CURRENT_BINARY_DIR}/cfg
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/layout.json
+                   ${CMAKE_CURRENT_BINARY_DIR}/cfg/n0/layout.json
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/layout.json
+                   ${CMAKE_CURRENT_BINARY_DIR}/cfg/n1/layout.json
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/layout.json
+                   ${CMAKE_CURRENT_BINARY_DIR}/cfg/n2/layout.json
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/layout.json
+                   ${CMAKE_CURRENT_BINARY_DIR}/cfg/n3/layout.json
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/layout.json
+                   ${CMAKE_CURRENT_BINARY_DIR}/cfg/n4/layout.json
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/layout.json
+                   ${CMAKE_CURRENT_BINARY_DIR}/cfg/n5/layout.json
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/layout.json
+                   ${CMAKE_CURRENT_BINARY_DIR}/cfg/n6/layout.json
+    COMMENT "prepare configuration"
 )
 
 add_executable(client client.cpp perftest.cpp)
@@ -88,7 +103,7 @@ target_include_directories(client PRIVATE
 target_include_directories(client PUBLIC
     $<BUILD_INTERFACE:${Readline_INCLUDE_DIRS}>
 )
-target_link_libraries(client cascade ${Readline_LIBRARIES} pthread)
+target_link_libraries(client cascade ${Readline_LIBRARIES} pthread libwsong::perf)
 if(ENABLE_EVALUATION)
     target_link_libraries(client rpclib::rpc)
 endif()

@@ -38,7 +38,6 @@ class PipelineOCDPO: public OffCriticalDataPathObserver {
         TimestampLogger::log(TLT_PIPELINE(stage),
             typed_ctxt->get_service_client_ref().get_my_id(),
             value->get_message_id(),
-            get_walltime(),
             worker_id+stage*10000);
 #endif//ENABLE_EVALUATION
         for (auto& okv:outputs) {
