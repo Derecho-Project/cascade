@@ -192,13 +192,12 @@ bool PerfTestServer::eval_signature_put(uint64_t max_operation_per_second,
     // Notification-callback function that monitors notifications from the signature subgroup
     capi.register_signature_notification_handler(
             [&](const Blob& message) {
-                uint64_t now_timestamp = get_walltime();
                 // Get the message ID and the data object version from the signature callback message
                 uint64_t message_id;
                 persistent::version_t data_object_version;
                 std::memcpy(&message_id, message.bytes, sizeof(message_id));
                 std::memcpy(&data_object_version, message.bytes + sizeof(message_id), sizeof(data_object_version));
-                TimestampLogger::log(TLT_EC_SIGNATURE_NOTIFY, my_node_id, message_id, now_timestamp, data_object_version);
+                TimestampLogger::log(TLT_EC_SIGNATURE_NOTIFY, my_node_id, message_id, data_object_version);
                 dbg_default_debug("Signature notification for message {}, data version {}", message_id, data_object_version);
                 // Notify the main thread when the version corresponding to the last message has been signed
                 // last_message_id will have been set if all_sent is true
@@ -304,7 +303,7 @@ bool PerfTestServer::eval_signature_put(uint64_t max_operation_per_second,
         // (get won't work, but at least the put will succeed). If the put is going to /storage as usual,
         // the PersistentCascadeStore will just ignore the version.
         objects.at(now_ns % num_distinct_objects).set_version(message_id);
-        TimestampLogger::log(TLT_READY_TO_SEND, my_node_id, message_id, get_walltime());
+        TimestampLogger::log(TLT_READY_TO_SEND, my_node_id, message_id);
         if(subgroup_index == INVALID_SUBGROUP_INDEX || shard_index == INVALID_SHARD_INDEX) {
             future_appender(this->capi.put(objects.at(now_ns % num_distinct_objects)));
         } else {
@@ -313,7 +312,7 @@ bool PerfTestServer::eval_signature_put(uint64_t max_operation_per_second,
                     future_appender,
                     this->capi.template put, objects.at(now_ns % num_distinct_objects), subgroup_index, shard_index);
         }
-        TimestampLogger::log(TLT_EC_SENT, my_node_id, message_id, get_walltime());
+        TimestampLogger::log(TLT_EC_SENT, my_node_id, message_id);
         message_id++;
     }
     dbg_default_debug("All messages sent, last message ID was {}", last_message_id);

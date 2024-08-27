@@ -118,8 +118,8 @@ target_link_libraries(cascade
     OpenSSL::Crypto
     rpclib::rpc
     libwsong::perf
-    ${Hyperscan_LIBRARIES})
-    wanagent::wanagent
+    ${Hyperscan_LIBRARIES}
+    wanagent::wanagent)
 set_target_properties(cascade PROPERTIES
     SOVERSION ${cascade_VERSION}
     VERSION ${cascade_build_VERSION}

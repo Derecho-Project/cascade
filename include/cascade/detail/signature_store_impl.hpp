@@ -21,13 +21,13 @@ namespace derecho {
 namespace cascade {
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-version_tuple SignatureCascadeStore<KT, VT, IK, IV, ST>::put(const VT& value) const {
+version_tuple SignatureCascadeStore<KT, VT, IK, IV, ST>::put(const VT& value, bool as_trigger) const {
     // Somehow ensure that only one replica does the UDL here
     debug_enter_func_with_args("value.get_key_ref()={}", value.get_key_ref());
     LOG_TIMESTAMP_BY_TAG(TLT_SIGNATURE_PUT_START, group, value);
 
     derecho::Replicated<SignatureCascadeStore>& subgroup_handle = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index);
-    auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put)>(value);
+    auto results = subgroup_handle.template ordered_send<RPC_NAME(ordered_put)>(value, as_trigger);
     auto& replies = results.get();
     version_tuple ret{CURRENT_VERSION, 0, CURRENT_VERSION, CURRENT_VERSION};
     for(auto& reply_pair : replies) {
@@ -45,11 +45,11 @@ version_tuple SignatureCascadeStore<KT, VT, IK, IV, ST>::put(const VT& value) co
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-void SignatureCascadeStore<KT, VT, IK, IV, ST>::put_and_forget(const VT& value) const {
+void SignatureCascadeStore<KT, VT, IK, IV, ST>::put_and_forget(const VT& value, bool as_trigger) const {
     debug_enter_func_with_args("value.get_key_ref()={}", value.get_key_ref());
     LOG_TIMESTAMP_BY_TAG(TLT_SIGNATURE_PUT_AND_FORGET_START, group, value);
     derecho::Replicated<SignatureCascadeStore>& subgroup_handle = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index);
-    subgroup_handle.template ordered_send<RPC_NAME(ordered_put_and_forget)>(value);
+    subgroup_handle.template ordered_send<RPC_NAME(ordered_put_and_forget)>(value, as_trigger);
     LOG_TIMESTAMP_BY_TAG(TLT_SIGNATURE_PUT_AND_FORGET_END, group, value);
     debug_leave_func();
 }
@@ -427,8 +427,8 @@ std::vector<KT> SignatureCascadeStore<KT, VT, IK, IV, ST>::list_keys_by_time(con
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-version_tuple SignatureCascadeStore<KT, VT, IK, IV, ST>::ordered_put(const VT& value) {
-    debug_enter_func_with_args("key={}", value.get_key_ref());
+version_tuple SignatureCascadeStore<KT, VT, IK, IV, ST>::ordered_put(const VT& value, bool as_trigger) {
+    debug_enter_func_with_args("key={}, as_trigger={}", value.get_key_ref(), as_trigger);
 
     auto version_and_hlc = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index).get_current_version();
 #if __cplusplus > 201703L
@@ -436,7 +436,7 @@ version_tuple SignatureCascadeStore<KT, VT, IK, IV, ST>::ordered_put(const VT& v
 #else
     LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_SIGNATURE_ORDERED_PUT_START, group, value, std::get<0>(version_and_hlc));
 #endif
-    auto ret = this->internal_ordered_put(value);
+    auto ret = this->internal_ordered_put(value, as_trigger);
 
 #if __cplusplus > 201703L
     LOG_TIMESTAMP_BY_TAG(TLT_SIGNATURE_ORDERED_PUT_END, group, value, std::get<0>(version_and_hlc));
@@ -455,8 +455,8 @@ version_tuple SignatureCascadeStore<KT, VT, IK, IV, ST>::ordered_put(const VT& v
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-void SignatureCascadeStore<KT, VT, IK, IV, ST>::ordered_put_and_forget(const VT& value) {
-    debug_enter_func_with_args("key={}", value.get_key_ref());
+void SignatureCascadeStore<KT, VT, IK, IV, ST>::ordered_put_and_forget(const VT& value, bool as_trigger) {
+    debug_enter_func_with_args("key={}, as_trigger={}", value.get_key_ref(), as_trigger);
 #ifdef ENABLE_EVALUATION
     auto version_and_hlc = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index).get_current_version();
 #endif
@@ -467,7 +467,7 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::ordered_put_and_forget(const VT&
     LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_SIGNATURE_ORDERED_PUT_AND_FORGET_START, group, value, std::get<0>(version_and_hlc));
 #endif
 
-    this->internal_ordered_put(value);
+    this->internal_ordered_put(value, as_trigger);
 
 #if __cplusplus > 201703L
     LOG_TIMESTAMP_BY_TAG(TLT_SIGNATURE_ORDERED_PUT_AND_FORGET_END, group, value, std::get<0>(version_and_hlc));
@@ -485,7 +485,7 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::ordered_put_and_forget(const VT&
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-version_tuple SignatureCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put(const VT& value) {
+version_tuple SignatureCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put(const VT& value, bool as_trigger) {
     static_assert(std::is_base_of_v<IKeepVersion, VT>, "SignatureCascadeStore can only be used with values that implement IKeepVersion");
     debug_enter_func_with_args("key={}", value.get_key_ref());
     std::tuple<persistent::version_t, HLC> hash_object_version_and_hlc
@@ -505,7 +505,7 @@ version_tuple SignatureCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put(co
     persistent::version_t previous_version = this->persistent_core.getLatestVersion();
     persistent::version_t previous_version_by_key;
     try {
-        previous_version_by_key = this->persistent_core->ordered_put(value, previous_version);
+        previous_version_by_key = this->persistent_core->ordered_put(value, previous_version, as_trigger);
     } catch(cascade_exception& ex) {
         // verification failed. So we return invalid versions.
         debug_leave_func_with_value("Failed with exception: {}", ex.what());
@@ -545,7 +545,7 @@ version_tuple SignatureCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put(co
         cascade_context_ptr->get_persistence_observer().register_persistence_action(
                 my_subgroup_id, std::get<0>(hash_object_version_and_hlc), true,
                 [=]() {
-                    TimestampLogger::log(TLT_SIGNATURE_PERSISTED, my_id, message_id, get_walltime(), std::get<0>(hash_object_version_and_hlc));
+                    TimestampLogger::log(TLT_SIGNATURE_PERSISTED, my_id, message_id, std::get<0>(hash_object_version_and_hlc));
                 });
     }
 #endif
@@ -1211,7 +1211,7 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::wan_message_callback(wan_agent::
     }
     std::unique_ptr<VT> object_from_remote = mutils::from_bytes<VT>(nullptr, msg_buf);
     derecho::Replicated<SignatureCascadeStore>& subgroup_handle = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index);
-    subgroup_handle.template ordered_send<RPC_NAME(ordered_put)>(*object_from_remote);
+    subgroup_handle.template ordered_send<RPC_NAME(ordered_put)>(*object_from_remote, false);
     debug_leave_func();
 }
 

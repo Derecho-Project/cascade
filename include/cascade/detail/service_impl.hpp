@@ -53,7 +53,7 @@ Service<CascadeTypes...>::Service(const std::vector<DeserializationContext*>& ds
                     // persistent
                     [this](subgroup_id_t subgroup_id, persistent::version_t version) {
 #ifdef ENABLE_EVALUATION
-                        TimestampLogger::log(TLT_PERSISTED, group->get_my_id(), 0, get_walltime(), version);
+                        TimestampLogger::log(TLT_PERSISTED, group->get_my_id(), 0, version);
 #endif
                         context->get_persistence_observer().derecho_global_persistence_callback(subgroup_id, version);
                     },
