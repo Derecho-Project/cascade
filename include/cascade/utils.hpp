@@ -7,6 +7,7 @@
 #include <vector>
 #include <mutex>
 #include <condition_variable>
+#include <string>
 #include <time.h>
 #include <thread>
 #include <unordered_set>
@@ -165,7 +166,7 @@ public:
 #ifdef ENABLE_EVALUATION
 /*
  * time logger tags (TLTs)
- * 
+ *
  * We support a wide range of timestamps in cascade for performance tests.
  * For Service Client (Please note that the END time is not logged because the return clause should be included.
  * The callers should measure it by themselves):
@@ -441,7 +442,7 @@ typedef union __attribute__((packed,aligned(8))) action_fire_extra_info {
 /**
  * @class TimestampLogger utils.hpp "cascade/utils.hpp"
  * @brief The timestamp logger tool.
- * 
+ *
  * A wrapper class over the thread-safe timestamp logger in libwsong
  */
 class TimestampLogger {
