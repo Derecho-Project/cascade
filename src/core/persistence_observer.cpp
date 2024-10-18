@@ -1,4 +1,4 @@
-#include "cascade/persistence_observer.hpp"
+#include <cascade/persistence_observer.hpp>
 
 #include <derecho/core/derecho.hpp>
 

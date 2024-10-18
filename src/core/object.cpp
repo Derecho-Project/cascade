@@ -1,4 +1,4 @@
-#include "cascade/object.hpp"
+#include <cascade/object.hpp>
 
 #include <derecho/persistent/detail/PersistLog.hpp>
 #include <unistd.h>

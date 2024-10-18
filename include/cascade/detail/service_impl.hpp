@@ -1,5 +1,5 @@
-#include "cascade/config.h"
-#include "cascade/data_flow_graph.hpp"
+#include <cascade/config.h>
+#include <cascade/data_flow_graph.hpp>
 
 #include <derecho/core/derecho_exception.hpp>
 #include <derecho/core/detail/rpc_utils.hpp>

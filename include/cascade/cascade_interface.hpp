@@ -5,7 +5,7 @@
  * @brief   Declarations of the interfaces of core Cascade types as Derecho Subgroup type.
  */
 
-#include "cascade/config.h"
+#include <cascade/config.h>
 #include "persistence_observer.hpp"
 
 #include <derecho/core/derecho.hpp>

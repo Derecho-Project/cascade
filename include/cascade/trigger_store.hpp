@@ -2,7 +2,7 @@
 
 #include "cascade_interface.hpp"
 
-#include "cascade/config.h"
+#include <cascade/config.h>
 
 #include <derecho/core/derecho.hpp>
 #include <derecho/mutils-serialization/SerializationSupport.hpp>

@@ -1,4 +1,4 @@
-#include "cascade/config.h"
+#include <cascade/config.h>
 #include "perftest.hpp"
 
 #include <derecho/conf/conf.hpp>

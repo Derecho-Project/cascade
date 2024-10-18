@@ -1,6 +1,6 @@
 #pragma once
 
-#include "cascade/cascade_interface.hpp"
+#include <cascade/cascade_interface.hpp>
 
 #include <derecho/core/derecho.hpp>
 #include <derecho/mutils-serialization/SerializationSupport.hpp>

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "cascade/config.h"
+#include <cascade/config.h>
 #include "cascade_interface.hpp"
 
 #include <derecho/core/derecho.hpp>

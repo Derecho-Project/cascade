@@ -1,7 +1,7 @@
 #define FUSE_USE_VERSION 31
 #include "fuse_client_context.hpp"
 
-#include "cascade/service_types.hpp"
+#include <cascade/service_types.hpp>
 
 #include <derecho/conf/conf.hpp>
 #include <derecho/utils/logger.hpp>

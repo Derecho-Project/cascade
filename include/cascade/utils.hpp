@@ -1,6 +1,6 @@
 #pragma once
 
-#include "cascade/config.h"
+#include <cascade/config.h>
 
 #include <functional>
 #include <memory>

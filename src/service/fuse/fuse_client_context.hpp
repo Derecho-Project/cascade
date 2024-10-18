@@ -10,7 +10,7 @@
 #include <nlohmann/json.hpp>
 #include <derecho/utils/logger.hpp>
 #include <time.h>
-#include "cascade/object_pool_metadata.hpp"
+#include <cascade/object_pool_metadata.hpp>
 
 #include <unistd.h>
 #define GetCurrentDir getcwd
@@ -90,7 +90,7 @@ public:
 
     virtual void initialize(){
     }
-  
+
     // Helper function for get_dir_entries() and read_file()
     void check_update(){
         struct timespec now;
@@ -127,8 +127,8 @@ const char *TypeName<PersistentCascadeStoreWithStringKey>::name = "PersistentCas
 template <>
 const char *TypeName<TriggerCascadeNoStoreWithStringKey>::name = "TriggerCascadeNoStoreWithStringKey";
 
-#define CONF_LAYOUT "layout"  
-  
+#define CONF_LAYOUT "layout"
+
 
 template <typename CascadeType>
 class SubgroupINode;
@@ -173,7 +173,7 @@ public:
         this->display_name = group_layout["type_alias"];
         uint32_t sidx=0;
         for (auto subgroup_it:group_layout[CONF_LAYOUT]) {
-      
+
             children.emplace_back(std::make_unique<SubgroupINode<CascadeType>>(sidx,reinterpret_cast<fuse_ino_t>(this)));
             size_t num_shards = subgroup_it[MIN_NODES_BY_SHARD].size();
             for (uint32_t shidx = 0; shidx < num_shards; shidx ++) {
@@ -189,7 +189,7 @@ public:
 class RootMetaINode : public FuseClientINode {
     ServiceClientAPI& capi;
     std::string contents;
-   
+
 public:
     RootMetaINode (ServiceClientAPI& _capi) :
         capi(_capi) {
@@ -214,7 +214,7 @@ private:
             contents += std::to_string(nid) + ",";
         }
         contents += "\n";
-        
+
         auto objectpools = capi.list_object_pools(false,true);
         contents += "number of objectpool in cascade service: " + std::to_string(objectpools.size()) + ".\nObjectpool paths: ";
         for (auto& objectpool_path : objectpools) {
@@ -250,7 +250,7 @@ public:
     ServiceClientAPI& capi;
     std::map<typename CascadeType::KeyType, fuse_ino_t> key_to_ino;
 
-    ShardINode (uint32_t shidx, fuse_ino_t pino, ServiceClientAPI& _capi) : 
+    ShardINode (uint32_t shidx, fuse_ino_t pino, ServiceClientAPI& _capi) :
         shard_index (shidx), capi(_capi) {
         this->type = INodeType::SHARD;
         this->display_name = "shard-" + std::to_string(shidx);
@@ -284,7 +284,7 @@ public:
     return FuseClientINode::get_dir_entries();
     }
 };
-  
+
 template <>
 class ShardINode<TriggerCascadeNoStoreWithStringKey> : public FuseClientINode {
 public:
@@ -292,7 +292,7 @@ public:
     ServiceClientAPI& capi;
     std::map<TriggerCascadeNoStoreWithStringKey::KeyType, fuse_ino_t> key_to_ino;
 
-    ShardINode (uint32_t shidx, fuse_ino_t pino, ServiceClientAPI& _capi) : 
+    ShardINode (uint32_t shidx, fuse_ino_t pino, ServiceClientAPI& _capi) :
         shard_index (shidx), capi(_capi) {
         this->type = INodeType::SHARD;
         this->display_name = "shard-" + std::to_string(shidx);
@@ -392,11 +392,11 @@ public:
     uint64_t file_size;
     persistent::version_t                       version;
     uint64_t                                    timestamp_us;
-    persistent::version_t                       previous_version; 
+    persistent::version_t                       previous_version;
     persistent::version_t                       previous_version_by_key; // previous version by key, INVALID_VERSION for the first value of the key.
     ServiceClientAPI&  capi;
-  
-    KeyINode(typename CascadeType::KeyType& k, fuse_ino_t pino, ServiceClientAPI& _capi) : 
+
+    KeyINode(typename CascadeType::KeyType& k, fuse_ino_t pino, ServiceClientAPI& _capi) :
       key(k),
       file_bytes(std::make_unique<FileBytes>()),
       capi(_capi){
@@ -414,7 +414,7 @@ public:
             this->display_name = std::string("key-") + key.to_string();
         }
         // '/' in display name, will cause: reading directory '.': input/output error
-        std::replace( this->display_name.begin(), this->display_name.end(), '/', '\\'); 
+        std::replace( this->display_name.begin(), this->display_name.end(), '/', '\\');
     this->parent = pino;
         dbg_default_trace("[{}]leaving {}.", gettid(), __func__);
     }
@@ -491,11 +491,11 @@ class ObjectPoolMetaINode : public FuseClientINode {
 private:
     std::string cur_pathname;
     /** objp_collection contains the all the objp with the same cur_pathname prefix
-     *  i.e. if cur_path name is "/a", 
+     *  i.e. if cur_path name is "/a",
      *  object pools "/a/b1", "/a/b2" share this level of ObjectPoolPathINode*/
     std::vector<std::string> objp_collection;
     bool          is_object_pool;
-    uint32_t      subgroup_type_index; 
+    uint32_t      subgroup_type_index;
     uint32_t      subgroup_index;
     sharding_policy_t sharding_policy;
     bool                deleted;
@@ -526,7 +526,7 @@ private:
     }
     this->contents += objp_contents;
     }
-  
+
     /**
      * Only fill the object pool contents when cur_pathname is an object pool
      */
@@ -589,7 +589,7 @@ public:
       return 0;
     }
 };
-  
+
 
 class ObjectPoolPathINode : public FuseClientINode {
 public:
@@ -625,7 +625,7 @@ public:
     this->children.emplace_back(std::make_unique<ObjectPoolMetaINode>(cur_pathname, capi));
     }
 
-    /** Helper function: 
+    /** Helper function:
      *   @param[in] object_pool_pathname: the object pool pathname to parse
      *   @return:  next level pathname
      *   e.g. if cur_pathname is "/a", for object_pool_pathname "/a/b/c" this function returns "/a/b"
@@ -665,7 +665,7 @@ public:
           if(static_cast<ObjectPoolPathINode*>(inode.get())->cur_pathname == next_level_pathname){
                 return;
                }
-            }       
+            }
         }
     // case2: If this level ObjectPoolPathInode doesn't exists, create one
         // std::unique_lock wlck(this->children_mutex);
@@ -673,7 +673,7 @@ public:
     objp_children.insert(cur_pathname);
     }
 
-  
+
     void update_objpINodes(){
         size_t cur_len = cur_pathname.length();
     std::vector<std::string> reply = capi.list_object_pools(false,true);
@@ -710,9 +710,9 @@ public:
            }else{
            ++it;
        }
-        } 
+        }
     }
-    
+
      void update_keyINodes(){
          // case1. if object pool of cur_pathname donesn't exists anymore, remove all the keyINode from children
          if(!this->is_object_pool){
@@ -735,7 +735,7 @@ public:
        if(key_children.find(key) == key_children.end() ){
             this->children.emplace_back(std::make_unique<ObjectPoolKeyINode>(key,reinterpret_cast<fuse_ino_t>(this),capi));
             key_children.insert(key);
-        }  
+        }
       }
      // Check if need to remove existing keyINode from children inodes
      auto it = this->children.begin();
@@ -744,11 +744,11 @@ public:
            if ((*it)->type == INodeType::KEY && (std::find(reply.begin(),reply.end(), name ) == reply.end())){
            key_children.erase(key_children.find(name));
                it = this->children.erase(it);
-           
+
            }else{
            ++it;
        }
-     } 
+     }
      }
 
 
@@ -764,7 +764,7 @@ private:
       update_keyINodes();
   }
 };
-  
+
 class ObjectPoolRootINode : public ObjectPoolPathINode {
 public:
     ObjectPoolRootINode (ServiceClientAPI& _capi, fuse_ino_t pino=FUSE_ROOT_ID) :
@@ -773,7 +773,7 @@ public:
         this->parent = pino;
     }
 
-  /** this function constructs the whole object pool directories at the beginning 
+  /** this function constructs the whole object pool directories at the beginning
    *  for all the object pools stored in metadata service
    */
     virtual std::map<std::string,fuse_ino_t> get_dir_entries() override {
@@ -796,7 +796,7 @@ public:
      std::unique_ptr<FileBytes> file_bytes;
     persistent::version_t                       version;
     uint64_t                                    timestamp_us;
-    persistent::version_t                       previous_version; 
+    persistent::version_t                       previous_version;
     persistent::version_t                       previous_version_by_key; // previous version by key, INVALID_VERSION for the first value of the key.
     ServiceClientAPI& capi;
 
@@ -827,7 +827,7 @@ public:
     virtual uint64_t get_file_size() override {
         dbg_default_debug("----GET FILE SIZE key is [{}].", this->key);
         check_update();
-        return this->file_bytes.get()->size; 
+        return this->file_bytes.get()->size;
     }
 
     virtual ~ObjectPoolKeyINode() {
@@ -875,7 +875,7 @@ public:
         children.emplace_back(std::make_unique<DataPathLogicRootINode>(capi, reinterpret_cast<fuse_ino_t>(this)));
         this->children.back().get()->initialize();
     }
- 
+
 };
 
  /**
@@ -908,7 +908,7 @@ class DLLINode : public FuseClientINode {
 public:
     std::string file_name;   // DLL id?
     ServiceClientAPI& capi;
-    DLLINode(std::string& _filename, fuse_ino_t pino, ServiceClientAPI& _capi) : 
+    DLLINode(std::string& _filename, fuse_ino_t pino, ServiceClientAPI& _capi) :
         file_name(_filename), capi(_capi) {
         dbg_default_trace("[{}]entering {}.", gettid(), __func__);
         this->type = INodeType::DLL;
@@ -916,7 +916,7 @@ public:
         this->parent = pino;
         dbg_default_trace("[{}]leaving {}.", gettid(), __func__);
     }
-  
+
     virtual uint64_t read_file(FileBytes* file_bytes) override {
         dbg_default_trace("[{}]entering {}.", gettid(), __func__);
         dbg_default_trace("[{}]leaving {}.", gettid(), __func__);
@@ -944,7 +944,7 @@ public:
     }
 };
 
-  
+
 /**
  * The fuse filesystem context for fuse_client. This context will be used as 'userdata' on starting a fuse session.
  */
@@ -1101,7 +1101,7 @@ public:
                 stbuf.st_blocks = (stbuf.st_size+FUSE_CLIENT_BLK_SIZE-1)/FUSE_CLIENT_BLK_SIZE;
                 stbuf.st_blksize = FUSE_CLIENT_BLK_SIZE;
                 break;
-            case INodeType::DATAPATH_LOGIC: 
+            case INodeType::DATAPATH_LOGIC:
                 stbuf.st_mode = S_IFDIR | 0755;
                 stbuf.st_size = pfci->get_file_size();
                 stbuf.st_blocks = (stbuf.st_size+FUSE_CLIENT_BLK_SIZE-1)/FUSE_CLIENT_BLK_SIZE;
@@ -1130,7 +1130,7 @@ public:
     int open_file(fuse_ino_t ino, struct fuse_file_info *fi) {
         dbg_default_trace("[{}]entering {} with ino={:x}.", gettid(), __func__, ino);
         FuseClientINode* pfci = reinterpret_cast<FuseClientINode*>(ino);
-        if (pfci->type != INodeType::KEY && 
+        if (pfci->type != INodeType::KEY &&
             pfci->type != INodeType::META) {
             return EISDIR;
         }
