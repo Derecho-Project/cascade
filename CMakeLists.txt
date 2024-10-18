@@ -44,7 +44,7 @@ endif()
 find_package(Readline REQUIRED)
 
 # spdlog_FOUND
-find_package(spdlog 1.3.1 REQUIRED)
+find_package(spdlog 1.12.0 REQUIRED)
 
 # openssl_FOUND
 find_package(OpenSSL REQUIRED)

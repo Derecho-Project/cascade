@@ -460,6 +460,7 @@ inline std::ostream& operator<<(std::ostream& out, const ObjectWithStringKey& o)
     return out;
 }
 
+
 /**
 template <typename KT, typename VT, KT* IK, VT* IV>
 std::enable_if_t<std::disjunction<std::is_same<ObjectWithStringKey,VT>,std::is_same<ObjectWithStringKey,VT>>::value, VT> create_null_object_cb(const KT& key) {
@@ -469,3 +470,10 @@ std::enable_if_t<std::disjunction<std::is_same<ObjectWithStringKey,VT>,std::is_s
 
 } // namespace cascade
 } // namespace derecho
+
+// Boilerplate definitions needed to enable debug logging of these objects with the spdlog library
+
+template <>
+struct fmt::formatter<derecho::cascade::ObjectWithUInt64Key> : fmt::ostream_formatter {};
+template <>
+struct fmt::formatter<derecho::cascade::ObjectWithStringKey> : fmt::ostream_formatter {};

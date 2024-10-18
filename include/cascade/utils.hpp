@@ -9,6 +9,7 @@
 #include <vector>
 #include <mutex>
 #include <condition_variable>
+#include <string>
 #include <time.h>
 #include <thread>
 #include <unordered_set>
@@ -536,7 +537,7 @@ typedef union __attribute__((packed,aligned(8))) action_fire_extra_info {
 /**
  * @class TimestampLogger utils.hpp "cascade/utils.hpp"
  * @brief The timestamp logger tool.
- * 
+ *
  * A wrapper class over the thread-safe timestamp logger in libwsong
  */
 class TimestampLogger {
