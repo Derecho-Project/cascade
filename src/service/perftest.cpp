@@ -721,7 +721,7 @@ bool PerfTestServer::eval_get_by_time(uint64_t ms_in_past,
     put_futures_queue.pop();
     // Wait for the other puts to complete
     persistent::version_t last_object_version;
-    std::size_t last_object_put;
+    std::size_t last_object_put = 0;
     while(put_futures_queue.size() > 0) {
         auto& replies = put_futures_queue.front().second.get();
         std::size_t object_index = put_futures_queue.front().first;

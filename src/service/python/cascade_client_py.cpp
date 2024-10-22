@@ -515,7 +515,7 @@ PYBIND11_MODULE(member_client, m) {
             .def(
                     "get_number_of_subgroups",
                     [](ServiceClientAPI_PythonWrapper& capi, std::string service_type) {
-                        uint32_t nsubgroups;
+                        uint32_t nsubgroups = 0;
                         on_all_subgroup_type(service_type, nsubgroups = capi.ref.template get_number_of_subgroups);
                         return nsubgroups;
                     },
@@ -528,7 +528,7 @@ PYBIND11_MODULE(member_client, m) {
             .def(
                     "get_number_of_shards",
                     [](ServiceClientAPI_PythonWrapper& capi, std::string service_type, uint32_t subgroup_index) {
-                        uint32_t nshard;
+                        uint32_t nshard = 0;
                         on_all_subgroup_type(service_type, nshard = capi.ref.template get_number_of_shards, subgroup_index);
                         return nshard;
                     },

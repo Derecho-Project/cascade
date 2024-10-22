@@ -167,7 +167,7 @@ public:
       this->display_name = std::string(TypeName<CascadeType>::name);
       this->parent = FUSE_ROOT_ID;
     }
-
+    using FuseClientINode::initialize;
     /** initialize */
     void initialize(const json& group_layout, ServiceClientAPI& capi) {
         this->display_name = group_layout["type_alias"];
