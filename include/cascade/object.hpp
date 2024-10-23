@@ -113,7 +113,7 @@ public:
     // bool operator==(const ObjectWithUInt64Key& other);
 
     // constructor 0 : copy constructor
-    ObjectWithUInt64Key(const uint64_t _key, 
+    ObjectWithUInt64Key(const uint64_t _key,
                         const Blob& _blob);
 
     // constructor 0.5 : copy/emplace constructor
@@ -225,11 +225,11 @@ inline std::ostream& operator<<(std::ostream& out, const Blob& b) {
 }
 
 inline std::ostream& operator<<(std::ostream& out, const ObjectWithUInt64Key& o) {
-    out << "ObjectWithUInt64Key{ver: 0x" << std::hex << o.version << std::dec 
-        << ", ts(us): " << o.timestamp_us 
+    out << "ObjectWithUInt64Key{ver: 0x" << std::hex << o.version << std::dec
+        << ", ts(us): " << o.timestamp_us
         << ", prev_ver: " << std::hex << o.previous_version << std::dec
         << ", prev_ver_by_key: " << std::hex << o.previous_version_by_key << std::dec
-        << ", id:" << o.key 
+        << ", id:" << o.key
         << ", data:" << o.blob << "}";
     return out;
 }
@@ -256,7 +256,7 @@ public:
     // bool operator==(const ObjectWithStringKey& other);
 
     // constructor 0 : copy constructor
-    ObjectWithStringKey(const std::string& _key, 
+    ObjectWithStringKey(const std::string& _key,
                         const Blob& _blob);
 
     // constructor 0.5 : copy/in-place constructor
@@ -352,18 +352,19 @@ public:
 };
 
 inline std::ostream& operator<<(std::ostream& out, const ObjectWithStringKey& o) {
-    out << "ObjectWithStringKey{" 
+    out << "ObjectWithStringKey{"
 #ifdef ENABLE_EVALUATION
         << "msg_id: " << o.message_id
 #endif
-        << "ver: 0x" << std::hex << o.version << std::dec 
+        << "ver: 0x" << std::hex << o.version << std::dec
         << ", ts: " << o.timestamp_us
         << ", prev_ver: " << std::hex << o.previous_version << std::dec
         << ", prev_ver_by_key: " << std::hex << o.previous_version_by_key << std::dec
-        << ", id:" << o.key 
+        << ", id:" << o.key
         << ", data:" << o.blob << "}";
     return out;
 }
+
 
 /**
 template <typename KT, typename VT, KT* IK, VT* IV>
@@ -374,3 +375,10 @@ std::enable_if_t<std::disjunction<std::is_same<ObjectWithStringKey,VT>,std::is_s
 
 } // namespace cascade
 } // namespace derecho
+
+// Boilerplate definitions needed to enable debug logging of these objects with the spdlog library
+
+template <>
+struct fmt::formatter<derecho::cascade::ObjectWithUInt64Key> : fmt::ostream_formatter {};
+template <>
+struct fmt::formatter<derecho::cascade::ObjectWithStringKey> : fmt::ostream_formatter {};
