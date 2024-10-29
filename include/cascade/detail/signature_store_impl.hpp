@@ -102,8 +102,8 @@ const VT SignatureCascadeStore<KT, VT, IK, IV, ST>::get(const KT& key, const per
     persistent::version_t hash_version;
     {
         std::lock_guard<std::mutex> map_lock(version_map_mutex);
-        auto version_map_search = (*data_to_hash_version).upper_bound(ver);
-        if(version_map_search != (*data_to_hash_version).begin()) {
+        auto version_map_search = data_to_hash_version->get_current_map().upper_bound(ver);
+        if(version_map_search != data_to_hash_version->get_current_map().begin()) {
             version_map_search--;
             // The search iterator now points to the largest version <= ver, which is what we want
             if(version_map_search->first == ver || !exact) {
@@ -500,7 +500,7 @@ version_tuple SignatureCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put(co
     {
         std::lock_guard<std::mutex> map_lock(version_map_mutex);
         dbg_default_debug("internal_ordered_put: Storing mapping from data ver=0x{:x} -> hash ver=0x{:x}", data_object_version, std::get<0>(hash_object_version_and_hlc));
-        data_to_hash_version->emplace(data_object_version, std::get<0>(hash_object_version_and_hlc));
+        data_to_hash_version->put(data_object_version, std::get<0>(hash_object_version_and_hlc));
     }
     persistent::version_t previous_version = this->persistent_core.getLatestVersion();
     persistent::version_t previous_version_by_key;
@@ -752,7 +752,7 @@ std::unique_ptr<SignatureCascadeStore<KT, VT, IK, IV, ST>> SignatureCascadeStore
     offset += mutils::bytes_size(*is_primary_ptr);
     auto persistent_core_ptr = mutils::from_bytes<persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST>>(dsm, buf + offset);
     offset += mutils::bytes_size(*persistent_core_ptr);
-    auto version_map_ptr = mutils::from_bytes<persistent::Persistent<std::map<persistent::version_t, const persistent::version_t>>>(dsm, buf + offset);
+    auto version_map_ptr = mutils::from_bytes<persistent::Persistent<DeltaMap<persistent::version_t, const persistent::version_t, &INVALID_VERSION>>>(dsm, buf + offset);
     offset += mutils::bytes_size(*version_map_ptr);
     auto ack_table_ptr = mutils::from_bytes<std::map<wan_agent::site_id_t, uint64_t>>(dsm, buf + offset);
     offset += mutils::bytes_size(*ack_table_ptr);
@@ -790,7 +790,7 @@ SignatureCascadeStore<KT, VT, IK, IV, ST>::SignatureCascadeStore(
         bool backup_enabled,
         bool is_primary_site,
         persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST>&& deserialized_persistent_core,
-        persistent::Persistent<std::map<persistent::version_t, const persistent::version_t>>&& deserialized_data_to_hash_version,
+        persistent::Persistent<DeltaMap<persistent::version_t, const persistent::version_t, &INVALID_VERSION>>&& deserialized_data_to_hash_version,
         std::map<wan_agent::site_id_t, uint64_t>&& deserialized_ack_table,
         std::map<uint64_t, std::tuple<KT, persistent::version_t, persistent::version_t>>&& deserialized_wanagent_message_ids,
         CriticalDataPathObserver<SignatureCascadeStore<KT, VT, IK, IV>>* cw,
@@ -917,8 +917,8 @@ std::tuple<std::vector<uint8_t>, persistent::version_t> SignatureCascadeStore<KT
     persistent::version_t hash_version;
     {
         std::lock_guard<std::mutex> map_lock(version_map_mutex);
-        auto version_map_search = (*data_to_hash_version).upper_bound(ver);
-        if(version_map_search != (*data_to_hash_version).begin()) {
+        auto version_map_search = data_to_hash_version->get_current_map().upper_bound(ver);
+        if(version_map_search != data_to_hash_version->get_current_map().begin()) {
             version_map_search--;
             // The search iterator now points to the largest version <= ver, which is what we want
             if(version_map_search->first == ver || !exact) {
@@ -1148,8 +1148,8 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::request_notification(node_id_t e
     persistent::version_t hash_version;
     {
         std::lock_guard<std::mutex> map_lock(version_map_mutex);
-        auto version_map_search = (*data_to_hash_version).upper_bound(ver);
-        if(version_map_search != (*data_to_hash_version).begin()) {
+        auto version_map_search = data_to_hash_version->get_current_map().upper_bound(ver);
+        if(version_map_search != data_to_hash_version->get_current_map().begin()) {
             version_map_search--;
             // The search iterator now points to the largest version <= ver, which is what we want
             hash_version = version_map_search->second;

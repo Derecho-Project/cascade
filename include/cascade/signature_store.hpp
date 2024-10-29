@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cascade_interface.hpp"
+#include "delta_map.hpp"
 #include "detail/delta_store_core.hpp"
 
 #include <derecho/core/derecho.hpp>
@@ -32,6 +33,12 @@ class SignatureCascadeStore : public ICascadeStore<KT, VT, IK, IV>,
                               public derecho::NotificationSupport,
                               public derecho::GetsViewChangeCallback,
                               public derecho::GroupReference {
+public:
+    /**
+     * Redeclaration of persistent::INVALID_VERSION as a static class member so we can
+     * get a pointer to it. This is needed for DeltaMap of persistent::version_t.
+     */
+    static const persistent::version_t INVALID_VERSION = persistent::INVALID_VERSION;
 private:
     /** Derecho group reference */
     using derecho::GroupReference::group;
@@ -61,7 +68,10 @@ private:
      * A new key-value entry is added each time a hash object is added with put(), but entries do not
      * change once added.
      */
-    persistent::Persistent<std::map<persistent::version_t, const persistent::version_t>> data_to_hash_version;
+    persistent::Persistent<DeltaMap<persistent::version_t,
+                                    const persistent::version_t,
+                                    &INVALID_VERSION>>
+            data_to_hash_version;
     /**
      * A mutex to control access to data_to_hash_version, since it may be simultaneously accessed by
      * both a P2P get (to read) and an ordered put (to write). This wouldn't be necessary if we had a
@@ -201,7 +211,6 @@ private:
                                persistent::version_t object_version, persistent::version_t data_object_version);
 
 public:
-
     /* Specific to SignatureStore, not part of the Cascade interface */
 
     /**
@@ -423,7 +432,7 @@ public:
                           bool backup_enabled,
                           bool is_primary_site,
                           persistent::Persistent<DeltaCascadeStoreCore<KT, VT, IK, IV>, ST>&& deserialized_persistent_core,
-                          persistent::Persistent<std::map<persistent::version_t, const persistent::version_t>>&& deserialized_data_to_hash_version,
+                          persistent::Persistent<DeltaMap<persistent::version_t, const persistent::version_t, &INVALID_VERSION>>&& deserialized_data_to_hash_version,
                           std::map<wan_agent::site_id_t, uint64_t>&& deserialized_ack_table,
                           std::map<uint64_t, std::tuple<KT, persistent::version_t, persistent::version_t>>&& deserialized_wanagent_message_ids,
                           CriticalDataPathObserver<SignatureCascadeStore<KT, VT, IK, IV>>* watcher = nullptr,
