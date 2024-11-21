@@ -1,11 +1,11 @@
 #pragma once
 
 #include "../signature_store.hpp"
+#include "debug_util.hpp"
+#include "delta_store_core.hpp"
 #include <cascade/cascade_notification_message.hpp>
 #include <cascade/config.h>
 #include <cascade/utils.hpp>
-#include "debug_util.hpp"
-#include "delta_store_core.hpp"
 
 #include <derecho/core/derecho.hpp>
 #include <derecho/mutils-serialization/SerializationSupport.hpp>
@@ -140,13 +140,20 @@ const VT SignatureCascadeStore<KT, VT, IK, IV, ST>::get(const KT& key, const per
         }
     }
     dbg_default_debug("corresponding hash ver=0x{:x}", hash_version);
-    return persistent_core.template getDelta<VT>(hash_version, exact, [&key, ver, hash_version, exact, this](const VT& v) {
-        if(key == v.get_key_ref()) {
-            return v;
+    using CoreDeltaType = typename DeltaCascadeStoreCore<KT, VT, IK, IV>::DeltaType;
+    return persistent_core.template getDelta<CoreDeltaType>(hash_version, exact, [&key, ver, hash_version, exact, this](const CoreDeltaType& delta) {
+        if(delta.objects.find(key) != delta.objects.cend()) {
+            dbg_default_debug("Leaving get with: hash object with key {} at version 0x{:x}", key, hash_version);
+#if __cplusplus > 201703L
+            LOG_TIMESTAMP_BY_TAG(TLT_SIGNATURE_GET_END, group, *IV, ver);
+#else
+            LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_SIGNATURE_GET_END, group, *IV, ver);
+#endif
+            return delta.objects.at(key);
         } else {
             if(exact) {
                 // return invalid object for EXACT search.
-                debug_leave_func_with_value("No hash object found for key {} at version 0x{:x}", key, hash_version);
+                dbg_default_debug("Leaving get with: No hash object found for key {} at version 0x{:x}", key, hash_version);
 #if __cplusplus > 201703L
                 LOG_TIMESTAMP_BY_TAG(TLT_SIGNATURE_GET_END, group, *IV, ver);
 #else
@@ -157,7 +164,7 @@ const VT SignatureCascadeStore<KT, VT, IK, IV, ST>::get(const KT& key, const per
                 // fall back to the slow path.
                 auto versioned_state_ptr = persistent_core.get(hash_version);
                 if(versioned_state_ptr->kv_map.find(key) != versioned_state_ptr->kv_map.end()) {
-                    debug_leave_func_with_value("Reconstructed version 0x{:x} for hash object with key {}", hash_version, key);
+                    dbg_default_debug("Leaving get with: Reconstructed version 0x{:x} for hash object with key {}", hash_version, key);
 #if __cplusplus > 201703L
                     LOG_TIMESTAMP_BY_TAG(TLT_SIGNATURE_GET_END, group, *IV, ver);
 #else
@@ -166,7 +173,7 @@ const VT SignatureCascadeStore<KT, VT, IK, IV, ST>::get(const KT& key, const per
 
                     return versioned_state_ptr->kv_map.at(key);
                 }
-                debug_leave_func_with_value("No hash object found for key {} before version 0x{:x}", key, hash_version);
+                dbg_default_debug("Leaving get with: No hash object found for key {} before version 0x{:x}", key, hash_version);
                 return *IV;
             }
         }
@@ -261,10 +268,11 @@ uint64_t SignatureCascadeStore<KT, VT, IK, IV, ST>::get_size(const KT& key, cons
 #endif
         return rvo_val;
     } else {
-        return persistent_core.template getDelta<VT>(requested_version, exact, [this, key, ver, requested_version, exact](const VT& v) -> uint64_t {
-            if(key == v.get_key_ref()) {
-                debug_leave_func_with_value("key:{} is found at version:0x{:x}", key, requested_version);
-                uint64_t size = mutils::bytes_size(v);
+        using CoreDeltaType = typename DeltaCascadeStoreCore<KT, VT, IK, IV>::DeltaType;
+        return persistent_core.template getDelta<CoreDeltaType>(requested_version, exact, [this, key, ver, requested_version, exact](const CoreDeltaType& delta) -> uint64_t {
+            if(delta.objects.find(key) != delta.objects.cend()) {
+                dbg_default_debug("Leaving get_size with: key:{} is found at version:0x{:x}", key, requested_version);
+                uint64_t size = mutils::bytes_size(delta.objects.at(key));
 #if __cplusplus > 201703L
                 LOG_TIMESTAMP_BY_TAG(TLT_SIGNATURE_GET_SIZE_END, group, *IV, ver);
 #else
@@ -274,7 +282,7 @@ uint64_t SignatureCascadeStore<KT, VT, IK, IV, ST>::get_size(const KT& key, cons
             } else {
                 if(exact) {
                     // return invalid object for EXACT search.
-                    debug_leave_func_with_value("No data found for key:{} at version:0x{:x}", key, requested_version);
+                    dbg_default_debug("Leaving get_size with: No data found for key:{} at version:0x{:x}", key, requested_version);
 #if __cplusplus > 201703L
                     LOG_TIMESTAMP_BY_TAG(TLT_SIGNATURE_GET_SIZE_END, group, *IV, ver);
 #else
@@ -285,7 +293,7 @@ uint64_t SignatureCascadeStore<KT, VT, IK, IV, ST>::get_size(const KT& key, cons
                     // fall back to the slow path.
                     auto versioned_state_ptr = persistent_core.get(requested_version);
                     if(versioned_state_ptr->kv_map.find(key) != versioned_state_ptr->kv_map.end()) {
-                        debug_leave_func_with_value("Reconstructed version:0x{:x} for key:{}", requested_version, key);
+                        dbg_default_debug("Leaving get_size with: Reconstructed version:0x{:x} for key:{}", requested_version, key);
                         uint64_t size = mutils::bytes_size(versioned_state_ptr->kv_map.at(key));
 #if __cplusplus > 201703L
                         LOG_TIMESTAMP_BY_TAG(TLT_SIGNATURE_GET_SIZE_END, group, *IV, ver);
@@ -294,7 +302,7 @@ uint64_t SignatureCascadeStore<KT, VT, IK, IV, ST>::get_size(const KT& key, cons
 #endif
                         return size;
                     }
-                    debug_leave_func_with_value("No data found for key:{} before version:0x{:x}", key, requested_version);
+                    dbg_default_debug("Leaving get_size with: No data found for key:{} before version:0x{:x}", key, requested_version);
 #if __cplusplus > 201703L
                     LOG_TIMESTAMP_BY_TAG(TLT_SIGNATURE_GET_SIZE_END, group, *IV, ver);
 #else
@@ -554,7 +562,7 @@ version_tuple SignatureCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put(co
         cascade_context_ptr->get_persistence_observer().register_persistence_action(
                 my_subgroup_id, std::get<0>(hash_object_version_and_hlc), true,
                 [=]() {
-                    send_to_wan_agent(std::get<0>(hash_object_version_and_hlc), data_object_version);
+                    send_to_wan_agent(copy_of_key, std::get<0>(hash_object_version_and_hlc), data_object_version);
                 });
     }
     if(cascade_watcher_ptr) {
@@ -886,7 +894,7 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::new_view_callback(const View& ne
         std::vector<std::unique_ptr<uint8_t[]>> message_buffers;
         for(uint64_t message_id = min_acked_id + 1; message_id <= max_acked_id; message_id++) {
             auto [key, hash_version, data_version] = wanagent_message_ids.at(message_id);
-            VT backup_object = make_backup_object(hash_version, data_version);
+            VT backup_object = make_backup_object(key, hash_version, data_version);
             std::size_t object_size = mutils::bytes_size(backup_object);
             // Manually re-create the WanAgent message format, which puts the payload size at the beginning
             std::unique_ptr<uint8_t[]> message_buffer = std::make_unique<uint8_t[]>(object_size + sizeof(object_size));
@@ -944,13 +952,14 @@ std::tuple<std::vector<uint8_t>, persistent::version_t> SignatureCascadeStore<KT
         }
     }
 
+    using CoreDeltaType = typename DeltaCascadeStoreCore<KT, VT, IK, IV>::DeltaType;
     std::vector<uint8_t> signature(persistent_core.getSignatureSize());
     persistent::version_t previous_signed_version;
     // Hopefully, the user kept track of which log version corresponded to the "put" for this key,
     // and the entry at the requested version is an object with the correct key
-    bool signature_found = persistent_core.template getDeltaSignature<VT>(
-            hash_version, [&key](const VT& deltaEntry) {
-                return deltaEntry.get_key_ref() == key;
+    bool signature_found = persistent_core.template getDeltaSignature<CoreDeltaType>(
+            hash_version, [&key](const CoreDeltaType& deltaEntry) {
+                return deltaEntry.objects.find(key) != deltaEntry.objects.end();
             },
             signature.data(), previous_signed_version);
     // If an inexact match is requested, we need to search backward until we find the newest entry
@@ -959,9 +968,9 @@ std::tuple<std::vector<uint8_t>, persistent::version_t> SignatureCascadeStore<KT
         dbg_default_debug("get_signature: Inexact match requested, searching for {} at version 0x{:x}", key, hash_version);
         persistent::version_t search_ver = hash_version - 1;
         while(search_ver > 0 && !signature_found) {
-            signature_found = persistent_core.template getDeltaSignature<VT>(
-                    search_ver, [&key](const VT& deltaEntry) {
-                        return deltaEntry.get_key_ref() == key;
+            signature_found = persistent_core.template getDeltaSignature<CoreDeltaType>(
+                    search_ver, [&key](const CoreDeltaType& deltaEntry) {
+                        return deltaEntry.objects.find(key) != deltaEntry.objects.end();
                     },
                     signature.data(), previous_signed_version);
             search_ver--;
@@ -1013,12 +1022,13 @@ std::tuple<std::vector<uint8_t>, persistent::version_t> SignatureCascadeStore<KT
     persistent::version_t previous_signed_version = persistent::INVALID_VERSION;
     bool signature_found = false;
     while(!signature_found) {
+        using CoreDeltaType = typename DeltaCascadeStoreCore<KT, VT, IK, IV>::DeltaType;
         // This must work eventually, since the key is in the map
         dbg_default_debug("ordered_get_signature: Looking for signature at version 0x{:x}", current_signed_version);
-        signature_found = persistent_core.template getDeltaSignature<VT>(
+        signature_found = persistent_core.template getDeltaSignature<CoreDeltaType>(
                 current_signed_version,
-                [&key](const VT& deltaEntry) {
-                    return deltaEntry.get_key_ref() == key;
+                [&key](const CoreDeltaType& deltaEntry) {
+                    return deltaEntry.objects.find(key) != deltaEntry.objects.end();
                 },
                 signature.data(), previous_signed_version);
         current_signed_version--;
@@ -1029,14 +1039,24 @@ std::tuple<std::vector<uint8_t>, persistent::version_t> SignatureCascadeStore<KT
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-VT SignatureCascadeStore<KT, VT, IK, IV, ST>::make_backup_object(persistent::version_t hash_object_version,
+VT SignatureCascadeStore<KT, VT, IK, IV, ST>::make_backup_object(const KT& key,
+                                                                 persistent::version_t hash_object_version,
                                                                  persistent::version_t data_object_version) {
-    debug_enter_func_with_args("hash version = {}, data version = {}", hash_object_version, data_object_version);
+    debug_enter_func_with_args("key = {}, hash version = {}, data version = {}", key, hash_object_version, data_object_version);
     // Construct a fake "object" containing the signature and the corresponding data object version in addition to the hash
     VT object_plus_signature;
     // Initialize by copying the hash object
     // We know the version will be an exact match because this method is only called internally on known versions
-    object_plus_signature.copy_from(*persistent_core.template getDelta<VT>(hash_object_version, true));
+    using CoreDeltaType = typename DeltaCascadeStoreCore<KT, VT, IK, IV>::DeltaType;
+    persistent_core.template getDelta<CoreDeltaType>(hash_object_version, true, [&](const CoreDeltaType& delta) {
+        auto object_in_map = delta.objects.find(key);
+        if (object_in_map == delta.objects.end()) {
+            dbg_default_error("Logic error! Delta at version {} did not contain the hash object with key {}!", hash_object_version, key);
+        } else {
+            dbg_default_debug("Copying hash object {} into a new object", object_in_map->second);
+            object_plus_signature.copy_from(object_in_map->second);
+        }
+    });
     // Copy the object's body to a new blob and add the additional "header fields" to the beginning
     // This only works if VT has a member called "blob" that is a Blob; I hope this is safe
     std::size_t new_body_size = object_plus_signature.blob.size
@@ -1060,15 +1080,16 @@ VT SignatureCascadeStore<KT, VT, IK, IV, ST>::make_backup_object(persistent::ver
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-void SignatureCascadeStore<KT, VT, IK, IV, ST>::send_to_wan_agent(persistent::version_t hash_object_version,
+void SignatureCascadeStore<KT, VT, IK, IV, ST>::send_to_wan_agent(const KT& key,
+                                                                  persistent::version_t hash_object_version,
                                                                   persistent::version_t data_object_version) {
-    debug_enter_func_with_args("hash version = {}, data version = {}", hash_object_version, data_object_version);
+    debug_enter_func_with_args("key = {}, hash version = {}, data version = {}", key, hash_object_version, data_object_version);
     if(!wanagent->is_site_leader()) {
         dbg_default_debug("Skipping send_to_wan_agent since this node is not the shard leader");
         debug_leave_func();
         return;
     }
-    VT object_plus_signature = make_backup_object(hash_object_version, data_object_version);
+    VT object_plus_signature = make_backup_object(key, hash_object_version, data_object_version);
     std::vector<uint8_t> serialized_object(mutils::bytes_size(object_plus_signature));
     mutils::to_bytes(object_plus_signature, serialized_object.data());
     uint64_t message_num = wanagent->send(serialized_object.data(), serialized_object.size());
@@ -1161,8 +1182,10 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::request_notification(node_id_t e
     }
 
     // Figure out which key is stored at this version, so it can be used to construct a notification message
-    KT key = persistent_core.template getDelta<VT>(hash_version, false, [](const VT& value) {
-        return value.get_key_ref();
+    using CoreDeltaType = typename DeltaCascadeStoreCore<KT, VT, IK, IV>::DeltaType;
+    KT key = persistent_core.template getDelta<CoreDeltaType>(hash_version, false, [](const CoreDeltaType& delta) {
+        // Assume the delta has only one object, which is always true since SignatureCascadeStore doesn't support multi-object puts
+        return delta.objects.begin()->second.get_key_ref();
     });
     dbg_default_debug("request_notification: Registering notify action for key {}, version {}", key, hash_version);
     derecho::Replicated<SignatureCascadeStore>& subgroup_handle = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index);

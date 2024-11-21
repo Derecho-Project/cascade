@@ -144,13 +144,14 @@ private:
      * node is the shard leader (i.e. WanAgent leader). Does nothing if this
      * node is not the shard leader.
      *
+     * @param key The key identifying the hash object that has finished being signed.
      * @param hash_object_version The version identifying the hash object that has
      * finished being signed. This is used to retrieve it from the DeltaStoreCore.
      * @param data_object_version The data-object version corresponding to this hash
      * object. This will be needed by the remote WanAgent to match up this signature
      * with the data object it receives from the PersistentCascadeStore.
      */
-    void send_to_wan_agent(persistent::version_t hash_object_version, persistent::version_t data_object_version);
+    void send_to_wan_agent(const KT& key, persistent::version_t hash_object_version, persistent::version_t data_object_version);
 
     /**
      * Creates an object to send to the backup sites via WanAgent that contains
@@ -159,6 +160,7 @@ private:
      * the requested version, and its body consists of the hash concatenated
      * with the signature and data object version.
      *
+     * @param key The key identifying the hash object that will be backed up.
      * @param hash_object_version The version identifying the hash object that
      * will be backed up. This is used to retrieve it from the DeltaStoreCore.
      * @param data_object_version The data-object version corresponding to this
@@ -166,7 +168,7 @@ private:
      * @return An object that is mostly a copy of the hash object, but with the
      * data object version and signature appended to its body.
      */
-    VT make_backup_object(persistent::version_t hash_object_version, persistent::version_t data_object_version);
+    VT make_backup_object(const KT& key, persistent::version_t hash_object_version, persistent::version_t data_object_version);
 
     /**
      * Callback function for WanAgent to use as its PredicateLambda, which is called
