@@ -40,8 +40,14 @@ void DeltaCascadeStoreCore<KT, VT, IK, IV>::DeltaType::post_object(
 
 template <typename KT, typename VT, KT* IK, VT* IV>
 std::size_t DeltaCascadeStoreCore<KT, VT, IK, IV>::DeltaType::bytes_size() const {
-    dbg_default_warn("{} should not be called. It is not designed for serialization.",__PRETTY_FUNCTION__);
-    return 0;
+    size_t delta_size = 0;
+    if (objects.size() > 0) {
+        delta_size += mutils::bytes_size(static_cast<std::size_t>(objects.size()));
+        for (const auto& kv_pair : objects) {
+            delta_size += mutils::bytes_size(kv_pair.second);
+        }
+    }
+    return delta_size;
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
