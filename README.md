@@ -13,7 +13,7 @@ Please refer to our [paper](https://arxiv.org/pdf/2311.17329) for detailed infor
 # Release status
 As of December 2023, Cascade has the status of a high-quality beta: publicaly available and useable. The current `master` branch allows the development of sophisticated Cascade applications using C/C++ and Python.  Our Cornell deployment and performance evaluation is performed in a cluster computing Ubuntu Linux environment, and we test both with or without RDMA support. The master branch is rapidly approaching the level of stability as we intend for v1.0 release, although more burn-in testing is still required. In January 2024 we anticipate a v1.0 general release of Cascade.
 
-Derecho, used by Cascade, is more mature, with significant use since its initial release in April 2019.  Derecho continues to evolve too, but the rate of new releases is lower.  
+Derecho, used by Cascade, is more mature, with significant use since its initial release in April 2019.  Derecho continues to evolve too, but the rate of new releases is lower.
 
 ## Plan for v1.0
 In January 2024 we anticipate a v1.0 general release of Cascade, based on a stable version of the current `master` branch.    Regression testing is underway on this release right now. Although we have decided to focus on Cascade's core functionality in this first general release, we note that many experimental features are available in v1.0, and can be tested or used by those who are interested.  The experimental functionality includes:
@@ -36,7 +36,7 @@ By early summer of 2024, we anticipate a v1.2 release that would include enhance
 
 Additionally, we are expecting a new set of zero-copy optimizations to be included in this release, including support for the GPUDirect accelerated datapath and zero-copy integration with Derecho's multicast. Improvements more focused on devops will include application packaging, dynamic application management, and monitoring capabilities.
 
-We recommend coordinating with [Weijia Song](mailto:songweijia@gmail.com) if you plan to experiment with beta features of the system.  Anyone planning to do so should also commit to posting issues on the GitHub issue tracker in the event of a bug, with a minimal example that triggers the problem (as few lines of code as you can manage).  
+We recommend coordinating with [Weijia Song](mailto:songweijia@gmail.com) if you plan to experiment with beta features of the system.  Anyone planning to do so should also commit to posting issues on the GitHub issue tracker in the event of a bug, with a minimal example that triggers the problem (as few lines of code as you can manage).
 
 # Using Cascade
 - Cascade can be used both as a service, and as a software library
@@ -72,7 +72,7 @@ We recommend coordinating with [Weijia Song](mailto:songweijia@gmail.com) if you
 | --- | --- |
 | `v1.0.0` | [Commit 982f54a on `master`](https://github.com/Derecho-Project/derecho/commit/982f54a28ae62e85772cb4f071c46c138fd95016) |
 | `v1.0.1` | [v2.4.0](https://github.com/Derecho-Project/derecho/releases/tag/v2.4.0) |
-| `master` HEAD | [v2.4.1rc](https://github.com/Derecho-Project/derecho/releases/tag/v2.4.1rc) |
+| `v1.0.2` | [v2.4.1](https://github.com/Derecho-Project/derecho/releases/tag/v2.4.1) |
 
 ## Build Cascade
 1) Download Cascade Source Code

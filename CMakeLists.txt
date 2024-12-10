@@ -4,8 +4,8 @@ set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 project(cascade CXX)
 
 # Version
-set(cascade_VERSION 1.0.1)
-set(cascade_build_VERSION 1.0.1)
+set(cascade_VERSION 1.0.2)
+set(cascade_build_VERSION 1.0.2)
 
 # C++ STANDARD
 set(CMAKE_CXX_STANDARD 17)
@@ -44,7 +44,7 @@ endif()
 find_package(Readline REQUIRED)
 
 # spdlog_FOUND
-find_package(spdlog 1.3.1 REQUIRED)
+find_package(spdlog 1.12.0 REQUIRED)
 
 # openssl_FOUND
 find_package(OpenSSL REQUIRED)
@@ -138,7 +138,7 @@ install(DIRECTORY
 include(CMakePackageConfigHelpers)
 write_basic_package_version_file(
     "${CMAKE_CURRENT_BINARY_DIR}/cmake/cascadeConfigVersion.cmake"
-    VERSION ${cascade_VERSION}
+    VERSION ${cascade_build_VERSION}
     COMPATIBILITY AnyNewerVersion
 )
 
