@@ -33,7 +33,7 @@ if ( NOT DEFINED CMAKE_INSTALL_INCLUDEDIR )
     set( CMAKE_INSTALL_INCLUDEDIR include )
 endif ( )
 
-set(ENABLE_MPROC 1)
+set(ENABLE_MPROC 0)
 
 find_package(mutils REQUIRED)
 if(mutils_FOUND)
