@@ -27,9 +27,21 @@ template <typename KT, typename VT, KT* IK, VT* IV>
 DeltaCascadeStoreCore<KT, VT, IK, IV>::DeltaType::DeltaType() {}
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-std::size_t DeltaCascadeStoreCore<KT, VT, IK, IV>::DeltaType::to_bytes(uint8_t*) const {
-    dbg_default_warn("{} should not be called. It is not designed for serialization.",__PRETTY_FUNCTION__);
-    return 0;
+std::size_t DeltaCascadeStoreCore<KT, VT, IK, IV>::DeltaType::to_bytes(uint8_t* buf) const {
+    // This function is never called during normal server operation, because DeltaType is
+    // serialized by currentDeltaToBytes(). It is only used by client code that needs to
+    // re-create a DeltaType log entry to verify a signature.
+    if(objects.size() == 0) {
+        return 0;
+    }
+    std::size_t offset = mutils::to_bytes(objects.size(), buf);
+    // Warning: This is not guaranteed to produce the same bytes as currentDeltaToBytes()
+    // because the order of iteration through an unordered_map is not consistent. It works
+    // for now because SignatureCascadeStore only ever has one item per delta.
+    for(const auto& kv_pair : objects) {
+        offset += mutils::to_bytes(kv_pair.second, buf + offset);
+    }
+    return offset;
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>

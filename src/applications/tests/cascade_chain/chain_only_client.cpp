@@ -369,27 +369,29 @@ bool ChainClientContext<CascadeTypes...>::verify_object_signature(const ObjectWi
         return false;
     }
     service_verifier->init();
-    // Because DeltaCascadeStoreCore stores the hashes in deltas (which are just ObjectWithStringKeys),
-    // the data that PersistentRegistry ends up signing is actually the to_bytes serialization of the entire
-    // ObjectWithStringKey object, not just the hash.
+    // Because DeltaCascadeStoreCore stores the hashes in deltas defined by DeltaType,
+    // which is a number followed by a sequence of ObjectWithStringKeys, the data that
+    // PersistentRegistry ends up signing includes everything in the DeltaType, not just the hash.
     std::cout << "Verifying signature on hash object " << hash << " with previous signature " << std::hex << previous_signature << std::dec << std::endl;
-    std::size_t hash_object_size = mutils::bytes_size(hash);
-    uint8_t bytes_of_hash_object[hash_object_size];
-    mutils::to_bytes(hash, bytes_of_hash_object);
+    SignatureCascadeStoreWithStringKey::LogEntry hash_log_entry;
+    hash_log_entry.objects.emplace(hash.get_key_ref(), hash);
+    std::size_t log_entry_size = mutils::bytes_size(hash_log_entry);
+    uint8_t bytes_of_log_entry[log_entry_size];
+    mutils::to_bytes(hash_log_entry, bytes_of_log_entry);
     /*
      * Verbose debug output:
     std::ios normal_stream_state(nullptr);
     normal_stream_state.copyfmt(std::cout);
     std::cout << "Verifying these bytes: " << std::hex << std::setfill('0');
-    for(std::size_t i = 0; i < hash_object_size; ++i) {
+    for(std::size_t i = 0; i < log_entry_size; ++i) {
         // It sure is hard to convince std::cout to print bytes as bytes. Why do I need two casts?
-        std::cout << std::setw(2) << std::right << static_cast<int>(static_cast<uint8_t>(bytes_of_hash_object[i])) << " ";
+        std::cout << std::setw(2) << std::right << static_cast<int>(static_cast<uint8_t>(bytes_of_log_entry[i])) << " ";
     }
     std::cout.copyfmt(normal_stream_state);
-     */
     std::cout << std::endl;
-    service_verifier->add_bytes(bytes_of_hash_object,
-                                hash_object_size);
+     */
+    service_verifier->add_bytes(bytes_of_log_entry,
+                                log_entry_size);
     service_verifier->add_bytes(previous_signature.data(),
                                 previous_signature.size());
     return service_verifier->finalize(signature);

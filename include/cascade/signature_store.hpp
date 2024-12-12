@@ -19,8 +19,8 @@ namespace cascade {
 /**
  * This subgroup type creates a node that stores signed hashes in a persistent log.
  * It is expected that the key type KT matches the key type for a PersistentCascadeStore
- * that stores the actual data, and the value type VT is some kind of byte array that
- * can hold a hash (e.g. std::array<uint8_t, 32>.
+ * that stores the actual data, and the value type VT is an object that can hold the hash
+ * (probably ObjectWithStringKey).
  *
  * This is mostly a copy of PersistentCascadeStore that just inherits SignedPersistentFields
  * to enable signatures on the persistent key-value map. It would be nice if I could reuse the
@@ -39,6 +39,12 @@ public:
      * get a pointer to it. This is needed for DeltaMap of persistent::version_t.
      */
     static const persistent::version_t INVALID_VERSION = persistent::INVALID_VERSION;
+    /**
+     * Type alias for the object stored in each entry of the signed log, since it is not
+     * simply a VT object. Clients need to know this type so they can reconstruct a log
+     * entry from the VT they receive from a get(), so they can verify the signature on it.
+     */
+    using LogEntry = typename DeltaCascadeStoreCore<KT, VT, IK, IV>::DeltaType;
 private:
     /** Derecho group reference */
     using derecho::GroupReference::group;
@@ -443,6 +449,7 @@ public:
     SignatureCascadeStore();
 
     virtual ~SignatureCascadeStore();
+
 };
 
 /**
