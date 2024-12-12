@@ -85,6 +85,10 @@ public:
      */
     virtual persistent::version_t ordered_put(const VT& value, persistent::version_t previous_version, bool as_trigger);
     /**
+     * Ordered put_objects, and generate a delta.
+     */
+    virtual bool ordered_put_objects(const std::vector<VT>& values, persistent::version_t prever, bool as_trigger);
+    /**
      * Ordered remove, and generate a delta.
      * @param value A null object with the same key as the object to be removed
      * @param previous_version

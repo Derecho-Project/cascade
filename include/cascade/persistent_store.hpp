@@ -31,6 +31,7 @@ class PersistentCascadeStore : public ICascadeStore<KT, VT, IK, IV>,
                                public derecho::NotificationSupport {
 private:
     version_tuple internal_ordered_put(const VT& value, bool as_trigger);
+    bool internal_ordered_put_objects(const std::vector<VT>& values, bool as_trigger);
 
 public:
     using derecho::GroupReference::group;
@@ -42,7 +43,9 @@ public:
     REGISTER_RPC_FUNCTIONS_WITH_NOTIFICATION(PersistentCascadeStore,
                                              P2P_TARGETS(
                                                      put,
+                                                     put_objects,
                                                      put_and_forget,
+                                                     put_objects_and_forget,
 #ifdef ENABLE_EVALUATION
                                                      perf_put,
 #endif  // ENABLE_EVALUATION
@@ -68,7 +71,9 @@ public:
                                                      ),
                                              ORDERED_TARGETS(
                                                      ordered_put,
+                                                     ordered_put_objects,
                                                      ordered_put_and_forget,
+                                                     ordered_put_objects_and_forget,
                                                      ordered_remove,
                                                      ordered_get,
                                                      ordered_list_keys,
@@ -86,7 +91,9 @@ public:
 #endif  // ENABLE_EVALUATION
     virtual void trigger_put(const VT& value) const override;
     virtual version_tuple put(const VT& value, bool as_trigger) const override;
+    virtual version_tuple put_objects(const std::vector<VT>& values, bool as_trigger) const override;
     virtual void put_and_forget(const VT& value, bool as_trigger) const override;
+    virtual void put_objects_and_forget(const std::vector<VT>& values, bool as_trigger) const override;
 #ifdef ENABLE_EVALUATION
     virtual double perf_put(const uint32_t max_payload_size, const uint64_t duration_sec) const override;
 #endif  // ENABLE_EVALUATION
@@ -101,7 +108,9 @@ public:
     virtual uint64_t get_size(const KT& key, const persistent::version_t& ver, const bool stable, bool exact = false) const override;
     virtual uint64_t get_size_by_time(const KT& key, const uint64_t& ts_us, const bool stable) const override;
     virtual version_tuple ordered_put(const VT& value, bool as_trigger) override;
+    virtual version_tuple ordered_put_objects(const std::vector<VT>& values, bool as_trigger) override;
     virtual void ordered_put_and_forget(const VT& value, bool as_trigger) override;
+    virtual void ordered_put_objects_and_forget(const std::vector<VT>& values, bool as_trigger) override;
     virtual version_tuple ordered_remove(const KT& key) override;
     virtual const VT ordered_get(const KT& key) override;
     virtual std::vector<KT> ordered_list_keys(const std::string& prefix) override;

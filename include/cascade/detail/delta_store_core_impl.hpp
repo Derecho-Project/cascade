@@ -221,14 +221,65 @@ persistent::version_t DeltaCascadeStoreCore<KT, VT, IK, IV>::ordered_put(const V
     if constexpr(std::is_base_of<IKeepPreviousVersion, VT>::value) {
         value.set_previous_version(previous_version, previous_version_by_key);
     }
+
     if (!as_trigger) {
         // create delta.
         assert(this->delta.empty());
         this->delta.push_back(value.get_key_ref());
+
         // apply_ordered_put
         apply_ordered_put(value);
     }
+
     return previous_version_by_key;
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV>
+bool DeltaCascadeStoreCore<KT, VT, IK, IV>::ordered_put_objects(const std::vector<VT>& values, persistent::version_t prev_ver, bool as_trigger) {
+    // validate and check versions of all objects before any update: if there is at least one mismatch, fail the whole operation
+    for(const VT& value : values){
+        // call validator
+        if constexpr(std::is_base_of<IValidator<KT, VT>, VT>::value) {
+            if(!value.validate(this->kv_map)) {
+                return false;
+            }
+        }
+
+        // verify version MUST happen before updating it's previous versions (prev_ver,prev_ver_by_key).
+        if constexpr(std::is_base_of<IVerifyPreviousVersion, VT>::value) {
+            bool verify_result;
+            if(kv_map.find(value.get_key_ref()) != this->kv_map.end()) {
+                verify_result = value.verify_previous_version(prev_ver, this->kv_map.at(value.get_key_ref()).get_version());
+            } else {
+                verify_result = value.verify_previous_version(prev_ver, persistent::INVALID_VERSION);
+            }
+            if(!verify_result) {
+                // reject the package if verify failed.
+                return false;
+            }
+        }
+
+        if constexpr(std::is_base_of<IKeepPreviousVersion, VT>::value) {
+            persistent::version_t prev_ver_by_key = persistent::INVALID_VERSION;
+            if(kv_map.find(value.get_key_ref()) != kv_map.end()) {
+                prev_ver_by_key = kv_map.at(value.get_key_ref()).get_version();
+            }
+            value.set_previous_version(prev_ver, prev_ver_by_key);
+        }
+    }
+
+    // everything is fine, perform updates
+
+    // create delta and apply puts
+    if (!as_trigger) {
+        assert(this->delta.empty());
+        for(const VT& value : values){
+            this->delta.push_back(value.get_key_ref());
+            apply_ordered_put(value);
+        }
+    }
+
+    return true;
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
@@ -257,9 +308,11 @@ persistent::version_t DeltaCascadeStoreCore<KT, VT, IK, IV>::ordered_remove(cons
     if constexpr(std::is_base_of<IKeepPreviousVersion, VT>::value) {
         value.set_previous_version(previous_version, previous_version_by_key);
     }
+
     // create delta.
     assert(this->delta.empty());
     this->delta.push_back(key);
+
     // apply_ordered_put
     apply_ordered_put(value);
     return previous_version_by_key;

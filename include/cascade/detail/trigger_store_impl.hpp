@@ -24,7 +24,18 @@ version_tuple TriggerCascadeNoStore<KT, VT, IK, IV>::put(const VT& value, bool a
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
+version_tuple TriggerCascadeNoStore<KT, VT, IK, IV>::put_objects(const std::vector<VT>& values, bool as_trigger) const {
+    dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
+    return {persistent::INVALID_VERSION, 0};
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV>
 void TriggerCascadeNoStore<KT, VT, IK, IV>::put_and_forget(const VT& value, bool as_trigger) const {
+    dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV>
+void TriggerCascadeNoStore<KT, VT, IK, IV>::put_objects_and_forget(const std::vector<VT>& values, bool as_trigger) const {
     dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
 }
 
@@ -109,7 +120,18 @@ version_tuple TriggerCascadeNoStore<KT, VT, IK, IV>::ordered_put(const VT& value
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
+version_tuple TriggerCascadeNoStore<KT, VT, IK, IV>::ordered_put_objects(const std::vector<VT>& values, bool as_trigger) {
+    dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
+    return {persistent::INVALID_VERSION, 0};
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV>
 void TriggerCascadeNoStore<KT, VT, IK, IV>::ordered_put_and_forget(const VT& value, bool as_trigger) {
+    dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV>
+void TriggerCascadeNoStore<KT, VT, IK, IV>::ordered_put_objects_and_forget(const std::vector<VT>& values, bool as_trigger) {
     dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
 }
 
