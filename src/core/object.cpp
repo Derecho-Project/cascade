@@ -79,7 +79,7 @@ Blob::Blob(const Blob& other) :
     bytes(nullptr), size(0), capacity(0), memory_mode(object_memory_mode_t::DEFAULT) {
     if(other.size > 0) {
         uint8_t* t_bytes = static_cast<uint8_t*>(malloc(other.size));
-        if (memory_mode == object_memory_mode_t::BLOB_GENERATOR) {
+        if (other.memory_mode == object_memory_mode_t::BLOB_GENERATOR) {
             // instantiate data.
             auto number_bytes_generated = other.blob_generator(t_bytes,other.size);
             if (number_bytes_generated != other.size) {
