@@ -26,7 +26,7 @@ class VolatileCascadeStore : public ICascadeStore<KT, VT, IK, IV>,
                              public derecho::NotificationSupport {
 private:
     version_tuple internal_ordered_put(const VT& value, bool as_trigger);
-    bool internal_ordered_put_objects(const std::vector<VT>& values, bool as_trigger);
+    version_tuple internal_ordered_put_objects(const std::vector<VT>& values, bool as_trigger);
 #if defined(__i386__) || defined(__x86_64__) || defined(_M_AMD64) || defined(_M_IX86)
     mutable std::atomic<persistent::version_t> lockless_v1;
     mutable std::atomic<persistent::version_t> lockless_v2;

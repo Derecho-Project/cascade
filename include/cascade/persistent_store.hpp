@@ -31,7 +31,7 @@ class PersistentCascadeStore : public ICascadeStore<KT, VT, IK, IV>,
                                public derecho::NotificationSupport {
 private:
     version_tuple internal_ordered_put(const VT& value, bool as_trigger);
-    bool internal_ordered_put_objects(const std::vector<VT>& values, bool as_trigger);
+    version_tuple internal_ordered_put_objects(const std::vector<VT>& values, bool as_trigger);
 
 public:
     using derecho::GroupReference::group;

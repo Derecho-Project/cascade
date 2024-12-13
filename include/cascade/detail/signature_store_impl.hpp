@@ -45,6 +45,12 @@ version_tuple SignatureCascadeStore<KT, VT, IK, IV, ST>::put(const VT& value, bo
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+version_tuple SignatureCascadeStore<KT, VT, IK, IV, ST>::put_objects(const std::vector<VT>& values, bool as_trigger) const {
+    dbg_default_warn("Calling unsupported function:{}", __PRETTY_FUNCTION__);
+    return {persistent::INVALID_VERSION, 0, persistent::INVALID_VERSION, persistent::INVALID_VERSION};
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void SignatureCascadeStore<KT, VT, IK, IV, ST>::put_and_forget(const VT& value, bool as_trigger) const {
     debug_enter_func_with_args("value.get_key_ref()={}", value.get_key_ref());
     LOG_TIMESTAMP_BY_TAG(TLT_SIGNATURE_PUT_AND_FORGET_START, group, value);
@@ -52,6 +58,11 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::put_and_forget(const VT& value, 
     subgroup_handle.template ordered_send<RPC_NAME(ordered_put_and_forget)>(value, as_trigger);
     LOG_TIMESTAMP_BY_TAG(TLT_SIGNATURE_PUT_AND_FORGET_END, group, value);
     debug_leave_func();
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+void SignatureCascadeStore<KT, VT, IK, IV, ST>::put_objects_and_forget(const std::vector<VT>& values, bool as_trigger) const {
+    dbg_default_warn("Calling unsupported function:{}", __PRETTY_FUNCTION__);
 }
 
 #ifdef ENABLE_EVALUATION
@@ -463,6 +474,12 @@ version_tuple SignatureCascadeStore<KT, VT, IK, IV, ST>::ordered_put(const VT& v
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+version_tuple SignatureCascadeStore<KT, VT, IK, IV, ST>::ordered_put_objects(const std::vector<VT>& values, bool as_trigger) {
+    dbg_default_warn("Calling unsupported function:{}", __PRETTY_FUNCTION__);
+    return {persistent::INVALID_VERSION, 0, persistent::INVALID_VERSION, persistent::INVALID_VERSION};
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void SignatureCascadeStore<KT, VT, IK, IV, ST>::ordered_put_and_forget(const VT& value, bool as_trigger) {
     debug_enter_func_with_args("key={}, as_trigger={}", value.get_key_ref(), as_trigger);
 #ifdef ENABLE_EVALUATION
@@ -490,6 +507,11 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::ordered_put_and_forget(const VT&
     }
 #endif
     debug_leave_func();
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
+void SignatureCascadeStore<KT, VT, IK, IV, ST>::ordered_put_objects_and_forget(const std::vector<VT>& value, bool as_trigger) {
+    dbg_default_warn("Calling unsupported function:{}", __PRETTY_FUNCTION__);
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>

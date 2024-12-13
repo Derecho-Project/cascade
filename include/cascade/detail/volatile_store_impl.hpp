@@ -40,7 +40,7 @@ version_tuple VolatileCascadeStore<KT, VT, IK, IV>::put(const VT& value, bool as
 template <typename KT, typename VT, KT* IK, VT* IV>
 version_tuple VolatileCascadeStore<KT, VT, IK, IV>::put_objects(const std::vector<VT>& values, bool as_trigger) const {
     debug_enter_func_with_args("values.size={}", values.size());
-    version_tuple ret{CURRENT_VERSION, 0};
+    version_tuple ret{CURRENT_VERSION, 0, CURRENT_VERSION, CURRENT_VERSION};
 
     if(!values.empty()){
         LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_PUT_START, group, values[0]);
@@ -447,7 +447,7 @@ version_tuple VolatileCascadeStore<KT, VT, IK, IV>::ordered_put_objects(const st
     debug_enter_func_with_args("size={}", values.size());
 
     auto version_and_hlc = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
-    version_tuple version_and_timestamp{persistent::INVALID_VERSION, 0};
+    version_tuple versions_to_return{persistent::INVALID_VERSION, 0, persistent::INVALID_VERSION, persistent::INVALID_VERSION};
 
     if(!values.empty()){
 #if __cplusplus > 201703L
@@ -456,8 +456,10 @@ version_tuple VolatileCascadeStore<KT, VT, IK, IV>::ordered_put_objects(const st
         LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_PUT_START,group,values[0],std::get<0>(version_and_hlc));
 #endif
 
-        if(this->internal_ordered_put_objects(values,as_trigger) == true) {
-            version_and_timestamp = {std::get<0>(version_and_hlc),std::get<1>(version_and_hlc).m_rtc_us};
+        try {
+            versions_to_return = internal_ordered_put_objects(values, as_trigger);
+        } catch(cascade_exception& ex) {
+            dbg_default_debug("ordered_put_objects failed with exception: {}", ex.what());
         }
 
 #if __cplusplus > 201703L
@@ -467,11 +469,12 @@ version_tuple VolatileCascadeStore<KT, VT, IK, IV>::ordered_put_objects(const st
 #endif
     }
 
-    debug_leave_func_with_value("version=0x{:x},timestamp={}us",
-            std::get<0>(version_and_hlc),
-            std::get<1>(version_and_hlc).m_rtc_us);
+    debug_leave_func_with_value("version=0x{:x},timestamp={}us,previous_version=0x{:x}",
+            std::get<0>(versions_to_return),
+            std::get<1>(versions_to_return),
+            std::get<2>(versions_to_return));
 
-    return version_and_timestamp;
+    return versions_to_return;
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
@@ -485,7 +488,11 @@ void VolatileCascadeStore<KT, VT, IK, IV>::ordered_put_and_forget(const VT& valu
 #else
     LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_PUT_AND_FORGET_START,group,value,std::get<0>(version_and_hlc));
 #endif
-    internal_ordered_put(value,as_trigger);
+    try {
+        internal_ordered_put(value,as_trigger);
+    } catch(cascade_exception& ex) {
+        dbg_default_debug("ordered_put_and_forget failed with exception: {}", ex.what());
+    }
 #if __cplusplus > 201703L
     LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_PUT_AND_FORGET_END,group,value,std::get<0>(version_and_hlc));
 #else
@@ -506,8 +513,11 @@ void VolatileCascadeStore<KT, VT, IK, IV>::ordered_put_objects_and_forget(const 
 #else
         LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_VOLATILE_ORDERED_PUT_START,group,values[0],std::get<0>(version_and_hlc));
 #endif
-
-        this->internal_ordered_put_objects(values,as_trigger);
+        try {
+            this->internal_ordered_put_objects(values, as_trigger);
+        } catch(cascade_exception& ex) {
+            dbg_default_debug("ordered_put_objects_and_forget failed with exception: {}", ex.what());
+        }
 
 #if __cplusplus > 201703L
         LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_ORDERED_PUT_END,group,values[0],std::get<0>(version_and_hlc));
@@ -598,8 +608,9 @@ version_tuple VolatileCascadeStore<KT, VT, IK, IV>::internal_ordered_put(const V
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
-bool VolatileCascadeStore<KT, VT, IK, IV>::internal_ordered_put_objects(const std::vector<VT>& values, bool as_trigger) {
+version_tuple VolatileCascadeStore<KT, VT, IK, IV>::internal_ordered_put_objects(const std::vector<VT>& values, bool as_trigger) {
     auto version_and_hlc = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index).get_current_version();
+    persistent::version_t previous_version = this->update_version;
 
     // validate and check versions of all objects before any update: if there is at least one mismatch, fail the whole operation
     for(const VT& value : values){
@@ -613,30 +624,25 @@ bool VolatileCascadeStore<KT, VT, IK, IV>::internal_ordered_put_objects(const st
         // validator
         if constexpr(std::is_base_of<IValidator<KT, VT>, VT>::value) {
             if(!value.validate(this->kv_map)) {
-                return false;
+                throw invalid_value_exception(std::string("Invalid value with key=") + value.get_key_ref());
             }
+        }
+
+        persistent::version_t previous_version_by_key = persistent::INVALID_VERSION;
+        if(this->kv_map.find(value.get_key_ref()) != this->kv_map.end()) {
+            previous_version_by_key = this->kv_map.at(value.get_key_ref()).get_version();
         }
 
         // Verify previous version MUST happen before update previous versions.
         if constexpr(std::is_base_of<IVerifyPreviousVersion, VT>::value) {
-            bool verify_result;
-            if(this->kv_map.find(value.get_key_ref()) != this->kv_map.end()) {
-                verify_result = value.verify_previous_version(this->update_version, this->kv_map.at(value.get_key_ref()).get_version());
-            } else {
-                verify_result = value.verify_previous_version(this->update_version, persistent::INVALID_VERSION);
-            }
-            if(!verify_result) {
+            if(!value.verify_previous_version(previous_version, previous_version_by_key)) {
                 // reject the update by returning an invalid version and timestamp
-                return false;
+                throw invalid_version_exception(previous_version, previous_version_by_key);
             }
         }
 
         if constexpr(std::is_base_of<IKeepPreviousVersion, VT>::value) {
-            if(this->kv_map.find(value.get_key_ref()) != this->kv_map.end()) {
-                value.set_previous_version(this->update_version, this->kv_map.at(value.get_key_ref()).get_version());
-            } else {
-                value.set_previous_version(this->update_version, persistent::INVALID_VERSION);
-            }
+            value.set_previous_version(previous_version, previous_version_by_key);
         }
     }
 
@@ -678,7 +684,8 @@ bool VolatileCascadeStore<KT, VT, IK, IV>::internal_ordered_put_objects(const st
         }
     }
 
-    return true;
+    // Not possible to return a single "previous version by key" for a multi-object put, so for now just return INVALID_VERSION
+    return {std::get<0>(version_and_hlc), std::get<1>(version_and_hlc).m_rtc_us, previous_version, persistent::INVALID_VERSION};
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>

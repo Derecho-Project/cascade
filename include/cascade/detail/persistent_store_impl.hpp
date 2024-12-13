@@ -49,7 +49,7 @@ version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::put(const VT& value, b
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::put_objects(const std::vector<VT>& values, bool as_trigger) const {
     debug_enter_func_with_args("values.size={}", values.size());
-    version_tuple ret{CURRENT_VERSION, 0};
+    version_tuple ret{CURRENT_VERSION, 0, CURRENT_VERSION, CURRENT_VERSION};
 
     if(!values.empty()){
         LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_PUT_START, group, values[0]);
@@ -576,7 +576,7 @@ version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_objects(co
     debug_enter_func_with_args("size={}", values.size());
 
     auto version_and_hlc = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
-    version_tuple version_and_timestamp{persistent::INVALID_VERSION,0};
+    version_tuple versions_to_return{persistent::INVALID_VERSION, 0, persistent::INVALID_VERSION, persistent::INVALID_VERSION};
 
     if(!values.empty()){
 #if __cplusplus > 201703L
@@ -585,9 +585,7 @@ version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_objects(co
         LOG_TIMESTAMP_BY_TAG_EXTRA(TLT_PERSISTENT_ORDERED_PUT_START, group, values[0], std::get<0>(version_and_hlc));
 #endif
 
-        if(this->internal_ordered_put_objects(values,as_trigger) == true) {
-            version_and_timestamp = {std::get<0>(version_and_hlc),std::get<1>(version_and_hlc).m_rtc_us};
-        }
+        versions_to_return = this->internal_ordered_put_objects(values,as_trigger);
 
 #if __cplusplus > 201703L
         LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_ORDERED_PUT_END, group, values[0], std::get<0>(version_and_hlc));
@@ -596,11 +594,12 @@ version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_objects(co
 #endif
     }
 
-    debug_leave_func_with_value("version=0x{:x},timestamp={}us",
-            std::get<0>(version_and_hlc),
-            std::get<1>(version_and_hlc).m_rtc_us);
+    debug_leave_func_with_value("version=0x{:x},timestamp={}us,previous_version=0x{:x}",
+            std::get<0>(versions_to_return),
+            std::get<1>(versions_to_return),
+            std::get<2>(versions_to_return));
 
-    return version_and_timestamp;
+    return versions_to_return;
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
@@ -692,7 +691,7 @@ version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put(c
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
-bool PersistentCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put_objects(const std::vector<VT>& values, bool as_trigger) {
+version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put_objects(const std::vector<VT>& values, bool as_trigger) {
     auto version_and_hlc = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
 
     // set new version
@@ -706,8 +705,9 @@ bool PersistentCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put_objects(co
     }
 
     // validate and update
-    if(this->persistent_core->ordered_put_objects(values, this->persistent_core.getLatestVersion(), as_trigger) == false){
-        return false;
+    auto previous_version = this->persistent_core.getLatestVersion();
+    if(this->persistent_core->ordered_put_objects(values, previous_version, as_trigger) == false){
+        return {persistent::INVALID_VERSION, 0, persistent::INVALID_VERSION, persistent::INVALID_VERSION};
     }
 
     for(const VT& value : values){
@@ -720,8 +720,8 @@ bool PersistentCascadeStore<KT, VT, IK, IV, ST>::internal_ordered_put_objects(co
                     value.get_key_ref(), value, cascade_context_ptr);
         }
     }
-
-    return true;
+    // Not possible to return a single "previous version by key" for a multi-object put, so for now just return INVALID_VERSION
+    return {std::get<0>(version_and_hlc), std::get<1>(version_and_hlc).m_rtc_us, previous_version, persistent::INVALID_VERSION};
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
