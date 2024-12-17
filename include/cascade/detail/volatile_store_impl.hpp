@@ -637,12 +637,15 @@ bool VolatileCascadeStore<KT, VT, IK, IV>::internal_ordered_put_objects(const st
             }
         }
     }
+            
+    // for lockless check
+    if (!as_trigger) {
+        this->lockless_v1.store(std::get<0>(version_and_hlc), std::memory_order_relaxed);
+    }
 
     // perform updates
     for(const VT& value : values){
         if (!as_trigger) {
-            // for lockless check
-            this->lockless_v1.store(std::get<0>(version_and_hlc), std::memory_order_relaxed);
             // compiler reordering barrier
 #ifdef __GNUC__
             asm volatile("" ::
@@ -663,6 +666,9 @@ bool VolatileCascadeStore<KT, VT, IK, IV>::internal_ordered_put_objects(const st
 #else
 #error Lockless support is currently for GCC only
 #endif
+        }
+            
+        if (!as_trigger) {
             this->lockless_v2.store(std::get<0>(version_and_hlc), std::memory_order_relaxed);
         }
 
