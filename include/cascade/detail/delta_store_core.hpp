@@ -75,6 +75,7 @@ public:
      * apply put to current state
      */
     void apply_ordered_put(const VT& value);
+    void apply_ordered_put_objects(const std::vector<VT>& values);
     /**
      * Ordered put, and generate a delta.
      */
