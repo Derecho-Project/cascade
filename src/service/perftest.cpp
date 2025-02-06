@@ -1429,6 +1429,9 @@ std::ostream& operator<<(std::ostream& os, PutType pt) {
         case PutType::TRIGGER_PUT:
             os << "TRIGGER_PUT";
             break;
+        case PutType::SIGNATURE_PUT:
+            os<< "SIGNATURE_PUT";
+            break;
     }
     return os;
 }
