@@ -160,6 +160,38 @@ void DeltaCascadeStoreCore<KT, VT, IK, IV>::applyDelta(uint8_t const* const seri
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
+void DeltaCascadeStoreCore<KT, VT, IK, IV>::apply_ordered_put_objects(const std::vector<VT>& values) {
+    const auto& new_version = values.at(0).get_version();
+
+    // for lockless check
+    this->lockless_v1.store(new_version, std::memory_order_relaxed);
+
+    for(const VT& value : values){
+        // compiler reordering barrier
+#ifdef __GNUC__
+        asm volatile("" ::
+                             : "memory");
+#else
+#error Lockless support is currently for GCC only
+#endif
+
+        this->kv_map.erase(value.get_key_ref());
+        this->kv_map.emplace(value.get_key_ref(), value);
+
+        // compiler reordering barrier
+#ifdef __GNUC__
+        asm volatile("" ::
+                             : "memory");
+#else
+#error Lockless support is currently for GCC only
+#endif
+    }
+
+    // for lockless check
+    this->lockless_v2.store(new_version, std::memory_order_relaxed);
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV>
 void DeltaCascadeStoreCore<KT, VT, IK, IV>::apply_ordered_put(const VT& value) {
     // for lockless check
     this->lockless_v1.store(value.get_version(), std::memory_order_relaxed);
@@ -273,10 +305,12 @@ bool DeltaCascadeStoreCore<KT, VT, IK, IV>::ordered_put_objects(const std::vecto
     // create delta and apply puts
     if (!as_trigger) {
         assert(this->delta.empty());
+        
         for(const VT& value : values){
             this->delta.push_back(value.get_key_ref());
-            apply_ordered_put(value);
         }
+        
+        apply_ordered_put_objects(values);
     }
 
     return true;
