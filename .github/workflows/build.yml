@@ -15,7 +15,7 @@ jobs:
       run:  >
             sudo apt update;
             sudo apt install libssl-dev librdmacm-dev libibverbs-dev libspdlog-dev -y;
-            sudo apt install libboost-all-dev ragel python3 python3-pip -y
+            sudo apt install libreadline-dev libboost-all-dev ragel python3 python3-pip -y
     - run:  g++ --version
     - run:  cmake --version
     - run:  lscpu
