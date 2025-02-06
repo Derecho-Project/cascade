@@ -52,7 +52,7 @@ namespace cascade {
     constexpr bool have_same_object_type() {
         return true;
     }
-    
+
     /**
      * @fn constexpr bool have_same_object_type()
      * @tparam  FirstCascadeType
@@ -361,6 +361,8 @@ namespace cascade {
     // #define DEFAULT_SHARD_MEMBER_SELECTION_POLICY (ShardMemberSelectionPolicy::FirstMember)
     #define DEFAULT_SHARD_MEMBER_SELECTION_POLICY (ShardMemberSelectionPolicy::RoundRobin)
 
+    std::ostream& operator<<(std::ostream& stream, const ShardMemberSelectionPolicy& policy);
+
     template <typename T> struct do_hash {};
 
     template <> struct do_hash<std::tuple<std::type_index,uint32_t,uint32_t>> {
@@ -660,7 +662,7 @@ namespace cascade {
          * @param[in] object_pool_pathname  - the object pool name
          */
         uint32_t get_number_of_shards(const std::string& object_pool_pathname);
-   
+
         template <typename SubgroupType>
         int32_t get_my_shard(uint32_t subgroup_index) const;
     protected:
@@ -796,7 +798,7 @@ namespace cascade {
          * @param[in] type_index    the index of the subgroup type in the CascadeTypes... list. and the FirstType,
          *                          SecondType, .../ RestTypes should be in the same order.
          * @param[in] object        the object to write
-         * @param[in] subgroup_index    
+         * @param[in] subgroup_index
          *                          the subgroup index in the subgroup type designated by type_index
          * @param[in] shard_index   the shard index
          * @param[in] as_trigger    If true, the object will NOT apply to the K/V store. The object will only be
@@ -1735,7 +1737,7 @@ namespace cascade {
     struct PrefixOCDPOInfoCompare {
         // inline bool operator() (const prefix_ocdpo_info_t& l, const prefix_ocdpo_info_t& r) const {
         bool operator() (const prefix_ocdpo_info_t& l, const prefix_ocdpo_info_t& r) const {
-            return (l.udl_id == r.udl_id) && 
+            return (l.udl_id == r.udl_id) &&
                    (l.config_string == r.config_string) &&
                    (l.execution_environment == r.execution_environment);
         }
@@ -1937,5 +1939,9 @@ namespace cascade {
     };//ExecutionEngine/
 } // cascade
 } // derecho
+
+// Formatter boilerplate for the spdlog library
+template <>
+struct fmt::formatter<derecho::cascade::ShardMemberSelectionPolicy> : fmt::ostream_formatter {};
 
 #include "detail/service_impl.hpp"
