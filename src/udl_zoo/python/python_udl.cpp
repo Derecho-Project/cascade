@@ -274,7 +274,7 @@ public:
                     res.sequence_num = req.sequence_num;
 
                     dbg_default_trace("{}:{} [PYTHON] Processing request (type:{} sequence:{})",
-                            __FILE__,__LINE__,req.type,req.sequence_num);
+                            __FILE__,__LINE__,fmt::underlying(req.type),req.sequence_num);
 
                     switch(req.type) {
                     case python_request_t::TERMINATE:
@@ -481,7 +481,7 @@ public:
                     }
 
                     dbg_default_trace("{}:{} [PYTHON] Finished processing request (type:{} sequence:{}), response.success={}",
-                            __FILE__,__LINE__,req.type,req.sequence_num,res.success);
+                            __FILE__,__LINE__,fmt::underlying(req.type),req.sequence_num,res.success);
 
                     // notification
                     std::unique_lock res_lock(python_response_mutex);
@@ -525,7 +525,7 @@ public:
         std::unique_lock<std::mutex> req_lock(python_request_mutex);
         request.sequence_num = python_request_sequence_number++;
         dbg_default_trace("{}:{} posting request (type:{} seq:{})",
-                __FILE__,__LINE__,request.type,request.sequence_num);
+                __FILE__,__LINE__,fmt::underlying(request.type),request.sequence_num);
         python_request_queue.emplace(request);
         req_lock.unlock();
         python_request_cv.notify_one();
@@ -543,7 +543,7 @@ public:
         python_response_queue.pop();
         res_lock.unlock();
         dbg_default_trace("{}:{} request(type:{} seq:{}/{}) is responsed.",
-                __FILE__,__LINE__, request.type, request.sequence_num, response.sequence_num);
+                __FILE__,__LINE__, fmt::underlying(request.type), request.sequence_num, response.sequence_num);
         return response;
     }
 

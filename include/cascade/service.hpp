@@ -674,7 +674,7 @@ namespace cascade {
          * @param[in] object_pool_pathname  - the object pool name
          */
         uint32_t get_number_of_shards(const std::string& object_pool_pathname);
-   
+
         template <typename SubgroupType>
         int32_t get_my_shard(uint32_t subgroup_index) const;
     protected:
@@ -2360,5 +2360,9 @@ namespace cascade {
     };//ExecutionEngine/
 } // cascade
 } // derecho
+
+// Formatter boilerplate for the spdlog library
+template <>
+struct fmt::formatter<derecho::cascade::ShardMemberSelectionPolicy> : fmt::ostream_formatter {};
 
 #include "detail/service_impl.hpp"

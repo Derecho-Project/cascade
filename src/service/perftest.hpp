@@ -3,6 +3,7 @@
 
 #include <derecho/utils/logger.hpp>
 
+#include <iostream>
 #include <limits>
 #include <rpc/client.h>
 #include <rpc/rpc_error.h>
@@ -201,6 +202,8 @@ enum PutType {
     TRIGGER_PUT,    // trigger put
     SIGNATURE_PUT   // put to CascadeChain, with signatures
 };
+
+std::ostream& operator<<(std::ostream& os, PutType pt);
 
 class PerfTestClient {
 private:
@@ -814,3 +817,7 @@ bool PerfTestClient::perf_get_by_time(uint32_t subgroup_index,
 }
 }
 }
+
+// Formatter boilerplate for the spdlog library
+template <>
+struct fmt::formatter<derecho::cascade::PutType> : fmt::ostream_formatter {};
