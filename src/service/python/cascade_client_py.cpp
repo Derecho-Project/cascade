@@ -6,6 +6,7 @@
 #include <cascade/service_client_api.hpp>
 #include <derecho/core/detail/rpc_utils.hpp>
 #include <derecho/persistent/PersistentInterface.hpp>
+#include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
 #include <pybind11/stl.h>
@@ -676,6 +677,105 @@ PYBIND11_MODULE(member_client, m) {
                     },
                     "Put an object. \n"
                     "The new object would replace the old object with the same key.\n"
+                    "\t@arg0    key \n"
+                    "\t@arg1    value \n"
+                    "\t** Optional keyword argument: ** \n"
+                    "\t@argX    subgroup_type   VolatileCascadeStoreWithStringKey | \n"
+                    "\t                         PersistentCascadeStoreWithStringKey | \n"
+                    "\t                         TriggerCascadeNoStoreWithStringKey \n"
+                    "\t@argX    subgroup_index  \n"
+                    "\t@argX    shard_index     \n"
+                    "\t@argX    pervious_version        \n"
+                    "\t@argX    pervious_version_by_key \n"
+                    "\t@argX    blocking \n"
+                    "\t@argX    trigger         Using trigger put, always non-blocking regardless of blocking argument.\n"
+                    "\t@argX    as_trigger      Enable 'trigger' flag for normal put. If true, the value will ONLY trigger the UDL and NOT apply to the K/V. Defaulted to false\n"
+#ifdef ENABLE_EVALUATION
+                    "\t@argX    message_id \n"
+#endif
+                    "\t@return  a future of the (version,timestamp) for blocking put; or 'False' object for non-blocking put."
+            )
+            .def(
+                    "put_nparray",
+                    [](ServiceClientAPI_PythonWrapper& capi, std::string& key, py::array_t<uint8_t> value, py::kwargs kwargs) {
+                        std::string subgroup_type;
+                        uint32_t subgroup_index = 0;
+                        uint32_t shard_index = 0;
+                        persistent::version_t previous_version = CURRENT_VERSION;
+                        persistent::version_t previous_version_by_key = CURRENT_VERSION;
+                        bool blocking = true;
+                        bool trigger = false;
+                        bool as_trigger = false;
+#ifdef ENABLE_EVALUATION
+                        uint64_t message_id = 0;
+#endif
+                        if (kwargs.contains("subgroup_index")) {
+                            subgroup_index = kwargs["subgroup_index"].cast<uint32_t>();
+                        }
+                        if (kwargs.contains("shard_index")) {
+                            shard_index = kwargs["shard_index"].cast<uint32_t>();
+                        }
+                        if (kwargs.contains("subgroup_type")) {
+                            subgroup_type = kwargs["subgroup_type"].cast<std::string>();
+                        }
+                        if (kwargs.contains("previous_version")) {
+                            previous_version = kwargs["previous_version"].cast<persistent::version_t>();
+                        }
+                        if (kwargs.contains("previous_version_by_key")) {
+                            previous_version_by_key = kwargs["previous_version_by_key"].cast<persistent::version_t>();
+                        }
+                        if (kwargs.contains("blocking")) {
+                            blocking = kwargs["blocking"].cast<bool>();
+                        }
+                        if (kwargs.contains("trigger")) {
+                            trigger = kwargs["trigger"].cast<bool>();
+                        }
+                        if (kwargs.contains("as_trigger")) {
+                            as_trigger = kwargs["as_trigger"].cast<bool>();
+                        }
+#ifdef ENABLE_EVALUATION
+                        if (kwargs.contains("message_id")) {
+                            message_id = kwargs["message_id"].cast<uint64_t>();
+                        }
+#endif
+
+                        // Extract data from NumPy array
+                        py::buffer_info buf_info = value.request();
+                        uint8_t* data_ptr = static_cast<uint8_t*>(buf_info.ptr);
+                        size_t data_size = buf_info.size;
+
+                        ObjectWithStringKey obj;
+                        obj.key = key;
+                        obj.set_previous_version(previous_version, previous_version_by_key);
+#ifdef ENABLE_EVALUATION
+                        obj.message_id = message_id;
+#endif
+                        obj.blob = Blob(data_ptr, data_size);
+                        
+                        if (subgroup_type.empty()) {
+                            if (trigger) {
+                                capi.ref.trigger_put(obj);
+                            } else if (blocking) {
+                                auto result = capi.ref.put(obj, as_trigger);
+                                auto s = new QueryResultsStore<derecho::cascade::version_tuple, std::vector<long>>(std::move(result), bundle_f);
+                                return py::cast(s);
+                            } else {
+                                capi.ref.put_and_forget(obj, as_trigger);
+                            }
+                        } else {
+                            if (trigger) {
+                                on_all_subgroup_type(subgroup_type, trigger_put, capi.ref, obj, subgroup_index, shard_index);
+                            } else if (blocking) {
+                                on_all_subgroup_type(subgroup_type, return put, capi.ref, obj, subgroup_index, shard_index, as_trigger);
+                            } else {
+                                on_all_subgroup_type(subgroup_type, put_and_forget, capi.ref, obj, subgroup_index, shard_index, as_trigger);
+                            }
+                        }
+
+                        return py::cast(NULL);
+                    },
+                    "Put_nparray a numpy array. \n"
+                    "Semantic is similar to put.\n"
                     "\t@arg0    key \n"
                     "\t@arg1    value \n"
                     "\t** Optional keyword argument: ** \n"
