@@ -9,6 +9,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
 #include <pybind11/stl.h>
+#include <pybind11/functional.h>
 #include <string>
 #include <vector>
 
@@ -612,6 +613,8 @@ PYBIND11_MODULE(member_client, m) {
                         bool blocking = true;
                         bool trigger = false;
                         bool as_trigger = false;
+                        bool use_generator = false;
+                        std::size_t generator_max_size = 0;
 #ifdef ENABLE_EVALUATION
                         uint64_t message_id = 0;
 #endif
@@ -639,6 +642,12 @@ PYBIND11_MODULE(member_client, m) {
                         if (kwargs.contains("as_trigger")) {
                             as_trigger = kwargs["as_trigger"].cast<bool>();
                         }
+                        if (kwargs.contains("generator")) {
+                            use_generator = true;
+                        }
+                        if (kwargs.contains("generator_max_size")) {
+                            generator_max_size = kwargs["generator_max_size"].cast<uint64_t>();
+                        }
 #ifdef ENABLE_EVALUATION
                         if (kwargs.contains("message_id")) {
                             message_id = kwargs["message_id"].cast<uint64_t>();
@@ -651,7 +660,20 @@ PYBIND11_MODULE(member_client, m) {
 #ifdef ENABLE_EVALUATION
                         obj.message_id = message_id;
 #endif
-                        obj.blob = Blob(reinterpret_cast<const uint8_t*>(value.cast<std::string>().c_str()),value.cast<std::string>().size());
+
+                        if(use_generator){
+                            auto py_generator = kwargs["generator"];//.cast<const std::function<py::bytes(std::size_t,destination_type_t,const uint32_t)>&>();
+                            obj.blob = Blob([&](uint8_t* buffer,const std::size_t size,const destination_type_t dest_type,const uint32_t dest_node_id){
+                                    auto dest_type_int = static_cast<std::underlying_type_t<destination_type_t>>(dest_type);
+                                    auto bytes = py_generator(size,dest_type_int,dest_node_id);
+                                    auto data_size = bytes.cast<std::string>().size();
+                                    std::memcpy(buffer,reinterpret_cast<const uint8_t*>(bytes.cast<std::string>().c_str()),data_size);
+                                    return data_size;
+                                },generator_max_size);
+                        } else {
+                            obj.blob = Blob(reinterpret_cast<const uint8_t*>(value.cast<std::string>().c_str()),value.cast<std::string>().size());
+                        }
+                        
                         if (subgroup_type.empty()) {
                             if (trigger) {
                                 capi.ref.trigger_put(obj);
