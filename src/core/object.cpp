@@ -37,7 +37,7 @@ ObjectWithStringKey ObjectWithStringKey::IV;
 // #define PAGE_ALIGNED_NEW(x) (new uint8_t[((x)+page_size-1)/page_size*page_size])
 
 Blob::Blob(const uint8_t* const b, const decltype(size) s) :
-    bytes(nullptr), size(0), capacity(0), memory_mode(object_memory_mode_t::DEFAULT) {
+    bytes(nullptr), size(0), capacity(0), memory_mode(object_memory_mode_t::DEFAULT), dest_type(destination_type_t::NOT_SET) {
     if(s > 0) {
         // uint8_t* t_bytes = PAGE_ALIGNED_NEW(s);
         uint8_t* t_bytes = static_cast<uint8_t*>(malloc(s));
@@ -53,7 +53,7 @@ Blob::Blob(const uint8_t* const b, const decltype(size) s) :
 }
 
 Blob::Blob(const uint8_t* b, const decltype(size) s, bool emplaced) :
-    bytes(b), size(s), capacity(s), memory_mode((emplaced)?object_memory_mode_t::EMPLACED:object_memory_mode_t::DEFAULT) {
+    bytes(b), size(s), capacity(s), memory_mode((emplaced)?object_memory_mode_t::EMPLACED:object_memory_mode_t::DEFAULT), dest_type(destination_type_t::NOT_SET) {
     if ( (size>0) && (emplaced==false)) {
         // uint8_t* t_bytes = PAGE_ALIGNED_NEW(s);
         uint8_t* t_bytes = static_cast<uint8_t*>(malloc(s));
@@ -71,12 +71,17 @@ Blob::Blob(const uint8_t* b, const decltype(size) s, bool emplaced) :
 }
 
 Blob::Blob(const blob_generator_func_t& generator, const decltype(size) s):
-    bytes(nullptr), size(s), capacity(0), blob_generator(generator), memory_mode(object_memory_mode_t::BLOB_GENERATOR) {
+    bytes(nullptr), size(s), capacity(0), blob_generator(generator), memory_mode(object_memory_mode_t::BLOB_GENERATOR), dest_type(destination_type_t::NOT_SET) {
+    // no data is generated here.
+}
+
+Blob::Blob(const blob_generator_dest_func_t& generator, const decltype(size) s):
+    bytes(nullptr), size(s), capacity(0), memory_mode(object_memory_mode_t::BLOB_GENERATOR_DEST), blob_generator_dest(generator), dest_type(destination_type_t::NOT_SET) {
     // no data is generated here.
 }
 
 Blob::Blob(const Blob& other) :
-    bytes(nullptr), size(0), capacity(0), memory_mode(object_memory_mode_t::DEFAULT) {
+    bytes(nullptr), size(0), capacity(0), memory_mode(object_memory_mode_t::DEFAULT), dest_type(destination_type_t::NOT_SET) {
     if(other.size > 0) {
         uint8_t* t_bytes = static_cast<uint8_t*>(malloc(other.size));
         if (other.memory_mode == object_memory_mode_t::BLOB_GENERATOR) {
@@ -88,6 +93,22 @@ Blob::Blob(const Blob& other) :
                 throw std::runtime_error(std::string("Expecting ") + std::to_string(other.size) 
                         + " bytes, but blob generator writes "
                         + std::to_string(number_bytes_generated) + " bytes.");
+            }
+        } else if (other.memory_mode == object_memory_mode_t::BLOB_GENERATOR_DEST) {
+            // instantiate data.
+            auto number_bytes_generated = other.blob_generator_dest(t_bytes,other.size,other.dest_type,other.dest_node_id);
+            if (number_bytes_generated != other.size) {
+                if(number_bytes_generated > other.size){
+                    dbg_default_error("Expecting {} bytes, but blob generator writes {} bytes.", other.size, number_bytes_generated);
+                    std::string exception_message("Expecting");
+                    throw std::runtime_error(std::string("Expecting ") + std::to_string(other.size) 
+                            + " bytes, but blob generator writes "
+                            + std::to_string(number_bytes_generated) + " bytes.");
+                }
+                
+                if(number_bytes_generated < other.size){
+                    dbg_default_warn("Expecting {} bytes, but blob generator writes {} bytes.", other.size, number_bytes_generated);
+                }
             }
         } else {
             // uint8_t* t_bytes = PAGE_ALIGNED_NEW(other.size);
@@ -101,13 +122,13 @@ Blob::Blob(const Blob& other) :
 
 Blob::Blob(Blob&& other) : 
     bytes(other.bytes), size(other.size), capacity(other.size),
-    blob_generator(other.blob_generator), memory_mode(other.memory_mode) {
+    blob_generator(other.blob_generator), memory_mode(other.memory_mode), blob_generator_dest(other.blob_generator_dest), dest_type(other.dest_type), dest_node_id(other.dest_node_id) {
     other.bytes = nullptr;
     other.size = 0;
     other.capacity = 0;
 }
 
-Blob::Blob() : bytes(nullptr), size(0), capacity(0), memory_mode(object_memory_mode_t::DEFAULT) {}
+Blob::Blob() : bytes(nullptr), size(0), capacity(0), memory_mode(object_memory_mode_t::DEFAULT), dest_type(destination_type_t::NOT_SET) {}
 
 Blob::~Blob() {
     if(bytes && (memory_mode == object_memory_mode_t::DEFAULT)) {
@@ -120,17 +141,26 @@ Blob& Blob::operator=(Blob&& other) {
     auto swp_size = other.size;
     auto swp_cap  = other.capacity;
     auto swp_blob_generator = other.blob_generator;
+    auto swp_blob_generator_dest = other.blob_generator_dest;
     auto swp_memory_mode = other.memory_mode;
+    auto swp_dest_type = other.dest_type;
+    auto swp_dest_node_id = other.dest_node_id;
     other.bytes = bytes;
     other.size = size;
     other.capacity = capacity;
     other.blob_generator = blob_generator;
+    other.blob_generator_dest = blob_generator_dest;
     other.memory_mode = memory_mode;
+    other.dest_type = dest_type;
+    other.dest_node_id = dest_node_id;
     bytes = swp_bytes;
     size = swp_size;
     capacity = swp_cap;
     blob_generator = swp_blob_generator;
+    blob_generator_dest = swp_blob_generator_dest;
     memory_mode = swp_memory_mode;
+    dest_type = swp_dest_type;
+    dest_node_id = swp_dest_node_id;
     return *this;
 }
 
@@ -158,6 +188,21 @@ Blob& Blob::operator=(const Blob& other) {
                         + " bytes, but blob generator writes "
                         + std::to_string(number_bytes_generated) + " bytes.");
             }
+        } else if (other.memory_mode == object_memory_mode_t::BLOB_GENERATOR_DEST) {
+            auto number_bytes_generated = other.blob_generator_dest(const_cast<uint8_t*>(this->bytes),other.size,other.dest_type,other.dest_node_id);
+            if (number_bytes_generated != other.size) {
+                if(number_bytes_generated > other.size){
+                    dbg_default_error("Expecting {} bytes, but blob generator writes {} bytes.", other.size, number_bytes_generated);
+                    std::string exception_message("Expecting");
+                    throw std::runtime_error(std::string("Expecting ") + std::to_string(other.size) 
+                            + " bytes, but blob generator writes "
+                            + std::to_string(number_bytes_generated) + " bytes.");
+                }
+
+                if(number_bytes_generated < other.size){
+                    dbg_default_warn("Expecting {} bytes, but blob generator writes {} bytes.", other.size, number_bytes_generated);
+                }
+            }
         } else {
             memcpy(const_cast<void*>(static_cast<const void*>(this->bytes)), other.bytes, size);
         }
@@ -178,6 +223,21 @@ std::size_t Blob::to_bytes(uint8_t* v) const {
                         + " bytes, but blob generator writes "
                         + std::to_string(number_bytes_generated) + " bytes.");
             }
+        } else if (memory_mode == object_memory_mode_t::BLOB_GENERATOR_DEST) {
+            auto number_bytes_generated = blob_generator_dest(v+sizeof(size), size, dest_type, dest_node_id);
+            if (number_bytes_generated != size) {
+                if(number_bytes_generated > size){
+                    dbg_default_error("Expecting {} bytes, but blob generator writes {} bytes.", size, number_bytes_generated);
+                    std::string exception_message("Expecting");
+                    throw std::runtime_error(std::string("Expecting ") + std::to_string(size) 
+                            + " bytes, but blob generator writes "
+                            + std::to_string(number_bytes_generated) + " bytes.");
+                }
+
+                if(number_bytes_generated < size){
+                    dbg_default_warn("Expecting {} bytes, but blob generator writes {} bytes.", size, number_bytes_generated);
+                }
+            }
         } else {
             memcpy(v + sizeof(size), bytes, size);
         }
@@ -190,18 +250,31 @@ std::size_t Blob::bytes_size() const {
 }
 
 void Blob::post_object(const std::function<void(uint8_t const* const, std::size_t)>& f) const {
-    if (size > 0 && (memory_mode == object_memory_mode_t::BLOB_GENERATOR)) {
+    if (size > 0 && ((memory_mode == object_memory_mode_t::BLOB_GENERATOR) || (memory_mode == object_memory_mode_t::BLOB_GENERATOR_DEST))) {
         // we have to instatiate the data. CAUTIOUS: this is inefficient. Please use BLOB_GENERATOR mode carefully.
         uint8_t* local_bytes = static_cast<uint8_t*>(malloc(size));
-        auto number_bytes_generated = blob_generator(local_bytes,size);
-        if (number_bytes_generated != size) {
-            free(local_bytes);
-            dbg_default_error("Expecting {} bytes, but blob generator writes {} bytes.", size, number_bytes_generated);
-            std::string exception_message("Expecting");
-            throw std::runtime_error(std::string("Expecting ") + std::to_string(size) 
-                    + " bytes, but blob generator writes "
-                    + std::to_string(number_bytes_generated) + " bytes.");
+        std::size_t number_bytes_generated;
+        if(memory_mode == object_memory_mode_t::BLOB_GENERATOR){
+            number_bytes_generated = blob_generator(local_bytes,size);
+        } else{
+            number_bytes_generated = blob_generator_dest(local_bytes,size,dest_type,dest_node_id);
         }
+
+        if (number_bytes_generated != size) {
+            if(number_bytes_generated > size){
+                free(local_bytes);
+                dbg_default_error("Expecting {} bytes, but blob generator writes {} bytes.", size, number_bytes_generated);
+                std::string exception_message("Expecting");
+                throw std::runtime_error(std::string("Expecting ") + std::to_string(size) 
+                        + " bytes, but blob generator writes "
+                        + std::to_string(number_bytes_generated) + " bytes.");
+            }
+
+            if(number_bytes_generated < size){
+                dbg_default_warn("Expecting {} bytes, but blob generator writes {} bytes.", size, number_bytes_generated);
+            }
+        }
+
         f((uint8_t*)&size, sizeof(size));
         f(local_bytes, size);
         free(local_bytes);
@@ -221,6 +294,11 @@ mutils::context_ptr<const Blob> Blob::from_bytes_noalloc_const(mutils::Deseriali
 
 std::unique_ptr<Blob> Blob::from_bytes(mutils::DeserializationManager*, const uint8_t* const v) {
     return std::make_unique<Blob>(v + sizeof(std::size_t), ((std::size_t*)(v))[0]);
+}
+
+void Blob::set_destination(const destination_type_t dt,const node_id_t node_id){
+    this->dest_type = dt;
+    this->dest_node_id = node_id;
 }
 
 /** ObjectWithStringKey Implementation **/
