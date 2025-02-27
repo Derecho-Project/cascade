@@ -594,6 +594,11 @@ namespace cascade {
          */
         inline bool is_external_client() const;
 
+        /*
+         * Given a node_id, finds out if that node is the same process, another process in the same host, or in a remote host
+         */
+        destination_type_t get_destination_type(node_id_t dest_node_id) const;
+
         /**
          * Derecho group helpers: They derive the API in derecho::ExternalClient.
          * - get_my_id                  return my local node id.

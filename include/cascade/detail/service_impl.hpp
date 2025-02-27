@@ -171,6 +171,29 @@ bool ServiceClient<CascadeTypes...>::is_external_client() const {
 }
 
 template <typename... CascadeTypes>
+destination_type_t ServiceClient<CascadeTypes...>::get_destination_type(node_id_t dest_node_id) const {
+    // same node
+    if(dest_node_id == get_my_id()){
+        return destination_type_t::SAME_PROCESS;
+    }
+
+    // check if same host (based on IP address)
+    // TODO this would be more efficient if Derecho provides an AIP to directly get the IpAndPort of a given node_id, e.g. group_ptr->get_member_address(node_id)
+    auto members = group_ptr->get_members();
+    auto member_addresses = group_ptr->get_member_addresses();
+    auto my_rank = group_ptr->get_my_rank();
+    for(uint32_t i=0;i<members.size();i++){
+        if(members[i] == dest_node_id){
+            if(member_addresses[i].ip_address == member_addresses[my_rank].ip_address){
+                return destination_type_t::SAME_HOST;
+            }
+        }
+    }
+
+    return destination_type_t::REMOTE;
+}
+
+template <typename... CascadeTypes>
 node_id_t ServiceClient<CascadeTypes...>::get_my_id() const {
     if (!is_external_client()) {
         return group_ptr->get_my_id();
@@ -592,11 +615,13 @@ derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::put(
         std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
         if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
             // ordered put as a shard member
+            const_cast<typename SubgroupType::ObjectType&>(value).set_destination(get_destination_type(get_my_id()),get_my_id());
             auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
             return subgroup_handle.template ordered_send<RPC_NAME(ordered_put)>(value,as_trigger);
         } else {
             // p2p put
             node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index,value.get_key_ref());
+            const_cast<typename SubgroupType::ObjectType&>(value).set_destination(get_destination_type(node_id),node_id);
             try {
                 // as a subgroup member
                 auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
@@ -612,6 +637,7 @@ derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::put(
         // call as an external client (ExternalClientCaller).
         auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
         node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index,value.get_key_ref());
+        const_cast<typename SubgroupType::ObjectType&>(value).set_destination(get_destination_type(node_id),node_id);
         return caller.template p2p_send<RPC_NAME(put)>(node_id,value,as_trigger);
     }
 }
@@ -678,9 +704,11 @@ void ServiceClient<CascadeTypes...>::put_and_forget(
         if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
             // do ordered put as a shard member (Replicated).
             auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
+            const_cast<typename SubgroupType::ObjectType&>(value).set_destination(get_destination_type(get_my_id()),get_my_id());
             subgroup_handle.template ordered_send<RPC_NAME(ordered_put_and_forget)>(value,as_trigger);
         } else {
             node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index,value.get_key_ref());
+            const_cast<typename SubgroupType::ObjectType&>(value).set_destination(get_destination_type(node_id),node_id);
             // do p2p put
             try{
                 // as a subgroup member
@@ -697,6 +725,7 @@ void ServiceClient<CascadeTypes...>::put_and_forget(
         // call as an external client (ExternalClientCaller).
         auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
         node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index,value.get_key_ref());
+        const_cast<typename SubgroupType::ObjectType&>(value).set_destination(get_destination_type(node_id),node_id);
         caller.template p2p_send<RPC_NAME(put_and_forget)>(node_id,value,as_trigger);
     }
 }
@@ -760,11 +789,13 @@ derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::trigger_put(
         if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index){
             auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
             node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index,value.get_key_ref());
+            const_cast<typename SubgroupType::ObjectType&>(value).set_destination(get_destination_type(node_id),node_id);
             dbg_default_trace("trigger_put to node {}",node_id);
             return subgroup_handle.template p2p_send<RPC_NAME(trigger_put)>(node_id,value);
         } else {
             auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
             node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index,value.get_key_ref());
+            const_cast<typename SubgroupType::ObjectType&>(value).set_destination(get_destination_type(node_id),node_id);
             dbg_default_trace("trigger_put to node {}",node_id);
             return subgroup_handle.template p2p_send<RPC_NAME(trigger_put)>(node_id,value);
         }
@@ -773,6 +804,7 @@ derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::trigger_put(
         // call as an external client (ExternalClientCaller).
         auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
         node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index,value.get_key_ref());
+        const_cast<typename SubgroupType::ObjectType&>(value).set_destination(get_destination_type(node_id),node_id);
         dbg_default_trace("trigger_put to node {}",node_id);
         return caller.template p2p_send<RPC_NAME(trigger_put)>(node_id,value);
     }

@@ -30,13 +30,6 @@ enum object_memory_mode_t {
     BLOB_GENERATOR_DEST,
 };
 
-enum class destination_type_t : uint8_t {
-    NOT_SET,
-    SAME_PROCESS,
-    SAME_HOST,
-    REMOTE
-};
-
 using blob_generator_func_t = std::function<std::size_t(uint8_t*,const std::size_t)>;
 using blob_generator_dest_func_t = std::function<std::size_t(uint8_t*,const std::size_t,const destination_type_t,const node_id_t)>;
 
@@ -198,6 +191,7 @@ public:
     virtual bool is_null() const override;
     virtual bool is_valid() const override;
     virtual void copy_from(const ObjectWithUInt64Key& rhs) override;
+    virtual void set_destination(const destination_type_t dest_type,const node_id_t node_id) override;
     virtual void set_version(persistent::version_t ver) const override;
     virtual persistent::version_t get_version() const override;
     virtual void set_timestamp(uint64_t ts_us) const override;
@@ -341,6 +335,7 @@ public:
     virtual bool is_null() const override;
     virtual bool is_valid() const override;
     virtual void copy_from(const ObjectWithStringKey& rhs) override;
+    virtual void set_destination(const destination_type_t dest_type,const node_id_t node_id) override;
     virtual void set_version(persistent::version_t ver) const override;
     virtual persistent::version_t get_version() const override;
     virtual void set_timestamp(uint64_t ts_us) const override;

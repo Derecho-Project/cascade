@@ -225,6 +225,9 @@ public:
     virtual void copy_from(const ObjectPoolMetadata& rhs) override {
         *this = rhs;
     }
+    
+    virtual void set_destination(const destination_type_t dest_type,const node_id_t node_id) override {
+    }
 
     virtual void set_version(persistent::version_t ver) const override {
         this->version = ver;

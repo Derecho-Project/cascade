@@ -296,7 +296,7 @@ std::unique_ptr<Blob> Blob::from_bytes(mutils::DeserializationManager*, const ui
     return std::make_unique<Blob>(v + sizeof(std::size_t), ((std::size_t*)(v))[0]);
 }
 
-void Blob::set_destination(const destination_type_t dt,const node_id_t node_id){
+void Blob::set_destination(const destination_type_t dt,const node_id_t node_id) {
     this->dest_type = dt;
     this->dest_node_id = node_id;
 }
@@ -471,6 +471,10 @@ void ObjectWithUInt64Key::copy_from(const ObjectWithUInt64Key& rhs) {
     this->key = rhs.key;
     // copy assignment
     this->blob = rhs.blob;
+}
+
+void ObjectWithUInt64Key::set_destination(const destination_type_t dest_type,const node_id_t node_id) {
+    this->blob.set_destination(dest_type,node_id);
 }
 
 void ObjectWithUInt64Key::set_version(persistent::version_t ver) const {
@@ -824,6 +828,10 @@ void ObjectWithStringKey::copy_from(const ObjectWithStringKey& rhs) {
     this->key = rhs.key;
     // copy assignment
     this->blob = rhs.blob;
+}
+
+void ObjectWithStringKey::set_destination(const destination_type_t dest_type,const node_id_t node_id) {
+    this->blob.set_destination(dest_type,node_id);
 }
 
 void ObjectWithStringKey::set_version(persistent::version_t ver) const {

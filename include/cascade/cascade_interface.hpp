@@ -420,6 +420,14 @@ protected:
 template <typename KT, typename VT, KT* IK, VT* IV>
 VT create_null_object_cb(const KT& key = *IK);
 
+// type of destination for a K/V pair
+enum class destination_type_t : uint8_t {
+    NOT_SET,
+    SAME_PROCESS,
+    SAME_HOST,
+    REMOTE
+};
+
 /**
  * @brief The type interface for Cascade K/V pair objects.
  *
@@ -467,6 +475,16 @@ public:
      * @param[in]   rhs   A const reference to the other object.
      */
     virtual void copy_from(const VT& rhs) = 0;
+
+    /*
+     * @brief   set_destination()
+     *
+     * Set the destination type and the destination node for a K/V pair.
+     *
+     * @param[in]   dest_type   Type of destination
+     * @param[in]   node_id     Destination node id
+     */
+    virtual void set_destination(const destination_type_t dest_type,const node_id_t node_id) = 0;
 };
 
 /**
