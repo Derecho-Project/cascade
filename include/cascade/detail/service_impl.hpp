@@ -637,7 +637,6 @@ derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::put(
         // call as an external client (ExternalClientCaller).
         auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
         node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index,value.get_key_ref());
-        const_cast<typename SubgroupType::ObjectType&>(value).set_destination(get_destination_type(node_id),node_id);
         return caller.template p2p_send<RPC_NAME(put)>(node_id,value,as_trigger);
     }
 }
@@ -725,7 +724,6 @@ void ServiceClient<CascadeTypes...>::put_and_forget(
         // call as an external client (ExternalClientCaller).
         auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
         node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index,value.get_key_ref());
-        const_cast<typename SubgroupType::ObjectType&>(value).set_destination(get_destination_type(node_id),node_id);
         caller.template p2p_send<RPC_NAME(put_and_forget)>(node_id,value,as_trigger);
     }
 }
@@ -804,7 +802,6 @@ derecho::rpc::QueryResults<void> ServiceClient<CascadeTypes...>::trigger_put(
         // call as an external client (ExternalClientCaller).
         auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
         node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index,value.get_key_ref());
-        const_cast<typename SubgroupType::ObjectType&>(value).set_destination(get_destination_type(node_id),node_id);
         dbg_default_trace("trigger_put to node {}",node_id);
         return caller.template p2p_send<RPC_NAME(trigger_put)>(node_id,value);
     }
