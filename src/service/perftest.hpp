@@ -1,5 +1,6 @@
 #pragma once
 #include <cascade/service_client_api.hpp>
+#include <iostream>
 #include <limits>
 #include <rpc/server.h>
 #include <rpc/client.h>
@@ -175,6 +176,8 @@ enum PutType {
     PUT_AND_FORGET, // put and forget
     TRIGGER_PUT     // trigger put
 };
+
+std::ostream& operator<<(std::ostream& os, PutType pt);
 
 class PerfTestClient {
 private:
@@ -778,3 +781,7 @@ bool PerfTestClient::perf_get_by_time(uint32_t subgroup_index,
 }
 }
 }
+
+// Formatter boilerplate for the spdlog library
+template <>
+struct fmt::formatter<derecho::cascade::PutType> : fmt::ostream_formatter {};
