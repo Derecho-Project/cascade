@@ -664,6 +664,35 @@ derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::put(
     return this->template type_recursive_put<ObjectType,CascadeTypes...>(subgroup_type_index,value,subgroup_index,shard_index,as_trigger);
 }
 
+template <typename... Cascadetypes>
+template <typename SubgroupType>
+void ServiceClient<CascadeTypes...>::oob_get_remote(const node_id_t& node_id, uint32_t subgroup_index, uint64_t data_addr, uint64_t gpu_addr, uint64_t rkey, size_t size){
+
+	try{
+	// as a subgroup member
+	auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
+	subgroup_handle.template p2p_send<RPC_NAME(oob_send)>(node_id, data_addr, gpu_addr, rkey, size);
+	}  catch (derecho::invalid_subgroup_exception& ex) {
+                // as an external caller
+                auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
+ 
+	subgroup_handle.template p2p_send<RPC_NAME(oob_send)>(node_id, data_addr, gpu_addr, rkey, size);
+	}
+}
+
+void oob_register_mem_ex(void* addr, size_t size, const memory_attribute_t& attr) {
+	group_ptr->register_oob_memory_ex(addr, size, attr);
+	auto& subgroup_handle = group_ptr->template get_subgroup<VolatileCascadeStore>(0);
+	subgroup_handle.oob_reg_mem(addr, size);
+}
+void oob_deregister_mem_ex(void* addr) {
+	group_ptr->deregister_oob_memor(addr, size, attr);
+	auto& subgroup_handle = group_ptr->template get_subgroup<VolatileCascadeStore>(0);
+	subgroup_handle.oob_dereg_mem(addr);
+}
+uint64_t oob_rkey(void* addr){
+	return	group_ptr->get_oob_memory_key(oob_mr_ptr);
+}
 template <typename... CascadeTypes>
 template <typename SubgroupType>
 void ServiceClient<CascadeTypes...>::put_and_forget(

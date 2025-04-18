@@ -51,6 +51,8 @@ void VolatileCascadeStore<KT, VT, IK, IV>::put_and_forget(const VT& value, bool 
 
 template <typename CascadeType>
 double internal_perf_put(derecho::Replicated<CascadeType>& subgroup_handle, const uint64_t max_payload_size, const uint64_t duration_sec) {
+    virtual void register_oob_mem(void* oob_mr_ptr, size_t oob_mr_size, const memory_attribute_t &attr) const = 0;
+
     uint64_t num_messages_sent = 0;
     // make workload
     const uint32_t num_distinct_objects = 4096;
@@ -83,6 +85,34 @@ double internal_perf_put(derecho::Replicated<CascadeType>& subgroup_handle, cons
     num_messages_sent++;
 
     return (num_messages_sent)*1e9 / (now_ns - start_ns);
+}
+
+
+bool oob_send(uint64_t data_addr, uint64_t gpu_addr, uint64_t rkey, size_t size) const{
+void* oob_mr_ptr = group
+	// STEP 1 - validate the memory size
+if ((data_addr < reinterpret_cast<uint64_t>(oob_mr_ptr)) ||
+ ((data_addr+size) > reinterpret_cast<uint64_t>(oob_mr_ptr) + oob_mr_size)) {
+        std::cerr << "data address:0x" << std::hex << data_addr << " or size " << size << " is invalid." << std::dec << std::endl;
+        return false;
+    }
+    // STEP 2 - do RDMA write to send the OOB data
+    auto& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
+        struct iovec iov;
+	iov.iov_base    = reinterpret_cast<void*>(data_addr);                        iov.iov_len     = static_cast<size_t>(size);
+       subgroup_handle.oob_remote_write(group->get_rpc_caller_id(),&iov,1,gpu_addr,rkey,size);
+       subgroup_handle.wait_for_oob_op(group->get_rpc_caller_id(),OOB_OP_WRITE,1000);
+       return true;
+
+}
+
+void oob_reg_mem(void* addr, size_t size){
+	this->oob_mr_ptr = addr;
+	this->oob_mr_size = size;
+}
+void oob_dereg_mem(void* addr){
+	this->oob_mr_ptr = nullptr;
+	this->oob_mr_size = 0;
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>

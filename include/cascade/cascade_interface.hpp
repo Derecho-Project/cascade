@@ -116,8 +116,21 @@ public:
      */
     virtual void put_and_forget(const VT& value, bool as_trigger) const = 0;
 
-#ifdef ENABLE_EVALUATION
+
     /**
+     * @brief oob_send
+     *
+     * @param[in] data_addr Local memory address of data to write to remote node
+     * @param[in] gpu_addr  Remote address to write to 
+     * @param[in] rkey  Access key to the remote memory
+     * @param[in] size The size of the remote allocated memory
+     */
+    virtual bool oob_send(uint64_t data_addr,uint64_t gpu_addr, uint64_t rkey,size_t size) const {
+	dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
+    	return false;
+    }   
+#ifdef ENABLE_EVALUATION
+ /**
      * @brief   A function to evaluate the performance of an internal shard
      *
      * @param[in]   max_payload_size    The maximum size of the payload.

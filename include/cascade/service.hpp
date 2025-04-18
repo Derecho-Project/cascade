@@ -768,8 +768,22 @@ namespace cascade {
          */
         template <typename ObjectType>
         derecho::rpc::QueryResults<version_tuple> put(const ObjectType& object, bool as_trigger = false);
+	
+	/**
+	 * @param[in] node_id   Node_id of the node that we want to execute a GPU-direct RDMA write an object 
+	 * @param[in] data_addr The address of the data on the node specified by node_id
+	 * @param[in] gpu_addr The address of the allocated memory region (Starting address where the data will be written to during the one-sided RDMA write)
+	 * @param[in] rkey    The access key for allocated  memory
+	 * @param[in] size    The size of the allocated memory region
+	 */
 
-        /**
+	void oob_get_remote(const node_id_t& node_id, uint32_t subgroup_index, const uint64_t data_addr, uint64_t gpu_addr, uint64_t rkey, size_t size);
+       
+        void oob_register_mem_ex(void* addr, size_t size, const memory_attribute_t& attr);
+	void oob_deregister_mem_(void* addr);
+
+	uint64_t oob_rkey(void* addr);
+	/**
          * "put_and_forget" writes an object to a given subgroup/shard, but no return value.
          *
          * @param[in] object            the object to write.
