@@ -1,0 +1,26 @@
+[
+  {
+    "id" : "0e04225a-7cc4-552d-a423-85ff34647986",
+    "desc" : "Cascade DDS - generated from ./gen_dfgs.py",
+    "graph" : [
+      {
+        "pathname" : "/dds/tiny_text",
+        "shard_dispatcher_list" : ["all"],
+        "user_defined_logic_hook_list" : ["both"],
+        "user_defined_logic_list" : ["94f8509c-a6e6-11ec-a9f5-0242ac110002"],
+        "user_defined_logic_stateful_list" : ["stateful"],
+        "user_defined_logic_config_list" : [{"control_plane_suffix":"__control__"}],
+        "destinations" : [{}]
+      },
+      {
+        "pathname" : "/dds/big_chunk",
+        "shard_dispatcher_list" : ["all"],
+        "user_defined_logic_hook_list" : ["both"],
+        "user_defined_logic_list" : ["94f8509c-a6e6-11ec-a9f5-0242ac110002"],
+        "user_defined_logic_stateful_list" : ["stateful"],
+        "user_defined_logic_config_list" : [{"control_plane_suffix":"__control__"}],
+        "destinations" : [{}]
+      }
+    ]
+  }
+]
