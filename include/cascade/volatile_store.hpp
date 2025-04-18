@@ -63,7 +63,7 @@ public:
                                                      multi_get_size,
                                                      get_size,
                                                      get_size_by_time,
-                                                     trigger_put.
+                                                     trigger_put,
 						     oob_send
 #ifdef ENABLE_EVALUATION
                                                      ,
