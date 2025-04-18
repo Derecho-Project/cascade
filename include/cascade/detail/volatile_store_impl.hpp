@@ -51,8 +51,6 @@ void VolatileCascadeStore<KT, VT, IK, IV>::put_and_forget(const VT& value, bool 
 
 template <typename CascadeType>
 double internal_perf_put(derecho::Replicated<CascadeType>& subgroup_handle, const uint64_t max_payload_size, const uint64_t duration_sec) {
-    virtual void register_oob_mem(void* oob_mr_ptr, size_t oob_mr_size, const memory_attribute_t &attr) const = 0;
-
     uint64_t num_messages_sent = 0;
     // make workload
     const uint32_t num_distinct_objects = 4096;
@@ -87,9 +85,8 @@ double internal_perf_put(derecho::Replicated<CascadeType>& subgroup_handle, cons
     return (num_messages_sent)*1e9 / (now_ns - start_ns);
 }
 
-
-bool oob_send(uint64_t data_addr, uint64_t gpu_addr, uint64_t rkey, size_t size) const{
-void* oob_mr_ptr = group
+template <typename KT, typename VT, KT* IK, VT* IV>
+bool VolatileCascadeStore<KT, VT, IK, IV>::oob_send(uint64_t data_addr, uint64_t gpu_addr, uint64_t rkey, size_t size) const{
 	// STEP 1 - validate the memory size
 if ((data_addr < reinterpret_cast<uint64_t>(oob_mr_ptr)) ||
  ((data_addr+size) > reinterpret_cast<uint64_t>(oob_mr_ptr) + oob_mr_size)) {
@@ -105,12 +102,13 @@ if ((data_addr < reinterpret_cast<uint64_t>(oob_mr_ptr)) ||
        return true;
 
 }
-
-void oob_reg_mem(void* addr, size_t size){
+template <typename KT, typename VT, KT* IK, VT* IV>
+void VolatileCascadeStore<KT, VT, IK, IV>::oob_reg_mem(void* addr, size_t size){
 	this->oob_mr_ptr = addr;
 	this->oob_mr_size = size;
 }
-void oob_dereg_mem(void* addr){
+template <typename KT, typename VT, KT* IK, VT* IV>
+void VolatileCascadeStore<KT, VT, IK, IV>::oob_dereg_mem(void* addr){
 	this->oob_mr_ptr = nullptr;
 	this->oob_mr_size = 0;
 }
