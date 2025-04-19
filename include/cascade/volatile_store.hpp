@@ -26,8 +26,6 @@ class VolatileCascadeStore : public ICascadeStore<KT, VT, IK, IV>,
                              public derecho::NotificationSupport {
 private:
     bool internal_ordered_put(const VT& value, bool as_trigger);
-    void*   oob_mr_ptr;
-    size_t  oob_mr_size;
 #if defined(__i386__) || defined(__x86_64__) || defined(_M_AMD64) || defined(_M_IX86)
     mutable std::atomic<persistent::version_t> lockless_v1;
     mutable std::atomic<persistent::version_t> lockless_v2;
@@ -95,8 +93,6 @@ public:
     virtual void trigger_put(const VT& value) const override;
     virtual version_tuple put(const VT& value, bool as_trigger) const override;
     virtual bool oob_send(uint64_t data_addr, uint64_t gpu_addr, uint64_t rkey, size_t size) const override;
-    void oob_reg_mem(void* addr, size_t size) override;
-    void oob_dereg_mem(void* addr) override;
 #ifdef ENABLE_EVALUATION
     virtual double perf_put(const uint32_t max_payload_size, const uint64_t duration_sec) const override;
 #endif  // ENABLE_EVALUATION

@@ -681,22 +681,15 @@ void ServiceClient<CascadeTypes...>::oob_get_remote(const node_id_t& node_id, ui
 }
 
 template <typename... CascadeTypes>
-template <typename SubgroupType>
 void ServiceClient<CascadeTypes...>::oob_register_mem_ex(void* addr, size_t size, const memory_attribute_t& attr) {
 	group_ptr->register_oob_memory_ex(addr, size, attr);
-	auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(0);
-	subgroup_handle.get_ref().oob_reg_mem(addr, size);
 }
 
 template <typename... CascadeTypes>
-template <typename SubgroupType>
 void ServiceClient<CascadeTypes...>::oob_deregister_mem(void* addr) {
 	group_ptr->deregister_oob_memory(addr);
-	auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(0);
-	subgroup_handle.get_ref().oob_dereg_mem(addr);
 }
 template <typename... CascadeTypes>
-template <typename SubgroupType>
 uint64_t ServiceClient<CascadeTypes...>::oob_rkey(void* addr){
 	return	group_ptr->get_oob_memory_key(addr);
 }

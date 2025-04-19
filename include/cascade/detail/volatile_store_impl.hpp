@@ -87,10 +87,11 @@ double internal_perf_put(derecho::Replicated<CascadeType>& subgroup_handle, cons
 
 template <typename KT, typename VT, KT* IK, VT* IV>
 bool VolatileCascadeStore<KT, VT, IK, IV>::oob_send(uint64_t data_addr, uint64_t gpu_addr, uint64_t rkey, size_t size) const{
-	// STEP 1 - validate the memory size
-if ((data_addr < reinterpret_cast<uint64_t>(oob_mr_ptr)) ||
- ((data_addr+size) > reinterpret_cast<uint64_t>(oob_mr_ptr) + oob_mr_size)) {
-        std::cerr << "data address:0x" << std::hex << data_addr << " or size " << size << " is invalid." << std::dec << std::endl;
+	// STEP 1 - validate the memory size (using Group ptr)
+    try{
+	(void) group->get_oob_key(data_addr);
+    }catch( const derecho_exception&){
+    	 std::cerr << "data address:0x" << std::hex << data_addr << " or size " << size << " is invalid." << std::dec << std::endl;
         return false;
     }
     // STEP 2 - do RDMA write to send the OOB data
@@ -101,16 +102,6 @@ if ((data_addr < reinterpret_cast<uint64_t>(oob_mr_ptr)) ||
        subgroup_handle.wait_for_oob_op(group->get_rpc_caller_id(),OOB_OP_WRITE,1000);
        return true;
 
-}
-template <typename KT, typename VT, KT* IK, VT* IV>
-void VolatileCascadeStore<KT, VT, IK, IV>::oob_reg_mem(void* addr, size_t size){
-	this->oob_mr_ptr = addr;
-	this->oob_mr_size = size;
-}
-template <typename KT, typename VT, KT* IK, VT* IV>
-void VolatileCascadeStore<KT, VT, IK, IV>::oob_dereg_mem(void* addr){
-	this->oob_mr_ptr = nullptr;
-	this->oob_mr_size = 0;
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
