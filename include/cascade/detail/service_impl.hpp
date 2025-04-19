@@ -668,15 +668,12 @@ template <typename... CascadeTypes>
 template <typename SubgroupType>
 void ServiceClient<CascadeTypes...>::oob_get_remote(const node_id_t& node_id, uint32_t subgroup_index, uint64_t data_addr, uint64_t gpu_addr, uint64_t rkey, size_t size){
 
-	try{
-	// as a subgroup member
-	auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
-	subgroup_handle.template p2p_send<RPC_NAME(oob_send)>(node_id, data_addr, gpu_addr, rkey, size);
-	}  catch (derecho::invalid_subgroup_exception& ex) {
-                // as an external caller
-                auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
- 
-	subgroup_handle.template p2p_send<RPC_NAME(oob_send)>(node_id, data_addr, gpu_addr, rkey, size);
+	if (is_external_client()){
+ std::lock_guard<std::mutex> lck(this->external_group_ptr_mutex);
+        // call as an external client (ExternalClientCaller).
+        auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
+        node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index,value.get_key_ref());
+        return caller.template p2p_send<RPC_NAME(put)>(node_id,value,as_trigger);
 	}
 }
 
