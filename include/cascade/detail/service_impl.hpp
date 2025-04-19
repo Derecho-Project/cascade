@@ -672,7 +672,7 @@ void ServiceClient<CascadeTypes...>::oob_get_remote(const node_id_t& node_id, ui
  std::lock_guard<std::mutex> lck(this->external_group_ptr_mutex);
         // call as an external client (ExternalClientCaller).
         auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
-         return caller.template p2p_send<RPC_NAME(put)>(node_id,value,as_trigger);
+        caller.template p2p_send<RPC_NAME(oob_send)>(node_id, data_addr, gpu_addr, rkey, size);
 	}
 }
 
