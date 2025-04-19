@@ -128,7 +128,16 @@ public:
     virtual bool oob_send(uint64_t data_addr,uint64_t gpu_addr, uint64_t rkey,size_t size) const {
 	dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
     	return false;
-    }   
+    }  
+
+   virtual void oob_reg_mem(void* addr, size_t size){
+	dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);
+   }
+
+  virtual void oob_dereg_mem(void* addr){
+	dbg_default_warn("Calling unsupported func:{}", __PRETTY_FUNCTION__);	
+   }
+
 #ifdef ENABLE_EVALUATION
  /**
      * @brief   A function to evaluate the performance of an internal shard

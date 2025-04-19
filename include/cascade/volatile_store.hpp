@@ -95,8 +95,8 @@ public:
     virtual void trigger_put(const VT& value) const override;
     virtual version_tuple put(const VT& value, bool as_trigger) const override;
     virtual bool oob_send(uint64_t data_addr, uint64_t gpu_addr, uint64_t rkey, size_t size) const override;
-    void oob_reg_mem(void* addr, size_t size);
-    void oob_dereg_mem(void* addr);
+    void oob_reg_mem(void* addr, size_t size) override;
+    void oob_dereg_mem(void* addr) override;
 #ifdef ENABLE_EVALUATION
     virtual double perf_put(const uint32_t max_payload_size, const uint64_t duration_sec) const override;
 #endif  // ENABLE_EVALUATION
