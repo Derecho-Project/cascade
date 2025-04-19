@@ -87,16 +87,6 @@ double internal_perf_put(derecho::Replicated<CascadeType>& subgroup_handle, cons
 
 template <typename KT, typename VT, KT* IK, VT* IV>
 bool VolatileCascadeStore<KT, VT, IK, IV>::oob_send(uint64_t data_addr, uint64_t gpu_addr, uint64_t rkey, size_t size) const{
-	// STEP 1 - validate the memory size (using Group ptr)
-    /*
-	try{
-	(void) group.get_oob_key(reinterpret_cast<void*>(data_addr));
-    }catch( const derecho_exception&){
-    	 std::cerr << "data address:0x" << std::hex << data_addr << " or size " << size << " is invalid." << std::dec << std::endl;
-        return false;
-    }
-    */
-
     // STEP 2 - do RDMA write to send the OOB data
     auto& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
         struct iovec iov;
