@@ -685,7 +685,7 @@ template <typename SubgroupType>
 void ServiceClient<CascadeTypes...>::oob_register_mem_ex(void* addr, size_t size, const memory_attribute_t& attr) {
 	group_ptr->register_oob_memory_ex(addr, size, attr);
 	auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(0);
-	subgroup_handle.oob_reg_mem(addr, size);
+	subgroup_handle.get_ref().oob_reg_mem(addr, size);
 }
 
 template <typename... CascadeTypes>
@@ -693,7 +693,7 @@ template <typename SubgroupType>
 void ServiceClient<CascadeTypes...>::oob_deregister_mem(void* addr) {
 	group_ptr->deregister_oob_memory(addr);
 	auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(0);
-	subgroup_handle.oob_dereg_mem(addr);
+	subgroup_handle.get_ref().oob_dereg_mem(addr);
 }
 template <typename... CascadeTypes>
 template <typename SubgroupType>
