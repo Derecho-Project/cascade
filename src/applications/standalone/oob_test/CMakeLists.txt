@@ -1,21 +1,19 @@
 cmake_minimum_required(VERSION 3.12.0)
 set(CMAKE_DISABLE_SOURCE_CHANGES ON)
 set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
-project(cascade_dds CXX)
+project(cascade_oob_test CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 find_package(cascade CONFIG REQUIRED)
 
 add_executable(cascade_oob_client_A src/clientA.cpp)
-target_include_directories(cascade_dds PUBLIC)
 target_link_libraries(cascade_oob_client_A derecho::cascade)
 
 
 add_executable(cascade_oob_client_C src/clientC.cpp)
-target_include_directories(cascade_dds PUBLIC)
-target_link_libraries(cascade_oob_client_B derecho::cascade)
+target_link_libraries(cascade_oob_client_C derecho::cascade)
 
-add_custom_command(TARGET cascade_oob_client_B POST_BUILD
+add_custom_command(TARGET cascade_oob_client_C POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/cfg
         ${CMAKE_CURRENT_BINARY_DIR}/cfg
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/layout.json
@@ -47,5 +45,4 @@ add_custom_command(TARGET cascade_oob_client_B POST_BUILD
             ${CMAKE_CURRENT_SOURCE_DIR}/cfg/dfgs.json
             ${CMAKE_CURRENT_SOURCE_DIR}/cfg/udl_dlls.cfg
     COMMENT "prepare cascade oob demo configuration"
-)
-CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/src/gen_dfgs.py.in ${CMAKE_CURRENT_BINARY_DIR}/cfg/gen_dfgs.py)
+   )
