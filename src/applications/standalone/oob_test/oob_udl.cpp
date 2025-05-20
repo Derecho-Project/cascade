@@ -17,7 +17,9 @@ std::string get_description() {
 
 class OOBOCDPO: public OffCriticalDataPathObserver {
    
-       	virtual void operator () (const derecho::node_id_t sender,
+	void* oob_mr_ptr = nullptr; 
+       
+	virtual void operator () (const derecho::node_id_t sender,
                               const std::string& key_string,
                               const uint32_t prefix_length,
                               persistent::version_t version,
@@ -59,14 +61,13 @@ class OOBOCDPO: public OffCriticalDataPathObserver {
 				           attr.type = derecho::memory_attribute_t::SYSTEM;
 
 					  typed_ctxt->get_service_client_ref().oob_register_mem_ex(oob_mr_ptr,oob_mr_size,attr);
-					  Blob blob(reinterpret_cast<const uint8_t*>(get_buffer_laddr), buffer_size); 
+					  Blob blob(reinterpret_cast<const uint8_t*>(get_buffer_laddr), oob_data_size); 
 					  ObjectWithStringKey obj ("oob/receive",blob);
               
       					typed_ctxt->get_service_client_ref().put_and_forget<VolatileCascadeStoreWithStringKey>(obj,0,1); 
        }
        else if(tokens[1] == "receive"){
 		
-	void* oob_mr_ptr = nullptr; 
 	    size_t      oob_mr_size     = 1ul << 20;
 	        size_t      oob_data_size =256;
 		    oob_mr_ptr = aligned_alloc(4096,oob_mr_size);
@@ -76,11 +77,14 @@ class OOBOCDPO: public OffCriticalDataPathObserver {
 
 			        typed_ctxt->get_service_client_ref().oob_register_mem_ex(oob_mr_ptr,oob_mr_size,attr);
 				    auto rkey =  typed_ctxt->get_service_client_ref().oob_rkey(oob_mr_ptr);
-				    char arr [value_ptr->bytes_size()] = {};
+				  /**  char arr [value_ptr->bytes_size()] = {};
                               value_ptr->to_bytes(arr);
 			      uint64_t result;
 			      std::memcpy(&result, arr, sizeof(uint64_t));
-				typed_ctxt->get_service_client_ref().oob_get_remote<VolatileCascadeStoreWithStringKey>(0,0,result,reinterpret_cast<uint64_t>(oob_mr_ptr), rkey,oob_data_size);
+			*/	
+				const ObjectWithStringKey* object = dynamic_cast<const ObjectWithStringKey*>(value_ptr);
+				uint64_t result = *reinterpret_cast<const uint64_t*>(object->blob.bytes);
+			      typed_ctxt->get_service_client_ref().oob_get_remote<VolatileCascadeStoreWithStringKey>(0,0,result,reinterpret_cast<uint64_t>(oob_mr_ptr), rkey,oob_data_size);
        }
        else if (tokens[1] == "check"){
 	
@@ -104,7 +108,7 @@ public:
     }
 };
 
-std::shared_ptr<OffCriticalDataPathObserver> ConsolePrinterOCDPO::ocdpo_ptr;
+std::shared_ptr<OffCriticalDataPathObserver> OOBOCDPO::ocdpo_ptr;
 
 void initialize(ICascadeContext* ctxt) {
     OOBOCDPO::initialize();
