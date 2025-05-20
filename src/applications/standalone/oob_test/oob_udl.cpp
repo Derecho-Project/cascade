@@ -1,7 +1,6 @@
 #include <cascade/user_defined_logic_interface.hpp>
 #include <iostream>
 #include <cascade/utils.hpp>
-#include <cuda.h>
 namespace derecho{
 namespace cascade{
 
