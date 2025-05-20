@@ -93,6 +93,9 @@ bool VolatileCascadeStore<KT, VT, IK, IV>::oob_send(uint64_t data_addr, uint64_t
 	iov.iov_base    = reinterpret_cast<void*>(data_addr);                        iov.iov_len     = static_cast<size_t>(size);
        subgroup_handle.oob_remote_write(group->get_rpc_caller_id(),&iov,1,gpu_addr,rkey,size);
        subgroup_handle.wait_for_oob_op(group->get_rpc_caller_id(),OOB_OP_WRITE,1000);
+       
+       
+       std::cout << "FINISHED OOB Remote Write" << std::endl;
        return true;
 
 }

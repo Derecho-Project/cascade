@@ -1,0 +1,14 @@
+[
+    {
+        "id": "4a2ec3ae-9cd6-11eb-90e5-0242ac110002",
+        "desc": "OOB Test DFG",
+        "graph": [
+            {
+                "pathname": "/oob",
+                "shard_dispatcher_list": ["one"],
+                "user_defined_logic_list": ["48e60f7c-8500-11eb-8755-0242ac110002"],
+                "destinations": [{}]
+            }
+        ]
+    }
+]
