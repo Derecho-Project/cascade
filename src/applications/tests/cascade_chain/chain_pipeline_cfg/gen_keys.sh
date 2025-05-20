@@ -19,8 +19,14 @@ done
 # Generate a private key for the client, even though it won't use it, to make Derecho happy
 openssl genpkey -algorithm rsa -outform PEM -out n4/private_key.pem
 
-# Generate a private key for the backup site nodes
+# Generate a key pair for the backup site
 openssl genpkey -algorithm rsa -outform PEM -out backup_private_key.pem
+openssl pkey -in backup_private_key.pem -out backup_public_key.pem -pubout -outform PEM
+
+# Copy the private key to the backup server nodes
 for folder in n{5..7}; do
     cp backup_private_key.pem $folder/private_key.pem
 done
+
+# Copy the public key to the external client node
+cp backup_public_key.pem n4
