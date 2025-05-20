@@ -59,11 +59,13 @@ class OOBOCDPO: public OffCriticalDataPathObserver {
 				           attr.type = derecho::memory_attribute_t::SYSTEM;
 
 					  typed_ctxt->get_service_client_ref().oob_register_mem_ex(oob_mr_ptr,oob_mr_size,attr);
-      					typed_ctxt->get_service_client_ref().put_and_forget<VolatileCascadeStoreWithStringKey>("oob/receive", get_buffer_laddr, subgroup_index=0, shard_index=1); 
+					  Blob blob(reinterpret_cast<const uint8_t*>(get_buffer_laddr), buffer_size); 
+					  ObjectWithStringKey obj ("oob/receive",blob);
+              
+      					typed_ctxt->get_service_client_ref().put_and_forget<VolatileCascadeStoreWithStringKey>(obj,0,1); 
        }
-       else if(tokens[1] == "recieve"){
+       else if(tokens[1] == "receive"){
 		
-	       auto capi = *typed_ctxt->get_service_client_ref();
 	void* oob_mr_ptr = nullptr; 
 	    size_t      oob_mr_size     = 1ul << 20;
 	        size_t      oob_data_size =256;
@@ -72,26 +74,29 @@ class OOBOCDPO: public OffCriticalDataPathObserver {
 		        derecho::memory_attribute_t attr;
 			    attr.type = derecho::memory_attribute_t::SYSTEM;
 
-			        capi.oob_register_mem_ex(oob_mr_ptr,oob_mr_size,attr);
+			        typed_ctxt->get_service_client_ref().oob_register_mem_ex(oob_mr_ptr,oob_mr_size,attr);
 				    auto rkey = capi.oob_rkey(oob_mr_ptr);
 				    char arr [value_ptr.bytes_size()] = {};
                               value_ptr.to_bytes(arr);
 			      uint64_t result;
 			      std::memcpy(&result, arr, sizeof(uint64_t));
-				capi.oob_get_remote<VolatileCascadeStoreWithStringKey>(member,0,result,reinterpret_cast<uint64_t>(oob_mr_ptr), rkey,oob_data_size);
+				typed_ctxt->get_service_client_ref().oob_get_remote<VolatileCascadeStoreWithStringKey>(member,0,result,reinterpret_cast<uint64_t>(oob_mr_ptr), rkey,oob_data_size);
        }
        else if (tokens[1] == "check"){
 	
 	uint8_t* byte_ptr = reinterpret_cast<uint8_t*>(oob_mr_ptr);
 	std::cout << "Recieved: " << static_cast<char>(byte_ptr[1]) << std::endl;
-       } 
+       } else {
+
+	std::cout << "Unsupported oob operation called!" << std::endl;
+       }
     }
 
     static std::shared_ptr<OffCriticalDataPathObserver> ocdpo_ptr;
 public:
     static void initialize() {
         if(!ocdpo_ptr) {
-            ocdpo_ptr = std::make_shared<ConsolePrinterOCDPO>();
+            ocdpo_ptr = std::make_shared<OOBOCDPO>();
         }
     }
     static auto get() {
@@ -102,12 +107,12 @@ public:
 std::shared_ptr<OffCriticalDataPathObserver> ConsolePrinterOCDPO::ocdpo_ptr;
 
 void initialize(ICascadeContext* ctxt) {
-    ConsolePrinterOCDPO::initialize();
+    OOBOCDPO::initialize();
 }
 
 std::shared_ptr<OffCriticalDataPathObserver> get_observer(
         ICascadeContext*,const nlohmann::json&) {
-    return ConsolePrinterOCDPO::get();
+    return OOBOCDPO::get();
 }
 
 void release(ICascadeContext* ctxt) {
