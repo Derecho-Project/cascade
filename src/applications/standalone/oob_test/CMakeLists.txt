@@ -11,7 +11,7 @@ target_include_directories(oob_udl PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
   )
 
-add_custom_command(TARGET cascade_oob_client_C POST_BUILD
+add_custom_command(TARGET oob_udl POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/cfg
         ${CMAKE_CURRENT_BINARY_DIR}/cfg
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/cfg/layout.json
