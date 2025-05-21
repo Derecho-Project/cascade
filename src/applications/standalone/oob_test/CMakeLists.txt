@@ -11,6 +11,13 @@ target_include_directories(oob_udl PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
   )
 
+add_executable(cascade_oob_client_C src/clientC.cpp)
+target_link_libraries(cascade_oob_client_C derecho::cascade)
+
+
+add_executable(cascade_oob_client_A src/clientA.cpp)
+target_link_libraries(cascade_oob_client_A derecho::cascade)
+
 add_custom_command(TARGET oob_udl POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/cfg
         ${CMAKE_CURRENT_BINARY_DIR}/cfg
