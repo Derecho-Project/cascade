@@ -1,7 +1,7 @@
 [
     {
         "id": "4a2ec3ae-9cd6-11eb-90e5-0242ac110002",
-        "desc": "OOB Test DFG",
+        "desc": "oob test DFG",
         "graph": [
             {
                 "pathname": "/oob",

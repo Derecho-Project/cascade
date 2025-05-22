@@ -6,7 +6,7 @@ project(cascade_oob_test CXX)
 set(CMAKE_CXX_STANDARD 17)
 find_package(cascade CONFIG REQUIRED)
 
-add_library(oob_udl SHARED oob_udl.cpp)
+add_library(oob_udl SHARED src/oob_udl.cpp)
 target_include_directories(oob_udl PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
   )
@@ -51,3 +51,5 @@ add_custom_command(TARGET oob_udl POST_BUILD
             ${CMAKE_CURRENT_SOURCE_DIR}/cfg/udl_dlls.cfg
     COMMENT "prepare cascade oob demo configuration"
    )
+
+target_link_libraries(ood_udl derecho::cascade)

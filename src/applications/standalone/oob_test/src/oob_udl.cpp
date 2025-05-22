@@ -5,7 +5,7 @@ namespace derecho{
 namespace cascade{
 
 #define MY_UUID     "48e60f7c-8500-11eb-8755-0242ac110002"
-#define MY_DESC     "Demo DLL UDL that allocated GPU memory and performs Single Sided RDMA"
+#define MY_DESC     "Demo DLL UDL that allocates CPU memory and performs Single Sided RDMA"
 
 std::string get_uuid() {
     return MY_UUID;

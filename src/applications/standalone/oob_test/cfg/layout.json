@@ -15,11 +15,11 @@
         "type_alias":   "VolatileCascadeStoreWithStringKey",
         "layout":       [
                             {
-                                "min_nodes_by_shard": ["1"],
-                                "max_nodes_by_shard": ["1"],
-                                "delivery_modes_by_shard": ["Ordered"],
-                                "reserved_node_ids_by_shard": [["1"]],
-                                "profiles_by_shard": ["DEFAULT"]
+                                "min_nodes_by_shard": ["1","1"],
+                                "max_nodes_by_shard": ["1","1"],
+                                "delivery_modes_by_shard": ["Ordered","Ordered"],
+                                "reserved_node_ids_by_shard": [["0"],["1"]],
+                                "profiles_by_shard": ["DEFAULT","DEFAULT"]
                             }
                         ]
     },
