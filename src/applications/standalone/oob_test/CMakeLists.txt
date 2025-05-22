@@ -52,4 +52,4 @@ add_custom_command(TARGET oob_udl POST_BUILD
     COMMENT "prepare cascade oob demo configuration"
    )
 
-target_link_libraries(ood_udl derecho::cascade)
+target_link_libraries(oob_udl derecho::cascade)
