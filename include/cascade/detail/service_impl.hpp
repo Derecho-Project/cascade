@@ -666,7 +666,7 @@ derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::put(
 
 template <typename... CascadeTypes>
 template <typename SubgroupType>
-void ServiceClient<CascadeTypes...>::oob_get_remote(const node_id_t& node_id, uint32_t subgroup_index, uint64_t data_addr, uint64_t gpu_addr, uint64_t rkey, size_t size){
+void ServiceClient<CascadeTypes...>::oob_get_remote(const node_id_t& node_id, uint32_t subgroup_index, uint32_t shard_index, bool as_trigger, uint64_t data_addr, uint64_t gpu_addr, uint64_t rkey, size_t size){
 
 	if (!is_external_client()) {
 	        std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
