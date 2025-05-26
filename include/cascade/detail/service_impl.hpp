@@ -670,7 +670,7 @@ void ServiceClient<CascadeTypes...>::oob_get_remote(const node_id_t& node_id, ui
 
 	if (!is_external_client()) {
 		   auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
-		   subgroup_handle.template p2p_send<RPC_NAME(put_and_forget)>(node_id,data_addr, landing_addr, rkey, size);
+		   subgroup_handle.template p2p_send<RPC_NAME(oob_send)>(node_id,data_addr, landing_addr, rkey, size);
 		std::cout << "SENT P2P OOB SEND RPC CALL to node of id:" << node_id << std::endl;	
 
 	}
