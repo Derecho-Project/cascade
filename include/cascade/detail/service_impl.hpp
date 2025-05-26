@@ -666,33 +666,13 @@ derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::put(
 
 template <typename... CascadeTypes>
 template <typename SubgroupType>
-void ServiceClient<CascadeTypes...>::oob_get_remote(const node_id_t& node_id, uint32_t subgroup_index, uint32_t shard_index, bool as_trigger, uint64_t data_addr, uint64_t gpu_addr, uint64_t rkey, size_t size){
+void ServiceClient<CascadeTypes...>::oob_get_remote(const node_id_t& node_id, uint32_t subgroup_index, uint64_t data_addr, uint64_t landing_addr, uint64_t rkey, size_t size){
 
 	if (!is_external_client()) {
-	        std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
-		        if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
-				            // do ordered put as a shard member (Replicated).
-     				auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
-		                subgroup_handle.template ordered_send<RPC_NAME(ordered_put_and_forget)>(value,as_trigger);
-                        } else {
-                                node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index,value.get_key_ref());
-		     		// do p2p put
-			        try{
-					    // as a subgroup member
-				    auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
-				    subgroup_handle.template p2p_send<RPC_NAME(put_and_forget)>(node_id,value,as_trigger);
-				    std::cout << "SENT A P2P RPC CALL" << std::endl;	                                                                                                                                  } catch (derecho::invalid_subgroup_exception& ex) {
-					                                                                                                                                                   // as an external caller
-                          auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
-		          subgroup_handle.template p2p_send<RPC_NAME(put_and_forget)>(node_id,value,as_trigger);
-					                                                                                                                                     }                                            
-                                                                                                                                                              		}                         
-	}
-	else{
-	 std::lock_guard<std::mutex> lck(this->external_group_ptr_mutex);
-        // call as an external client (ExternalClientCaller).
-        auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
-        caller.template p2p_send<RPC_NAME(oob_send)>(node_id, data_addr, gpu_addr, rkey, size);
+		   auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
+		   subgroup_handle.template p2p_send<RPC_NAME(put_and_forget)>(node_id,data_addr, landing_addr, rkey, size);
+		std::cout << "SENT P2P OOB SEND RPC CALL to node of id:" << node_id << std::endl;	
+
 	}
 }
 

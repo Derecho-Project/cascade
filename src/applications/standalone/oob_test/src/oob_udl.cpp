@@ -87,7 +87,7 @@ class OOBOCDPO: public OffCriticalDataPathObserver {
 				uint64_t result = *reinterpret_cast<const uint64_t*>(object->blob.bytes);
 				std::cout << "RECEIVE" << std::endl;
 			      	typed_ctxt->get_service_client_ref().oob_get_remote<VolatileCascadeStoreWithStringKey>(0,0,1,false,result,reinterpret_cast<uint64_t>(oob_mr_ptr), rkey,oob_data_size);
-        std::cout << "SEND put worked!" << std::endl; 			
+        std::cout << "RECEIVE UDL handeling has called oob_get_remote" << std::endl; 			
        }
        else if (tokens[1] == "check"){
 	       std::cout << "CHECK" << std::endl;

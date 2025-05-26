@@ -777,7 +777,7 @@ namespace cascade {
 	 * @param[in] size    The size of the allocated memory region
 	 */
 	template <typename SubgroupType>
-	void oob_get_remote(const node_id_t& node_id, uint32_t subgroup_index, const uint64_t data_addr, uint64_t gpu_addr, uint64_t rkey, size_t size);
+	void oob_get_remote(const node_id_t& node_id, uint32_t subgroup_index, const uint64_t data_addr, uint64_t landing_addr, uint64_t rkey, size_t size);
        
         void oob_register_mem_ex(void* addr, size_t size, const memory_attribute_t& attr);
 	
