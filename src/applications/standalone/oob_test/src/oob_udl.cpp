@@ -56,7 +56,7 @@ class OOBOCDPO: public OffCriticalDataPathObserver {
 				       derecho::memory_attribute_t attr;
 				           attr.type = derecho::memory_attribute_t::SYSTEM;
 					  typed_ctxt->get_service_client_ref().oob_register_mem_ex(oob_mr_ptr,oob_mr_size,attr);
-					  uint64_t ptr = reinterpret_cast<uint8_6>(this->oob_mr_ptr);
+					  uint64_t ptr = reinterpret_cast<uint8_t>(this->oob_mr_ptr);
 					  Blob blob(reinterpret_cast<const uint8_t*>(&ptr), oob_data_size); 
 					  ObjectWithStringKey obj ("oob/receive",blob);
 					  std::cout << "SEND" << std::endl;
