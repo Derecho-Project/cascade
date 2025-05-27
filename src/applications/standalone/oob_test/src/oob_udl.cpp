@@ -56,7 +56,8 @@ class OOBOCDPO: public OffCriticalDataPathObserver {
 				       derecho::memory_attribute_t attr;
 				           attr.type = derecho::memory_attribute_t::SYSTEM;
 					  typed_ctxt->get_service_client_ref().oob_register_mem_ex(oob_mr_ptr,oob_mr_size,attr);
-					  uint64_t ptr = reinterpret_cast<uint8_t>(this->oob_mr_ptr);
+					  uint64_t ptr = reinterpret_cast<uint64_t>(this->oob_mr_ptr);
+					  std::cout << "Int mem Original: " << ptr << std::endl;
 					  Blob blob(reinterpret_cast<const uint8_t*>(&ptr), oob_data_size); 
 					  ObjectWithStringKey obj ("oob/receive",blob);
 					  std::cout << "SEND" << std::endl;
@@ -81,9 +82,10 @@ class OOBOCDPO: public OffCriticalDataPathObserver {
 			*/	
 				const ObjectWithStringKey* object = dynamic_cast<const ObjectWithStringKey*>(value_ptr);
 				uint64_t result = *reinterpret_cast<const uint64_t*>(object->blob.bytes);
+				std::cout <<"Int mem: " << result << std::endl;
 				std::cout << "RECEIVE" << std::endl;
-				void* ptr = *reinterpret_cast<void* const*>(object->blob.bytes);
-				std::cout << typed_ctxt->get_service_client_ref().oob_rkey(ptr) << std::endl;
+				void* ptr = *reinterpret_cast<void*>(result);
+				std::cout << typed_ctxt->get_service_client_ref().oob_rkey(ptr) <<" RKEY FOR: " << result << std::endl;
 			      	typed_ctxt->get_service_client_ref().oob_get_remote<VolatileCascadeStoreWithStringKey>(0,0,result,reinterpret_cast<uint64_t>(oob_mr_ptr), rkey,oob_data_size);
         std::cout << "RECEIVE UDL handeling has called oob_get_remote" << std::endl; 			
        }
