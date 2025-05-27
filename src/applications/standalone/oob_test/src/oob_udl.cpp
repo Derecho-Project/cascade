@@ -52,10 +52,8 @@ class OOBOCDPO: public OffCriticalDataPathObserver {
 	       size_t      oob_mr_size     = 1ul << 20;
 		size_t      oob_data_size =256;
 		           oob_mr_ptr = aligned_alloc(4096,oob_mr_size);
-			       void* get_buffer_laddr = reinterpret_cast<void*>(
-					       		        ((reinterpret_cast<uint64_t>(oob_mr_ptr) + oob_data_size + 4095) >> 12) << 12
-										    );
-			           memset(get_buffer_laddr, 'a', oob_data_size);
+			       void* get_buffer_laddr = static_cast<uint8_t*>(oob_mr_ptr);
+     				       memset(get_buffer_laddr, 'a', oob_data_size);
 
 				       derecho::memory_attribute_t attr;
 				           attr.type = derecho::memory_attribute_t::SYSTEM;
