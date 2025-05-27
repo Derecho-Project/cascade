@@ -88,14 +88,14 @@ double internal_perf_put(derecho::Replicated<CascadeType>& subgroup_handle, cons
 template <typename KT, typename VT, KT* IK, VT* IV>
 bool VolatileCascadeStore<KT, VT, IK, IV>::oob_send(uint64_t data_addr, uint64_t gpu_addr, uint64_t rkey, size_t size) const{
     // STEP 2 - do RDMA write to send the OOB data
-   dbg_default_trace("called oob_send with, data_addr={}, gpu_addr={}, rkey={}, size={}", data_addr, gpu_addr, rkey, size);
+   dbg_default_debug("called oob_send with, data_addr={}, gpu_addr={}, rkey={}, size={}", data_addr, gpu_addr, rkey, size);
        	auto& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
         struct iovec iov;
 	iov.iov_base    = reinterpret_cast<void*>(data_addr);                        iov.iov_len     = static_cast<size_t>(size);
        subgroup_handle.oob_remote_write(group->get_rpc_caller_id(),&iov,1,gpu_addr,rkey,size);
-       dbg_default_trace("Finished ASYNC oob remote write Derecho call");
+       dbg_default_debug("Finished ASYNC oob remote write Derecho call");
        subgroup_handle.wait_for_oob_op(group->get_rpc_caller_id(),OOB_OP_WRITE,1000);
-       dbg_default_trace("FINISHED OOB REMOTE WRITE");
+       dbg_default_debug("FINISHED OOB REMOTE WRITE");
        
        std::cout << "FINISHED OOB Remote Write" << std::endl;
        return true;
