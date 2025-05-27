@@ -52,14 +52,12 @@ class OOBOCDPO: public OffCriticalDataPathObserver {
 	       size_t      oob_mr_size     = 1ul << 20;
 		size_t      oob_data_size =256;
 		      this->oob_mr_ptr = aligned_alloc(4096,oob_mr_size);
-			       void* get_buffer_laddr = static_cast<uint8_t*>(oob_mr_ptr);
-     				       memset(get_buffer_laddr, 'a', oob_data_size);
-
+     				       memset(this->oob_mr_ptr, 'a', oob_data_size);
 				       derecho::memory_attribute_t attr;
 				           attr.type = derecho::memory_attribute_t::SYSTEM;
-
 					  typed_ctxt->get_service_client_ref().oob_register_mem_ex(oob_mr_ptr,oob_mr_size,attr);
-					  Blob blob(reinterpret_cast<const uint8_t*>(get_buffer_laddr), oob_data_size); 
+					  uint64_t ptr = reinterpret_cast<uint8_6>(this->oob_mr_ptr);
+					  Blob blob(reinterpret_cast<const uint8_t*>(&ptr), oob_data_size); 
 					  ObjectWithStringKey obj ("oob/receive",blob);
 					  std::cout << "SEND" << std::endl;
       					typed_ctxt->get_service_client_ref().put_and_forget<VolatileCascadeStoreWithStringKey>(obj,0,1); 
@@ -89,7 +87,7 @@ class OOBOCDPO: public OffCriticalDataPathObserver {
        }
        else if (tokens[1] == "check"){
 	       std::cout << "CHECK" << std::endl;
-	uint8_t* byte_ptr = reinterpret_cast<uint8_t*>(oob_mr_ptr);
+	uint8_t* byte_ptr = reinterpret_cast<uint8_t*>(this->oob_mr_ptr);
 	std::cout << "Recieved: " << static_cast<char>(byte_ptr[1]) << std::endl;
        } else {
 	std::cout << "Unsupported oob operation called!" << std::endl;
