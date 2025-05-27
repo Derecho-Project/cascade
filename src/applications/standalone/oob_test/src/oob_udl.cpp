@@ -86,7 +86,7 @@ class OOBOCDPO: public OffCriticalDataPathObserver {
 				std::cout <<"Int mem: " << result << std::endl;
 				std::cout << "RECEIVE" << std::endl;
 				void* ptr = reinterpret_cast<void*>(result);
-				std::cout << typed_ctxt->get_service_client_ref().oob_rkey(ptr) <<" RKEY FOR: " << result << std::endl;
+			// 	std::cout << typed_ctxt->get_service_client_ref().oob_rkey(ptr) <<" RKEY FOR: " << result << std::endl;
 			      	typed_ctxt->get_service_client_ref().oob_get_remote<VolatileCascadeStoreWithStringKey>(0,0,result,reinterpret_cast<uint64_t>(oob_mr_ptr), rkey,oob_data_size);
         std::cout << "RECEIVE UDL handeling has called oob_get_remote" << std::endl; 			
        }
