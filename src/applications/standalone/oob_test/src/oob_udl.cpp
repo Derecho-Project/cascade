@@ -55,8 +55,9 @@ class OOBOCDPO: public OffCriticalDataPathObserver {
      				       memset(this->oob_mr_ptr, 'a', oob_data_size);
 				       derecho::memory_attribute_t attr;
 				           attr.type = derecho::memory_attribute_t::SYSTEM;
-					  typed_ctxt->get_service_client_ref().oob_register_mem_ex(oob_mr_ptr,oob_mr_size,attr);
+					  typed_ctxt->get_service_client_ref().oob_register_mem_ex(this->oob_mr_ptr,oob_mr_size,attr);
 					  uint64_t ptr = reinterpret_cast<uint64_t>(this->oob_mr_ptr);
+					 std::cout << typed_ctxt->get_service_client_ref().oob_rkey(this->oob_mr_ptr) << " RKEY FOR: " << ptr << std::endl;
 					  std::cout << "Int mem Original: " << ptr << std::endl;
 					  Blob blob(reinterpret_cast<const uint8_t*>(&ptr), oob_data_size); 
 					  ObjectWithStringKey obj ("oob/receive",blob);
@@ -73,7 +74,7 @@ class OOBOCDPO: public OffCriticalDataPathObserver {
 		        derecho::memory_attribute_t attr;
 			    attr.type = derecho::memory_attribute_t::SYSTEM;
 
-			        typed_ctxt->get_service_client_ref().oob_register_mem_ex(oob_mr_ptr,oob_mr_size,attr);
+			        typed_ctxt->get_service_client_ref().oob_register_mem_ex(this->oob_mr_ptr,oob_mr_size,attr);
 				    auto rkey =  typed_ctxt->get_service_client_ref().oob_rkey(oob_mr_ptr);
 				  /**  char arr [value_ptr->bytes_size()] = {};
                               value_ptr->to_bytes(arr);
