@@ -666,6 +666,31 @@ derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::put(
 
 template <typename... CascadeTypes>
 template <typename SubgroupType>
+void ServiceClient<CascadeTypes...>::oob_get_remote(const node_id_t& node_id, uint32_t subgroup_index, uint64_t data_addr, uint64_t landing_addr, uint64_t rkey, size_t size){
+
+	if (!is_external_client()) {
+		   auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
+		   subgroup_handle.template p2p_send<RPC_NAME(oob_send)>(node_id,data_addr, landing_addr, rkey, size);
+		std::cout << "SENT P2P OOB SEND RPC CALL to node of id:" << node_id << std::endl;	
+
+	}
+}
+
+template <typename... CascadeTypes>
+void ServiceClient<CascadeTypes...>::oob_register_mem_ex(void* addr, size_t size, const memory_attribute_t& attr) {
+	group_ptr->register_oob_memory_ex(addr, size, attr);
+}
+
+template <typename... CascadeTypes>
+void ServiceClient<CascadeTypes...>::oob_deregister_mem(void* addr) {
+	group_ptr->deregister_oob_memory(addr);
+}
+template <typename... CascadeTypes>
+uint64_t ServiceClient<CascadeTypes...>::oob_rkey(void* addr){
+	return	group_ptr->get_oob_memory_key(addr);
+}
+template <typename... CascadeTypes>
+template <typename SubgroupType>
 void ServiceClient<CascadeTypes...>::put_and_forget(
         const typename SubgroupType::ObjectType& value,
         uint32_t subgroup_index,
