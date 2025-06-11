@@ -1150,6 +1150,21 @@ PerfTestServer::~PerfTestServer() {
 // PerfTestClient implementation    //
 //////////////////////////////////////
 
+std::ostream& operator<<(std::ostream& os, PutType pt) {
+    switch(pt) {
+        case PutType::PUT:
+            os << "PUT";
+            break;
+        case PutType::PUT_AND_FORGET:
+            os << "PUT_AND_FORGET";
+            break;
+        case PutType::TRIGGER_PUT:
+            os << "TRIGGER_PUT";
+            break;
+    }
+    return os;
+}
+
 PerfTestClient::PerfTestClient(ServiceClientAPI& capi):capi(capi) {}
 
 void PerfTestClient::add_or_update_server(const std::string& host, uint16_t port) {

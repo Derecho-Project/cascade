@@ -4,8 +4,41 @@
 namespace derecho {
 namespace cascade {
 
-/** 
- * cpu/gpu list examples: 
+
+std::ostream& operator<<(std::ostream& stream, const ShardMemberSelectionPolicy& policy) {
+    switch(policy) {
+        case ShardMemberSelectionPolicy::FirstMember:
+            stream << "FirstMember";
+            break;
+        case ShardMemberSelectionPolicy::LastMember:
+            stream << "LastMember";
+            break;
+        case ShardMemberSelectionPolicy::Random:
+            stream << "Random";
+            break;
+        case ShardMemberSelectionPolicy::FixedRandom:
+            stream << "FixedRandom";
+            break;
+        case ShardMemberSelectionPolicy::RoundRobin:
+            stream << "RoundRobin";
+            break;
+        case ShardMemberSelectionPolicy::KeyHashing:
+            stream << "KeyHashing";
+            break;
+        case ShardMemberSelectionPolicy::UserSpecified:
+            stream << "UserSpecified";
+            break;
+        case ShardMemberSelectionPolicy::InvalidPolicy:
+        default:
+            stream << "InvalidPolicy";
+            break;
+    }
+    return stream;
+}
+
+
+/**
+ * cpu/gpu list examples:
  * cpu_cores = 0,1,2,3
  * cpu_cores = 0,1-5,6,8
  * cpu_cores = 0-15
