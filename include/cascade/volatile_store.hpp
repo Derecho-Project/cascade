@@ -61,7 +61,8 @@ public:
                                                      multi_get_size,
                                                      get_size,
                                                      get_size_by_time,
-                                                     trigger_put
+                                                     trigger_put,
+						     oob_send
 #ifdef ENABLE_EVALUATION
                                                      ,
                                                      dump_timestamp_log
@@ -91,6 +92,7 @@ public:
 #endif  // ENABLE_EVALUATION
     virtual void trigger_put(const VT& value) const override;
     virtual version_tuple put(const VT& value, bool as_trigger) const override;
+    virtual bool oob_send(uint64_t data_addr, uint64_t gpu_addr, uint64_t rkey, size_t size) const override;
 #ifdef ENABLE_EVALUATION
     virtual double perf_put(const uint32_t max_payload_size, const uint64_t duration_sec) const override;
 #endif  // ENABLE_EVALUATION
