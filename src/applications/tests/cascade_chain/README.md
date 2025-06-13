@@ -12,7 +12,7 @@ This is the standard testing configuration for CascadeChain. It contains per-nod
     * CascadeMetadataService: n0
 * Backup site: n5-n7
     * PersistentCascadeStore: n5
-    * SignatureCascadeStore: n5, n7
+    * SignatureCascadeStore: n6, n7
     * CascadeMetadataService: n5
 * Client: n4
 
@@ -28,6 +28,7 @@ At each site, the SignatureCascadeStore nodes should be configured as the replic
 * derecho-local.cfg (*symlink to ../derecho-local.cfg or ../backup_derecho-fractus.cfg depending on node*)
 * dfgs.json (*symlink to ../dfgs.json or ../backup_dfgs.json depending on node*)
 * layout.json (*symlink to ../layout.json or ../backup_layout.json depending on node*)
+* udl_dlls.cfg (*symlink to ../udl_dlls.cfg or ../backup_udl_dlls.cfg depending on node*)
 
 Note that most of these files have two versions, one that ends in `-fractus` and one that ends in `-local`. The files with the `-fractus` suffix are intended to be used when the test layout is deployed to the Fractus cluster at Cornell, where each node can reside on its own server. The files with the `-local` suffix are intended to be used when testing the system locally on your own computer, where each node is simply a process running in a different terminal window.
 
@@ -91,3 +92,25 @@ create_object_pool is done.
 These two steps only need to be done once per test session; you can then run any number of "put" and "get" commands, such as `put_with_signature` and `get_and_verify`.
 
 When you are ready to end the test, make sure to use the `quit` command on the client before shutting down the servers (by pressing Enter). If you shut down the servers first, the client will hang when it attempts to send a "graceful disconnect" to the server it was communicating with.
+
+## Configuration 2: primary_test_cfg
+
+This is the configuration used for performance testing of the CascadeChain primary site by itself, with no backup sites configured. It contains per-node configuration files for 8 nodes that should configure them in the following layout:
+
+* CascadeMetadataService: n0
+* PersistentCascadeStore: n1, n2, n3
+* SignatureCascadeStore: n4, n5, n6
+* Client: n7
+
+The Derecho contact node is n0.
+
+**Configuration files**: Achieving this layout requires each node to load several configuration files, although fewer than chain_pipeline_cfg since WanAgent is not used. Some of the configuration files are stored in the per-node configuration folders, and some are stored in the parent directory (primary_test_cfg) and symlinked into the per-node folders during the CMake build process. After building with CMake, each node configuration folder in the output directory will contain the following files:
+
+* derecho_node-fractus.cfg
+* derecho-fractus.cfg (*symlink to ../derecho-fractus.cfg*)
+* dfgs.json (*symlink to ../dfgs.json*)
+* layout.json (*symlink to ../layout.json*)
+* test_private_key.pem
+* udl_dlls.cfg (*symlink to ../udl_dlls.cfg*)
+
+Following the same naming convention as chain_pipeline_cfg, the derecho config files have the suffix `-fractus` to indicate they should be used on the Fractus cluster, but there is no `-local` version since it doesn't make sense to run a performance test locally. Also, note that the private keys are already included, since this configuration will never be run in a "production" setting and it's not important to keep them secret.
