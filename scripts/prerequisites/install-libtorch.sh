@@ -1,11 +1,14 @@
 #!/bin/bash
 
-if [ $# != 1 ]; then
+if [ $# -lt 1 ]; then
   echo "USAGE: $0 <cpu|gpu>"
   exit 0
 fi
 
-INSTALL_PREFIX=${HOME}/opt-dev
+INSTALL_PREFIX="/usr/local"
+if [[ $# -gt 1 ]]; then
+    INSTALL_PREFIX=$2
+fi
 INSTALL_TYPE=$1
 ZIP_FILE=libtorch-cxx11.zip
 if [ $INSTALL_TYPE == 'cpu' ]; then

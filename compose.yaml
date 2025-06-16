@@ -1,0 +1,145 @@
+services:
+  node0:
+    build:
+      context: .
+      target: cascade-dev
+      ssh:
+        - default
+    tty: true
+    stdin_open: true
+    working_dir: /cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n0
+    develop:
+      watch:
+        - path: .
+          target: /cascade
+          action: sync
+    networks:
+      derecho:
+        ipv4_address: 172.16.0.10
+  node1:
+    build:
+      context: .
+      target: cascade-dev
+      ssh:
+        - default
+    tty: true
+    stdin_open: true
+    working_dir: /cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n1
+    develop:
+      watch:
+        - path: .
+          target: /cascade
+          action: sync
+    networks:
+      derecho:
+        ipv4_address: 172.16.0.11
+  node2:
+    build:
+      context: .
+      target: cascade-dev
+      ssh:
+        - default
+    tty: true
+    stdin_open: true
+    working_dir: /cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n2
+    develop:
+      watch:
+        - path: .
+          target: /cascade
+          action: sync
+    networks:
+      derecho:
+        ipv4_address: 172.16.0.12
+  node3:
+    build:
+      context: .
+      target: cascade-dev
+      ssh:
+        - default
+    tty: true
+    stdin_open: true
+    working_dir: /cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n3
+    develop:
+      watch:
+        - path: .
+          target: /cascade
+          action: sync
+    networks:
+      derecho:
+        ipv4_address: 172.16.0.13
+  node4:
+    build:
+      context: .
+      target: cascade-dev
+      ssh:
+        - default
+    tty: true
+    stdin_open: true
+    working_dir: /cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n4
+    develop:
+      watch:
+        - path: .
+          target: /cascade
+          action: sync
+    networks:
+      derecho:
+        ipv4_address: 172.16.0.14
+  node5:
+    build:
+      context: .
+      target: cascade-dev
+      ssh:
+        - default
+    tty: true
+    stdin_open: true
+    working_dir: /cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n5
+    develop:
+      watch:
+        - path: .
+          target: /cascade
+          action: sync
+    networks:
+      derecho:
+        ipv4_address: 172.16.0.15
+  node6:
+    build:
+      context: .
+      target: cascade-dev
+      ssh:
+        - default
+    tty: true
+    stdin_open: true
+    working_dir: /cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n6
+    develop:
+      watch:
+        - path: .
+          target: /cascade
+          action: sync
+    networks:
+      derecho:
+        ipv4_address: 172.16.0.16
+  node7:
+    build:
+      context: .
+      target: cascade-dev
+      ssh:
+        - default
+    tty: true
+    stdin_open: true
+    working_dir: /cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n7
+    develop:
+      watch:
+        - path: .
+          target: /cascade
+          action: sync
+    networks:
+      derecho:
+        ipv4_address: 172.16.0.17
+
+networks:
+  derecho:
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.16.0.0/16
+          gateway: 172.16.0.1

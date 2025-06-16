@@ -6,9 +6,9 @@ FROM highorderbits/derecho-lib:latest AS base
 RUN apt-get update && apt-get install -y \
     libreadline-dev \
     ragel \
-	libboost-dev \ 
+	libboost-dev \
     libfuse3-dev \
-	python3 
+	python3
 
 # Base stage for building dependencies
 FROM base AS dep-build-base
@@ -36,15 +36,13 @@ FROM dep-build-base AS optional-dep-build
 RUN apt-get update && apt-get install -y \
 	libopencv-dev \
 	python3-opencv \
-	libopenblas-dev 
+	libopenblas-dev
 
 RUN ./install-ann.sh
 RUN ./install-cppflow.sh
-RUN ./install-libtorch.sh
+RUN ./install-libtorch.sh cpu
 RUN ./install-mxnet-src.sh
-# This script is broken (it won't install to /usr/local/) and might be unnecessary anyway since the libopencv package is reasonably up to date in Ubuntu 24.04
-# RUN ./install-opencv.sh
-RUN ./install-tensorflow.sh 2.19.0 cpu
+RUN ./install-tensorflow.sh 2.9.3 cpu
 
 # Just for CascadeChain: a stage that builds WanAgent
 FROM required-dep-build AS wanagent-build
@@ -58,7 +56,11 @@ RUN cd wanagent && mkdir build && cd build \
 # Final development image stage for Cascade with the optional dependencies.
 # Declared before the end of the file so it won't be the default.
 FROM base AS cascade-dev-all
-
+# Install these apt-packaged optional dependencies again
+RUN apt-get update && apt-get install -y \
+	libopencv-dev \
+	python3-opencv \
+	libopenblas-dev
 # Copy everything in the dependency builder stages' /usr/local/ to get the compiled libraries
 COPY --from=required-dep-build /usr/local/ /usr/local/
 COPY --from=optional-dep-build /usr/local/ /usr/local/

@@ -1,0 +1,22 @@
+{
+    "version": "1.0.0",
+    "transport" : "tcp",
+    "private_ip": "172.16.0.11",
+    "private_port": 28580,
+    "local_site_id" : 0,
+    "local_initial_leader" : 0,
+    "max_payload_size": 102400,
+    "window_size": 1000,
+    "sites": [
+        {
+            "id": 0,
+            "ips": ["172.16.0.11", "172.16.0.13"],
+            "ports": [28580, 28580]
+        },
+        {
+            "id": 1,
+            "ips": ["172.16.0.14", "172.16.0.15"],
+            "ports": [28580, 28580]
+        }
+    ]
+}
