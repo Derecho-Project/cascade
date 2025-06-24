@@ -6,17 +6,17 @@ FROM highorderbits/derecho-lib:latest AS base
 RUN apt-get update && apt-get install -y \
     libreadline-dev \
     ragel \
-	libboost-dev \
+    libboost-dev \
     libfuse3-dev \
-	python3
+    python3
 
 # Base stage for building dependencies
 FROM base AS dep-build-base
 
 # Install apt packages only needed for building dependencies
 RUN apt-get update && apt-get install -y \
-	wget \
-	unzip
+    wget \
+    unzip
 
 # Copy in the "install preqrequisites" scripts
 COPY scripts/prerequisites /prerequisites
@@ -34,9 +34,9 @@ RUN ./install-boolinq.sh
 # Runs a different set of install scripts and installs a few more apt packages
 FROM dep-build-base AS optional-dep-build
 RUN apt-get update && apt-get install -y \
-	libopencv-dev \
-	python3-opencv \
-	libopenblas-dev
+    libopencv-dev \
+    python3-opencv \
+    libopenblas-dev
 
 RUN ./install-ann.sh
 RUN ./install-cppflow.sh
@@ -58,9 +58,9 @@ RUN cd wanagent && mkdir build && cd build \
 FROM base AS cascade-dev-all
 # Install these apt-packaged optional dependencies again
 RUN apt-get update && apt-get install -y \
-	libopencv-dev \
-	python3-opencv \
-	libopenblas-dev
+    libopencv-dev \
+    python3-opencv \
+    libopenblas-dev
 # Copy everything in the dependency builder stages' /usr/local/ to get the compiled libraries
 COPY --from=required-dep-build /usr/local/ /usr/local/
 COPY --from=optional-dep-build /usr/local/ /usr/local/
