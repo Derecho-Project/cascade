@@ -1,6 +1,6 @@
 # CascadeChain Test Configurations
 
-This folder contains the specialized client for CascadeChain, chain_only_client, and two sets of configuration files that can be used to deploy CascadeChain for testing. The CMake target for this folder builds the client executable and copies the configuration folders to the output directory.
+This folder contains the specialized client for CascadeChain, chain_only_client, and three sets of configuration files that can be used to deploy CascadeChain for testing. The CMake target for this folder builds the client executable and copies the configuration folders to the output directory.
 
 ## Configuration 1: chain_pipeline_cfg
 
@@ -16,7 +16,7 @@ This is the standard testing configuration for CascadeChain. It contains per-nod
     * CascadeMetadataService: n5
 * Client: n4
 
-At each site, the SignatureCascadeStore nodes should be configured as the replicas of a WanAgent site; in other words, WanAgent site 0 is n1 and n3, and WanAgent site 1 is n5 and n7. The Derecho contact node (initial leader) for the primary site is n0, and the Derecho contact node for the backup site is n5.
+At each site, the SignatureCascadeStore nodes should be configured as the replicas of a WanAgent site; in other words, WanAgent site 0 is n1 and n3, and WanAgent site 1 is n6 and n7. The Derecho contact node (initial leader) for the primary site is n0, and the Derecho contact node for the backup site is n5.
 
 **Configuration files**: Achieving this layout requires each node to load several configuration files. Some of the configuration files are stored in the per-node configuration folders, and some are stored in the parent directory (chain_pipeline_cfg) and symlinked into the per-node folders during the CMake build process; the symlinked files are the same for every node at a site. After building with CMake, each node configuration folder in the output directory will contain the following files:
 
@@ -24,13 +24,15 @@ At each site, the SignatureCascadeStore nodes should be configured as the replic
 * derecho_node-local.cfg
 * wanagent-fractus.json
 * wanagent-local.json
-* derecho-fractus.cfg (*symlink to ../derecho-fractus.cfg or ../backup_derecho-fractus.cfg depeneding on node*)
+* derecho-fractus.cfg (*symlink to ../derecho-fractus.cfg or ../backup_derecho-fractus.cfg depending on node*)
 * derecho-local.cfg (*symlink to ../derecho-local.cfg or ../backup_derecho-fractus.cfg depending on node*)
 * dfgs.json (*symlink to ../dfgs.json or ../backup_dfgs.json depending on node*)
-* layout.json (*symlink to ../layout.json or ../backup_layout.json depending on node*)
+* layout.json (*symlink to ../layout.json*) **or** backup_layout.json (*symlink to ../backup_layout.json*), depending on node
 * udl_dlls.cfg (*symlink to ../udl_dlls.cfg or ../backup_udl_dlls.cfg depending on node*)
 
 Note that most of these files have two versions, one that ends in `-fractus` and one that ends in `-local`. The files with the `-fractus` suffix are intended to be used when the test layout is deployed to the Fractus cluster at Cornell, where each node can reside on its own server. The files with the `-local` suffix are intended to be used when testing the system locally on your own computer, where each node is simply a process running in a different terminal window.
+
+The symlinked files link to the "primary" version of the file on n0-n4, and to the "backup" version of the file on n5-n7. Most of them use the same link name regardless of which file they are linking to because the desired final file name is the same on both sites. However, for layout.json, the backup site nodes use a link named backup_layout.json because the name of this file is not fixed by Derecho or Cascade; it is set in the derecho.cfg file, so the backup site's derecho.cfg specifies that the layout file is named backup_layout.json.
 
 ### One-Time Setup
 
@@ -40,7 +42,9 @@ Note that most of these files have two versions, one that ends in `-fractus` and
 * wanagent.json
 * derecho.cfg (*symlink to ../derecho-fractus.cfg, ../backup_derecho-fractus.cfg, ../derecho-local.cfg, or ../backup_derecho-fractus.cfg, depending on choice*)
 * dfgs.json (*symlink to ../dfgs.json or ../backup_dfgs.json*)
-* layout.json (*symlink to ../layout.json or ../backup_layout.json*)
+* layout.json (*symlink to ../layout.json*) **or** backup_layout.json (*symlink to ../backup_layout.json*)
+
+These exact file names are required by Derecho or Cascade, except for layout.json (or backup_layout.json), where the name of the file is specified by the key `json_layout_file` in derecho.cfg.
 
 **Generating keys**: CascadeChain requires each site (primary and backup) to have an RSA key pair that is shared among all the replicas at that site. The backup site needs to know the primary site's public key, and the client must know both sites' public keys. To generate these keys, you can run `gen_keys.sh`, which will also copy the PEM files for each key to the correct folder. Specifically, each node folder will contain the following keys after running the script:
 
@@ -114,3 +118,40 @@ The Derecho contact node is n0.
 * udl_dlls.cfg (*symlink to ../udl_dlls.cfg*)
 
 Following the same naming convention as chain_pipeline_cfg, the derecho config files have the suffix `-fractus` to indicate they should be used on the Fractus cluster, but there is no `-local` version since it doesn't make sense to run a performance test locally. Also, note that the private keys are already included, since this configuration will never be run in a "production" setting and it's not important to keep them secret.
+
+## Configuration 3: docker_test_cfg
+
+This configuration is designed to be used when CascadeChain is deployed within a Docker Compose virtual network. The Dockerfile and compose.yaml files included in this repository can be used to create a set of 8 containers, named node0 - node7, that have fixed IP addresses in the 172.16.0.* range, and the per-node configuration folders n0-n7 correspond to those containers. The configuration files should set up the containers with the following layout:
+
+* Primary site: n0-n3
+    * PersistentCascadeStore: n0, n2
+    * SignatureCascadeStore: n1, n3
+    * CascadeMetadataService: n0
+* Backup site: n4-n6
+    * PersistentCascadeStore: n4
+    * SignatureCascadeStore: n5, n6
+    * CascadeMetadataService: n4
+* Client: n7
+
+Just like in chain_pipeline_cfg, the SignatureCascadeStore nodes at each site will be configured as the replicas of a WanAgent site, and the lowest-numbered node in each site will be the Derecho contact node. In other words, n1 and n3 are the members of WanAgent site 0, n5 and n6 are the members of WanAgent site 1, n0 is the Derecho contact node for the primary site, and n4 is the Derecho contact node for the backup site.
+
+**Configuration files**: Achieving this layout requires each node to load several configuration files. Some of the configuration files are stored in the per-node configuration folders, and some are stored in the parent directory (docker_test_cfg) and symlinked into the per-node folders during the CMake build process; the symlinked files are the same for every node at a site. After building with CMake, each node configuration folder in the output directory will contain the following files:
+
+* derecho_node.cfg
+* wanagent.json
+* derecho.cfg (*symlink to ../derecho.cfg or ../backup_derecho.cfg depeneding on node*)
+* dfgs.json (*symlink to ../dfgs.json or ../backup_dfgs.json depending on node*)
+* udl_dlls.cfg (*symlink to ../udl_dlls.cfg or ../backup_udl_dlls.cfg depending on node*)
+* layout.json (*symlink to ../layout.json*) **or** backup_layout.json (*symlink to ../backup_layout.json*) depending on node
+
+The symlinked files link to the "primary" version of the file on n0-n3 and n7 (the client), and to the "backup" version of the file on n4-n6. Just like in chain_pipeline_cfg, layout.json is named backup_layout.json on the backup site nodes because the name of this file is not fixed by Derecho or Cascade; it is set in the derecho.cfg file, so the backup site's derecho.cfg specifies that the layout file is named backup_layout.json.
+
+**Generating keys**: CascadeChain requires each site (primary and backup) to have an RSA key pair that is shared among all the replicas at that site. The backup site needs to know the primary site's public key, and the client must know both sites' public keys. To generate these keys, you can run `gen_keys.sh`, which will also copy the PEM files for each key to the correct folder. Specifically, each node folder will contain the following keys after running the script:
+
+* n0-n3: private_key.pem (primary site's private key)
+* n4-n6: service_public_key.pem (primary site's public key), private_key.pem (backup site's private key)
+* n7: service_public_key.pem (primary site's public key), backup_public_key.pem (backup site's public key), private_key.pem (client node's private key, unused)
+
+Note that `gen_keys.sh` generates a new set of key pairs every time it is run, and copies the key files only within the filesystem of the machine it is run on. This means that if you run this script within a Docker container after launching the Docker Compose configuration, none of the other Docker containers will know about their keys, and you will need to manually copy them (via scp over the virtual Docker network) to the other containers.
+
+To avoid manual copying, you can run the script within the *source* directory (`src/applications/tests/cascade_chain`) on the host machine, rather than within the *output* directory (`build-Debug/src/applications/tests/cascade_chain`) of a Docker container. Since the source directory is copied to each Docker container when it starts, and gets copied again if you run with Compose Watch enabled (i.e. `docker compose up -w`), this will automatically copy all the keys to all the Docker containers. The CMake build process on each Docker container should then copy them from the source directory to the output directory when it copies the other configuration files from the source directory to the output directory.

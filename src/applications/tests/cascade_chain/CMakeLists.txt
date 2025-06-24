@@ -269,8 +269,8 @@ add_custom_command(TARGET chain_only_client POST_BUILD
             ${CMAKE_CURRENT_BINARY_DIR}/docker_test_cfg/n2/layout.json
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/docker_test_cfg/layout.json
             ${CMAKE_CURRENT_BINARY_DIR}/docker_test_cfg/n3/layout.json
-    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/docker_test_cfg/layout.json
-            ${CMAKE_CURRENT_BINARY_DIR}/docker_test_cfg/n4/layout.json
+    COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/docker_test_cfg/backup_layout.json
+            ${CMAKE_CURRENT_BINARY_DIR}/docker_test_cfg/n4/backup_layout.json
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/docker_test_cfg/backup_layout.json
             ${CMAKE_CURRENT_BINARY_DIR}/docker_test_cfg/n5/backup_layout.json
     COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/docker_test_cfg/backup_layout.json
