@@ -1,0 +1,293 @@
+---
+- name: Render and copy configs for all Cascade nodes (explicit per-node, per-file)
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: Show current working directory
+      ansible.builtin.command: pwd
+      register: pwd_out
+
+    - debug:
+        var: pwd_out.stdout
+
+    # ========== NODE 0 ==========
+    - name: Load node0 variables
+      ansible.builtin.include_vars:
+        file: ../host_vars/node0.yml
+
+    - name: Render derecho.cfg for node0
+      ansible.builtin.template:
+        src: ../templates/derecho.cfg.j2
+        dest: ../output/derecho_node0.cfg
+        mode: "0644"
+
+    - name: Render derecho_node.cfg for node0
+      ansible.builtin.template:
+        src: ../templates/derecho_node.cfg.j2
+        dest: ../output/derecho_node0_node.cfg
+        mode: "0644"
+
+    - name: Render wanagent.json for node0
+      ansible.builtin.template:
+        src: ../templates/wanagent.json.j2
+        dest: ../output/wanagent_node0.json
+        mode: "0644"
+
+    - name: Copy derecho.cfg to node0
+      ansible.builtin.command:
+        cmd: docker cp ../output/derecho_node0.cfg cascade-node0-1:/cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n0/derecho.cfg
+
+    - name: Copy derecho_node.cfg to node0
+      ansible.builtin.command:
+        cmd: docker cp ../output/derecho_node0_node.cfg cascade-node0-1:/cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n0/derecho_node.cfg
+
+    - name: Copy wanagent.json to node0
+      ansible.builtin.command:
+        cmd: docker cp ../output/wanagent_node0.json cascade-node0-1:/cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n0/wanagent.json
+
+    # ========== NODE 1 ==========
+    - name: Load node1 variables
+      ansible.builtin.include_vars:
+        file: ../host_vars/node1.yml
+
+    - name: Render derecho.cfg for node1
+      ansible.builtin.template:
+        src: ../templates/derecho.cfg.j2
+        dest: ../output/derecho_node1.cfg
+        mode: "0644"
+
+    - name: Render derecho_node.cfg for node1
+      ansible.builtin.template:
+        src: ../templates/derecho_node.cfg.j2
+        dest: ../output/derecho_node1_node.cfg
+        mode: "0644"
+
+    - name: Render wanagent.json for node1
+      ansible.builtin.template:
+        src: ../templates/wanagent.json.j2
+        dest: ../output/wanagent_node1.json
+        mode: "0644"
+
+    - name: Copy derecho.cfg to node1
+      ansible.builtin.command:
+        cmd: docker cp ../output/derecho_node1.cfg cascade-node1-1:/cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n1/derecho.cfg
+
+    - name: Copy derecho_node.cfg to node1
+      ansible.builtin.command:
+        cmd: docker cp ../output/derecho_node1_node.cfg cascade-node1-1:/cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n1/derecho_node.cfg
+
+    - name: Copy wanagent.json to node1
+      ansible.builtin.command:
+        cmd: docker cp ../output/wanagent_node1.json cascade-node1-1:/cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n1/wanagent.json
+
+    # ========== NODE 2 ==========
+    - name: Load node2 variables
+      ansible.builtin.include_vars:
+        file: ../host_vars/node2.yml
+
+    - name: Render derecho.cfg for node2
+      ansible.builtin.template:
+        src: ../templates/derecho.cfg.j2
+        dest: ../output/derecho_node2.cfg
+        mode: "0644"
+
+    - name: Render derecho_node.cfg for node2
+      ansible.builtin.template:
+        src: ../templates/derecho_node.cfg.j2
+        dest: ../output/derecho_node2_node.cfg
+        mode: "0644"
+
+    - name: Render wanagent.json for node2
+      ansible.builtin.template:
+        src: ../templates/wanagent.json.j2
+        dest: ../output/wanagent_node2.json
+        mode: "0644"
+
+    - name: Copy derecho.cfg to node2
+      ansible.builtin.command:
+        cmd: docker cp ../output/derecho_node2.cfg cascade-node2-1:/cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n2/derecho.cfg
+
+    - name: Copy derecho_node.cfg to node2
+      ansible.builtin.command:
+        cmd: docker cp ../output/derecho_node2_node.cfg cascade-node2-1:/cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n2/derecho_node.cfg
+
+    - name: Copy wanagent.json to node2
+      ansible.builtin.command:
+        cmd: docker cp ../output/wanagent_node2.json cascade-node2-1:/cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n2/wanagent.json
+
+    # ========== NODE 3 ==========
+    - name: Load node3 variables
+      ansible.builtin.include_vars:
+        file: ../host_vars/node3.yml
+
+    - name: Render derecho.cfg for node3
+      ansible.builtin.template:
+        src: ../templates/derecho.cfg.j2
+        dest: ../output/derecho_node3.cfg
+        mode: "0644"
+
+    - name: Render derecho_node.cfg for node3
+      ansible.builtin.template:
+        src: ../templates/derecho_node.cfg.j2
+        dest: ../output/derecho_node3_node.cfg
+        mode: "0644"
+
+    - name: Render wanagent.json for node3
+      ansible.builtin.template:
+        src: ../templates/wanagent.json.j2
+        dest: ../output/wanagent_node3.json
+        mode: "0644"
+
+    - name: Copy derecho.cfg to node3
+      ansible.builtin.command:
+        cmd: docker cp ../output/derecho_node3.cfg cascade-node3-1:/cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n3/derecho.cfg
+
+    - name: Copy derecho_node.cfg to node3
+      ansible.builtin.command:
+        cmd: docker cp ../output/derecho_node3_node.cfg cascade-node3-1:/cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n3/derecho_node.cfg
+
+    - name: Copy wanagent.json to node3
+      ansible.builtin.command:
+        cmd: docker cp ../output/wanagent_node3.json cascade-node3-1:/cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n3/wanagent.json
+
+    # ========== NODE 4 ==========
+    - name: Load node4 variables
+      ansible.builtin.include_vars:
+        file: ../host_vars/node4.yml
+
+    - name: Render derecho.cfg for node4
+      ansible.builtin.template:
+        src: ../templates/derecho.cfg.j2
+        dest: ../output/derecho_node4.cfg
+        mode: "0644"
+
+    - name: Render derecho_node.cfg for node4
+      ansible.builtin.template:
+        src: ../templates/derecho_node.cfg.j2
+        dest: ../output/derecho_node4_node.cfg
+        mode: "0644"
+
+    - name: Render wanagent.json for node4
+      ansible.builtin.template:
+        src: ../templates/wanagent.json.j2
+        dest: ../output/wanagent_node4.json
+        mode: "0644"
+
+    - name: Copy derecho.cfg to node4
+      ansible.builtin.command:
+        cmd: docker cp ../output/derecho_node4.cfg cascade-node4-1:/cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n4/derecho.cfg
+
+    - name: Copy derecho_node.cfg to node4
+      ansible.builtin.command:
+        cmd: docker cp ../output/derecho_node4_node.cfg cascade-node4-1:/cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n4/derecho_node.cfg
+
+    - name: Copy wanagent.json to node4
+      ansible.builtin.command:
+        cmd: docker cp ../output/wanagent_node4.json cascade-node4-1:/cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n4/wanagent.json
+
+    # ========== NODE 5 ==========
+    - name: Load node5 variables
+      ansible.builtin.include_vars:
+        file: ../host_vars/node5.yml
+
+    - name: Render derecho.cfg for node5
+      ansible.builtin.template:
+        src: ../templates/derecho.cfg.j2
+        dest: ../output/derecho_node5.cfg
+        mode: "0644"
+
+    - name: Render derecho_node.cfg for node5
+      ansible.builtin.template:
+        src: ../templates/derecho_node.cfg.j2
+        dest: ../output/derecho_node5_node.cfg
+        mode: "0644"
+
+    - name: Render wanagent.json for node5
+      ansible.builtin.template:
+        src: ../templates/wanagent.json.j2
+        dest: ../output/wanagent_node5.json
+        mode: "0644"
+
+    - name: Copy derecho.cfg to node5
+      ansible.builtin.command:
+        cmd: docker cp ../output/derecho_node5.cfg cascade-node5-1:/cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n5/derecho.cfg
+
+    - name: Copy derecho_node.cfg to node5
+      ansible.builtin.command:
+        cmd: docker cp ../output/derecho_node5_node.cfg cascade-node5-1:/cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n5/derecho_node.cfg
+
+    - name: Copy wanagent.json to node5
+      ansible.builtin.command:
+        cmd: docker cp ../output/wanagent_node5.json cascade-node5-1:/cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n5/wanagent.json
+
+    # ========== NODE 6 ==========
+    - name: Load node6 variables
+      ansible.builtin.include_vars:
+        file: ../host_vars/node6.yml
+
+    - name: Render derecho.cfg for node6
+      ansible.builtin.template:
+        src: ../templates/derecho.cfg.j2
+        dest: ../output/derecho_node6.cfg
+        mode: "0644"
+
+    - name: Render derecho_node.cfg for node6
+      ansible.builtin.template:
+        src: ../templates/derecho_node.cfg.j2
+        dest: ../output/derecho_node6_node.cfg
+        mode: "0644"
+
+    - name: Render wanagent.json for node6
+      ansible.builtin.template:
+        src: ../templates/wanagent.json.j2
+        dest: ../output/wanagent_node6.json
+        mode: "0644"
+
+    - name: Copy derecho.cfg to node6
+      ansible.builtin.command:
+        cmd: docker cp ../output/derecho_node6.cfg cascade-node6-1:/cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n6/derecho.cfg
+
+    - name: Copy derecho_node.cfg to node6
+      ansible.builtin.command:
+        cmd: docker cp ../output/derecho_node6_node.cfg cascade-node6-1:/cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n6/derecho_node.cfg
+
+    - name: Copy wanagent.json to node6
+      ansible.builtin.command:
+        cmd: docker cp ../output/wanagent_node6.json cascade-node6-1:/cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n6/wanagent.json
+
+    # ========== NODE 7 ==========
+    - name: Load node7 variables
+      ansible.builtin.include_vars:
+        file: ../host_vars/node7.yml
+
+    - name: Render derecho.cfg for node7
+      ansible.builtin.template:
+        src: ../templates/derecho.cfg.j2
+        dest: ../output/derecho_node7.cfg
+        mode: "0644"
+
+    - name: Render derecho_node.cfg for node7
+      ansible.builtin.template:
+        src: ../templates/derecho_node.cfg.j2
+        dest: ../output/derecho_node7_node.cfg
+        mode: "0644"
+
+    - name: Render wanagent.json for node7
+      ansible.builtin.template:
+        src: ../templates/wanagent.json.j2
+        dest: ../output/wanagent_node7.json
+        mode: "0644"
+
+    - name: Copy derecho.cfg to node7
+      ansible.builtin.command:
+        cmd: docker cp ../output/derecho_node7.cfg cascade-node7-1:/cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n7/derecho.cfg
+
+    - name: Copy derecho_node.cfg to node7
+      ansible.builtin.command:
+        cmd: docker cp ../output/derecho_node7_node.cfg cascade-node7-1:/cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n7/derecho_node.cfg
+
+    - name: Copy wanagent.json to node7
+      ansible.builtin.command:
+        cmd: docker cp ../output/wanagent_node7.json cascade-node7-1:/cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n7/wanagent.json
+

@@ -1,0 +1,79 @@
+---
+- name: CascadeChain Full Automated Setup
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    # Path to your test config folder
+    repo_path: /home/mahady/cascade/src/applications/tests/cascade_chain/docker_test_cfg
+
+    # Mapping: container name → working directory in container
+    node_map:
+      cascade-node0-1: /cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n0
+      cascade-node1-1: /cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n1
+      cascade-node2-1: /cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n2
+      cascade-node3-1: /cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n3
+      cascade-node4-1: /cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n4
+      cascade-node5-1: /cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n5
+      cascade-node6-1: /cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n6
+      cascade-node7-1: /cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n7
+
+  tasks:
+    - name: Clean up existing cascade containers
+      shell: |
+        docker rm -f $(docker ps -aq --filter="name=cascade-node") || true
+      ignore_errors: yes
+
+    - name: Remove the custom cascade network (ignore error if not present)
+      shell: docker network rm cascade_derecho || true
+      ignore_errors: yes
+
+    - name: Make gen_keys.sh executable
+      file:
+        path: "{{ repo_path }}/gen_keys.sh"
+        mode: '0755'
+
+    - name: Run key/cert generation script
+      command: ./gen_keys.sh
+      args:
+        chdir: "{{ repo_path }}"
+
+    - name: Stop and remove any previous Docker containers via compose (double safety)
+      shell: docker compose down || true
+      args:
+        chdir: "{{ repo_path }}"
+
+    - name: Build Docker images with SSH agent forwarding
+      shell: DOCKER_BUILDKIT=1 docker compose build --ssh default
+      args:
+        chdir: "{{ repo_path }}"
+
+    - name: Start all Docker containers for CascadeChain
+      shell: docker compose up -d
+      args:
+        chdir: "{{ repo_path }}"
+
+    - name: Wait for cascade containers to be healthy (max 30s)
+      shell: |
+        for i in {0..7}; do
+          for n in {1..15}; do
+            running=$(docker inspect -f '{{'{{.State.Running}}'}}' cascade-node${i}-1 2>/dev/null || echo 'false')
+            if [ "$running" = "true" ]; then break; fi
+            sleep 2
+          done
+        done
+      register: wait_result
+      failed_when: false
+
+    - name: Start the server process in each server node container (node0-node6)
+      shell: docker exec -d -w {{ item.value }} {{ item.key }} ./run.sh server
+      with_dict: "{{ node_map }}"
+      when: item.key != 'cascade-node7-1'
+
+    - name: Start the client process in the client node container (node7)
+      shell: docker exec -d -w {{ node_map['cascade-node7-1'] }} cascade-node7-1 ./run.sh client
+
+    - name: Print deployment done message
+      debug:
+        msg: "CascadeChain deployment complete! All servers and client are running."
+

@@ -1,0 +1,94 @@
+# ---- derecho.cfg related ----
+contact_ip: 172.20.0.10
+contact_port: 23580
+restart_leaders: 172.20.0.10
+restart_leader_ports: 23580
+gms_port: 23580
+state_transfer_port: 28366
+sst_port: 37683
+rdmc_port: 31675
+external_port: 32645
+heartbeat_ms: 100
+sst_poll_cq_timeout_ms: 1000
+restart_timeout_ms: 2000
+disable_partitioning_safety: false
+enable_backup_restart_leaders: false
+max_p2p_request_payload_size: 1048576
+max_p2p_reply_payload_size: 10240
+p2p_window_size: 4
+
+# Subgroup
+derecho_max_payload_size: 1048576
+max_reply_payload_size: 10240
+max_smc_payload_size: 10240
+block_size: 1048576
+derecho_window_size: 16
+rdmc_send_algorithm: binomial_send
+
+# Persistence
+reset: false
+max_log_entry: 1048576
+max_data_size: 549755813888
+
+# Layout
+json_layout_file: layout.json
+
+# Cascade service
+cpu_cores: 0-3
+num_stateless_workers_for_multicast_ocdp: 2
+num_stateless_workers_for_p2p_ocdp: 2
+num_stateful_workers_for_multicast_ocdp: 2
+num_stateful_workers_for_p2p_ocdp: 2
+worker_cpu_affinity: |
+  {
+    "multicast_ocdp" : {
+      "0":"0",
+      "1":"1"
+    },
+    "p2p_ocdp" : {
+      "0":"2",
+      "1":"3"
+    }
+  }
+enable_wanagent: true
+wanagent_config_file: wanagent.json
+wanagent_port_offset: 5000
+is_primary_site: true
+
+# ---- derecho_node.cfg related ----
+local_id: 0
+local_ip: 172.20.0.10
+
+rdma_provider: verbs
+rdma_domain: mlx5_0
+tx_depth: 256
+rx_depth: 256
+
+file_path: .plog
+ramdisk_path: /dev/shm/volatile_t
+
+default_log_name: chain_debug
+default_log_level: debug
+sst_log_level: info
+rpc_log_level: info
+viewmanager_log_level: debug
+persistence_log_level: debug
+log_file_depth: 10
+
+# ---- wanagent.json related ----
+version: "1.0.0"
+transport: tcp
+private_ip: 172.20.0.10
+private_port: 28580
+local_site_id: 0
+local_initial_leader: 0
+wanagent_max_payload_size: 102400
+wanagent_window_size: 1000
+sites:
+  - id: 0
+    ips: ["172.20.0.11", "172.20.0.13"]
+    ports: [28580, 28580]
+  - id: 1
+    ips: ["172.20.0.15", "172.20.0.16"]
+    ports: [28580, 28580]
+

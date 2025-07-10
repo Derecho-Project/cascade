@@ -1,0 +1,12 @@
+{
+    "version": "{{ version }}",
+    "transport": "{{ transport }}",
+    "private_ip": "{{ private_ip }}",
+    "private_port": {{ private_port }},
+    "local_site_id": {{ local_site_id }},
+    "local_initial_leader": {{ local_initial_leader }},
+    "max_payload_size": {{ wanagent_max_payload_size }},
+    "window_size": {{ wanagent_window_size }},
+    "sites": {{ sites | to_json }}
+}
+

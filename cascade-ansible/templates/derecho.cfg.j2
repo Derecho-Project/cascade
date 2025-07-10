@@ -1,0 +1,47 @@
+[DERECHO]
+contact_ip = {{ contact_ip }}
+contact_port = {{ contact_port }}
+restart_leaders = {{ restart_leaders }}
+restart_leader_ports = {{ restart_leader_ports }}
+gms_port = {{ gms_port }}
+state_transfer_port = {{ state_transfer_port }}
+sst_port = {{ sst_port }}
+rdmc_port = {{ rdmc_port }}
+external_port = {{ external_port }}
+heartbeat_ms = {{ heartbeat_ms }}
+sst_poll_cq_timeout_ms = {{ sst_poll_cq_timeout_ms }}
+restart_timeout_ms = {{ restart_timeout_ms }}
+disable_partitioning_safety = {{ disable_partitioning_safety }}
+enable_backup_restart_leaders = {{ enable_backup_restart_leaders }}
+max_p2p_request_payload_size = {{ max_p2p_request_payload_size }}
+max_p2p_reply_payload_size = {{ max_p2p_reply_payload_size }}
+p2p_window_size = {{ p2p_window_size }}
+
+[SUBGROUP/DEFAULT]
+max_payload_size = {{ derecho_max_payload_size }}
+max_reply_payload_size = {{ max_reply_payload_size }}
+max_smc_payload_size = {{ max_smc_payload_size }}
+block_size = {{ block_size }}
+window_size = {{ derecho_window_size }}
+rdmc_send_algorithm = {{ rdmc_send_algorithm }}
+
+[PERS]
+reset = {{ reset }}
+max_log_entry = {{ max_log_entry }}
+max_data_size = {{ max_data_size }}
+
+[LAYOUT]
+json_layout_file = '{{ json_layout_file }}'
+
+[CASCADE]
+cpu_cores = {{ cpu_cores }}
+num_stateless_workers_for_multicast_ocdp = {{ num_stateless_workers_for_multicast_ocdp }}
+num_stateless_workers_for_p2p_ocdp = {{ num_stateless_workers_for_p2p_ocdp }}
+num_stateful_workers_for_multicast_ocdp = {{ num_stateful_workers_for_multicast_ocdp }}
+num_stateful_workers_for_p2p_ocdp = {{ num_stateful_workers_for_p2p_ocdp }}
+worker_cpu_affinity = '{{ worker_cpu_affinity | to_json }}'
+enable_wanagent = {{ enable_wanagent }}
+wanagent_config_file = '{{ wanagent_config_file }}'
+wanagent_port_offset = {{ wanagent_port_offset }}
+is_primary_site = {{ is_primary_site }}
+
