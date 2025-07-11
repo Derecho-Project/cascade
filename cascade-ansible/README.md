@@ -43,46 +43,51 @@ pip install ansible
 
 1. Clone the Repo
 
-git clone <your-private-git-url>
-cd cascade/cascade-ansible
+    git clone <your-private-git-url>
+    cd cascade/cascade-ansible
 
-
-2. Initial Deployment (First Time Only)
-This will build and start all Docker containers, generate initial configs, and set up everything.
+Initial Deployment (First Time Only). This will build and start all Docker containers, generate initial configs, and set up everything.
 
 # Deploy and start everything
 
-ansible-playbook -i inventories/local.yml playbooks/deploy.yml
+Run the deploy.yml playbook to deploy the whole project in your system
+
+    ansible-playbook -i inventories/local.yml playbooks/deploy.yml
 
 This will:
 
-#Clean up existing containers/networks
-#Build Docker images and start all containers
-#Perform any initial key/cert generation
-#Wait for containers to be healthy
+1. Clean up existing containers/networks
+
+2. Build Docker images and start all containers
+
+3. Perform any initial key/cert generation
+
+4. Wait for containers to be healthy
 
 # Change Configuration (Anytime Later)
-Whenever you want to update the configuration for any node:
+Whenever you want to update the configuration file  for any node:
 
 >> Edit the corresponding file in host_vars/
 
 Example:
 
-vim host_vars/node0.yml
+    vim host_vars/node0.yml
+
 
 >> Render and copy updated configs (no need to restart containers):
 
-cd cascade/cascade-ansible
-ansible-playbook -i inventories/local.yml playbooks/render_and_copy_configs.yml
+    cd cascade/cascade-ansible
+    
+    ansible-playbook -i inventories/local.yml playbooks/render_and_copy_configs.yml
 
 This will:
 
-#Render all templates for every node using the updated YAML files
-#Copy the new configs into the correct running containers instantly
+1. Render all templates for every node using the updated YAML files
+2. Copy the new configs into the correct running containers instantly
 
 
 Notes
 
->> All rendered config files are placed in the output/ directory.
->> Make sure Docker and Docker Compose are running before running the playbooks.
->> For advanced customization, edit the Jinja2 templates in templates/ and the playbooks in playbooks/.
+1. All rendered config files are placed in the output/ directory.
+2. Make sure Docker and Docker Compose are running before running the playbooks.
+3. For advanced customization, edit the Jinja2 templates in templates/ and the playbooks in playbooks/.
