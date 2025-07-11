@@ -2,6 +2,7 @@
 
 This repository (`cascade-ansible/`) contains all necessary scripts, templates, and playbooks to **automate the deployment and configuration of CascadeChain nodes using Docker and Ansible**.
 
+Note: please note that the Network used in here is 172.20.0.0 instead of 172.16.0.0 mentioned in compose.yml of this project. the reason is the other project (epollbook) already occupied 172.16.0.0 network for docker. so for isolation i have changed the compose.yml in my system and do the automation accordingly. as per my understanding we just need to change the compose.yml ip block for the convenience. 
 ---
 
 ## Directory Structure
