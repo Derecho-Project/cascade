@@ -7,11 +7,17 @@ This repository (`cascade-ansible/`) contains all necessary scripts, templates, 
 ## Directory Structure
 
 cascade-ansible/
+
 ├── README.md # ← You are here!
+
 ├── host_vars/ # Node-specific configuration variables (YAML)
+
 ├── inventories/ # Ansible inventory files
+
 ├── output/ # Rendered config files (auto-generated)
+
 ├── playbooks/ # Main Ansible playbooks (deploy, render_and_copy_configs, etc)
+
 ├── templates/ # Jinja2 templates for all config files
 
 
