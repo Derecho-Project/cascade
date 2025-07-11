@@ -29,7 +29,7 @@ Install Ansible (if not already):
 pip install ansible
 
 
-Workflow Overview: 
+#Workflow Overview: 
 
 1. Edit node configurations in host_vars/node0.yml, node1.yml, ..., node7.yml.
 
@@ -39,7 +39,7 @@ Workflow Overview:
 
 
 
-How to Use:
+#How to Use:
 
 1. Clone the Repo
 
@@ -61,7 +61,7 @@ This will:
 #Perform any initial key/cert generation
 #Wait for containers to be healthy
 
-2. Change Configuration (Anytime Later)
+# Change Configuration (Anytime Later)
 Whenever you want to update the configuration for any node:
 
 >> Edit the corresponding file in host_vars/
