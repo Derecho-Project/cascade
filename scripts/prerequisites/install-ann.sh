@@ -1,5 +1,8 @@
 #!/bin/bash
-INSTALL_PREFIX=${HOME}/opt-dev
+INSTALL_PREFIX="/usr/local"
+if [[ $# -gt 0 ]]; then
+    INSTALL_PREFIX=$1
+fi
 
 wget https://www.cs.umd.edu/~mount/ANN/Files/1.1.2/ann_1.1.2.tar.gz
 tar -xf ann_1.1.2.tar.gz

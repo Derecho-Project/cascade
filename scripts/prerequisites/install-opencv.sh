@@ -1,5 +1,8 @@
 #!/bin/bash
-export INSTALL_PREFIX=$HOME/opt-dev/
+INSTALL_PREFIX="/usr/local"
+if [[ $# -gt 0 ]]; then
+    INSTALL_PREFIX=$1
+fi
 # install python opencv
 sudo apt-get -y install python3-opencv
 # Download and unpack sources
