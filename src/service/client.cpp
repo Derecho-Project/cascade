@@ -361,10 +361,10 @@ void collective_trigger_put(ServiceClientAPI& capi, const std::string& key, cons
 template <typename SubgroupType>
 void remove(ServiceClientAPI& capi, const std::string& key, uint32_t subgroup_index, uint32_t shard_index) {
     if constexpr (std::is_same<typename SubgroupType::KeyType,uint64_t>::value) {
-        derecho::rpc::QueryResults<derecho::cascade::version_tuple> result = std::move(capi.template remove<SubgroupType>(static_cast<uint64_t>(std::stol(key,nullptr,0)), subgroup_index, shard_index));
+        derecho::rpc::QueryResults<derecho::cascade::version_tuple> result = capi.template remove<SubgroupType>(static_cast<uint64_t>(std::stol(key,nullptr,0)), subgroup_index, shard_index);
         check_put_and_remove_result(result);
     } else if constexpr (std::is_same<typename SubgroupType::KeyType,std::string>::value) {
-        derecho::rpc::QueryResults<derecho::cascade::version_tuple> result = std::move(capi.template remove<SubgroupType>(key, subgroup_index, shard_index));
+        derecho::rpc::QueryResults<derecho::cascade::version_tuple> result = capi.template remove<SubgroupType>(key, subgroup_index, shard_index);
         check_put_and_remove_result(result);
     } else {
         print_red(std::string("Unhandled KeyType:") + typeid(typename SubgroupType::KeyType).name());
