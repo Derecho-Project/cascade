@@ -6,7 +6,7 @@ if [ $# -lt 1 ]; then
 fi
 
 INSTALL_PREFIX="/usr/local"
-if [[ $# -gt 0 ]]; then
+if [[ $# -gt 1 ]]; then
     INSTALL_PREFIX=$2
 fi
 INSTALL_TYPE=$1

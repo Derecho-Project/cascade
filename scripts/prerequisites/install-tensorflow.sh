@@ -7,7 +7,7 @@ fi
 
 # pip3 install tensorflow==${VERSION}
 INSTALL_PREFIX="/usr/local"
-if [[ $# -gt 0 ]]; then
+if [[ $# -gt 2 ]]; then
     INSTALL_PREFIX=$3
 fi
 VERSION=$1
