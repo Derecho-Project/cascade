@@ -863,8 +863,6 @@ namespace cascade {
          * @param[in] object            the object to write.
          * @param[in] subgroup_index    the subgroup index of CascadeType
          * @param[in] nodes_and_futures map from node ids to futures.
-         *
-         * @return an array of void futures, which length is nodes.size()
          */
         template <typename SubgroupType>
         void collective_trigger_put(const typename SubgroupType::ObjectType& object,

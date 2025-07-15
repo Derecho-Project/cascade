@@ -42,7 +42,7 @@ public:
     /**
      * @brief The version assigned to this put operation.
      */
-    version_t       version;
+    persistent::version_t version;
     /**
      * @brief Control flags for the request
      * - `flags & OBJECT_COMMIT_REQUEST_MEMORY_MASK` tells memory type: inline or shared memory

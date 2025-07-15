@@ -85,7 +85,6 @@ public:
      * @param id        The event id for corresponding event.
      * @param use_local_ts  Using loca timestamp.
      *
-     * @return          N/A
      */
     virtual void ack(uint32_t type, uint32_t id, bool use_local_ts = false) = 0;
 

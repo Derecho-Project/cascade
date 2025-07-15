@@ -49,8 +49,6 @@ public:
      * @param[in]   value             The value of the K/V pair
      * @param[in]   cascade_ctxt      The cascade context to be used later
      * @param[in]   is_trigger        True for critical data path of `p2p_send`; otherwise, the critical data path of `ordered_send`.
-     *
-     * @return void
      */
     virtual void operator()(const uint32_t subgroup_idx,
                             const uint32_t shard_idx,
@@ -111,8 +109,6 @@ public:
      *
      * @param[in]   value   The K/V pair value
      * @param[in]   as_trigger  The object will NOT be used to update the K/V state.
-     *
-     * @return      void
      */
     virtual void put_and_forget(const VT& value, bool as_trigger) const = 0;
 
@@ -149,7 +145,7 @@ public:
      *              If `stable == false`, we only return the data reflecting the latest locally delivered atomic
      *              broadcast. Otherwise, stable data will be returned, meaning that the persisted states returned
      *              is safe: they will survive after whole system recovery.
-     * @param[in]   exact 
+     * @param[in]   exact
      *              The exact match flag: this function try to return the value of that key at the 'ver'. If such a
      *              value does not exists and exact is true, it will throw an exception. If such a value does not
      *              exists and exact is false, it will return the latest state of the value for 'key' before 'ver'.
@@ -272,7 +268,7 @@ public:
      * @param[in]   key     The key
      * @param[in]   ver     Version, if `ver == CURRENT_VERSION`, get the latest value.
      * @param[in]   stable
-     * @param[in]   exact 
+     * @param[in]   exact
      *              The exact match flag: this function try to return the value of that key at the 'ver'. If such a
      *              value does not exists and exact is true, it will throw an exception. If such a value does not
      *              exists and exact is false, it will return the latest state of the value for 'key' before 'ver'.
@@ -427,7 +423,7 @@ VT create_null_object_cb(const KT& key = *IK);
  * We use both the concepts of null and valid object in Cascade. A null object precisely means 'no data'; while a
  * valid object literarily means an object is 'valid'. Technically, a null object has a valid key while invalid
  * object does not.
- * 
+ *
  * @tparam      KT      The key type.
  * @tparam      VT      The value type.
  */
@@ -489,7 +485,7 @@ class IKeepVersion {
 
     /**
      * @brief   The version getter
-     * 
+     *
      * Get the version
      *
      * @return  The K/V object's version.
