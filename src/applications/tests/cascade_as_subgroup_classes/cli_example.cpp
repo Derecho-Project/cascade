@@ -32,7 +32,7 @@ static std::vector<std::string> tokenize(std::string& line) {
 }
 
 static void client_help() {
-    static const char* HELP_STR = 
+    static const char* HELP_STR =
         "(v/p/t)put <object_id> <contents>\n"
         "    - Put an object\n"
         "(v/p)get <object_id> [-t timestamp_in_us | -v version_number]\n"
@@ -67,7 +67,7 @@ static void client_put(derecho::ExternalGroupClient<VCS,PCS,TCS>& group,
     }
 
     uint64_t key = std::stoll(tokens[1]);
-    
+
     //TODO: the previous_version should be used to enforce version check. INVALID_VERSION disables the feature.
     ObjectWithUInt64Key o(key,Blob(reinterpret_cast<const uint8_t*>(tokens[2].c_str()),tokens[2].size()));
 
@@ -95,7 +95,7 @@ static void client_trigger_put(derecho::ExternalGroupClient<VCS,PCS,TCS>& group,
     }
 
     uint64_t key = std::stoll(tokens[1]);
-    
+
     ObjectWithUInt64Key o(key,Blob(reinterpret_cast<const uint8_t*>(tokens[2].c_str()),tokens[2].size()));
 
     ExternalClientCaller<TCS,std::remove_reference<decltype(group)>::type>& vcs_ec = group.get_subgroup_caller<TCS>();
@@ -203,7 +203,7 @@ static void client_remove(derecho::ExternalGroupClient<VCS,PCS,TCS>& group,
     }
 
     uint64_t key = std::stoll(tokens[1]);
-    
+
     if (is_persistent) {
         ExternalClientCaller<PCS,std::remove_reference<decltype(group)>::type>& pcs_ec = group.get_subgroup_caller<PCS>();
         auto result = pcs_ec.p2p_send<RPC_NAME(remove)>(member,key);
@@ -300,6 +300,7 @@ public:
     // @overload
     void operator () (const uint32_t sgidx,
                       const uint32_t shidx,
+                      const derecho::node_id_t sender_id,
                       const typename CascadeType::KeyType& key,
                       const typename CascadeType::ObjectType& value,
                       ICascadeContext* cascade_context,

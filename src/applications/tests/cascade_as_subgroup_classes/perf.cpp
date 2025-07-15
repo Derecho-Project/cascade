@@ -109,9 +109,11 @@ public:
     // @override
     virtual void operator () (const uint32_t sgidx,
        const uint32_t shidx,
+       const derecho::node_id_t sender_id,
        const typename CascadeType::KeyType& key,
        const typename CascadeType::ObjectType& value,
-       void* cascade_context){
+       ICascadeContext* cascade_context,
+       bool is_trigger = false) {
         dbg_default_info("Watcher is called with\n\tsubgroup idx = {},\n\tshard idx = {},\n\tkey = {},\n\tvalue = [hidden].", sgidx, shidx, key);
     }
 };
@@ -347,7 +349,7 @@ int do_client(int argc,char** args) {
 
         for(uint64_t i = 0; i < num_messages; i++) {
             ObjectWithUInt64Key o(randomize_key(i)%max_distinct_objects,Blob(bbuf, msg_size));
-            cs.do_send(i,[&o,&pcs_ec,&server_id](){return std::move(pcs_ec.p2p_send<RPC_NAME(put)>(server_id,o,false));});
+            cs.do_send(i,[&o,&pcs_ec,&server_id](){return pcs_ec.p2p_send<RPC_NAME(put)>(server_id,o,false);});
         }
         free(bbuf);
 
@@ -367,7 +369,7 @@ int do_client(int argc,char** args) {
 
         for(uint64_t i = 0; i < num_messages; i++) {
             ObjectWithUInt64Key o(randomize_key(i)%max_distinct_objects,Blob(bbuf, msg_size));
-            cs.do_send(i,[&o,&vcs_ec,&server_id](){return std::move(vcs_ec.p2p_send<RPC_NAME(put)>(server_id,o,false));});
+            cs.do_send(i,[&o,&vcs_ec,&server_id](){return vcs_ec.p2p_send<RPC_NAME(put)>(server_id,o,false);});
         }
         free(bbuf);
 

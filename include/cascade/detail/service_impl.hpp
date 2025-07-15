@@ -2440,7 +2440,7 @@ void ExecutionEngine<CascadeTypes...>::workhorse(uint32_t worker_id, struct acti
     dbg_default_trace("Cascade context workhorse[{}] started", worker_id);
     while(is_running) {
         // waiting for an action
-        Action action = std::move(aq.action_buffer_dequeue(is_running));
+        Action action = aq.action_buffer_dequeue(is_running);
         // if action_buffer_dequeue return with is_running == false, value_ptr is invalid(nullptr).
         action.fire(this,worker_id);
 

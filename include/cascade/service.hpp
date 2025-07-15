@@ -322,34 +322,11 @@ namespace cascade {
     };
 
     /**
-     * Create the critical data path callback function.
-     * Application should provide corresponding callbacks. The application MUST hold the ownership of the
-     * callback objects and make sure its availability during service lifecycle.
-     *
-    template <typename KT, typename VT, KT* IK, VT *IV>
-    std::shared_ptr<CascadeWatcher<KT,VT,IK,IV>> create_critical_data_path_callback();
-     */
-
-    /**
-     * defining key strings used in the [CASCADE] section of configuration file.
-     */
-    #define MIN_NODES_BY_SHARD      "min_nodes_by_shard"
-    #define MAX_NODES_BY_SHARD      "max_nodes_by_shard"
-    #define DELIVERY_MODES_BY_SHARD "delivery_modes_by_shard"
-    #define DELIVERY_MODE_ORDERED   "Ordered"
-    #define DELIVERY_MODE_RAW       "Raw"
-    #define PROFILES_BY_SHARD       "profiles_by_shard"
-
-    /**
-     * The ServiceClient template class contains all APIs needed for read/write data. The four core APIs are put, remove,
-     * get, and get_by_time. We also provide a set of helper APIs for the client to get the group topology. By default, the
-     * core APIs are talking a random but fix member of the specified subgroup and shard. The client can override this
-     * behaviour by specifying other member selection policy (ShardMemberSelectionPolicy).
-     *
-     * The default policy behaviour depends on the
+     * Options for the policy the ServiceClient will use to select which member of a shard to
+     * communicate with when executing a put() or get() operation.
      */
     enum ShardMemberSelectionPolicy {
-        FirstMember,    // use the first member in the list returned from get_shard_members(), this is the default behaviour.
+        FirstMember,    // use the first member in the list returned from get_shard_members()
         LastMember,     // use the last member in the list returned from get_shard_members()
         Random,         // use a random member in the shard for each operations(put/remove/get/get_by_time).
         FixedRandom,    // use a random member and stick to that for the following operations.
@@ -358,7 +335,6 @@ namespace cascade {
         UserSpecified,  // user specify which member to contact.
         InvalidPolicy = -1
     };
-    // #define DEFAULT_SHARD_MEMBER_SELECTION_POLICY (ShardMemberSelectionPolicy::FirstMember)
     #define DEFAULT_SHARD_MEMBER_SELECTION_POLICY (ShardMemberSelectionPolicy::RoundRobin)
 
     std::ostream& operator<<(std::ostream& stream, const ShardMemberSelectionPolicy& policy);
@@ -461,7 +437,12 @@ namespace cascade {
     template <typename SubgroupType>
     using per_type_notification_handler_registry_t =
         std::unordered_map<uint32_t,SubgroupNotificationHandler<SubgroupType>>;
-
+    /**
+     * The ServiceClient template class contains all APIs needed to read/write data. The four core APIs are put, remove,
+     * get, and get_by_time. We also provide a set of helper APIs for the client to get the group topology. The core APIs
+     * target a specific subgroup and shard of the service, or a specific object pool (which maps to a subgroup).
+     * The client uses a ShardMemberSelectionPolicy to determine which member of that subgroup/shard to communicate with.
+     */
     template <typename... CascadeTypes>
     class ServiceClient {
         static_assert(have_same_object_type<CascadeTypes...>());
@@ -482,7 +463,7 @@ namespace cascade {
          * case of ShardMemorySelectionPolicy::UserSpecified. The user specified node id is used as member index if the
          * policy is ShardMemberSelectionPolicy::RoundRobin
          *
-         * The default member selection policy is defined as SHARD_MEMBER_SELECTION_POLICY (ShardMemberSelectionPolicy::FirstMember).
+         * The default member selection policy is defined as DEFAULT_SHARD_MEMBER_SELECTION_POLICY.
          */
         std::unordered_map<
             std::tuple<std::type_index,uint32_t,uint32_t>,
@@ -559,16 +540,6 @@ namespace cascade {
          */
         template <typename SubgroupType>
         void refresh_member_cache_entry(uint32_t subgroup_index, uint32_t shard_index);
-
-        /**
-         * Deprecated: Please use key_to_shard() instead
-         *
-         * Metadata API Helper: turn a string key to subgroup index and shard index
-         *
-        template <typename SubgroupType>
-        std::pair<uint32_t,uint32_t> key_to_subgroup_index_and_shard_index(const typename SubgroupType::KeyType& key,
-                bool check_object_location = true);
-         */
 
         /**
          * Metadata API Helper: turn a string key to subgroup type index, subgroup index, and shard index.
@@ -689,19 +660,26 @@ namespace cascade {
         int32_t get_my_shard(const std::string& object_pool_pathname);
 
         /**
-         * Member selection policy control API.
-         * - set_member_selection_policy updates the member selection policies.
-         * - get_member_selection_policy read the member selection policies.
+         * Updates the member selection policy for a shard.
+         *
+         * @tparam SubgroupType The Cascade subgroup type the shard is in
          * @param[in] subgroup_index
          * @param[in] shard_index
-         * @param[in] policy
-         * @param[in] user_specified_node_id
-         * @return get_member_selection_policy returns a 2-tuple of policy and user_specified_node_id.
+         * @param[in] policy - the new policy
+         * @param[in] user_specified_node_id - optional, the node ID to contact if the policy is UserSpecified
          */
         template <typename SubgroupType>
         void set_member_selection_policy(uint32_t subgroup_index,uint32_t shard_index,
                 ShardMemberSelectionPolicy policy,node_id_t user_specified_node_id=INVALID_NODE_ID);
 
+        /**
+         * Reads the member selection policy for a shard.
+         *
+         * @tparam SubgroupType The Cascade subgroup type the shard is in
+         * @param[in] subgroup_index
+         * @param[in] shard_index
+         * @return a 2-tuple of policy and user_specified_node_id.
+         */
         template <typename SubgroupType>
         std::tuple<ShardMemberSelectionPolicy,node_id_t> get_member_selection_policy(
                 uint32_t subgroup_index, uint32_t shard_index) const;
@@ -761,7 +739,7 @@ namespace cascade {
                 bool as_trigger = false);
     public:
         /**
-         * object pool version
+         * object pool version of "put"
          * @param[in] object            the object to write, the object pool is extracted from the object key.
          * @param[in] as_trigger        If true, the object will NOT apply to the K/V store. The object will only be
          *                              used to update the state.
@@ -793,6 +771,7 @@ namespace cascade {
         void put_and_forget(const typename SubgroupType::ObjectType& object,
                 uint32_t subgroup_index, uint32_t shard_index, bool as_trigger = false);
 
+    protected:
         /**
          * "type_recursive_put_and_forget" is a helper function for internal use only.
          * @param[in] type_index    the index of the subgroup type in the CascadeTypes... list. and the FirstType,
@@ -804,7 +783,6 @@ namespace cascade {
          * @param[in] as_trigger    If true, the object will NOT apply to the K/V store. The object will only be
          *                          used to update the state.
          */
-    protected:
         template <typename ObjectType, typename FirstType, typename SecondType, typename... RestTypes>
         void type_recursive_put_and_forget(
                 uint32_t type_index,
@@ -822,7 +800,7 @@ namespace cascade {
                 bool as_trigger = false);
     public:
         /**
-         * object pool version
+         * object pool version of "put_and_forget"
          * @param[in] object        the object to write, the object pool is extracted from the object key.
          * @param[in] as_trigger    If true, the object will NOT apply to the K/V store. The object will only be
          *                          used to update the state.
@@ -842,7 +820,7 @@ namespace cascade {
         template <typename SubgroupType>
         derecho::rpc::QueryResults<void> trigger_put(const typename SubgroupType::ObjectType& object,
                 uint32_t subgroup_index, uint32_t shard_index);
-
+    protected:
         /**
          * "type_recursive_trigger_put" is a helper function for internal use only.
          * @param[in]   type_index  the index of the subgroup type in the CascadeTypes... list. and the FirstType,
@@ -854,7 +832,6 @@ namespace cascade {
          *
          * @return future
          */
-    protected:
         template <typename ObjectType, typename FirstType, typename SecondType, typename... RestTypes>
         derecho::rpc::QueryResults<void> type_recursive_trigger_put(
                 uint32_t type_index,
@@ -870,7 +847,7 @@ namespace cascade {
                 uint32_t shard_index);
     public:
         /**
-         * object pool version
+         * object pool version of "trigger_put"
          * @param[in] object    the object to write, the object pool is extracted from the object key.
          */
         template <typename ObjectType>
@@ -886,8 +863,6 @@ namespace cascade {
          * @param[in] object            the object to write.
          * @param[in] subgroup_index    the subgroup index of CascadeType
          * @param[in] nodes_and_futures map from node ids to futures.
-         *
-         * @return an array of void futures, which length is nodes.size()
          */
         template <typename SubgroupType>
         void collective_trigger_put(const typename SubgroupType::ObjectType& object,
@@ -908,6 +883,7 @@ namespace cascade {
         derecho::rpc::QueryResults<version_tuple> remove(const typename SubgroupType::KeyType& key,
                 uint32_t subgroup_index, uint32_t shard_index);
 
+    protected:
         /**
          * "type_recursive_remove" is a helper function for internal use only.
          * @param[in]   type_index              the index of the subgroup type in the CascadeTypes... list. and the FirstType,
@@ -918,7 +894,6 @@ namespace cascade {
          *
          * @return a future to the version and timestamp of the put operation.
          */
-    protected:
         template <typename KeyType, typename FirstType, typename SecondType, typename... RestTypes>
         derecho::rpc::QueryResults<version_tuple> type_recursive_remove(
                 uint32_t type_index,
@@ -934,7 +909,7 @@ namespace cascade {
                 uint32_t shard_index);
     public:
         /**
-         * object pool version
+         * object pool version of "remove"
          * @param[in]   key             the object key
          *
          * @return  returns a future
@@ -946,11 +921,15 @@ namespace cascade {
          * "get" retrieve the object of a given key
          *
          * @param[in] key               the object key
-         * @param[in] version           if version is CURRENT_VERSION, this "get" will fire a ordered send to get the latest
-         *                          state of the key. Otherwise, it will try to read the key's state at version.
-         * @param[in] stable            if true, get only report the version whose persistent data is safe, meaning the
-         *                          persistent data is persisted on all replicas.
-         * @param[in] subgroup_index   the subgroup index of CascadeType
+         * @param[in] version           the version of the object to read. If equal to CURRENT_VERSION, get will either
+         *                              read the current object from memory of the replica that handles the get request
+         *                              (if stable is false), or read the latest stable version that is persisted (if
+         *                              stable is true). Note that in any case "get" will contact only a single replica;
+         *                              to use an atomic multicast to get the latest version that is present on all replicas,
+         *                              use multi_get.
+         * @param[in] stable            if true, get will wait until the requested version's persistent data is safe, meaning the
+         *                              persistent data is persisted on all replicas.
+         * @param[in] subgroup_index    the subgroup index of CascadeType
          * @param[in] shard_index       the shard index.
          *
          * @return a future to the retrieved object.
@@ -963,6 +942,7 @@ namespace cascade {
                 bool stable = true,
                 uint32_t subgroup_index = 0,
                 uint32_t shard_index = 0);
+    protected:
         /**
          * "type_recursive_get" is a helper function for internal use only.
          * @param[in] type_index        the index of the subgroup type in the CascadeTypes... list. and the FirstType,
@@ -975,7 +955,6 @@ namespace cascade {
          *
          * @return a future for the object.
          */
-    protected:
         template <typename KeyType, typename FirstType, typename SecondType, typename... RestTypes>
         auto type_recursive_get(
                 uint32_t type_index,
@@ -995,7 +974,18 @@ namespace cascade {
                 uint32_t shard_index);
     public:
         /**
-         * object pool version
+         * object pool version of "get"
+         *
+         * @param[in] key               the object key; the object pool is extracted from this key
+         * @param[in] version           the version of the object to read. If equal to CURRENT_VERSION, get will either
+         *                              read the current object from memory of the replica that handles the get request
+         *                              (if stable is false), or read the latest stable version that is persisted (if
+         *                              stable is true). Note that in any case "get" will contact only a single replica;
+         *                              to use an atomic multicast to get the latest version that is present on all replicas,
+         *                              use multi_get.
+         * @param[in] stable            if true, get will wait until the requested version's persistent data is safe, meaning the
+         *                              persistent data is persisted on all replicas.
+         * @return a future to the retrieved object.
          */
         template <typename KeyType>
         auto get(
@@ -1004,13 +994,15 @@ namespace cascade {
                 bool stable = true);
 
         /**
-         * "multi_get" retrieve the object of a given key, this operation involves atomic broadcast
+         * "multi_get" retrieves the latest version of the object for a given key using an atomic broadcast.
+         * This ensures that the get request is mutually exclusive and linearizable with any concurrent put
+         * requests to the same key.
          *
          * @param[in] key               the object key
-         * @param[in] subgroup_index   the subgroup index of CascadeType
+         * @param[in] subgroup_index    the subgroup index of CascadeType
          * @param[in] shard_index       the shard index.
          *
-         * @return a future to the retrieved object.
+         * @return a future to the retrieved object, including a response from each replica in the shard.
          */
         template <typename SubgroupType>
         derecho::rpc::QueryResults<const typename SubgroupType::ObjectType> multi_get(const typename SubgroupType::KeyType& key,
@@ -1043,7 +1035,11 @@ namespace cascade {
     public:
 
         /**
-         * object pool version
+         * object pool version of "multi_get"
+         *
+         * @param[in] key               the object key; the object pool is extracted from this key
+         *
+         * @return a future for the retrieved object, including a response from each replica in the object pool
          */
         template <typename KeyType>
         auto multi_get(const KeyType& key);
@@ -1101,7 +1097,13 @@ namespace cascade {
     public:
 
         /**
-         * object pool version
+         * object pool version of "get_by_time"
+         *
+         * @param[in] key               the object key; the object pool is extracted from this key
+         * @param[in] ts_us             Wall clock time in microseconds.
+         * @param[in] stable            stable get or not
+         *
+         * @return a future for the retrieved object.
          */
         template <typename KeyType>
         auto get_by_time(
@@ -1113,10 +1115,14 @@ namespace cascade {
          * "get_size" retrieve size of the object of a given key
          *
          * @param[in] key               the object key
-         * @param[in] version           if version is CURRENT_VERSION, this "get" will fire a ordered send to get the latest
-         *                          state of the key. Otherwise, it will try to read the key's state at version.
+         * @param[in] version           the version of the object to read. If equal to CURRENT_VERSION, this will either
+         *                              get the size of the current object from memory of the replica that handles the request
+         *                              (if stable is false), or get the size of the latest stable version that is persisted
+         *                              (if stable is true). Note that in any case "get_size" will contact only a single replica;
+         *                              to use an atomic multicast to check the latest version that is present on all replicas,
+         *                              use multi_get_size.
          * @param[in] stable            stable get or not
-         * @param[in] subgroup_index   the subgroup index of CascadeType
+         * @param[in] subgroup_index    the subgroup index of CascadeType
          * @param[in] shard_index       the shard index.
          *
          * @return a future to the retrieved size.
@@ -1130,6 +1136,7 @@ namespace cascade {
                 uint32_t subgroup_index = 0,
                 uint32_t shard_index = 0);
 
+    protected:
         /**
          * "type_recursive_get_size" is a helper function for internal use only.
          * @param[in] type_index        the index of the subgroup type in the CascadeTypes... list. and the FirstType,
@@ -1140,9 +1147,8 @@ namespace cascade {
          * @param[in] subgroup_index    the subgroup index in the subgroup type designated by type_index
          * @param[in] shard_index       the shard index
          *
-         * @return a future for the object.
+         * @return a future for the retrieved size.
          */
-    protected:
         template <typename KeyType, typename FirstType, typename SecondType, typename... RestTypes>
         derecho::rpc::QueryResults<uint64_t> type_recursive_get_size(
                 uint32_t type_index,
@@ -1163,7 +1169,16 @@ namespace cascade {
 
     public:
         /**
-         * object pool version
+         * object pool version of "get_size"
+         * @param[in] key               the object key
+         * @param[in] version           the version of the object to read. If equal to CURRENT_VERSION, this will either
+         *                              get the size of the current object from memory of the replica that handles the request
+         *                              (if stable is false), or get the size of the latest stable version that is persisted
+         *                              (if stable is true). Note that in any case "get_size" will contact only a single replica;
+         *                              to use an atomic multicast to check the latest version that is present on all replicas,
+         *                              use multi_get_size.
+         * @param[in] stable            stable get or not
+         * @return a future for the retrieved size.
          */
         template <typename KeyType>
         derecho::rpc::QueryResults<uint64_t> get_size(
@@ -1172,10 +1187,10 @@ namespace cascade {
                 const bool stable = true);
 
         /**
-         * "multi_get_size" retrieve size of the object of a given key
+         * "multi_get_size" retrieves the size of the current version of the object with a given key, using an atomic broadcast.
          *
          * @param[in] key               the object key
-         * @param[in] subgroup_index   the subgroup index of CascadeType
+         * @param[in] subgroup_index    the subgroup index of CascadeType
          * @param[in] shard_index       the shard index.
          *
          * @return a future to the retrieved size.
@@ -1212,7 +1227,11 @@ namespace cascade {
 
     public:
         /**
-         * object pool version
+         * object pool version of "multi_get_size"
+         *
+         * @param[in] key               the object key; the object pool is extracted from this key
+         *
+         * @return a future for the retrieved size.
          */
         template <typename KeyType>
         derecho::rpc::QueryResults<uint64_t> multi_get_size(const KeyType& key);
@@ -1237,6 +1256,7 @@ namespace cascade {
                 uint32_t subgroup_index = 0,
                 uint32_t shard_index = 0);
 
+    protected:
         /**
          * "type_recursive_get_size" is a helper function for internal use only.
          * @param[in] type_index        the index of the subgroup type in the CascadeTypes... list. and the FirstType,
@@ -1249,7 +1269,6 @@ namespace cascade {
          *
          * @return a future for the object.
          */
-    protected:
         template <typename KeyType, typename FirstType, typename SecondType, typename... RestTypes>
         derecho::rpc::QueryResults<uint64_t> type_recursive_get_size_by_time(
                 uint32_t type_index,
@@ -1270,7 +1289,13 @@ namespace cascade {
     public:
 
         /**
-         * object pool version
+         * object pool version of "get_size_by_time"
+         *
+         * @param[in] key               the object key
+         * @param[in] ts_us             Wall clock time in microseconds.
+         * @param[in] stable            stable get or not
+         *
+         * @return a future for the retrieved size.
          */
         template <typename KeyType>
         derecho::rpc::QueryResults<uint64_t> get_size_by_time(
@@ -1281,13 +1306,15 @@ namespace cascade {
         /**
          * "list_keys" retrieve the list of keys in a shard
          *
-         * @param[in] version           if version is CURRENT_VERSION, this "get" will fire a ordered send to get the latest
-         *                          state of the key. Otherwise, it will try to read the key's state at version.
-         * @param[in] stable            stable or not
-         * @param[in] subgroup_index   the subgroup index of CascadeType
+         * @param[in] version           the version at which to list the keys; all keys that existed at or before this version
+         *                              will be included. If equal to CURRENT_VERSION, list_keys will list all keys currently
+         *                              in memory at the replica that handles the request.
+         * @param[in] stable            if true, list_keys will wait until the requested version's persistent data is safe, meaning the
+         *                              persistent data is persisted on all replicas, before listing the keys present at that version.
+         * @param[in] subgroup_index    the subgroup index of CascadeType
          * @param[in] shard_index       the shard index.
          *
-         * @return a future to the retrieved object.
+         * @return a future for the vector of keys
          * TODO: check if the user application is responsible for reclaim the future by reading it sometime.
          */
         template <typename SubgroupType>
@@ -1315,27 +1342,40 @@ namespace cascade {
             __list_keys(const persistent::version_t& version, const bool stable, const std::string& object_pool_pathname);
     public:
         /**
-         * @brief object pool version
+         * @brief object pool version of "list_keys"; lists all keys in an object pool
          *
-         * @param[in] version               if version is
-         * @param[in] stable                is stable or not
+         * @param[in] version               the version at which to list the keys; all keys that existed at or before this version
+         *                                  will be included. If equal to CURRENT_VERSION, list_keys will list all keys currently
+         *                                  in memory at the replica that handles the request.
+         * @param[in] stable                if true, list_keys will wait until the requested version's persistent data is safe, meaning the
+         *                                  persistent data is persisted on all replicas, before listing the keys present at that version.
          * @param[in] object_pool_pathname  the object pathname
          *
-         * @return a vector of keys.
+         * @return a vector of futures for key lists, with one key list for each shard in the object pool.
+         * The return value's type will look like vector<unique_ptr<QueryResults<vector<KeyType>>>>, where KeyType is either string or uint64_t
          */
         auto list_keys(const persistent::version_t& version, const bool stable, const std::string& object_pool_pathname);
 
+        /**
+         * A function that helps unpack the return value of list_keys (object-pool version). Iterates through the
+         * vector of QueryResults and waits for each one to complete, then combines the resulting vectors of keys
+         * into a single vector of keys (across all shards in the object pool).
+         *
+         * @tparam KeyType The type of a key in this object pool
+         * @param future The vector-of-futures returned by list_keys or multi_list_keys
+         * @return a vector of keys in the object pool
+         */
         template <typename KeyType>
         std::vector<KeyType> wait_list_keys(
                                 std::vector<std::unique_ptr<derecho::rpc::QueryResults<std::vector<KeyType>>>>& future);
 
         /**
-         * "multi_list_keys" retrieve the list of keys in a shard
+         * "multi_list_keys" retrieves the list of keys in a shard at the current version, using an atomic multicast
          *
          * @param[in] subgroup_index   the subgroup index of CascadeType
          * @param[in] shard_index       the shard index.
          *
-         * @return a future to the retrieved object.
+         * @return a future for the list of keys.
          */
         template <typename SubgroupType>
         derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> multi_list_keys(
@@ -1356,20 +1396,24 @@ namespace cascade {
             __multi_list_keys(const std::string& object_pool_pathname);
     public:
         /**
-         * object pool version
+         * object pool version of "multi_list_keys"
+         *
          * @param[in] object_pool_pathname  the object pathname
+         *
+         * @return a vector of futures for key lists, with one key list for each shard in the object pool.
+         * The return value's type will look like vector<unique_ptr<QueryResults<vector<KeyType>>>>, where KeyType is either string or uint64_t
          */
         auto multi_list_keys(const std::string& object_pool_pathname);
 
         /**
-         * "list_keys_by_time" retrieve the list of keys in a shard
+         * "list_keys_by_time" retrieves the list of keys in a shard at a specific time
          *
          * @param[in] ts_us             Wall clock time in microseconds.
-         * @param[in] stable
-         * @param[in] subgroup_index   the subgroup index of CascadeType
+         * @param[in] stable            stable get or not
+         * @param[in] subgroup_index    the subgroup index of CascadeType
          * @param[in] shard_index       the shard index.
          *
-         * @return a future to the retrieved object.
+         * @return a future for the list of keys
          */
         template <typename SubgroupType>
         derecho::rpc::QueryResults<std::vector<typename SubgroupType::KeyType>> list_keys_by_time(
@@ -1396,16 +1440,20 @@ namespace cascade {
             __list_keys_by_time(const uint64_t& ts_us, const bool stable, const std::string& object_pool_pathname);
     public:
         /**
-        * object pool version
+        * object pool version of "list_keys_by_time"
+        *
         * @param[in] ts_us                  timestamp
         * @param[in] stable                 stable flag
         * @param[in] object_pool_pathname   the object pathname
+        *
+        * @return a vector of futures for key lists, with one key list for each shard in the object pool.
+        * The return value's type will look like vector<unique_ptr<QueryResults<vector<KeyType>>>>, where KeyType is either string or uint64_t
         */
         auto list_keys_by_time(const uint64_t& ts_us, const bool stable, const std::string& object_pool_pathname);
 
         /**
          * Object Pool Management API: refresh object pool cache
-         * We load 'unstable' (commited by may not persisted) metadata here.
+         * We load 'unstable' (committed but maybe not persisted) metadata here.
          */
         void refresh_object_pool_metadata_cache();
 
@@ -1430,7 +1478,7 @@ namespace cascade {
                 const std::string& affinity_set_regex = "");
 
         /**
-         * ObjectPoolManagement API: remote object pool
+         * ObjectPoolManagement API: remove object pool
          *
          * @param[in]  pathname         Object pool pathname
          *
@@ -1674,13 +1722,13 @@ namespace cascade {
     /**
      * configuration keys
      */
-    #define CASCADE_CONTEXT_NUM_STATELESS_WORKERS_MULTICAST   "CASCADE/num_stateless_workers_for_multicast_ocdp"
-    #define CASCADE_CONTEXT_NUM_STATELESS_WORKERS_P2P         "CASCADE/num_stateless_workers_for_p2p_ocdp"
-    #define CASCADE_CONTEXT_NUM_STATEFUL_WORKERS_MULTICAST   "CASCADE/num_stateful_workers_for_multicast_ocdp"
-    #define CASCADE_CONTEXT_NUM_STATEFUL_WORKERS_P2P         "CASCADE/num_stateful_workers_for_p2p_ocdp"
-    #define CASCADE_CONTEXT_CPU_CORES               "CASCADE/cpu_cores"
-    #define CASCADE_CONTEXT_GPUS                    "CASCADE/gpus"
-    #define CASCADE_CONTEXT_WORKER_CPU_AFFINITY     "CASCADE/worker_cpu_affinity"
+    static constexpr const char* CASCADE_CONTEXT_NUM_STATELESS_WORKERS_MULTICAST = "CASCADE/num_stateless_workers_for_multicast_ocdp";
+    static constexpr const char* CASCADE_CONTEXT_NUM_STATELESS_WORKERS_P2P       = "CASCADE/num_stateless_workers_for_p2p_ocdp";
+    static constexpr const char* CASCADE_CONTEXT_NUM_STATEFUL_WORKERS_MULTICAST  = "CASCADE/num_stateful_workers_for_multicast_ocdp";
+    static constexpr const char* CASCADE_CONTEXT_NUM_STATEFUL_WORKERS_P2P        = "CASCADE/num_stateful_workers_for_p2p_ocdp";
+    static constexpr const char* CASCADE_CONTEXT_CPU_CORES                       = "CASCADE/cpu_cores";
+    static constexpr const char* CASCADE_CONTEXT_GPUS                            = "CASCADE/gpus";
+    static constexpr const char* CASCADE_CONTEXT_WORKER_CPU_AFFINITY             = "CASCADE/worker_cpu_affinity";
 
     /**
      * A class describing the resources available in the Cascade context.
@@ -1689,7 +1737,7 @@ namespace cascade {
     public:
         /** cpu cores, loaded from configuration **/
         std::vector<uint32_t> cpu_cores;
-        /** worker cpu aworker cpu ffinity, loaded from configuration **/
+        /** worker cpu affinity, loaded from configuration **/
         std::map<uint32_t,std::vector<uint32_t>> multicast_ocdp_worker_to_cpu_cores;
         std::map<uint32_t,std::vector<uint32_t>> p2p_ocdp_worker_to_cpu_cores;
         /** gpu list**/
@@ -1702,15 +1750,6 @@ namespace cascade {
         void dump() const;
     };
 
-    /**
-     * The cascade context
-     *
-     * The cascade context manages computation resources like CPU cores, GPU, and memory. It works as the container for all
-     * "off-critical" path logics. The main components of cascade context includes:
-     * 1 - a thread pool for the off-critical path logics.
-     * 2 - a prefix registry.
-     * 3 - a bounded Action buffer.
-     */
 
     /**
      * @struct prefix_ocdpo_info_t
@@ -1728,14 +1767,12 @@ namespace cascade {
     };
 
     struct PrefixOCDPOInfoHash {
-        // inline size_t operator() (const prefix_ocdpo_info_t& info) const {
         size_t operator() (const prefix_ocdpo_info_t& info) const {
             return std::hash<std::string>{}(info.udl_id + info.config_string);
         }
     };
 
     struct PrefixOCDPOInfoCompare {
-        // inline bool operator() (const prefix_ocdpo_info_t& l, const prefix_ocdpo_info_t& r) const {
         bool operator() (const prefix_ocdpo_info_t& l, const prefix_ocdpo_info_t& r) const {
             return (l.udl_id == r.udl_id) &&
                    (l.config_string == r.config_string) &&
@@ -1743,6 +1780,15 @@ namespace cascade {
         }
     };
 
+    /**
+     * The cascade context
+     *
+     * The cascade context manages computation resources like CPU cores, GPU, and memory. It works as the container for all
+     * "off-critical" path logics. The main components of cascade context includes:
+     * 1 - a thread pool for the off-critical path logics.
+     * 2 - a prefix registry.
+     * 3 - a bounded Action buffer.
+     */
     template <typename... CascadeTypes>
     class CascadeContext:public ICascadeContext {
     public:
@@ -1828,8 +1874,6 @@ namespace cascade {
          * constructor, which happens before main(), it might miss extra configuration from commandline. Therefore,
          * CascadeContext singleton needs to be initialized in main() by calling CascadeContext::construct(). Moreover, it
          * needs the off critical data path handler from main();
-         *
-         * @param[in] group_ptr                         The group handle
          */
         void construct();
         /**
