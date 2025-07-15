@@ -61,8 +61,6 @@ public:
      * @param[in]   value             The value of the K/V pair
      * @param[in]   cascade_ctxt      The cascade context to be used later
      * @param[in]   is_trigger        True for critical data path of `p2p_send`; otherwise, the critical data path of `ordered_send`.
-     *
-     * @return void
      */
     virtual void operator()(const uint32_t subgroup_idx,
                             const uint32_t shard_idx,
@@ -142,8 +140,6 @@ public:
      *
      * @param[in]   value   The K/V pair value
      * @param[in]   as_trigger  The object will NOT be used to update the K/V state.
-     *
-     * @return      void
      */
     virtual void put_and_forget(const VT& value, bool as_trigger) const = 0;
     

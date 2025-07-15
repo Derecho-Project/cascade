@@ -103,13 +103,13 @@ template <typename CascadeType>
 class PerfCDPO : public CriticalDataPathObserver<CascadeType> {
 public:
     // @override
-    virtual void operator()(const uint32_t sgidx,
-                            const uint32_t shidx,
-                            const derecho::node_id_t sender_id,
-                            const typename CascadeType::KeyType& key,
-                            const typename CascadeType::ObjectType& value,
-                            ICascadeContext* cascade_context,
-                            bool is_trigger) {
+    virtual void operator () (const uint32_t sgidx,
+       const uint32_t shidx,
+       const derecho::node_id_t sender_id,
+       const typename CascadeType::KeyType& key,
+       const typename CascadeType::ObjectType& value,
+       ICascadeContext* cascade_context,
+       bool is_trigger = false) {
         dbg_default_info("Watcher is called with\n\tsubgroup idx = {},\n\tshard idx = {},\n\tkey = {},\n\tvalue = [hidden].", sgidx, shidx, key);
     }
 };

@@ -175,7 +175,7 @@ public:
         for (auto subgroup_it:group_layout[CONF_LAYOUT]) {
 
             children.emplace_back(std::make_unique<SubgroupINode<CascadeType>>(sidx,reinterpret_cast<fuse_ino_t>(this)));
-            size_t num_shards = subgroup_it[MIN_NODES_BY_SHARD].size();
+            size_t num_shards = subgroup_it[min_nodes_by_shard_field].size();
             for (uint32_t shidx = 0; shidx < num_shards; shidx ++) {
                 this->children[sidx]->children.emplace_back(
                             std::make_unique<ShardINode<CascadeType>>(

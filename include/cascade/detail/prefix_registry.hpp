@@ -116,8 +116,6 @@ public:
      *
      * @param path      - the full path.
      * @param collector - the lambda function to collect values for all prefixes of a string.
-     *
-     * @return
      */
     void collect_values_for_prefixes(const std::string& path,
             const std::function<void(const std::string& prefix,const std::shared_ptr<T>& value)>& collector) const;
