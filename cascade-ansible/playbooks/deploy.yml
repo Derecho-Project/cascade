@@ -43,10 +43,16 @@
       args:
         chdir: "{{ repo_path }}"
 
-    - name: Build Docker images with SSH agent forwarding
-      shell: DOCKER_BUILDKIT=1 docker compose build --ssh default
+    # ------- FIXED: only pass --ssh default if an SSH agent is actually present -------
+    - name: Build Docker images (BuildKit; use SSH only if agent is present)
+      vars:
+        ssh_sock: "{{ lookup('env','SSH_AUTH_SOCK') | default('', true) }}"
+      ansible.builtin.shell: >
+        DOCKER_BUILDKIT=1 docker compose build
+        {{ '--ssh default' if ssh_sock else '' }}
       args:
         chdir: "{{ repo_path }}"
+    # ---------------------------------------------------------------------------------
 
     - name: Start all Docker containers for CascadeChain
       shell: docker compose up -d

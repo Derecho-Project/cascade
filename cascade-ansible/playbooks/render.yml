@@ -1,0 +1,42 @@
+---
+- name: Render configs for all nodes (DRY)
+  hosts: localhost
+  gather_facts: false
+
+  # you put all.yml under host_vars — that's fine; we load it explicitly.
+  vars_files:
+    - ../host_vars/all.yml
+
+  tasks:
+    - name: Ensure output dirs exist (one per node)
+      ansible.builtin.file:
+        path: "{{ out_base }}/n{{ item.id }}"
+        state: directory
+        mode: "0755"
+      loop: "{{ nodes }}"
+
+    - name: Render derecho.cfg (cluster-wide; one copy per node)
+      ansible.builtin.template:
+        src: "{{ templates_dir }}/derecho.cfg.j2"
+        dest: "{{ out_base }}/n{{ item.id }}/derecho.cfg"
+        mode: "0644"
+      loop: "{{ nodes }}"
+
+    - name: Render derecho_node.cfg (per node)
+      ansible.builtin.template:
+        src: "{{ templates_dir }}/derecho_node.cfg.j2"
+        dest: "{{ out_base }}/n{{ item.id }}/derecho_node.cfg"
+        mode: "0644"
+      loop: "{{ nodes }}"
+      vars:
+        node: "{{ item }}"
+
+    - name: Render wanagent.json (per node)
+      ansible.builtin.template:
+        src: "{{ templates_dir }}/wanagent.json.j2"
+        dest: "{{ out_base }}/n{{ item.id }}/wanagent.json"
+        mode: "0644"
+      loop: "{{ nodes }}"
+      vars:
+        node: "{{ item }}"
+

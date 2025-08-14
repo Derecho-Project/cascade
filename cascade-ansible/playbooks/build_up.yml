@@ -1,0 +1,22 @@
+---
+- name: Build and restart Cascade containers
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    compose_dir: "{{ compose_dir | default('/home/mahady/cascade/src/applications/tests/cascade_chain/docker_test_cfg') }}"
+    project_name: "{{ project_name | default('cascade') }}"
+
+  tasks:
+    - name: Compose build (with BuildKit + SSH if available)
+      ansible.builtin.shell: |
+        DOCKER_BUILDKIT=1 docker compose -p {{ project_name }} build --ssh default
+      args:
+        chdir: "{{ compose_dir }}"
+
+    - name: Compose up -d
+      ansible.builtin.shell: |
+        docker compose -p {{ project_name }} up -d
+      args:
+        chdir: "{{ compose_dir }}"
+

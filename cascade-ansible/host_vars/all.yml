@@ -1,0 +1,36 @@
+# ----- cluster shape -----
+project_name: cascade
+nodes:
+  - { id: 0, ip: "172.20.0.10", site: 0 }
+  - { id: 1, ip: "172.20.0.11", site: 0 }
+  - { id: 2, ip: "172.20.0.12", site: 0 }
+  - { id: 3, ip: "172.20.0.13", site: 0 }
+  - { id: 4, ip: "172.20.0.14", site: 1 }
+  - { id: 5, ip: "172.20.0.15", site: 1 }
+  - { id: 6, ip: "172.20.0.16", site: 1 }
+  - { id: 7, ip: "172.20.0.17", site: 1 }
+
+# leader/contact (usually node0)
+contact_ip: "{{ nodes[0].ip }}"
+contact_port: 23580
+restart_leaders: "{{ nodes[0].ip }}"
+
+# derecho_node defaults (per node derives local_id, local_ip automatically)
+rdma_provider: verbs      # or "tcp"/"dpdk" when you test non-RDMA
+rdma_domain:   mlx5_0
+
+# WAN agent topology for your test settings
+wan_private_port: 28580
+sites:
+  - id: 0
+    ips:   ["172.20.0.11", "172.20.0.13"]
+    ports: [28580,        28580]
+  - id: 1
+    ips:   ["172.20.0.15", "172.20.0.16"]
+    ports: [28580,        28580]
+
+# paths
+templates_dir: ../templates
+out_base:      ../cfg      # we'll render here (bind-mount later)
+container_cfg_base: /cfg   # inside container
+

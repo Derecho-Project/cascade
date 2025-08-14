@@ -4,4 +4,15 @@
 
 # The build output folders created by build.sh
 /build*
-/docs
+/docscascade-ansible/cfg/
+cascade-ansible/output/
+*.log
+src/applications/tests/cascade_chain/docker_test_cfg/**/*.pem
+src/applications/tests/cascade_chain/docker_test_cfg/**/*.crt
+src/applications/tests/cascade_chain/docker_test_cfg/**/*.key
+__pycache__/
+*.pyc
+.venv/
+.vscode/
+.idea/
+cascade-ansible/cfg/

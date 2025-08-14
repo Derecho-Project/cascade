@@ -1,0 +1,56 @@
+---
+- name: Install & start always-on watcher (systemd system service)
+  hosts: localhost
+  gather_facts: true
+  become: true
+
+  vars:
+    repo_root: /home/mahady/cascade
+    watcher_script: "{{ repo_root }}/cascade-ansible/scripts/ansible_watch.sh"
+    service_name: cascade-ansible-watcher
+    run_user: "{{ ansible_env.SUDO_USER | default(ansible_user_id) }}"
+    run_group: "{{ ansible_env.SUDO_GID | default(ansible_user_gid | string) }}"
+    unit_path: "/etc/systemd/system/{{ service_name }}.service"
+
+  pre_tasks:
+    - name: Ensure prerequisites are installed
+      apt:
+        name: [ inotify-tools ]
+        state: present
+        update_cache: yes
+
+    - name: Ensure watcher script exists and is executable
+      file:
+        path: "{{ watcher_script }}"
+        mode: "0755"
+      register: watcher_file
+      failed_when: watcher_file is failed
+
+  tasks:
+    - name: Install systemd unit
+      template:
+        src: ../templates/cascade-ansible-watcher.service.j2
+        dest: "{{ unit_path }}"
+        mode: "0644"
+
+    - name: Reload systemd
+      command: systemctl daemon-reload
+
+    - name: Enable at boot
+      systemd:
+        name: "{{ service_name }}"
+        enabled: true
+
+    - name: Start (or restart) now
+      systemd:
+        name: "{{ service_name }}"
+        state: restarted
+
+    - name: Show status (one line)
+      command: systemctl --no-pager --full status "{{ service_name }}"
+      register: svc
+      changed_when: false
+
+    - debug:
+        var: svc.stdout
+

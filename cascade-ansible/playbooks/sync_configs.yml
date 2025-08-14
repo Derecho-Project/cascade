@@ -1,0 +1,42 @@
+---
+- name: Sync rendered configs into Cascade containers (no compose changes)
+  hosts: localhost
+  gather_facts: false
+
+  # Load your consolidated vars (nodes, out_base, etc.)
+  vars_files:
+    - ../host_vars/all.yml
+
+  vars:
+    # Keep this matching your existing compose project name
+    project_name: "{{ project_name | default('cascade') }}"
+
+    # Where configs live inside the containers today
+    container_cfg_root: "/cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg"
+
+    # Files we push per node
+    files_to_push:
+      - { name: "derecho.cfg" }
+      - { name: "derecho_node.cfg" }
+      - { name: "wanagent.json" }
+
+  tasks:
+    - name: Ensure destination dir exists inside each container
+      community.docker.docker_container_exec:
+        container: "{{ project_name }}-node{{ item.id }}-1"
+        command: "bash -lc 'mkdir -p {{ container_cfg_root }}/n{{ item.id }}'"
+      loop: "{{ nodes }}"
+      changed_when: false
+
+    - name: Copy rendered files into each container via docker cp
+      ansible.builtin.command:
+        cmd: >
+          docker cp {{ out_base }}/n{{ node.id }}/{{ file.name }}
+          {{ project_name }}-node{{ node.id }}-1:{{ container_cfg_root }}/n{{ node.id }}/{{ file.name }}
+      loop: "{{ nodes | product(files_to_push) | list }}"
+      loop_control:
+        label: "node{{ item.0.id }} -> {{ item.1.name }}"
+      vars:
+        node: "{{ item.0 }}"
+        file: "{{ item.1 }}"
+

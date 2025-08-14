@@ -1,0 +1,21 @@
+[Unit]
+Description=Cascade Ansible Watcher (always on)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ run_user }}
+Group={{ run_group }}
+WorkingDirectory={{ repo_root }}
+Environment=PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin
+ExecStart={{ watcher_script }}
+Restart=always
+RestartSec=2
+KillSignal=SIGINT
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+

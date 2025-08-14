@@ -1,0 +1,67 @@
+---
+- name: Restart Cascade server/client processes (idempotent)
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    node_map:
+      cascade-node0-1: /cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n0
+      cascade-node1-1: /cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n1
+      cascade-node2-1: /cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n2
+      cascade-node3-1: /cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n3
+      cascade-node4-1: /cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n4
+      cascade-node5-1: /cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n5
+      cascade-node6-1: /cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n6
+      cascade-node7-1: /cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n7
+
+    # Escaped Go-template for docker inspect so Jinja won't parse it
+    inspect_format: "{{ '{{ .State.Running }}' }}"
+
+  tasks:
+    - name: Check if each container is running (never fail)
+      ansible.builtin.shell: >
+        docker inspect -f {{ inspect_format }} {{ item.key }} 2>/dev/null || echo 'false'
+      loop: "{{ node_map | dict2items }}"
+      register: inspect_results
+      changed_when: false
+      failed_when: false
+
+    - name: Start any container that is not running
+      ansible.builtin.shell: docker start {{ item.item.key }}
+      when: item.stdout | trim != 'true'
+      loop: "{{ inspect_results.results }}"
+
+    - name: Stop any existing app processes (best effort; never fail)
+      ansible.builtin.shell: >
+        docker exec {{ item.key }} bash -lc
+        "pkill -f 'run.sh server'  || true;
+         pkill -f 'run.sh client'  || true;
+         pkill -f 'cascade_server' || true;
+         pkill -f 'cascade_client' || true"
+      loop: "{{ node_map | dict2items }}"
+      changed_when: false
+      failed_when: false
+
+    - name: Start server on nodes 0-6
+      ansible.builtin.shell: >
+        docker exec -d -w {{ item.value }} {{ item.key }} ./run.sh server
+      loop: "{{ node_map | dict2items }}"
+      when: item.key != 'cascade-node7-1'
+
+    - name: Start client on node7
+      ansible.builtin.shell: >
+        docker exec -d -w {{ node_map['cascade-node7-1'] }} cascade-node7-1 ./run.sh client
+      when: "'cascade-node7-1' in node_map"
+
+    - name: Show process summary (for visibility)
+      ansible.builtin.shell: docker exec {{ item.key }} pgrep -fa 'cascade|run.sh' || true
+      loop: "{{ node_map | dict2items }}"
+      register: procs
+      changed_when: false
+      failed_when: false
+
+    - name: Print per-container processes
+      debug:
+        msg: "{{ item.item.key }} -> {{ (item.stdout | default('')).split('\n') | reject('equalto','') | list }}"
+      loop: "{{ procs.results }}"
+
