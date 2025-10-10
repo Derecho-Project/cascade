@@ -17,6 +17,9 @@
                 "user_defined_logic_hook_list": [
                     "ordered"
                 ],
+                "user_defined_logic_config_list": [
+                    {"debug_output" : false }
+                ],
                 "destinations": [
                     {"/signatures" : "put" }
                 ]

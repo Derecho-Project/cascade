@@ -9,10 +9,11 @@ namespace cascade {
 
 class ShaHashObserver : public OffCriticalDataPathObserver {
 private:
-    static std::shared_ptr<OffCriticalDataPathObserver> singleton_ptr;
+    static std::shared_ptr<ShaHashObserver> singleton_ptr;
+    bool debug_output;
 
 public:
-    ShaHashObserver(ICascadeContext* context) {
+    ShaHashObserver(ICascadeContext* context) : debug_output(false) {
         auto test_context = dynamic_cast<DefaultCascadeContextType*>(context);
         if(test_context == nullptr) {
             std::cerr << "ERROR: ShaHashObserver was constructed on a server where the context type does not match DefaultCascadeContextType!" << std::endl;
@@ -26,6 +27,9 @@ public:
                             const std::unordered_map<std::string, bool>& outputs,
                             ICascadeContext* context,
                             uint32_t worker_id) override {
+        if(debug_output) {
+            std::cout << "ShaHashObserver called on key " << key_string << ", version " << version << std::endl;
+        }
         openssl::Hasher sha_hasher(openssl::DigestAlgorithm::SHA256);
         sha_hasher.init();
         const std::size_t hash_size = sha_hasher.get_hash_size();
@@ -35,6 +39,12 @@ public:
         if(value_object) {
             assert(value_object->version == version);
             assert(value_object->key == key_string);
+            if(debug_output) {
+                std::cout << "ShaHashObserver: Hashing an ObjectWithStringKey, with header [key = " << value_object->key
+                          << ", version = " << value_object->version << ", timestamp_us = " << value_object->timestamp_us
+                          << ", previous_version" << value_object->previous_version << ", previous_version_by_key = "
+                          << value_object->previous_version_by_key << "]" << std::endl;
+            }
             // Hash each field of the object in place instead of using to_bytes to copy it to a byte array
             sha_hasher.add_bytes(&value_object->version, sizeof(persistent::version_t));
             sha_hasher.add_bytes(&value_object->timestamp_us, sizeof(uint64_t));
@@ -75,6 +85,9 @@ public:
                     auto result = typed_context->get_service_client_ref().trigger_put(*hash_object);
                     result.get();
                 } else {
+                    if(debug_output) {
+                        std::cout << "ShaHashObserver: Sending the hash object to " << destination_key << std::endl;
+                    }
                     typed_context->get_service_client_ref().put_and_forget(*hash_object);
                 }
             } else {
@@ -84,18 +97,24 @@ public:
         }
     }
 
+    void set_config(const nlohmann::json& config_object) {
+        if(config_object.contains("debug_output")) {
+            debug_output = config_object["debug_output"];
+        }
+    }
+
     static void initialize(ICascadeContext* context) {
         if(!singleton_ptr) {
             singleton_ptr = std::make_shared<ShaHashObserver>(context);
         }
     }
 
-    static std::shared_ptr<OffCriticalDataPathObserver> get() {
+    static std::shared_ptr<ShaHashObserver> get() {
         return singleton_ptr;
     }
 };
 
-std::shared_ptr<OffCriticalDataPathObserver> ShaHashObserver::singleton_ptr;
+std::shared_ptr<ShaHashObserver> ShaHashObserver::singleton_ptr;
 
 /* ----------------------- UDL Interface ----------------------- */
 
@@ -118,6 +137,7 @@ void release(ICascadeContext* context) {
 
 std::shared_ptr<OffCriticalDataPathObserver> get_observer(
         ICascadeContext* context, const nlohmann::json& config) {
+    ShaHashObserver::get()->set_config(config);
     return ShaHashObserver::get();
 }
 
