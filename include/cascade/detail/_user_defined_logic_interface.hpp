@@ -1,6 +1,7 @@
 #pragma once
 #include <cascade/config.h>
 #include "../service.hpp"
+#include "../service_client.hpp"
 #include "../service_types.hpp"
 #include <unordered_set>
 #include <memory>
@@ -72,7 +73,7 @@ void release(ICascadeContext* ctxt);
  *             |      +------------------------------+
  *             |      |
  * DefaultOffCriticalDataPathObserver
- * 
+ *
  * Please derive your own ocdpo from DefaultOffCriticalDataPathObserver, and override the virtual methods defined in
  * IDefaultOffCriticalDataPathObserver
  */
@@ -94,7 +95,7 @@ using emit_func_t = std::function<void(const std::string&,
 
 class IDefaultOffCriticalDataPathObserver {
 public:
-    /** 
+    /**
      * Typed ocdpo handler derived from the Cascade service types defined in service_types.hpp
      * @param sender                The sender id
      * @param object_pool_pathname  The object pool pathname

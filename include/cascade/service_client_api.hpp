@@ -1,6 +1,7 @@
 #pragma once
 #include "service_types.hpp"
 #include "service.hpp"
+#include "service_client.hpp"
 
 #ifdef HAS_BOOLINQ
 #include <boolinq/boolinq.h>

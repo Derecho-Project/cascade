@@ -2,6 +2,7 @@
 
 #include <cascade/cascade.hpp>
 #include <cascade/service.hpp>
+#include <cascade/service_client.hpp>
 #include <cascade/service_types.hpp>
 #include <cascade/object.hpp>
 
