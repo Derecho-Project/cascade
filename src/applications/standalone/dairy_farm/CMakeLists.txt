@@ -13,7 +13,7 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 if (${USE_VERBS_API})
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUSE_VERBS_API")
 endif()
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -Wall --ggdb -gdwarf-3 -ftemplate-backtrace-limit=0 -DEVALUATION")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -Wall -ggdb -gdwarf-3 -ftemplate-backtrace-limit=0 -DEVALUATION")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Wall -DEVALUATION -fcompare-debug-second")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -Wall -ggdb -gdwarf-3")
 
@@ -87,7 +87,7 @@ if (TENSORFLOW_LIB_FOUND AND OPENCV_CORE_FOUND AND ANN_LIB_FOUND AND TORCH_FOUND
         $<BUILD_INTERFACE:${OpenCV_INCLUDE_DIRS}>
         $<BUILD_INTERFACE:${TENSORFLOW_LIB_INCLUDE_DIRS}>
     )
-    target_link_libraries(demo_common ${TENSORFLOW_LIB_FOUND})
+    target_link_libraries(demo_common derecho::cascade ${TENSORFLOW_LIB_FOUND})
     # filter_udl
     add_library(filter_udl SHARED filter_udl.cpp)
     target_include_directories(filter_udl PRIVATE
@@ -144,45 +144,45 @@ if (TENSORFLOW_LIB_FOUND AND OPENCV_CORE_FOUND AND ANN_LIB_FOUND AND TORCH_FOUND
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/dairy_farm_cfg
         ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg
         COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/run.sh.tmp
-        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n0/run.sh 
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n0/run.sh
         COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/run.sh.tmp
-        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n1/run.sh 
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n1/run.sh
         COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/run.sh.tmp
-        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n2/run.sh 
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n2/run.sh
         COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/run.sh.tmp
-        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n3/run.sh 
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n3/run.sh
         COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/run.sh.tmp
-        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n4/run.sh 
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n4/run.sh
         COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/dfgs.json.tmp
-        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n0/dfgs.json 
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n0/dfgs.json
         COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/dfgs.json.tmp
-        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n1/dfgs.json 
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n1/dfgs.json
         COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/dfgs.json.tmp
-        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n2/dfgs.json 
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n2/dfgs.json
         COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/dfgs.json.tmp
-        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n3/dfgs.json 
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n3/dfgs.json
         COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/dfgs.json.tmp
-        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n4/dfgs.json 
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n4/dfgs.json
         COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/layout.json.tmp
-        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n0/layout.json 
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n0/layout.json
         COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/layout.json.tmp
-        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n1/layout.json 
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n1/layout.json
         COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/layout.json.tmp
-        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n2/layout.json 
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n2/layout.json
         COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/layout.json.tmp
-        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n3/layout.json 
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n3/layout.json
         COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/layout.json.tmp
-        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n4/layout.json 
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n4/layout.json
         COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/udl_dlls.cfg.tmp
-        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n0/udl_dlls.cfg 
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n0/udl_dlls.cfg
         COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/udl_dlls.cfg.tmp
-        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n1/udl_dlls.cfg 
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n1/udl_dlls.cfg
         COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/udl_dlls.cfg.tmp
-        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n2/udl_dlls.cfg 
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n2/udl_dlls.cfg
         COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/udl_dlls.cfg.tmp
-        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n3/udl_dlls.cfg 
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n3/udl_dlls.cfg
         COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/udl_dlls.cfg.tmp
-        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n4/udl_dlls.cfg 
+        ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n4/udl_dlls.cfg
         COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/filter-model
         ${CMAKE_CURRENT_BINARY_DIR}/dairy_farm_cfg/n0/filter-model
         COMMAND ln -sf ${CMAKE_CURRENT_BINARY_DIR}/filter-model
@@ -220,7 +220,7 @@ if (TENSORFLOW_LIB_FOUND AND OPENCV_CORE_FOUND AND ANN_LIB_FOUND AND TORCH_FOUND
                 ${CMAKE_CURRENT_SOURCE_DIR}/video_receive.py
         COMMENT "prepare dairy farm demo configuration"
     )
-    
+
 else()
     message (STATUS "Skipping diary farm demo... to enable it, please install the following packages")
     if (NOT TENSORFLOW_LIB_FOUND)

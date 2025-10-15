@@ -120,7 +120,8 @@ target_link_libraries(sha_hash_udl derecho::derecho OpenSSL::Crypto wanagent::wa
 add_dependencies(sha_hash_udl cascade)
 
 # install
-install(TARGETS client server
+install(TARGETS client server sha_hash_udl
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 add_subdirectory(python)
