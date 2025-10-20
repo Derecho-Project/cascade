@@ -63,14 +63,23 @@ void SubgroupNotificationHandler<SubgroupType>::operator()(const derecho::Notifi
                 nullptr, msg.body, [this](const CascadeNotificationMessage& cascade_message) -> void {
                     dbg_default_trace("Handling cascade signature message: {}. size={} bytes",
                                       cascade_message.object_pool_pathname, cascade_message.blob.size);
+                    // object_pool_pathname is just the path that triggered the notification and might not match an object pool
+                    // Check each path-separator-defined prefix of the pathname to see if it matches an object pool handler
+                    std::set<std::string> path_prefixes;
+                    path_prefixes.emplace(cascade_message.object_pool_pathname);
+                    std::size_t separator_pos = cascade_message.object_pool_pathname.find(PATH_SEPARATOR, 1);
+                    while(separator_pos != std::string::npos) {
+                        path_prefixes.emplace(cascade_message.object_pool_pathname.substr(0, separator_pos));
+                        separator_pos = cascade_message.object_pool_pathname.find(PATH_SEPARATOR, separator_pos + 1);
+                    }
                     std::lock_guard<std::mutex> lock(*signature_notification_handlers_mutex);
-                    // There should be no "default" handler for signature notifications, since they can only
-                    // come from an object pool stored on SignatureCascadeStore (i.e. "signatures/") and the
-                    // handler should specify that object pool
-                    if(signature_notification_handlers.find(cascade_message.object_pool_pathname)
-                       != signature_notification_handlers.cend()) {
-                        if(signature_notification_handlers.at(cascade_message.object_pool_pathname).has_value()) {
-                            (*signature_notification_handlers.at(cascade_message.object_pool_pathname))(cascade_message.blob);
+                    // There is no "default" handler for signature notifications, since they can only come from an
+                    // object pool stored on SignatureCascadeStore and the handler should specify that object pool
+                    for(const auto& prefix : path_prefixes) {
+                        if(signature_notification_handlers.find(prefix) != signature_notification_handlers.cend()) {
+                            if(signature_notification_handlers.at(prefix).has_value()) {
+                                (*signature_notification_handlers.at(prefix))(cascade_message.blob);
+                            }
                         }
                     }
                 });

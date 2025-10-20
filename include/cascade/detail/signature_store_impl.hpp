@@ -1167,8 +1167,12 @@ void SignatureCascadeStore<KT, VT, IK, IV, ST>::send_client_notification(
     body_offset += mutils::to_bytes(previous_signature, blob_buffer.get() + body_offset);
     Blob message_body(std::move(blob_buffer), message_size);
     // Construct and send a CascadeNotificationMessage in the same way as ServiceClient::notify
+    // Problem: The first argument is supposed to be the object pool pathname, but SignatureCascadeStore
+    // doesn't know what object pool it is in. Callers of ServiceClient::notify are usually UDLs, which
+    // know which prefix of the path triggered them (and it is usually equal to the object pool name).
+    // For now, just send the entire non-key prefix of the pathname, and have the client's notification
+    // handler test substrings of that prefix to see if they are object pools.
     CascadeNotificationMessage cascade_message(get_pathname<KT>(key), message_body);
-    // TODO: redesign to avoid memory copies.
     NotificationMessage derecho_message(CascadeNotificationMessageType::SignatureNotification,
                                         mutils::bytes_size(cascade_message));
     mutils::to_bytes(cascade_message, derecho_message.body);

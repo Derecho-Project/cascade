@@ -21,7 +21,13 @@ enum CascadeNotificationMessageType : uint64_t {
 };
 
 struct CascadeNotificationMessage : public mutils::ByteRepresentable {
-    /** The object pool pathname, empty string for raw cascade notification message */
+    /**
+     * The matched prefix of the key that caused this notification to be sent.
+     * This is usually the object pool pathname for the object whose put caused
+     * the notification, but it can be any prefix that matches a vertex in the
+     * data flow graph and triggers a UDL. This can also be an empty string,
+     * which represents a "raw" notification message.
+     */
     std::string object_pool_pathname;
     /** data */
     Blob blob;
