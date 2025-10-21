@@ -2,7 +2,7 @@
     "version": "1.0.0",
     "transport" : "tcp",
     "private_ip": "127.0.0.1",
-    "private_port": 28583,
+    "private_port": 2583,
     "local_site_id" : 0,
     "local_initial_leader" : 0,
     "max_payload_size": 102400,
@@ -11,12 +11,12 @@
         {
             "id": 0,
             "ips": ["127.0.0.1", "127.0.0.1"],
-            "ports": [28581, 28583]
+            "ports": [2581, 2583]
         },
         {
             "id": 1,
             "ips": ["127.0.0.1", "127.0.0.1"],
-            "ports": [28586, 28587]
+            "ports": [2586, 2587]
         }
     ]
 }
