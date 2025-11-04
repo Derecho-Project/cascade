@@ -212,7 +212,7 @@ void put(ServiceClientAPI& capi, const std::string& key, const std::string& valu
 }
 
 template <typename SubgroupType>
-void put_objects_versions(ServiceClientAPI& capi, const std::vector<std::string>& key_list, const std::vector<std::string>& value_list, 
+void put_objects_versions(ServiceClientAPI& capi, const std::vector<std::string>& key_list, const std::vector<std::string>& value_list,
                  std::vector<persistent::version_t>& pver_list, std::vector<persistent::version_t>& pver_bk_list, uint32_t subgroup_index, uint32_t shard_index){
     std::vector<typename SubgroupType::ObjectType> objects;
     for (size_t i = 0; i < key_list.size(); i++) {
@@ -1243,7 +1243,7 @@ std::vector<command_entry_t> commands =
             CHECK_FORMAT(cmd_tokens,8);
             bool has_ver = cmd_tokens.size() % 2 == 1;
             int last_key = has_ver ? cmd_tokens.size() - 5 : cmd_tokens.size() - 4;
-            for (int i = 2; i <= last_key; i++) {
+            for (int i = 2; i <= last_key; i += 2) {
                 key_list.push_back(cmd_tokens[i]);
                 value_list.push_back(cmd_tokens[i + 1]);
             }
@@ -1273,7 +1273,7 @@ std::vector<command_entry_t> commands =
             std::vector<persistent::version_t> pver_list;
             std::vector<persistent::version_t> pver_bk_list;
             CHECK_FORMAT(cmd_tokens, 12);
-            for (uint64_t i = 2; i <= cmd_tokens.size() - 6; i++) {
+            for (uint64_t i = 2; i <= cmd_tokens.size() - 6; i += 4) {
                 key_list.push_back(cmd_tokens[i]);
                 value_list.push_back(cmd_tokens[i + 1]);
                 pver_list.push_back(static_cast<persistent::version_t>(std::stol(cmd_tokens[i + 2],nullptr,0)));
@@ -2330,6 +2330,8 @@ inline bool do_command(ServiceClientAPI& capi, const std::vector<std::string>& c
         }
     } catch (const derecho::derecho_exception &ex) {
         print_red (std::string("Exception:") + ex.what());
+    } catch (const std::exception& ex) {
+        print_red(std::string("Exception: ") + ex.what());
     } catch (...) {
         print_red ("Unknown exception caught.");
     }

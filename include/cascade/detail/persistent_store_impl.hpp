@@ -25,7 +25,7 @@ namespace cascade {
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::put(const VT& value, bool as_trigger) const {
-    debug_enter_func_with_args("value.get_key_ref()={}", value.get_key_ref());
+    debug_enter_func_with_args("value.get_key_ref()={}, as_trigger={}", value.get_key_ref(), as_trigger);
     LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_PUT_START, group, value);
 
     derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
@@ -48,7 +48,7 @@ version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::put(const VT& value, b
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::put_objects(const std::vector<VT>& values, bool as_trigger) const {
-    debug_enter_func_with_args("values.size={}", values.size());
+    debug_enter_func_with_args("values with keys = [{}], as_trigger={}", get_key_list(values), as_trigger);
     version_tuple ret{CURRENT_VERSION, 0, CURRENT_VERSION, CURRENT_VERSION};
 
     if(!values.empty()){
@@ -72,7 +72,7 @@ version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::put_objects(const std:
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void PersistentCascadeStore<KT, VT, IK, IV, ST>::put_and_forget(const VT& value, bool as_trigger) const {
-    debug_enter_func_with_args("value.get_key_ref()={}", value.get_key_ref());
+    debug_enter_func_with_args("value.get_key_ref()={}, as_trigger={}", value.get_key_ref());
     LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_PUT_AND_FORGET_START, group, value);
 
     derecho::Replicated<PersistentCascadeStore>& subgroup_handle = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index);
@@ -84,7 +84,7 @@ void PersistentCascadeStore<KT, VT, IK, IV, ST>::put_and_forget(const VT& value,
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void PersistentCascadeStore<KT, VT, IK, IV, ST>::put_objects_and_forget(const std::vector<VT>& values, bool as_trigger) const {
-    debug_enter_func_with_args("values.size={}", values.size());
+    debug_enter_func_with_args("values with keys = [{}], as_trigger={}", get_key_list(values), as_trigger);
 
     if(!values.empty()){
         LOG_TIMESTAMP_BY_TAG(TLT_PERSISTENT_PUT_START, group, values[0]);
@@ -542,7 +542,7 @@ std::vector<KT> PersistentCascadeStore<KT, VT, IK, IV, ST>::list_keys_by_time(co
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put(const VT& value,bool as_trigger) {
-    debug_enter_func_with_args("key={}", value.get_key_ref());
+    debug_enter_func_with_args("key={}, as_trigger={}", value.get_key_ref(), as_trigger);
 #ifdef ENABLE_EVALUATION
     auto version_and_hlc = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
 #endif
@@ -573,7 +573,7 @@ version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put(const VT& 
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_objects(const std::vector<VT>& values,bool as_trigger) {
-    debug_enter_func_with_args("size={}", values.size());
+    debug_enter_func_with_args("values with keys = [{}], as_trigger={}", get_key_list(values), as_trigger);
 
     auto version_and_hlc = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
     version_tuple versions_to_return{persistent::INVALID_VERSION, 0, persistent::INVALID_VERSION, persistent::INVALID_VERSION};
@@ -604,7 +604,7 @@ version_tuple PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_objects(co
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_and_forget(const VT& value,bool as_trigger) {
-    debug_enter_func_with_args("key={}", value.get_key_ref());
+    debug_enter_func_with_args("key={}, as_trigger={}", value.get_key_ref(), as_trigger);
 #ifdef ENABLE_EVALUATION
     auto version_and_hlc = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
 #endif
@@ -634,7 +634,7 @@ void PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_and_forget(const VT
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void PersistentCascadeStore<KT, VT, IK, IV, ST>::ordered_put_objects_and_forget(const std::vector<VT>& values,bool as_trigger) {
-    debug_enter_func_with_args("size={}", values.size());
+    debug_enter_func_with_args("values with keys = [{}], as_trigger={}", get_key_list(values), as_trigger);
 
     auto version_and_hlc = group->template get_subgroup<PersistentCascadeStore>(this->subgroup_index).get_current_version();
 

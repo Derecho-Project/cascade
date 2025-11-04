@@ -6,6 +6,7 @@
 #include <map>
 #include <memory>
 #include <type_traits>
+#include <sstream>
 
 #ifdef ENABLE_EVALUATION
 #include <derecho/utils/time.h>
@@ -25,6 +26,27 @@ namespace cascade {
  */
 template <typename KeyType>
 inline std::string get_pathname(const KeyType& key);
+
+/**
+ * Retrieves and concatenates the keys from a vector of objects into a
+ * comma-separated list.
+ *
+ * @tparam ValueType The type of the value object
+ * @param objects The vector of value objects
+ * @return std::string A string containing the keys of all the objects, separated by commas
+ */
+template <typename ValueType>
+std::string get_key_list(const std::vector<ValueType>& objects) {
+    if(objects.empty()) {
+        return "";
+    }
+    std::stringstream s;
+    for(std::size_t i = 0; i < objects.size() - 1; ++i) {
+        s << objects[i].get_key_ref() << ", ";
+    }
+    s << objects.back().get_key_ref();
+    return s.str();
+}
 
 #ifdef ENABLE_EVALUATION
 

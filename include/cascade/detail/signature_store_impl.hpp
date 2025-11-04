@@ -22,8 +22,7 @@ namespace cascade {
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 version_tuple SignatureCascadeStore<KT, VT, IK, IV, ST>::put(const VT& value, bool as_trigger) const {
-    // Somehow ensure that only one replica does the UDL here
-    debug_enter_func_with_args("value.get_key_ref()={}", value.get_key_ref());
+    debug_enter_func_with_args("value.get_key_ref()={}, as_trigger={}", value.get_key_ref(), as_trigger);
     LOG_TIMESTAMP_BY_TAG(TLT_SIGNATURE_PUT_START, group, value);
 
     derecho::Replicated<SignatureCascadeStore>& subgroup_handle = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index);
@@ -52,7 +51,7 @@ version_tuple SignatureCascadeStore<KT, VT, IK, IV, ST>::put_objects(const std::
 
 template <typename KT, typename VT, KT* IK, VT* IV, persistent::StorageType ST>
 void SignatureCascadeStore<KT, VT, IK, IV, ST>::put_and_forget(const VT& value, bool as_trigger) const {
-    debug_enter_func_with_args("value.get_key_ref()={}", value.get_key_ref());
+    debug_enter_func_with_args("value.get_key_ref()={}, as_trigger={}", value.get_key_ref(), as_trigger);
     LOG_TIMESTAMP_BY_TAG(TLT_SIGNATURE_PUT_AND_FORGET_START, group, value);
     derecho::Replicated<SignatureCascadeStore>& subgroup_handle = group->template get_subgroup<SignatureCascadeStore>(this->subgroup_index);
     subgroup_handle.template ordered_send<RPC_NAME(ordered_put_and_forget)>(value, as_trigger);
