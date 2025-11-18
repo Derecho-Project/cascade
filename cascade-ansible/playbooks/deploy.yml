@@ -1,11 +1,17 @@
 ---
-- name: CascadeChain Full Automated Setup
+- name: CascadeChain and CascadeCBDC Full Automated Setup
   hosts: localhost
   gather_facts: false
 
   vars:
-    # Path to your test config folder
+    # Path to CascadeChain docker_test_cfg folder
     repo_path: /home/mahady/cascade/src/applications/tests/cascade_chain/docker_test_cfg
+
+    # Host path where CBDC client configs are generated
+    # (adjust if your path is different)
+    cbdc_cfg_host_dir: /home/mahady/cascade-cbdc/build/cfg/client
+    # Where that directory will be mounted inside the CBDC containers
+    cbdc_cfg_container_dir: /cfg
 
     # Mapping: container name → working directory in container
     node_map:
@@ -19,9 +25,13 @@
       cascade-node7-1: /cascade/build-Debug/src/applications/tests/cascade_chain/docker_test_cfg/n7
 
   tasks:
+    ##################################################################
+    # 1) Clean up and (re)deploy CascadeChain nodes
+    ##################################################################
+
     - name: Clean up existing cascade containers
       shell: |
-        docker rm -f $(docker ps -aq --filter="name=cascade-node") || true
+        docker rm -f $(docker ps -aq --filter "name=cascade-node") || true
       ignore_errors: yes
 
     - name: Remove the custom cascade network (ignore error if not present)
@@ -43,27 +53,25 @@
       args:
         chdir: "{{ repo_path }}"
 
-    # ------- FIXED: only pass --ssh default if an SSH agent is actually present -------
     - name: Build Docker images (BuildKit; use SSH only if agent is present)
       vars:
         ssh_sock: "{{ lookup('env','SSH_AUTH_SOCK') | default('', true) }}"
-      ansible.builtin.shell: >
+      shell: >
         DOCKER_BUILDKIT=1 docker compose build
         {{ '--ssh default' if ssh_sock else '' }}
       args:
         chdir: "{{ repo_path }}"
-    # ---------------------------------------------------------------------------------
 
     - name: Start all Docker containers for CascadeChain
       shell: docker compose up -d
       args:
         chdir: "{{ repo_path }}"
 
-    - name: Wait for cascade containers to be healthy (max 30s)
+    - name: Wait for cascade containers to be healthy (max ~30s)
       shell: |
         for i in {0..7}; do
           for n in {1..15}; do
-            running=$(docker inspect -f '{{'{{.State.Running}}'}}' cascade-node${i}-1 2>/dev/null || echo 'false')
+            running=$(docker inspect -f '{{"{{.State.Running}}"}}' cascade-node${i}-1 2>/dev/null || echo 'false')
             if [ "$running" = "true" ]; then break; fi
             sleep 2
           done
@@ -76,10 +84,94 @@
       with_dict: "{{ node_map }}"
       when: item.key != 'cascade-node7-1'
 
-    - name: Start the client process in the client node container (node7)
+    - name: Start the CascadeChain client process in node7 container
       shell: docker exec -d -w {{ node_map['cascade-node7-1'] }} cascade-node7-1 ./run.sh client
+
+    ##################################################################
+    # 1a) Install ping in all Cascade node containers (for debugging)
+    ##################################################################
+
+    - name: Install ping utility in each Cascade node container
+      shell: |
+        docker exec -i {{ item.key }} bash -lc 'apt-get update -y && apt-get install -y iputils-ping'
+      with_dict: "{{ node_map }}"
+      ignore_errors: yes   # in case image already has ping or apt-get fails
+
+    ##################################################################
+    # 2) Clean up and deploy CascadeCBDC client containers
+    ##################################################################
+
+    - name: Clean up existing CascadeCBDC client containers
+      shell: |
+        docker rm -f $(docker ps -aq --filter "name=cascade-cbdc-client") || true
+      ignore_errors: yes
+
+    - name: Ask for number of CascadeCBDC Clients (0 = skip CBDC clients)
+      pause:
+        prompt: "How many CascadeCBDC clients would you like to deploy? (0 = skip):"
+      register: cbdc_client_input
+
+    - name: Parse cbdc_client_count safely
+      set_fact:
+        cbdc_client_count: "{{ (cbdc_client_input.user_input | default('0') | int) }}"
+
+    - name: Show which CascadeCBDC clients would be deployed (next step)
+      debug:
+        msg: "Would deploy CascadeCBDC client index {{ item }}"
+      loop: "{{ range(0, cbdc_client_count | int) | list }}"
+
+    # Ensure Cascade network exists (this is the SAME network used by Cascade nodes)
+    - name: Ensure cascade_derecho network exists
+      shell: |
+        docker network inspect cascade_derecho >/dev/null 2>&1 || docker network create cascade_derecho
+      changed_when: true
+
+    - name: Pull CascadeCBDC image if needed
+      shell: docker pull tgarr/cascade-cbdc:latest
+      changed_when: true
+      when: cbdc_client_count | int > 0
+
+    - name: Create CascadeCBDC client containers on same network as CascadeChain
+      shell: >
+        docker run -d
+        --name cascade-cbdc-client{{ item }}
+        --hostname cascade-cbdc-client{{ item }}
+        --network cascade_derecho
+        -v {{ cbdc_cfg_host_dir }}:{{ cbdc_cfg_container_dir }}:ro
+        tgarr/cascade-cbdc:latest
+        sleep infinity
+      loop: "{{ range(0, cbdc_client_count | int) | list }}"
+      when: cbdc_client_count | int > 0
+
+    ##################################################################
+    # 2a) Install ping + start cascade_client using real configs
+    ##################################################################
+
+    - name: Install ping utility in each CBDC client container
+      shell: |
+        docker exec -i cascade-cbdc-client{{ item }} bash -lc 'apt-get update -y && apt-get install -y iputils-ping'
+      loop: "{{ range(0, cbdc_client_count | int) | list }}"
+      when: cbdc_client_count | int > 0
+      ignore_errors: yes
+
+    - name: Start cascade_client binary inside each CBDC client container (from cfg dir)
+      shell: >
+        docker exec -d cascade-cbdc-client{{ item }}
+        bash -lc 'cd {{ cbdc_cfg_container_dir }} && /usr/local/bin/cascade_client'
+      loop: "{{ range(0, cbdc_client_count | int) | list }}"
+      when: cbdc_client_count | int > 0
+
+    ##################################################################
+    # 3) Final message
+    ##################################################################
 
     - name: Print deployment done message
       debug:
-        msg: "CascadeChain deployment complete! All servers and client are running."
+        msg: >
+          CascadeChain deployment complete.
+          CBDC clients requested: {{ cbdc_client_count }}.
+          All Cascade nodes are running;
+          CBDC client containers created on the same network (cascade_derecho),
+          configs mounted from {{ cbdc_cfg_host_dir }},
+          and cascade_client started inside each client (if count > 0).
 
