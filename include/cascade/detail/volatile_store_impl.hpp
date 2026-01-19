@@ -36,6 +36,35 @@ version_tuple VolatileCascadeStore<KT, VT, IK, IV>::put(const VT& value, bool as
 }
 
 template <typename KT, typename VT, KT* IK, VT* IV>
+version_tuple VolatileCascadeStore<KT, VT, IK, IV>::put_with_timestamp(const VT& value, uint64_t timestamp_us, bool as_trigger) const {
+    debug_enter_func_with_args("value.get_key_ref={}, timestamp_us={}", value.get_key_ref(), timestamp_us);
+    
+    uint64_t now_us = get_walltime() / 1000ULL;  // Convert nanoseconds to microseconds
+    uint64_t client_server_epsilon_us = derecho::getConfUInt64(derecho::Conf::PERS_CLIENT_SERVER_EPSILON_US);
+    uint64_t server_clock_skew_delta_us = derecho::getConfUInt64(derecho::Conf::PERS_SERVER_CLOCK_SKEW_DELTA_US);
+    uint64_t threshold_us = now_us - client_server_epsilon_us - server_clock_skew_delta_us;
+    if (timestamp_us < threshold_us) {
+        dbg_default_warn("put_with_timestamp: rejecting timestamp {} us (threshold: {} us, now: {} us)",
+                         timestamp_us, threshold_us, now_us);
+        throw derecho::derecho_exception("put_with_timestamp: timestamp is too old (older than now - client_server_epsilon - server_clock_skew_delta)");
+    }
+
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_PUT_START, group, value);
+
+    derecho::Replicated<VolatileCascadeStore>& subgroup_handle = group->template get_subgroup<VolatileCascadeStore>(this->subgroup_index);
+    auto results = subgroup_handle.template ordered_send_with_timestamp<RPC_NAME(ordered_put)>(timestamp_us, value, as_trigger);
+    auto& replies = results.get();
+    version_tuple ret{CURRENT_VERSION, 0};
+    for(auto& reply_pair : replies) {
+        ret = reply_pair.second.get();
+    }
+
+    LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_PUT_END, group, value);
+    debug_leave_func_with_value("version=0x{:x},timestamp={}us", std::get<0>(ret), std::get<1>(ret));
+    return ret;
+}
+
+template <typename KT, typename VT, KT* IK, VT* IV>
 void VolatileCascadeStore<KT, VT, IK, IV>::put_and_forget(const VT& value, bool as_trigger) const {
     debug_enter_func_with_args("value.get_key_ref={}", value.get_key_ref());
     LOG_TIMESTAMP_BY_TAG(TLT_VOLATILE_PUT_AND_FORGET_START, group, value);

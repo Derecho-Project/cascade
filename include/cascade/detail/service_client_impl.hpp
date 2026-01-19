@@ -2,6 +2,7 @@
 
 #include <cascade/config.h>
 #include <cascade/utils.hpp>
+#include <derecho/conf/conf.hpp>
 #include <derecho/core/derecho.hpp>
 #include <mutex>
 #include <typeindex>
@@ -64,7 +65,8 @@ std::unique_ptr<CascadeType> client_stub_factory() {
 template <typename... CascadeTypes>
 ServiceClient<CascadeTypes...>::ServiceClient(derecho::Group<CascadeMetadataService<CascadeTypes...>, CascadeTypes...>* _group_ptr)
         : external_group_ptr(nullptr),
-          group_ptr(_group_ptr) {
+          group_ptr(_group_ptr),
+          server_clock_skew_delta_us(derecho::getConfUInt64(derecho::Conf::PERS_SERVER_CLOCK_SKEW_DELTA_US)) {
     if(group_ptr == nullptr) {
         this->external_group_ptr = std::make_unique<derecho::ExternalGroupClient<CascadeMetadataService<CascadeTypes...>, CascadeTypes...>>(
                 client_stub_factory<CascadeMetadataService<CascadeTypes...>>,
@@ -755,6 +757,110 @@ void ServiceClient<CascadeTypes...>::collective_trigger_put(
             nodes_and_futures[kv.first] = std::make_unique<derecho::rpc::QueryResults<void>>(
                     std::move(caller.template p2p_send<RPC_NAME(trigger_put)>(kv.first, value)));
         }
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename ObjectType>
+derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::put_by_time(
+        const ObjectType& value, const uint64_t& timestamp_us, bool as_trigger) {
+    // STEP 1 - get key
+    if constexpr (!std::is_base_of_v<ICascadeObject<std::string,ObjectType>,ObjectType>) {
+        throw derecho::derecho_exception(std::string("ServiceClient<>::put_by_time() only support object of type ICascadeObject<std::string,ObjectType>,but we got ") + typeid(ObjectType).name());
+    }
+
+    // STEP 2 - validate timestamp: reject if timestamp_us < get_walltime() - Delta
+    uint64_t now_us = get_walltime() / 1000ULL;  // Convert nanoseconds to microseconds
+    uint64_t delta_us = server_clock_skew_delta_us / 1000ULL;  // Convert nanoseconds to microseconds
+    
+    if (timestamp_us < (now_us - delta_us)) {
+        dbg_default_warn("put_by_time: timestamp {}us is too old (now={}us, delta={}us), rejecting", 
+                timestamp_us, now_us, delta_us);
+        throw derecho::derecho_exception("put_by_time: timestamp is too old (older than now - delta)");
+    }
+
+    // STEP 3 - get shard
+    uint32_t subgroup_type_index,subgroup_index,shard_index;
+    std::tie(subgroup_type_index,subgroup_index,shard_index) = this->template key_to_shard(value.get_key_ref());
+
+    // STEP 4 - call recursive put_by_time
+    return this->template type_recursive_put_by_time<ObjectType,CascadeTypes...>(subgroup_type_index,value,timestamp_us,subgroup_index,shard_index,as_trigger);
+}
+
+template <typename... CascadeTypes>
+template <typename SubgroupType>
+derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::put_by_time(
+        const typename SubgroupType::ObjectType& value,
+        const uint64_t& timestamp_us,
+        uint32_t subgroup_index,
+        uint32_t shard_index,
+        bool as_trigger) {
+    LOG_SERVICE_CLIENT_TIMESTAMP(TLT_SERVICE_CLIENT_PUT_BY_TIME_START,
+            (std::is_base_of<IHasMessageID,typename SubgroupType::ObjectType>::value?value.get_message_id():0));
+    // Validate timestamp: timestamp_us must be >= (now - delta)
+    uint64_t now_ns = get_walltime();
+    uint64_t timestamp_ns = timestamp_us * 1000ULL; // Convert microseconds to nanoseconds
+    uint64_t delta_ns = server_clock_skew_delta_us * 1000ULL; 
+
+    if (timestamp_ns < now_ns - delta_ns) {
+        // Timestamp is too old, reject the request
+        throw derecho::derecho_exception("put_by_time: timestamp is too old (older than now - delta)");
+    }
+    if (!is_external_client()) {
+        std::lock_guard<std::mutex> lck(this->group_ptr_mutex);
+        if (static_cast<uint32_t>(group_ptr->template get_my_shard<SubgroupType>(subgroup_index)) == shard_index) {
+            // ordered put_by_time as a shard member - use ordered_send with timestamp
+            auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
+            return subgroup_handle.template ordered_send_with_timestamp<RPC_NAME(ordered_put)>(timestamp_us, value, as_trigger);
+        } else {
+            // p2p put_with_timestamp - send to a shard member who will do ordered_send_with_timestamp
+            node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index,value.get_key_ref());
+            try {
+                auto& subgroup_handle = group_ptr->template get_subgroup<SubgroupType>(subgroup_index);
+                return subgroup_handle.template p2p_send<RPC_NAME(put_with_timestamp)>(node_id,value,timestamp_us,as_trigger);
+            } catch (derecho::invalid_subgroup_exception& ex) {
+                auto& subgroup_handle = group_ptr->template get_nonmember_subgroup<SubgroupType>(subgroup_index);
+                return subgroup_handle.template p2p_send<RPC_NAME(put_with_timestamp)>(node_id,value,timestamp_us,as_trigger);
+            }
+        }
+    } else {
+        // External client - use put_with_timestamp P2P call
+        std::lock_guard<std::mutex> lck(this->external_group_ptr_mutex);
+        auto& caller = external_group_ptr->template get_subgroup_caller<SubgroupType>(subgroup_index);
+        node_id_t node_id = pick_member_by_policy<SubgroupType>(subgroup_index,shard_index,value.get_key_ref());
+        return caller.template p2p_send<RPC_NAME(put_with_timestamp)>(node_id,value,timestamp_us,as_trigger);
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename ObjectType, typename FirstType, typename SecondType, typename... RestTypes>
+derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::type_recursive_put_by_time(
+        uint32_t type_index,
+        const ObjectType& object,
+        const uint64_t& timestamp_us,
+        uint32_t subgroup_index,
+        uint32_t shard_index,
+        bool as_trigger) {
+    if (type_index == 0) {
+        return this->template put_by_time<FirstType>(object, timestamp_us, subgroup_index, shard_index, as_trigger);
+    } else {
+        return this->template type_recursive_put_by_time<ObjectType,SecondType,RestTypes...>(type_index-1,object,timestamp_us,subgroup_index,shard_index,as_trigger);
+    }
+}
+
+template <typename... CascadeTypes>
+template <typename ObjectType, typename LastType>
+derecho::rpc::QueryResults<version_tuple> ServiceClient<CascadeTypes...>::type_recursive_put_by_time(
+        uint32_t type_index,
+        const ObjectType& object,
+        const uint64_t& timestamp_us,
+        uint32_t subgroup_index,
+        uint32_t shard_index,
+        bool as_trigger) {
+    if (type_index == 0) {
+        return this->template put_by_time<LastType>(object, timestamp_us, subgroup_index, shard_index, as_trigger);
+    } else {
+        throw derecho::derecho_exception(std::string(__PRETTY_FUNCTION__) + ": type index is out of boundary.");
     }
 }
 

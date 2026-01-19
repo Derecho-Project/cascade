@@ -42,6 +42,7 @@ public:
     REGISTER_RPC_FUNCTIONS_WITH_NOTIFICATION(PersistentCascadeStore,
                                              P2P_TARGETS(
                                                      put,
+                                                     put_with_timestamp,
                                                      put_and_forget,
 #ifdef ENABLE_EVALUATION
                                                      perf_put,
@@ -86,6 +87,7 @@ public:
 #endif  // ENABLE_EVALUATION
     virtual void trigger_put(const VT& value) const override;
     virtual version_tuple put(const VT& value, bool as_trigger) const override;
+    virtual version_tuple put_with_timestamp(const VT& value, uint64_t timestamp_us, bool as_trigger) const;
     virtual void put_and_forget(const VT& value, bool as_trigger) const override;
 #ifdef ENABLE_EVALUATION
     virtual double perf_put(const uint32_t max_payload_size, const uint64_t duration_sec) const override;

@@ -9,6 +9,7 @@
 #include <derecho/core/notification.hpp>
 #include <derecho/mutils-serialization/SerializationSupport.hpp>
 #include <derecho/persistent/PersistentInterface.hpp>
+#include <derecho/utils/time.h>
 #include <functional>
 #include <hs/hs.h>
 #include <memory>
@@ -118,6 +119,8 @@ private:
             do_hash<std::tuple<std::type_index, uint32_t, uint32_t>>>
             member_cache;
     mutable std::shared_mutex member_cache_mutex;
+    // config clock skew delta (in microseconds) for time consistency
+    const uint64_t server_clock_skew_delta_us;
     /**
      * 'object_pool_info_cache' is a local cache for object pool metadata. This cache is used to accelerate the
      * object access process. If an object pool does not exists, it will be loaded from metadata service.
@@ -519,7 +522,66 @@ public:
     void collective_trigger_put(const typename SubgroupType::ObjectType& object,
                                 uint32_t subgroup_index,
                                 std::unordered_map<node_id_t, std::unique_ptr<derecho::rpc::QueryResults<void>>>& nodes_and_futures);
+    /**
+     * "put_by_time" writes an object to a given subgroup/shard with a custom timestamp.
+     *
+     * @param[in] object            the object to write.
+     * @param[in] timestamp_us      the timestamp in microseconds to use for the message header.
+     *                              The request will be rejected if timestamp_us < get_walltime() - Delta.
+     * @param[in] as_trigger        If true, the object will NOT apply to the K/V store. The object will only be
+     *                              used to update the state.
+     */
+    template <typename ObjectType>
+    derecho::rpc::QueryResults<version_tuple> put_by_time(const ObjectType& object, const uint64_t& timestamp_us, bool as_trigger = false);
 
+    /**
+     * "put_by_time" writes an object to a given subgroup/shard with a custom timestamp.
+     *
+     * @param[in] object            the object to write.
+     * @param[in] timestamp_us      the timestamp in microseconds to use for the message header.
+     *                              The request will be rejected if timestamp_us < get_walltime() - Delta.
+     * @param[in] subgroup_index    the subgroup index of CascadeType
+     * @param[in] shard_index       the shard index.
+     * @param[in] as_trigger        If true, the object will NOT apply to the K/V store. The object will only be
+     *                              used to update the state.
+     */
+    template <typename SubgroupType>
+    derecho::rpc::QueryResults<version_tuple> put_by_time(const typename SubgroupType::ObjectType& object,
+          const uint64_t& timestamp_us, uint32_t subgroup_index, uint32_t shard_index, bool as_trigger = false);
+
+protected:
+    /**
+     * "type_recursive_put" is a helper function for internal use only.
+     * @param[in]   type_index  the index of the subgroup type in the CascadeTypes... list. And the FirstType,
+     *                          SecondType, ..., RestTypes should be in the same order.
+     * @param[in]   object      the object to write
+     * @param[in]   timestamp_us the timestamp in microseconds to use for the message header.
+     * @param[in]   subgroup_index
+     *                          the subgroup index in the subgroup type designated by type_index
+     * @param[in]   shard_index the shard index
+     * @param[in]   as_trigger  If true, the object will NOT apply to the K/V store. The object will only be
+     *                          used to update the state.
+     *
+     * @return a future to the version and timestamp of the put operation.
+     */
+    template <typename ObjectType, typename FirstType, typename SecondType, typename... RestTypes>
+    derecho::rpc::QueryResults<version_tuple> type_recursive_put_by_time(
+            uint32_t type_index,
+            const ObjectType& object,
+            const uint64_t& timestamp_us,
+            uint32_t subgroup_index,
+            uint32_t shard_index,
+            bool as_trigger = false);
+
+    template <typename ObjectType, typename LastType>
+    derecho::rpc::QueryResults<version_tuple> type_recursive_put_by_time(
+            uint32_t type_index,
+            const ObjectType& object,
+            const uint64_t& timestamp_us,
+            uint32_t subgroup_index,
+            uint32_t shard_index,
+            bool as_trigger = false);
+public:
     /**
      * "remove" deletes an object with the given key.
      *

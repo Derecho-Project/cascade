@@ -35,7 +35,6 @@ inline uint64_t get_time_us(bool use_wall_clock = true) {
     return get_time_ns(use_wall_clock)/INT64_1E3;
 }
 
-
 /**
  * decompose the prefix into tokens. Please note that the token after the last separator is not considered a part of
  * the prefix and hence dropped if the "prefix_only" is true
@@ -204,6 +203,7 @@ public:
 #define TLT_SERVICE_CLIENT_MULTI_LIST_KEYS_START    (1009)
 #define TLT_SERVICE_CLIENT_GET_SIZE_START           (1010)
 #define TLT_SERVICE_CLIENT_MULTI_GET_SIZE_START     (1011)
+#define TLT_SERVICE_CLIENT_PUT_BY_TIME_START      (1012)
 
 /* For VolatileCascadeStore:
  * ::put():
